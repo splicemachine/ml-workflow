@@ -1,0 +1,13 @@
+artifact_uri: /tmp/runs/0/17eae7721c17492aa43966f3436d4e52/artifacts
+end_time: null
+entry_point_name: null
+experiment_id: 0
+name: Run 4
+run_uuid: 17eae7721c17492aa43966f3436d4e52
+source_name: /usr/local/bin/ipython
+source_type: 4
+source_version: null
+start_time: 1531772600966
+status: 1
+tags: []
+user_id: amritbaveja

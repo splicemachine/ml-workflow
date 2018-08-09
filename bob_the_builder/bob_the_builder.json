@@ -1,0 +1,46 @@
+{
+  "id": "/machine-learning/bob-the-builder",
+  "cmd": null,
+  "cpus": 2,
+  "mem": 5120,
+  "disk": 0,
+  "instances": 1,
+  "acceptedResourceRoles": [
+    "slave_public"
+  ],
+  "container": {
+    "type": "DOCKER",
+    "volumes": [],
+    "docker": {
+      "image": "splicemachine/bobby:4.0",
+      "network": "HOST",
+      "privileged": true,
+      "parameters": [],
+      "forcePullImage": true
+    }
+  },
+  "labels": {
+    "HAPROXY_GROUP": "external"
+  },
+  "healthChecks": [
+    {
+      "protocol": "HTTP",
+      "path": "/",
+      "port": 5003,
+      "gracePeriodSeconds": 300,
+      "intervalSeconds": 60,
+      "timeoutSeconds": 20,
+      "maxConsecutiveFailures": 5
+    }
+  ],
+  "env": {
+    "JDBC_URL": "jdbc:splice://amritsaccount-mlworkflow.splicemachine-qa.io:1527/splicedb;ssl=basic",
+    "USER": "splice",
+    "PASSWORD": "y5AbrFtx",
+    "S3_BUCKET_NAME": "s3://amrit-splice",
+    "DASH_PORT": "5003"
+  },
+  "uris": [
+    "file:///etc/docker.tar.gz"
+  ]
+}
