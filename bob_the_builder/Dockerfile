@@ -11,18 +11,17 @@ RUN echo "http://dl-8.alpinelinux.org/alpine/edge/community" >> /etc/apk/reposit
     ln -s server/libjvm.so .
 
 # install python dependencies
-RUN pip install cachetools scipy jaydebeapi numpy pyyaml awscli
-RUN pip install mlflow==0.4.2
+COPY utilities/requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt
 
 # create a directory for storing app data
 RUN mkdir -p /bob
 COPY ./ /bob/
 
 # make the entrypoint executable by all users
-RUN chmod a+x /bob/entrypoint.sh
-
-# print out a nice little graphic
-RUN cat /bob/bobby.txt
+RUN chmod a+x /bob/utilities/entrypoint.sh && \
+    cat /bob/goodies/bobby.txt
 
 WORKDIR '/'
-CMD ["/bob/entrypoint.sh"]
+
+CMD ["/bob/utilities/entrypoint.sh"]

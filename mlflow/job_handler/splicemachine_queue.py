@@ -66,7 +66,7 @@ class SpliceMachineQueue(object):
             jdbc_conn = jaydebeapi.connect("com.splicemachine.db.jdbc.ClientDriver", jdbc_url,
                                            {'user': username,
                                             'password': password, 'ssl': "basic"},
-                                           "./db-client-2.7.0.1815.jar")
+                                           "../utilities/db-client-2.7.0.1815.jar")
 
             # establish a JDBC connection to your database
             self.cursor = jdbc_conn.cursor()  # get a cursor

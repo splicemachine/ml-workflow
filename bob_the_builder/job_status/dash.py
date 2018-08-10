@@ -28,11 +28,6 @@ class JDBCUtils(object):
     def _renew():
         """Establish a new JDBC Connection to the server
         :return: nothing
-
-        Args:
-
-        Returns:
-
         """
         jdbc_conn = jaydebeapi.connect("com.splicemachine.db.jdbc.ClientDriver",
                                        JDBCUtils.jdbc_url,
@@ -46,11 +41,6 @@ class JDBCUtils(object):
     def renew_jdbc_connection():
         """Refresh every 51 mins, so that we won't time out JDBC connection
         :return: nothing
-
-        Args:
-
-        Returns:
-
         """
         if JDBCUtils.last_authenticated:
             logger.debug('Checking JDBC Connection')
@@ -72,10 +62,6 @@ class JDBCUtils(object):
         """Get Jobs From Splice Machine DB (cache results for 10 secs so page won't load extremely
         slowly every time
         :return: list of namedtuples containing jobs, or False if exception
-
-        Args:
-
-        Returns:
 
         """
         JDBCUtils.renew_jdbc_connection()
@@ -107,10 +93,6 @@ def dash():
     """Flask Dashboard route -- renders HTML template dash.html. Can be accessed via "/" or "/dash"
     on the port it is running
     :return: HTML file rendered by browser
-
-    Args:
-
-    Returns:
 
     """
     return render_template('dash.html', jobs=JDBCUtils.get_jobs())

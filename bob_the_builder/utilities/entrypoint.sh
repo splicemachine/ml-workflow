@@ -35,4 +35,4 @@ cd /bob/job_status && \
     nohup gunicorn --bind 0.0.0.0:$DASH_PORT --workers 4 dash:app > /tmp/dash.log &
 
 echo "Starting Worker"
-cd /bob && python worker.py
+cd /bob/service_jobs && python worker.py

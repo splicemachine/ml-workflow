@@ -1,0 +1,11 @@
+Flask==1.0.2
+mlflow==0.4.2
+gunicorn
+jaydebeapi
+pyyaml
+cachetools
+scipy
+jaydebeapi
+numpy
+pyyaml
+awscli

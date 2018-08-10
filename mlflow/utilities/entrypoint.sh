@@ -34,10 +34,8 @@ fi
 # do actual stuff
 echo "Starting S3 Daemon"
 mkdir -p /mlruns
-#nohup gunicorn --bind 0.0.0.0:$API_PORT --workers 4 app:app > /mnt/mesos/sandbox/job_api.log &
-#nohup python /tmp/s3_sync.py download -b $S3_BUCKET_NAME -m /mlruns -l 5 -i /tmp/mlcopy > \
-#    /mnt/mesos/sandbox/s3_daemon.log &
-nohup gunicorn --bind 0.0.0.0:$API_PORT --workers 4 app:app  &
-nohup python /tmp/s3_sync.py download -b $S3_BUCKET_NAME -m /mlruns -l 5 -i /tmp/mlcopy &
+
+cd /api/job_handler && nohup gunicorn --bind 0.0.0.0:$API_PORT --workers 4 app:app  &
+nohup python /api/tracking/s3_sync.py download -b $S3_BUCKET_NAME -m /mlruns -l 5 -i /tmp/mlcopy &
 echo "Starting Mlflow Server on 0.0.0.0"
 mlflow server --host 0.0.0.0 -p $MLFLOW_PORT --file-store /mlruns

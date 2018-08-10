@@ -191,7 +191,18 @@ class Worker(object):
                          '-t',
                          payload['instance_type'],
                          '-c',
-                         payload['instance_count']])
+                         payload['instance_count'],
+                         '-md',
+                         payload['deployment_mode']])
+
+    def start_scheduler(self, task):
+        pass
+
+    def stop_scheduler(self, task):
+        pass
+
+    def retrain(self, task):
+        pass
 
     def loop(self):
         """Loop and wait for incoming requests"""
@@ -203,6 +214,12 @@ class Worker(object):
                 if task.handler == 'deploy':
                     logger.debug('deploying...')
                     self.deploy_handler(task)
+                elif task.handler == 'schedule_start':
+                    self.start_scheduler(task)
+                elif task.handler == 'schedule_stop':
+                    self.stop_scheduler(task)
+                elif task.handler == 'retrain':
+                    self.retrain(task)
 
 
 if __name__ == '__main__':

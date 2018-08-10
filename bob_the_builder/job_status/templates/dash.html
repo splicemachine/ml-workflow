@@ -28,7 +28,7 @@
     <article class="larg">
         {% for job in jobs %}
         <div>
-            <h3>Job ID: {{job.job_id}} | <b>{{job.status}}</b>
+            <h3>{{job.payload['handler']}}}| Job ID: {{job.job_id}} | <b>{{job.status}}</b>
                 <span class="entypo-down-open"></span></h3>
             <p>
                 <i>Job Info:</i><br>
