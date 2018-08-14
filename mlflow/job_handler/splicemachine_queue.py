@@ -29,9 +29,9 @@ class SpliceMachineQueue(object):
     """
 
     def __init__(self):
-        self.created = False
         self.authenticated = False
         self.table = 'ML.JOBS'
+        self.state_table = 'ML.ACTIVE_SERVICES'
 
         self.datetime_format = "%m-%d-%Y %H:%M:%S"
         self.last_authenticated = datetime.today()
@@ -40,6 +40,18 @@ class SpliceMachineQueue(object):
                 'job_id', 'timestamp', 'handler', 'status', 'payload', 'info'])
 
         self.authenticate()
+        created = self.create_queue()
+        state = self.create_state_holder()
+
+        if created:
+            logger.info('Created Jobs Table')
+        else:
+            logger.info('Table for Jobs Exists')
+
+        if state:
+            logger.info('Created State Table')
+        else:
+            logger.info('Table for State exists')
 
     @staticmethod
     def _time_hrs_difference(date_1, date_2):
@@ -52,14 +64,14 @@ class SpliceMachineQueue(object):
         difference = date_2 - date_1
         return difference.total_seconds() / 60
 
-    def authenticate(self):
+    def authenticate(self, _force=False):
         """
         If the time difference between the last time we renewed our JDBC connection
         is greater that 510 minutes, renew our connection via environment variable info
         :return: nothing
         """
         t_diff = SpliceMachineQueue._time_hrs_difference(self.last_authenticated, datetime.today())
-        if t_diff >= 510 or not self.authenticated:
+        if t_diff >= 51 or not self.authenticated:
             jdbc_url = os.environ.get('JDBC_URL')
             username = os.environ.get('USER')
             password = os.environ.get('PASSWORD')
@@ -72,7 +84,10 @@ class SpliceMachineQueue(object):
             self.cursor = jdbc_conn.cursor()  # get a cursor
             self.authenticated = True
             self.last_authenticated = datetime.today()
-            logger.info('Renewed JDBC Connection')
+            if _force:
+                logger.info('Renewed JDBC Connection')
+            else:
+                logger.info('FORCED JDBC RECONNECTION!!!! THIS SHOULD\'T HAPPEN!')
 
     @staticmethod
     def _generate_timestamp():
@@ -91,14 +106,20 @@ class SpliceMachineQueue(object):
         """
         return md5(dumps(payload).encode('utf-8')).hexdigest()
 
-    def _execute_sql(self, sql):
+    def _execute_sql(self, sql, _auth_error=False):
         logger.info(sql)
         try:
             self.cursor.execute(sql)
             return True
 
         except Exception as e:
-            logger.error(e)
+            if 'connection' in str(e).lower() and not _auth_error:
+                logger.error(e)
+                logger.info("Authenticating...")
+                self.authenticate(_force=True)
+                logger.info("Retrying function...")
+                self._execute_sql(sql, _auth_error=True)
+
             return False
 
     def create_queue(self):
@@ -115,12 +136,86 @@ class SpliceMachineQueue(object):
             handler VARCHAR(100),
             status VARCHAR(80),
             payload VARCHAR(600),
-            info VARCHAR(600)
+            info VARCHAR(6000)
         )
             """.format(table=self.table)
         self.created = True
 
         return self._execute_sql(cmd)
+
+    def create_state_holder(self):
+        """
+        Create a state holder in the database (managing the availability of services)
+        :return: true if success, false if not
+        """
+        cmd = """
+        CREATE TABLE {state_table} (
+            service_handler VARCHAR(100),
+            state VARCHAR(50)
+        )
+        """.format(state_table=self.state_table)
+        return self._execute_sql(cmd)
+
+    def set_unknown_services_to_enabled(self, services):
+        """
+        Set services not already in the state table to enabled, by default
+        :param services: the services to insert if not exists
+        :return: True if success
+        """
+        current_services_cmd = 'SELECT service_handler FROM {state_table}'.format(
+            state_table=self.state_table)
+
+        self.cursor.execute(current_services_cmd)
+        created_services = [i[0] for i in self.cursor.fetchall()]
+        logger.info('found services ' + str(created_services))
+
+        for service in services:
+            if service not in created_services:
+                cmd = """
+                INSERT INTO {state_table} VALUES ('{service}', 'ENABLED')
+                """.format(state_table=self.state_table, service=service)
+                self._execute_sql(cmd)
+
+        return True
+
+    def update_state(self, service, state):
+        cmd = """
+        UPDATE {state_table}
+        SET state='{state}'
+        WHERE service_handler='{service}'
+        """.format(state_table=self.state_table, state=state, service=service)
+
+        return self._execute_sql(cmd)
+
+    def disable_service(self, service):
+        return self.update_state(service, 'DISABLED')
+
+    def enable_service(self, service):
+        return self.update_state(service, 'ENABLED')
+
+    def is_service_allowed(self, service):
+        """
+        returns whether or not a service is allowed to run
+        :param service: service handler name
+        :return: boolean indicating whether or not run is allowed
+        """
+
+        cmd = """SELECT service_name, state FROM {state_table}
+                WHERE service_name='{service}'
+        """.format(state_table=self.state_table, service=service)
+
+        self.cursor.execute(cmd)
+
+        results = self.cursor.fetchall()[0]
+
+        if results[1] == 'ENABLED':
+            return True
+
+        elif results[1] == 'DISABLED':
+            return False
+
+        else:
+            logger.error('service not found: ' + service)
 
     def insert(self, job_hash, status, timestamp, handler, payload):
         """
@@ -157,13 +252,6 @@ class SpliceMachineQueue(object):
         :return:
         """
         self.authenticate()
-
-        if not self.created:
-            created = self.create_queue()
-            if created:
-                logger.info('Created Table')
-            else:
-                logger.info('Table Exists')
 
         timestamp = self._generate_timestamp()  # get timestamp
         # generate a unique id for each job
@@ -241,7 +329,7 @@ class SpliceMachineQueue(object):
             return self.upstat(job_id, 'FAILED')
         return self.upstat(job_id, 'FINISHED')
 
-    def service_job(self):
+    def service_job(self, _auth_error=False):
         """
         Service the first job in the queue
         :return: namedtuple containing task info
@@ -269,5 +357,10 @@ class SpliceMachineQueue(object):
             self.upinfo(task.job_id, 'Service worker has found your request')
             return task
 
-        except Exception:
-            return None
+        except Exception as e:
+            if 'connection' in str(e).lower() and not _auth_error:
+                logger.error(e)
+                logger.info("Authenticating...")
+                self.authenticate(_force=True)
+                logger.info("Retrying function...")
+                self.service_job(_auth_error=True)

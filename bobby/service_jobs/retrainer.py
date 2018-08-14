@@ -3,6 +3,8 @@ import os
 
 from pyspark.ml import PipelineModel, Pipeline
 from splicemachine.ml import zeppelin
+from splicemachine.spark import context
+
 import mlflow
 
 logging.basicConfig()
@@ -14,7 +16,9 @@ scheduled_run = zeppelin.Run()
 
 
 class Trainer(object):
-    def __init__(self, task, queue):
+    def __init__(self, sc, sqlContext, task, queue):
+        self.sc = sc
+        self.sqlContext = sqlContext
         self.task = task
         self.queue = queue
 
@@ -22,13 +26,15 @@ class Trainer(object):
         new_pipeline = self.decompose_fitted_pipeline()
         self.create_mlflow_experiment()
         df = self.get_data_from_splicedb()
-        predicted = self.build_classification_model(df, new_pipeline)
+        metrics = self.build_classification_model(df, new_pipeline)
+        should_deploy = self.check_deployment_threshold(metrics)
+        return should_deploy
 
     def decompose_fitted_pipeline(self):
         fitted_pipeline_path = self.task.payload['ml_model_path'] + '/model'
         if not os.path.isdir(fitted_pipeline_path):
             raise Exception('Path: ' + fitted_pipeline_path + ' is not a valid pyspark '
-                                                                      'pipeline path')
+                                                              'pipeline path')
 
         fitted_pyspark_pipeline = PipelineModel.load(fitted_pipeline_path)
         pipeline_stages = fitted_pyspark_pipeline.stages  # Extract pipeline steps from fitted
@@ -38,8 +44,10 @@ class Trainer(object):
         return new_pipeline
 
     def get_data_from_splicedb(self):
-        # DO SOME STUFF
-        return
+        splice = context.PySpliceContext(os.environ.get('JDBC_URL'), self.sqlContext)
+        returned_df = splice.df(
+            'SELECT * FROM {table}'.format(table=self.task.payload['source_table']))
+        return returned_df
 
     def create_mlflow_experiment(self):
         experiment_name = (self.task.payload['app_name'] + '_scheduled').replace(' ', '_').lower()
@@ -77,4 +85,24 @@ class Trainer(object):
         scheduled_run.log_param('estimator', str(pipeline.stages[-1]).split('_')[0])
         scheduled_run.log_model(fitted_model_pipeline, 'pysparkmodel')
         returned_metrics = self.evaluate_classification_model(predicted_df)
-        return predicted_df, returned_metrics
+        return returned_metrics
+
+    def check_deployment_threshold(self, metrics):
+        if self.task.payload['deployment_mode'] == 'manual':
+            return False
+        elif self.task.payload['deployment_mode'] == 'automatic':
+            return True
+        elif self.task.payload['deployment_mode'] == 'threshold':
+            avail_ops = ['==', '<', '>', '<=', '>=', '!=']
+            avail_metrics = metrics.keys()
+            m1, t, n = self.task.payload['deployment_thresh'].split(' ')
+            if m1 in avail_metrics and t in avail_ops:
+                try:
+                    threshold = float(n)
+                except ValueError:
+                    return Exception('Malformed Threshold! Here is an example: specificity >= 0.6')
+
+                output = eval(
+                    '{metric} {op} {num}'.format(metric='metrics["' + m1 + '"]', op=t,
+                                                 num=str(threshold)))
+                return output

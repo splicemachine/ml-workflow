@@ -2,10 +2,9 @@ import logging
 import os
 import subprocess
 import time
-import traceback
 
 import yaml
-from pyspark import SparkConf, SparkContext
+from pyspark import SparkConf, SparkContext, SQLContext
 from retrainer import Trainer
 from splicemachine_queue import SpliceMachineQueue
 
@@ -30,16 +29,30 @@ logging.basicConfig()
 logger = logging.getLogger('worker')
 logger.setLevel(logging.DEBUG)
 
+HANDLERS = ['deploy', 'retrain']
+
 
 class Worker(object):
     """A worker that reads Splice Machine Queue"""
 
     def __init__(self):
+
         self.queue = SpliceMachineQueue()
-        self.poll_interval = 5  # seconds
+        self.queue.set_unknown_services_to_enabled(HANDLERS)
+
+        self.poll_interval = 5  # seconds to wait
+    
         conf = self.generate_spark_conf()
         print(conf.getAll())
         self.sc = SparkContext(conf=conf)
+
+        spark_conf_dir = os.environ['SPARK_HOME'] + '/conf/'
+        self.sc.addFile(spark_conf_dir + '/core-site.xml')
+        self.sc.addFile(spark_conf_dir + '/fairscheduler.xml')
+        self.sc.addFile(spark_conf_dir + '/hbase-site.xml')
+        self.sc.addFile(spark_conf_dir + '/hdfs-site.xml')
+        self.sqlContext = SQLContext(self.sc)
+
         print(self.sc.parallelize([1, 2, 3]))
         # self.sc.addFile()
         # self.context = SparkContext()
@@ -125,11 +138,14 @@ class Worker(object):
               - numpy=1.14.3
               - pandas=0.22.0
               - scikit-learn=0.19.1
-              - pyspark
+              - pyspark==2.2.2
+              - tensorflow
+              - keras
               - h2o
               - pip:
                 - mlflow==0.4.2
             """
+
         with open(model_path + '/conda.yaml',
                   'w') as conda_file:  # Write conda yaml to a file under the model path
             logger.debug('writing pkl to: ' + model_path + '/conda.yaml')
@@ -178,7 +194,7 @@ class Worker(object):
 
         Returns:
 
-        """
+
         try:
             os.environ['AWS_DEFAULT_REGION'] = task.payload['sagemaker_region']
 
@@ -200,6 +216,17 @@ class Worker(object):
             print(stack_trace)
             self.queue.upinfo(task.job_id, 'Failure!<br>' + stack_trace)
             self.queue.dequeue(task.job_id, True)
+        """
+        if self.queue.is_service_allowed(task.handler):
+            self.start_scheduler_handler(None)
+            self.start_scheduler_handler(None)
+            self.start_scheduler_handler(None)
+            self.start_scheduler_handler(None)
+            self.start_scheduler_handler(None)
+            self.start_scheduler_handler(None)
+
+        else:
+            logger.fatal('service ' + task.handler + ' is not allowed')
 
     def build_and_push_image(self, task_id):
         """Push and build MLFlow docker image to ECR
@@ -248,15 +275,39 @@ class Worker(object):
                                '-md',
                                payload['deployment_mode']])
 
-    def start_scheduler(self, task):
+    def stop_service_handler(self, task):
+        service_to_stop = task.payload['service']
+        if self.queue.disable_service(service_to_stop):
+            self.queue.upstat(task.job_id, 'UPDATED')
+            return True
+        else:
+            self.queue.upstat(task.job_id, 'FAILED')
+            return False
+
+    def start_service_handler(self, task):
+        service_to_start = task.payload['service']
+        if self.queue.enable_service(service_to_start):
+            self.queue.upstat(task.job_id, 'UPDATED')
+            return True
+        else:
+            self.queue.upstat(task.job_id, 'FAILED')
+            return False
+
+    def start_scheduler_handler(self, task):
+        a = self.sc.parallelize((1, 2, 3))
+        logger.info(str(a.collect()))
+        print(str(a.collect()))
+        logger.debug(str(a.collect()))
+
+    def stop_scheduler_handler(self, task):
         pass
 
-    def stop_scheduler(self, task):
-        pass
-
-    def retrain(self, task):
-        self.download_current_s3_state(task.id)
-        trainer = Trainer(task, self.queue)
+    def retrain_handler(self, task):
+        if self.queue.is_service_allowed(task.handler):
+            self.download_current_s3_state(task.id)
+            trainer = Trainer(self.sc, self.sqlContext, task, self.queue)
+        else:
+            logger.fatal('service ' + task.handler + 'is not allowed to run')
 
     def loop(self):
         """Loop and wait for incoming requests"""
@@ -265,15 +316,28 @@ class Worker(object):
             task = self.queue.service_job()
             if task:
                 logger.debug(task)
+
                 if task.handler == 'deploy':
                     logger.debug('deploying...')
                     self.deploy_handler(task)
+
                 elif task.handler == 'schedule_start':
-                    self.start_scheduler(task)
+                    self.start_scheduler_handler(task)
+
                 elif task.handler == 'schedule_stop':
-                    self.stop_scheduler(task)
-                elif task.handler == 'retraidn':
-                    self.retrain(task)
+                    self.stop_scheduler_handler(task)
+
+                elif task.handler == 'stop_service':
+                    self.stop_service_handler(task)
+
+                elif task.handler == 'start_service':
+                    self.start_service_handler(task)
+
+                elif task.handler == 'retrain':
+                    self.retrain_handler(task)
+
+                else:
+                    logger.error('task not understood: ' + task.handler)
 
 
 if __name__ == '__main__':

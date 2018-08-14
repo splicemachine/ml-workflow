@@ -17,5 +17,5 @@ RUN pip install -r requirements.txt
 COPY . /api
 
 # run the app server
-CMD ["/tmp/entrypoint.sh"]
+CMD ["/api/utilities/entrypoint.sh"]
  # run it

@@ -14,8 +14,16 @@
     <nav>
         <ul>
             <li>
-                <a href="javascript:void(0);" data-title="ML Jobs Tracker">ML Jobs</a>
+                <a class="menu-item" href="javascript:void(0);" data-title="ML Jobs Tracker">ML Jobs</a>
             </li>
+        <li style="padding-left:15px;">
+                <a style="font-size:20px;" class="menu-item" href="javascript:void(0);" data-title="Service Status">Service Status</a>
+            </li>
+          {% for service_data in statuses %}
+        <li style="padding-left:15px;">
+            <a class='status-item' style='font-size:14px; font-family:sans-serif;' href="javascript:void(0);" data-title="{{service_data.service}}: {{service_data.status}}">{{service_data.service}}: {{service_data.status}}</a>
+        </li>
+        {% endfor %}
         </ul>
     </nav>
 </header>
@@ -26,11 +34,14 @@
     </div>
 
     <article class="larg">
+
         {% for job in jobs %}
         <div>
             <h3>{{job.payload['handler']}} | Job ID: {{job.job_id}} | <b>{{job.status}}</b>
                 <span class="entypo-down-open"></span></h3>
             <p>
+                {% if job.payload['handler'] == 'deploy' %}
+
                 <i>Job Info:</i><br>
                 Job ID: {{job.job_id}}<br>
                 Timestamp: {{job.timestamp}} UTC<br><br>
@@ -45,6 +56,20 @@
                 AWS Region: {{job.payload['sagemaker_region']}}<br>
                 IAM Role: {{job.payload['iam_role']}}<br>
                 SageMaker App Name: {{job.payload['app_name']}}<br><br>
+
+                {% endif %}
+
+
+                {% if 'service' in job.payload['handler'] %}
+
+                <i>Change Service Availability Info</i><br>
+                Job ID: {{job.job_id}}<br>
+                Timestamp: {{job.timestamp}}<br><br>
+                Status: {{job.status}}<br>
+                Service: {{job.payload['service']}}<br>
+                Action: {{job.payload['action']}}<br><br>
+
+                {% endif %}
                 <button style="float:center;" data-label="refresh">refresh</button>
             </p>
         </div>

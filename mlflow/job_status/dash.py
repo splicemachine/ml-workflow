@@ -23,6 +23,7 @@ class JDBCUtils(object):
     last_authenticated = None
     cursor = None
     Job = namedtuple('Job', ['job_id', 'timestamp', 'handler', 'status', 'payload', 'info'])
+    ServiceStatus = namedtuple('ServiceStatus', ['service', 'status'])
 
     @staticmethod
     def _renew():
@@ -33,7 +34,7 @@ class JDBCUtils(object):
                                        JDBCUtils.jdbc_url,
                                        {'user': JDBCUtils.username,
                                         'password': JDBCUtils.password, 'ssl': "basic"},
-                                       "../db-client-2.7.0.1815.jar")
+                                       "../utilities/db-client-2.7.0.1815.jar")
         JDBCUtils.cursor = jdbc_conn.cursor()
         JDBCUtils.last_authenticated = datetime.today()
 
@@ -86,6 +87,26 @@ class JDBCUtils(object):
             logger.error(e)
             return False
 
+    @staticmethod
+    @cachetools.func.ttl_cache(maxsize=2048, ttl=37)
+    def get_statuses():
+        """
+        Get Service Handler Statuses from Splice Machine DB (cache results for 37 secs so page won't
+        load extremely slowly
+        :return: list of namedtuples containing handler statuses, or False if exception
+        """
+        JDBCUtils.renew_jdbc_connection()
+        logger.debug('Getting Statuses')
+        try:
+            JDBCUtils.cursor.execute('SELECT * FROM ML.ACTIVE_SERVICES')
+            results = JDBCUtils.cursor.fetchall()
+            statuses = [JDBCUtils.ServiceStatus(*serv_stat) for serv_stat in results]
+            return statuses
+
+        except Exception as e:
+            logger.error(e)
+            return False
+
 
 @app.route('/', methods=['GET'])
 @app.route('/dash', methods=['GET'])
@@ -95,9 +116,9 @@ def dash():
     :return: HTML file rendered by browser
 
     """
-    return render_template('dash.html', jobs=JDBCUtils.get_jobs())
+    return render_template('dash.html', jobs=JDBCUtils.get_jobs(),
+                           statuses=JDBCUtils.get_statuses())
 
 
 if __name__ == '__main__':
-    app.debug = True
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8080, debug=False)

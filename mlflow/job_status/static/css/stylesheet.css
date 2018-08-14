@@ -132,21 +132,7 @@ header nav ul li a:before {
 header nav ul li:first-child a:before {
   content: "\268f";
 }
-header nav ul li:nth-child(2) a:before {
-  content: "\1f465";
-}
-header nav ul li:nth-child(3) a:before {
-  content: "\1f4c5";
-}
-header nav ul li:nth-child(4) a:before {
-  content: "\e771";
-}
-header nav ul li:nth-child(5) a:before {
-  content: "\2699";
-}
-header nav ul li:nth-child(6) a:before {
-  content: "\1f50d";
-}
+
 main {
   flex: 1;
   -webkit-flex: 1;

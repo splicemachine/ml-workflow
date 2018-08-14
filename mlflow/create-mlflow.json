@@ -1,8 +1,8 @@
 {
   "id": "/machine-learning/mlflow",
   "cmd": null,
-  "cpus": 2,
-  "mem": 5120,
+  "cpus": 3,
+  "mem": 8120,
   "disk": 0,
   "instances": 1,
   "acceptedResourceRoles": [
@@ -34,12 +34,13 @@
     }
   ],
   "env": {
-    "JDBC_URL": "jdbc:splice://amritsaccount-mlworkflow.splicemachine-qa.io:1527/splicedb;ssl=basic",
+    "JDBC_URL": "jdbc:splice://amritsaccount-mlflow.splicemachine-qa.io:1527/splicedb;ssl=basic",
     "USER": "splice",
-    "PASSWORD": "y5AbrFtx",
+    "PASSWORD": "8AdzEmCE",
     "S3_BUCKET_NAME": "s3://amrit-splice",
     "API_PORT": "5002",
-    "MLFLOW_PORT": "5001"
+    "MLFLOW_PORT": "5001",
+    "DASH_PORT": "5003"
   },
   "uris": [
     "file:///etc/docker.tar.gz"

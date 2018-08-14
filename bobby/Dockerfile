@@ -8,6 +8,7 @@ ARG spark_version=2.2.2
 ARG hadoop_version=2.6
 ARG cdh_version=5.14.0
 
+ENV DIND_COMMIT='52379fa76dee07ca038624d639d9e14f4fb719ff'
 ENV SPARK_VERSION=$spark_version
 ENV HADOOP_VERSION=$hadoop_version
 ENV SPARK_HOME=/usr/local/spark-$SPARK_VERSION-bin-hadoop$HADOOP_VERSION
@@ -15,6 +16,10 @@ ENV JAVA_HOME=/usr/local/jdk1.8.0_121
 ENV PATH=$JAVA_HOME/bin:$SPARK_HOME/bin:$PATH
 ENV MESOS_NATIVE_JAVA_LIBRARY=/usr/local/libmesos-bundle/lib/libmesos.so
 ENV LD_LIBRARY_PATH=/usr/local/libmesos-bundle/lib:/native:/usr/local/lib:$LD_LIBRARY_PATH
+ENV SPARK_SUBMIT_LIBRARY_PATH="$SPARK_SUBMIT_LIBRARY_PATH:/native"
+ENV SPARK_SUBMIT_CLASSPATH="$SPARK_CLASSPATH:$SPARK_SUBMIT_CLASSPATH"
+ENV SPARK_CONF_PREFIX=$SPARK_HOME/conf/
+ENV SPARK_CLASSPATH="$SPARK_CONF_PREFIX/core-site.xml;$SPARK_CONF_PREFIX/fairscheduler.xml;$SPARK_CONF_PREFIX/hbase-site.xml;$SPARK_CONF_PREFIX/hdfs-site.xml"
 
 # install yum packages and fix default encoding so click doesn't throw a fit
 
@@ -30,10 +35,9 @@ RUN yum clean all && \
 COPY utilities/requirements.txt /tmp/requirements.txt
 COPY ./target/splicemachine-jars/* $SPARK_HOME/jars/
 
-RUN pip install -r /tmp/requirements.txt
-
 # Install Python Splice Machine Package
-RUN wget https://github.com/splicemachine/pysplice/archive/$SPLICEMACHINE_PY_VERSION.zip && \
+RUN pip install -r /tmp/requirements.txt && \
+    wget https://github.com/splicemachine/pysplice/archive/$SPLICEMACHINE_PY_VERSION.zip && \
     unzip $SPLICEMACHINE_PY_VERSION.zip && \
     cd pysplice-$SPLICEMACHINE_PY_VERSION && \
     pip install .
@@ -54,8 +58,6 @@ RUN curl -kLs "https://s3.amazonaws.com/splicemachine/$sm_version-$dbaas_build/a
 
 VOLUME /var/lib/docker
 EXPOSE 2375
-
-ENV DIND_COMMIT='52379fa76dee07ca038624d639d9e14f4fb719ff'
 
 RUN wget -O /usr/local/bin/dind "https://raw.githubusercontent.com/docker/docker/${DIND_COMMIT}/hack/dind" && \
 	chmod a+x /usr/local/bin/dind
