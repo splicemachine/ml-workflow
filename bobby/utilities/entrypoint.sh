@@ -35,12 +35,12 @@ nohup ./bob/utilities/run_dind.sh &
 
 echo "Copying config from HRegionServer"
 
-#curl -kLs  "http://hmaster-0-node.${FRAMEWORK_NAME}.mesos:16010/logs/conf.tar.gz" | tar -xz -C \
-#    /var/tmp/tmp_conf_files
-#cp  /var/tmp/tmp_conf_files/conf/core-site.xml $SPARK_HOME/conf/
-#cp  /var/tmp/tmp_conf_files/conf/fairscheduler.xml $SPARK_HOME/conf/
-#cp  /var/tmp/tmp_conf_files/conf/hbase-site.xml $SPARK_HOME/conf/
-#cp  /var/tmp/tmp_conf_files/conf/hdfs-site.xml $SPARK_HOME/conf/
+curl -kLs  "http://hmaster-0-node.${FRAMEWORK_NAME}.mesos:16010/logs/conf.tar.gz" | tar -xz -C \
+   /var/tmp/tmp_conf_files
+cp  /var/tmp/tmp_conf_files/conf/core-site.xml $SPARK_HOME/conf/
+cp  /var/tmp/tmp_conf_files/conf/fairscheduler.xml $SPARK_HOME/conf/
+cp  /var/tmp/tmp_conf_files/conf/hbase-site.xml $SPARK_HOME/conf/
+cp  /var/tmp/tmp_conf_files/conf/hdfs-site.xml $SPARK_HOME/conf/
 
 echo "Cleaning Up conf files"
 rm -r /var/tmp/tmp_conf_files

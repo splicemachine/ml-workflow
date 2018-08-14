@@ -1,8 +1,8 @@
 {
   "id": "/machine-learning/bob-the-builder",
   "cmd": null,
-  "cpus": 2.8,
-  "mem": 6120,
+  "cpus": 2.5,
+  "mem": 5096,
   "disk": 0,
   "instances": 1,
   "acceptedResourceRoles": [
@@ -13,7 +13,7 @@
     "type": "DOCKER",
     "volumes": [],
     "docker": {
-      "image": "splicemachine/bobby:test-3.3",
+      "image": "splicemachine/bobby:test-4.3",
       "network": "HOST",
       "privileged": true,
       "parameters": [],

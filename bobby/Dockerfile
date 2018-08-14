@@ -53,6 +53,7 @@ RUN curl -kLs "https://s3.amazonaws.com/splicemachine/$sm_version-$dbaas_build/a
     curl -kLs "https://s3.amazonaws.com/splicemachine/$sm_version-$dbaas_build/artifacts/splice-zeppelin-0.7.3-bin-all.tgz" | tar -xz -C /var/tmp zeppelin-0.7.3-bin-all/interpreter/spark/dep && \
     curl -kLs "https://s3.amazonaws.com/splicemachine/$sm_version-$dbaas_build/artifacts/jdk-8u121-linux-x64.tar.gz" | tar -xz -C /usr/local && \
     curl -kLs "https://s3.amazonaws.com/splicemachine/$sm_version-$dbaas_build/artifacts/libmesos-bundle-1.11.3.tar.gz" | tar -xz -C /usr/local && \
+    curl -kLso $SPARK_HOME/jars/mesos-1.5.0-shaded-protobuf.jar "https://s3.amazonaws.com/splicemachine/$sm_version-$dbass_build/artifacts/mesos-1.5.0-shaded-protobuf.jar" && \
     cp /var/tmp/zeppelin-0.7.3-bin-all/interpreter/spark/dep/hbase_*.jar $SPARK_HOME/jars/ && \
     rm -f /var/tmp/zeppelin-0.7.3-bin-all/interpreter/spark/dep/*
 

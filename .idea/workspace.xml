@@ -2,47 +2,12 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="42fd740b-fb01-4a15-8194-1f0e33b7ac42" name="Default" comment="">
-      <change afterPath="$PROJECT_DIR$/bobby/utilities/keep_alive.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/mlflow/utilities/keep_alive.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/\" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/bob_the_builder.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/goodies/bobby.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/job_status/dash.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/job_status/static/css/stylesheet.css" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/job_status/static/img/220px-Bob_the_builder.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/job_status/static/img/splice_logo.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/job_status/static/js/script.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/job_status/templates/dash.html" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/run_local.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/service_jobs/retrainer.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/service_jobs/s3_sync.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/service_jobs/splicemachine_queue.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/service_jobs/worker.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/utilities/db-client-2.7.0.1815.jar" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/utilities/entrypoint.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bob_the_builder/utilities/requirements.txt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/bobby/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/bobby/Dockerfile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bobby/bob_the_builder.json" beforeDir="false" afterPath="$PROJECT_DIR$/bobby/bob_the_builder.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bobby/job_status/dash.py" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/job_status/dash.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bobby/job_status/static/css/stylesheet.css" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/job_status/static/css/stylesheet.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bobby/job_status/static/img/220px-Bob_the_builder.jpg" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/job_status/static/img/220px-Bob_the_builder.jpg" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bobby/job_status/static/img/splice_logo.png" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/job_status/static/img/splice_logo.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bobby/job_status/static/js/script.js" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/job_status/static/js/script.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bobby/job_status/templates/dash.html" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/job_status/templates/dash.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bobby/service_jobs/retrainer.py" beforeDir="false" afterPath="$PROJECT_DIR$/bobby/service_jobs/retrainer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bobby/service_jobs/splicemachine_queue.py" beforeDir="false" afterPath="$PROJECT_DIR$/bobby/service_jobs/splicemachine_queue.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bobby/service_jobs/worker.py" beforeDir="false" afterPath="$PROJECT_DIR$/bobby/service_jobs/worker.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bobby/utilities/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/bobby/utilities/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bobby/utilities/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/bobby/utilities/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-zeppelin-master/run_local.sh" beforeDir="false" afterPath="$PROJECT_DIR$/docker-zeppelin-master/run_local.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mlflow/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/Dockerfile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mlflow/create-mlflow.json" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/create-mlflow.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mlflow/job_handler/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/job_handler/app.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mlflow/job_handler/splicemachine_queue.py" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/job_handler/splicemachine_queue.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mlflow/utilities/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/utilities/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mlflow/utilities/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/mlflow/utilities/requirements.txt" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -56,11 +21,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="Dockerfile" pinned="false" current-in-tab="false">
+      <file leaf-file-name="Dockerfile" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/bobby/Dockerfile">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="365">
-              <caret line="42" column="17" lean-forward="true" selection-start-line="42" selection-start-column="17" selection-end-line="42" selection-end-column="17" />
+            <state relative-caret-position="1095">
+              <caret line="73" column="34" selection-end-line="78" />
             </state>
           </provider>
         </entry>
@@ -92,8 +57,8 @@
       <file leaf-file-name="app.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/mlflow/job_handler/app.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="666">
-              <caret line="53" column="9" lean-forward="true" selection-start-line="53" selection-start-column="9" selection-end-line="53" selection-end-column="9" />
+            <state relative-caret-position="-437">
+              <caret line="54" column="96" selection-start-line="54" selection-start-column="96" selection-end-line="54" selection-end-column="96" />
               <folding>
                 <element signature="e#0#14#0" expanded="true" />
               </folding>
@@ -111,19 +76,28 @@
         </entry>
       </file>
       <file leaf-file-name="entrypoint.sh" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/bobby/utilities/entrypoint.sh">
+        <entry file="file://$PROJECT_DIR$/mlflow/utilities/entrypoint.sh">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="600">
-              <caret line="40" column="60" selection-start-line="40" selection-start-column="60" selection-end-line="40" selection-end-column="60" />
+            <state relative-caret-position="150">
+              <caret line="10" column="9" lean-forward="true" selection-start-line="10" selection-start-column="9" selection-end-line="10" selection-end-column="9" />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="worker.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="entrypoint.sh" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/bobby/utilities/entrypoint.sh">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="630">
+              <caret line="42" selection-start-line="42" selection-end-line="42" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="worker.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/bobby/service_jobs/worker.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="412">
-              <caret line="43" column="4" selection-start-line="43" selection-start-column="4" selection-end-line="43" selection-end-column="4" />
+            <state relative-caret-position="524">
+              <caret line="89" column="56" lean-forward="true" selection-start-line="89" selection-start-column="56" selection-end-line="89" selection-end-column="56" />
               <folding>
                 <element signature="e#0#14#0" expanded="true" />
               </folding>
@@ -154,15 +128,6 @@
                 <element signature="n#style#0;n#li#2;n#ul#0;n#nav#0;n#header#0;n#body#0;n#html#0;n#!!top" expanded="true" />
                 <element signature="n#style#0;n#a#0;n#li#2;n#ul#0;n#nav#0;n#header#0;n#body#0;n#html#0;n#!!top" expanded="true" />
               </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="stylesheet.css" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/mlflow/job_status/static/css/stylesheet.css">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="598">
-              <caret line="129" column="14" lean-forward="true" selection-start-line="129" selection-start-column="14" selection-end-line="129" selection-end-column="14" />
             </state>
           </provider>
         </entry>
@@ -219,15 +184,15 @@
         <option value="$PROJECT_DIR$/bobby/utilities/requirements.txt" />
         <option value="$PROJECT_DIR$/mlflow/utilities/entrypoint.sh" />
         <option value="$PROJECT_DIR$/bobby/bob_the_builder.json" />
-        <option value="$PROJECT_DIR$/bobby/Dockerfile" />
-        <option value="$PROJECT_DIR$/bobby/utilities/entrypoint.sh" />
         <option value="$PROJECT_DIR$/mlflow/job_handler/splicemachine_queue.py" />
-        <option value="$PROJECT_DIR$/mlflow/job_handler/app.py" />
         <option value="$PROJECT_DIR$/mlflow/job_status/dash.py" />
         <option value="$PROJECT_DIR$/mlflow/job_status/static/css/stylesheet.css" />
         <option value="$PROJECT_DIR$/mlflow/job_status/templates/dash.html" />
         <option value="$PROJECT_DIR$/bobby/service_jobs/splicemachine_queue.py" />
         <option value="$PROJECT_DIR$/bobby/service_jobs/worker.py" />
+        <option value="$PROJECT_DIR$/bobby/utilities/entrypoint.sh" />
+        <option value="$PROJECT_DIR$/mlflow/job_handler/app.py" />
+        <option value="$PROJECT_DIR$/bobby/Dockerfile" />
       </list>
     </option>
   </component>
@@ -370,7 +335,7 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="0" y="0" width="1920" height="1080" extended-state="0" />
+    <frame x="0" y="0" width="1440" height="900" extended-state="0" />
     <editor active="true" />
     <layout>
       <window_info anchor="bottom" id="TODO" order="6" sideWeight="0.49893504" weight="0.27064678" />
@@ -381,7 +346,7 @@
       <window_info anchor="bottom" id="Python Console" order="7" />
       <window_info anchor="right" id="Kite" order="3" />
       <window_info anchor="bottom" id="Terminal" order="7" />
-      <window_info active="true" content_ui="combo" id="Project" order="0" sideWeight="0.4972875" visible="true" weight="0.14217253" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" sideWeight="0.4972875" visible="true" weight="0.19098713" />
       <window_info anchor="bottom" id="Docker" order="7" show_stripe_button="false" />
       <window_info anchor="bottom" id="Find" order="1" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
@@ -692,27 +657,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/mlflow/utilities/entrypoint.sh">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-25">
-          <caret line="10" column="9" lean-forward="true" selection-start-line="10" selection-start-column="9" selection-end-line="10" selection-end-column="9" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/bobby/bob_the_builder.json">
-      <provider selected="true" editor-type-id="text-editor">
-        <state>
-          <caret column="1" lean-forward="true" selection-start-column="1" selection-end-column="1" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/bobby/utilities/entrypoint.sh">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="600">
-          <caret line="40" column="60" selection-start-line="40" selection-start-column="60" selection-end-line="40" selection-end-column="60" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/mlflow/job_status/static/css/stylesheet.css">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="598">
@@ -743,13 +687,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/bobby/Dockerfile">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="365">
-          <caret line="42" column="17" lean-forward="true" selection-start-line="42" selection-start-column="17" selection-end-line="42" selection-end-column="17" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/mlflow/job_handler/splicemachine_queue.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="280">
@@ -770,23 +707,51 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/bobby/utilities/entrypoint.sh">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="630">
+          <caret line="42" selection-start-line="42" selection-end-line="42" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/bobby/bob_the_builder.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret column="1" lean-forward="true" selection-start-column="1" selection-end-column="1" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/mlflow/job_handler/app.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="666">
-          <caret line="53" column="9" lean-forward="true" selection-start-line="53" selection-start-column="9" selection-end-line="53" selection-end-column="9" />
+        <state relative-caret-position="-437">
+          <caret line="54" column="96" selection-start-line="54" selection-start-column="96" selection-end-line="54" selection-end-column="96" />
           <folding>
             <element signature="e#0#14#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/mlflow/utilities/entrypoint.sh">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="150">
+          <caret line="10" column="9" lean-forward="true" selection-start-line="10" selection-start-column="9" selection-end-line="10" selection-end-column="9" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/bobby/service_jobs/worker.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="412">
-          <caret line="43" column="4" selection-start-line="43" selection-start-column="4" selection-end-line="43" selection-end-column="4" />
+        <state relative-caret-position="524">
+          <caret line="89" column="56" lean-forward="true" selection-start-line="89" selection-start-column="56" selection-end-line="89" selection-end-column="56" />
           <folding>
             <element signature="e#0#14#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/bobby/Dockerfile">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1095">
+          <caret line="73" column="34" selection-end-line="78" />
         </state>
       </provider>
     </entry>

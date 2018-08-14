@@ -1,8 +1,8 @@
 {
   "id": "/machine-learning/mlflow",
   "cmd": null,
-  "cpus": 3,
-  "mem": 8120,
+  "cpus": 2.5,
+  "mem": 5096,
   "disk": 0,
   "instances": 1,
   "acceptedResourceRoles": [
@@ -12,7 +12,7 @@
     "type": "DOCKER",
     "volumes": [],
     "docker": {
-      "image": "splicemachine/mlflow:5.1",
+      "image": "splicemachine/mlflow:6.6",
       "network": "HOST",
       "privileged": false,
       "parameters": [],

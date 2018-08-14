@@ -41,7 +41,7 @@ class Worker(object):
         self.queue.set_unknown_services_to_enabled(HANDLERS)
 
         self.poll_interval = 5  # seconds to wait
-    
+
         conf = self.generate_spark_conf()
         print(conf.getAll())
         self.sc = SparkContext(conf=conf)

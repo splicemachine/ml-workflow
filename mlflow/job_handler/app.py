@@ -3,7 +3,8 @@ import sys
 
 from flask import Flask, request, jsonify
 from splicemachine_queue import SpliceMachineQueue
-
+import random
+from hashlib import md5
 app = Flask(__name__)
 
 queue = SpliceMachineQueue()
@@ -50,7 +51,8 @@ def service_handler(service, action):
         assembled_metadata = {
             'service': service,
             'action': action,
-            'handler': action + '_service'
+            'handler': action + '_service',
+            'random_string': str(md5(str(random.randint(0, 10**5)).encode('utf-8')).hexdigest())
         }
         job_id = queue.enqueue(action + '_service', assembled_metadata)
 
