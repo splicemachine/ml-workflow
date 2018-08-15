@@ -18,6 +18,10 @@ available_handlers = ['deploy', 'schedule', 'retrain']
 
 
 def parse_exception():
+    """
+    Format an exception to look nice in a string format
+    :return: exception string formatted
+    """
     found_exception = sys.exc_info()
     exception_class, exception_msg = str(found_exception[0]), str(found_exception[1])
 
@@ -28,25 +32,56 @@ def parse_exception():
 
 
 def __generate_retrain_template(json_returned, handler):
-    return {
-        'handler': handler,
-        'ml_model_path': json_returned['path'] + json_returned['postfix'],
-        'deployment_thresh': json_returned['deployment_thresh'],
-        'interval': json_returned['interval'],
-        'problem_type': json_returned['problem_type'],
-        'deployment_mode': json_returned['deployment_mode'],
-        'instance_count': json_returned['instance_count'],
-        'sagemaker_region': json_returned['sagemaker_region'],
-        'app_name': json_returned['app_name'],
-        'instance_type': json_returned['instance_type'],
-        'iam_role': json_returned['iam_role'],
-        'source_table': json_returned['source_table'],
-        'train_size': json_returned['train_size']
-    }
+    """
+    :param json_returned: json from request
+    :param handler: the job handler
+    :return: dict containing assembled metadata
+    """
+    if handler == 'schedule_start':
+        return {
+            'handler': handler,
+            'ml_model_path': json_returned['path'] + json_returned['postfix'],
+            'deployment_thresh': json_returned.get('deployment_thresh', 'none'),
+            'when_to_deploy': json_returned['when_to_deploy'],
+            'interval': json_returned['interval'],
+            'problem_type': json_returned['problem_type'],
+            'deployment_mode': json_returned['deployment_mode'],
+            'instance_count': json_returned['instance_count'],
+            'sagemaker_region': json_returned.get('sagemaker_region', 'none'),
+            'app_name': json_returned.get('app_name', 'none'),
+            'instance_type': json_returned.get('instance_type', 'none'),
+            'iam_role': json_returned.get('iam_role', 'none'),
+            'source_table': json_returned.get('source_table', 'none'),
+            'train_size': json_returned['train_size']
+        }
+    elif handler == 'retrain':
+        return {
+            'handler': handler,
+            'ml_model_path': json_returned['path'] + json_returned['postfix'],
+            'deployment_thresh': json_returned.get('deployment_thresh', 'none'),
+            'when_to_deploy': json_returned['when_to_deploy'],
+            'problem_type': json_returned['problem_type'],
+            'deployment_mode': json_returned['deployment_mode'],
+            'instance_count': json_returned['instance_count'],
+            'sagemaker_region': json_returned.get('sagemaker_region', 'none'),
+            'app_name': json_returned.get('app_name', 'none'),
+            'instance_type': json_returned.get('instance_type', 'none'),
+            'iam_role': json_returned.get('iam_role', 'none'),
+            'source_table': json_returned.get('source_table', 'none'),
+            'train_size': json_returned['train_size']
+        }
+    else:
+        return None
 
 
 @app.route('/service/<service>/<action>', methods=['POST'])
 def service_handler(service, action):
+    """
+    Stop/Start another service
+    :param service: service handler to stop/start
+    :param action: stop/start
+    :return: success/error json
+    """
     if action in ['start', 'stop']:
         assembled_metadata = {
             'service': service,
@@ -64,6 +99,12 @@ def service_handler(service, action):
 
 @app.route('/schedule/<action>/<handler>', methods=['POST'])
 def scheduler_handler(action, handler):
+    """
+    Schedule a job to repeat via metrenome
+    :param action: start/stop
+    :param handler: request handler to trigger
+    :return: success/error json
+    """
     try:
         json_returned = request.get_json()
 
@@ -74,7 +115,7 @@ def scheduler_handler(action, handler):
             return jsonify(status='failed', msg='Handler {handler} is not available'.format(
                 handler=handler))
         else:
-            if handler == 'train':
+            if handler == 'retrain':
                 if action == 'start':
                     assembled_metadata = __generate_retrain_template(json_returned,
                                                                      'schedule_start')
@@ -96,13 +137,20 @@ def scheduler_handler(action, handler):
 
 @app.route('/retrain', methods=['POST'])
 def retrain_handler():
+    """
+    Retrain a model
+    :return: success/error json
+    """
     try:
         json_retrained = request.get_json()
 
         assembled_metadata = __generate_retrain_template(json_retrained, 'retrain')
 
-        job_id = queue.enqueue('retrain', assembled_metadata)
-        return jsonify({'job_id': job_id, 'status': 'pending'})
+        if assembled_metadata:
+            job_id = queue.enqueue('retrain', assembled_metadata)
+            return jsonify({'job_id': job_id, 'status': 'pending'})
+
+        return jsonify(status='failed', msg='invalid handler!')
 
     except Exception as e:
         logger.error(e)

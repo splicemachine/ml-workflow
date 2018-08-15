@@ -55,7 +55,10 @@ RUN curl -kLs "https://s3.amazonaws.com/splicemachine/$sm_version-$dbaas_build/a
     curl -kLs "https://s3.amazonaws.com/splicemachine/$sm_version-$dbaas_build/artifacts/libmesos-bundle-1.11.3.tar.gz" | tar -xz -C /usr/local && \
     curl -kLso $SPARK_HOME/jars/mesos-1.5.0-shaded-protobuf.jar "https://s3.amazonaws.com/splicemachine/$sm_version-$dbass_build/artifacts/mesos-1.5.0-shaded-protobuf.jar" && \
     cp /var/tmp/zeppelin-0.7.3-bin-all/interpreter/spark/dep/hbase_*.jar $SPARK_HOME/jars/ && \
-    rm -f /var/tmp/zeppelin-0.7.3-bin-all/interpreter/spark/dep/*
+    rm -f /var/tmp/zeppelin-0.7.3-bin-all/interpreter/spark/dep/* && \
+    rm -f /usr/lib/python2.7/site-packages/pyspark/jars/mesos-1.0.0-shaded-protobuf.jar && \
+    rm -f /usr/lib/python2.7/site-packages/pyspark/jars/spark-mesos_2.11-2.2.2.jar && \
+    cp $SPARK_HOME/jars/mesos-1.5.0-shaded-protobuf.jar /usr/lib/python2.7/site-packages/pyspark/jars/mesos-1.5.0-shaded-protobuf.jar
 
 VOLUME /var/lib/docker
 EXPOSE 2375
@@ -67,8 +70,7 @@ RUN wget -O /usr/local/bin/dind "https://raw.githubusercontent.com/docker/docker
 
 # Copy files
 RUN mkdir -p /bob
-COPY ./ /bob/
-
+COPY . /bob
 # make the entrypoint executable by all users
 RUN chmod a+x /bob/utilities/entrypoint.sh && \
     chmod a+x /bob/utilities/run_dind.sh && \
