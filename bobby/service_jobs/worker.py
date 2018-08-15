@@ -2,9 +2,11 @@ import logging
 import os
 import subprocess
 import time
+import traceback
 
 import yaml
-from pyspark import SparkConf, SparkContext, SQLContext
+from pyspark import SparkConf
+
 from retrainer import Trainer
 from splicemachine_queue import SpliceMachineQueue
 
@@ -42,18 +44,18 @@ class Worker(object):
 
         self.poll_interval = 5  # seconds to wait
 
-        conf = self.generate_spark_conf()
-        print(conf.getAll())
-        self.sc = SparkContext(conf=conf)
+        # conf = self.generate_spark_conf()
+        # print(conf.getAll())
+        # self.sc = SparkContext(conf=conf)
 
-        spark_conf_dir = os.environ['SPARK_HOME'] + '/conf/'
-        self.sc.addFile(spark_conf_dir + '/core-site.xml')
-        self.sc.addFile(spark_conf_dir + '/fairscheduler.xml')
-        self.sc.addFile(spark_conf_dir + '/hbase-site.xml')
-        self.sc.addFile(spark_conf_dir + '/hdfs-site.xml')
-        self.sqlContext = SQLContext(self.sc)
+        # spark_conf_dir = os.environ['SPARK_HOME'] + '/conf/'
+        # self.sc.addFile(spark_conf_dir + '/core-site.xml')
+        # self.sc.addFile(spark_conf_dir + '/fairscheduler.xml')
+        # self.sc.addFile(spark_conf_dir + '/hbase-site.xml')
+        # self.sc.addFile(spark_conf_dir + '/hdfs-site.xml')
+        # self.sqlContext = SQLContext(self.sc)
 
-        print(self.sc.parallelize([1, 2, 3]))
+        # print(self.sc.parallelize([1, 2, 3]))
         # self.sc.addFile()
         # self.context = SparkContext()
 
@@ -97,6 +99,7 @@ class Worker(object):
             "spark.mesos.mesosExecutor.cores": "0.5",
             "spark.mesos.executor.docker.volumes": "spark/tmp0:/spark/tmp0:/spark/tmp1:/spark/tmp1"
         }
+
         sparkConf = SparkConf()
         for option, value in options.items():
             sparkConf = sparkConf.set(option, value)
@@ -193,31 +196,36 @@ class Worker(object):
           task: return:
 
         Returns:
-
-
-        try:
-            os.environ['AWS_DEFAULT_REGION'] = task.payload['sagemaker_region']
-
-            logger.debug(task.payload)
-            self.download_current_s3_state(task.job_id)  # Download the current S3 State
-
-            time.sleep(3)  # Pause for 3 secs
-            self.conda_setup(task.job_id, task.payload['ml_model_path'])  # Setup conda environment
-            self.build_and_push_image(task.job_id)  # Push image to ECR
-
-            time.sleep(3)
-            self.deploy_model_to_sagemaker(task.job_id, task.payload)  # Deploy model to SageMaker
-
-            self.queue.dequeue(task.job_id)  # Dequeue task from queue (Finish the job)
-            self.queue.upinfo(task.job_id, 'Pushed Model to SageMaker! Success.')  # update info
-
-        except:
-            stack_trace = Worker._format_python_string_as_html(traceback.format_exc())
-            print(stack_trace)
-            self.queue.upinfo(task.job_id, 'Failure!<br>' + stack_trace)
-            self.queue.dequeue(task.job_id, True)
-        """
+    """
         if self.queue.is_service_allowed(task.handler):
+
+            try:
+                os.environ['AWS_DEFAULT_REGION'] = task.payload['sagemaker_region']
+
+                logger.debug(task.payload)
+                self.download_current_s3_state(task.job_id)  # Download the current S3 State
+
+                time.sleep(3)  # Pause for 3 secs
+                self.conda_setup(task.job_id,
+                                 task.payload['ml_model_path'])  # Setup conda environment
+                self.build_and_push_image(task.job_id)  # Push image to ECR
+
+                time.sleep(3)
+                self.deploy_model_to_sagemaker(task.job_id,
+                                               task.payload)  # Deploy model to SageMaker
+
+                self.queue.dequeue(task.job_id)  # Dequeue task from queue (Finish the job)
+                self.queue.upinfo(task.job_id, 'Pushed Model to SageMaker! Success.')  # update info
+
+            except:
+                stack_trace = Worker._format_python_string_as_html(traceback.format_exc())
+                print(stack_trace)
+                self.queue.upinfo(task.job_id, 'Failure!<br>' + stack_trace)
+                self.queue.dequeue(task.job_id, True)
+        else:
+            logger.fatal('service ' + task.handler + ' is not allowed')
+
+        """
             self.start_scheduler_handler(None)
             self.start_scheduler_handler(None)
             self.start_scheduler_handler(None)
@@ -226,7 +234,7 @@ class Worker(object):
             self.start_scheduler_handler(None)
 
         else:
-            logger.fatal('service ' + task.handler + ' is not allowed')
+        """
 
     def build_and_push_image(self, task_id):
         """Push and build MLFlow docker image to ECR
