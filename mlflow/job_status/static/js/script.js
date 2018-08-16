@@ -31,7 +31,60 @@ var loading = function(e) {
   }, 1230);
 };
 
-var btns = document.querySelectorAll('button');
+var btns = document.querySelectorAll('.refresh');
 for (var i=btns.length-1;i>=0;i--) {
   btns[i].addEventListener('click',loading);
 }
+
+var deploy_onclick = function(){
+    article_elem = document.getElementById('art')
+    article_elem.innerHTML = '<iframe src="/deploy" frameborder="0"  height="1000px" width="100%"></iframe>'
+}
+var toggle_onclick = function(){
+    article_elem = document.getElementById('art')
+    article_elem.innerHTML = '<iframe src="/toggle" frameborder="0"  height=600px" width="100%"></iframe>'
+}
+$('.form').find('input, textarea').on('keyup blur focus', function (e) {
+
+  var $this = $(this),
+      label = $this.prev('label');
+
+	  if (e.type === 'keyup') {
+			if ($this.val() === '') {
+          label.removeClass('active highlight');
+        } else {
+          label.addClass('active highlight');
+        }
+    } else if (e.type === 'blur') {
+    	if( $this.val() === '' ) {
+    		label.removeClass('active highlight');
+			} else {
+		    label.removeClass('highlight');
+			}
+    } else if (e.type === 'focus') {
+
+      if( $this.val() === '' ) {
+    		label.removeClass('highlight');
+			}
+      else if( $this.val() !== '' ) {
+		    label.addClass('highlight');
+			}
+    }
+
+});
+
+$('.tab a').on('click', function (e) {
+
+  e.preventDefault();
+
+  $(this).parent().addClass('active');
+  $(this).parent().siblings().removeClass('active');
+
+  target = $(this).attr('href');
+
+  $('.tab-content > div').not(target).hide();
+
+  $(target).fadeIn(600);
+
+});
+

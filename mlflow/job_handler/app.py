@@ -1,10 +1,12 @@
 import logging
-import sys
-
-from flask import Flask, request, jsonify
-from splicemachine_queue import SpliceMachineQueue
 import random
+import sys
 from hashlib import md5
+
+from flask import Flask, request, jsonify, make_response
+
+from splicemachine_queue import SpliceMachineQueue
+
 app = Flask(__name__)
 
 queue = SpliceMachineQueue()
@@ -15,6 +17,10 @@ logger.setLevel(logging.DEBUG)
 
 available_actions = ['start', 'stop']
 available_handlers = ['deploy', 'schedule', 'retrain']
+
+
+def failed_response(*args, **kwargs):
+    return make_response(jsonify(*args, **kwargs), 404)
 
 
 def parse_exception():
@@ -87,14 +93,14 @@ def service_handler(service, action):
             'service': service,
             'action': action,
             'handler': action + '_service',
-            'random_string': str(md5(str(random.randint(0, 10**5)).encode('utf-8')).hexdigest())
+            'random_string': str(md5(str(random.randint(0, 10 ** 5)).encode('utf-8')).hexdigest())
         }
         job_id = queue.enqueue(action + '_service', assembled_metadata)
 
         return jsonify(job_id=job_id, status='pending update')
 
-    return jsonify(status='failed',
-                   msg='action must be in [start, stop]. please format url correctly')
+    return failed_response(status='failed',
+                           msg='action must be in [start, stop]. please format url correctly')
 
 
 @app.route('/schedule/<action>/<handler>', methods=['POST'])
@@ -109,10 +115,10 @@ def scheduler_handler(action, handler):
         json_returned = request.get_json()
 
         if action not in available_actions:
-            return jsonify(status='failed', msg='Action {action} is not available'.format(
+            return failed_response(status='failed', msg='Action {action} is not available'.format(
                 action=action))
         elif handler not in available_handlers:
-            return jsonify(status='failed', msg='Handler {handler} is not available'.format(
+            return failed_response(status='failed', msg='Handler {handler} is not available'.format(
                 handler=handler))
         else:
             if handler == 'retrain':
@@ -132,7 +138,7 @@ def scheduler_handler(action, handler):
 
     except Exception as e:
         logger.error(e)
-        return jsonify(status='failed', msg=parse_exception())
+        return failed_response(status='failed', msg=parse_exception())
 
 
 @app.route('/retrain', methods=['POST'])
@@ -150,11 +156,11 @@ def retrain_handler():
             job_id = queue.enqueue('retrain', assembled_metadata)
             return jsonify({'job_id': job_id, 'status': 'pending'})
 
-        return jsonify(status='failed', msg='invalid handler!')
+        return failed_response(status='failed', msg='invalid handler!')
 
     except Exception as e:
         logger.error(e)
-        return jsonify(status='failed', msg=parse_exception())
+        return failed_response(status='failed', msg=parse_exception())
 
 
 @app.route('/deploy', methods=['POST'])
@@ -182,7 +188,7 @@ def deploy_handler():
 
     except Exception as e:
         logger.info(e)
-        return jsonify(status='failed', msg=parse_exception())
+        return failed_response(status='failed', msg=parse_exception())
 
 
 if __name__ == '__main__':

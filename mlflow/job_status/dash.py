@@ -6,7 +6,8 @@ from datetime import datetime
 
 import cachetools.func
 import jaydebeapi
-from flask import Flask, render_template
+import requests
+from flask import Flask, render_template, request
 
 logging.basicConfig()
 logger = logging.getLogger('dash')
@@ -120,5 +121,64 @@ def dash():
                            statuses=JDBCUtils.get_statuses())
 
 
+@app.route('/deploy', methods=['GET', 'POST'])
+def deploy():
+    """
+    Wrapper around deployment REST API
+    :return: checkmark, deploy or json depending on request or status
+    """
+    if request.method == 'GET':
+        return render_template('deploy.html')
+    elif request.method == 'POST':
+        host = 'http://0.0.0.0:{api_port}/deploy'.format(api_port=os.environ['API_PORT'])
+        assembled_metadata = {
+            'handler': 'deploy',
+            'path': '/mlruns/{experiment_id}/{run_id}/artifacts/'.format(
+                experiment_id=request.form['experiment_id'], run_id=request.form['run_id']),
+            'region': request.form['region'],
+            'postfix': 'pysparkmodel',
+            'instance_type': request.form['instance_type'],
+            'instance_count': request.form['instance_count'],
+            'iam_role': request.form['iam_role'],
+            'deployment_mode': request.form['deployment_mode'],
+            'app_name': request.form['app_name'],
+        }
+
+        r = requests.post(host, json=assembled_metadata)
+        if r.ok:
+            return render_template('check.html')
+        else:
+            return r.content
+    else:
+        return '<h1>Request not understood</h1>'
+
+
+@app.route('/toggle', methods=['GET', 'POST'])
+def toggle():
+    services_allowed_to_change = ['deploy', 'retrain']
+    actions_allowed = {
+        'enable': 'start',
+        'disable': 'stop'
+    }
+
+    if request.method == 'GET':
+        return render_template('toggle_services.html', services=services_allowed_to_change,
+                               actions=actions_allowed.items())
+
+    elif request.method == 'POST':
+
+        service = request.form['service']
+        action = request.form['action']
+        host = 'http://0.0.0.0:{api_port}/service/{service}/{action}'.format(
+            api_port=os.environ['API_PORT'], service=service,
+            action=action)
+
+        r = requests.post(host)
+        if r.ok:
+            return render_template('check.html')
+        else:
+            return r.content
+
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)

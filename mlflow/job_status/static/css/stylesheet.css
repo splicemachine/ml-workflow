@@ -1,3 +1,4 @@
+
 @charset "UTF-8";
 @import url(https://fonts.googleapis.com/css?family=Muli);
 @font-face {
@@ -131,6 +132,26 @@ header nav ul li a:before {
 }
 header nav ul li:first-child a:before {
   content: "\268f";
+}
+
+.deploy-btn {
+    margin-left: 45px;
+    width: 150px;
+    height: 36px;
+}
+
+.deploy-btn:before {
+    background-color:grey;
+}
+
+.deploy-btn2 {
+    margin-left: 45px;
+    width: 210px;
+    height: 36px;
+}
+
+.deploy-btn2:before {
+    background-color:grey;
 }
 
 main {

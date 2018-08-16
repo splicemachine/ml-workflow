@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" type="text/css" href=
+            "{{ url_for('static',filename='css/deploy.css') }}">
+    <title>Deploy</title>
+</head>
+<body>
+<div class="form">
+    <div class="tab-content">
+        <div id="signup">
+            <h1>Deploy to SageMaker</h1>
+            <center style="color:white">Please create an ECR repository called mlflow-pyfunc in the
+                SageMaker AWS Region you are deploying before submitting this form
+            </center>
+            <br>
+            <hr>
+            <br><br>
+            <form action="/deploy" id='deployment' method="post">
+
+
+                <div class="field-wrap">
+                    <label>
+                        Run UUID (can be found in MLFlow UI)<span class="req">*</span>
+                    </label>
+                    <input name='run_id' type="text" required/>
+                </div>
+                <div class="field-wrap">
+                    <label>
+                        Run Experiment ID (can be found in MLFlow UI)<span class="req">*</span>
+                    </label>
+                    <input name='experiment_id' type="text" required/>
+                </div>
+                <div class="field-wrap">
+                    <label>
+                        SageMaker App Name When Deployed<span class="req">*</span>
+                    </label>
+                    <input name='app_name' type="text" required>
+                </div>
+                <div class="field-wrap">
+                    <select form='deployment' name='region' style="height:40px; line-height:31px;">
+                        <option disabled selected>AWS Region</option>
+                        <option value="us-east-2">us-east-2</option>
+                        <option value="us-west-1">us-west-1</option>
+                        <option value="us-west-2">us-west-2</option>
+                        <option value="ca-central-1">ca-central-1</option>
+                        <option value="eu-central-1">eu-central-1</option>
+                        <option value="eu-west-1">eu-west-1</option>
+                        <option value="eu-west-2">eu-west-2</option>
+                        <option value="eu-west-3">eu-west-3</option>
+                        <option value="ap-northeast-1">ap-northeast-1</option>
+                        <option value="ap-northeast-2">ap-northeast-2</option>
+                        <option value="ap-northeast-3">ap-northeast-3</option>
+                        <option value="ap-southeast-1">ap-southeast-1</option>
+                        <option value="ap-southeast-2">ap-southeast-2</option>
+                        <option value="ap-south-1">ap-south-1</option>
+                        <option value="sa-east-1">sa-east-1</option>
+                    </select>
+                </div>
+                <div class="field-wrap">
+                    <label>
+                        SageMaker IAM Role<span class="req">*</span>
+                    </label>
+                    <input name='iam_role' type="text" required>
+                </div>
+                <div class="top-row">
+                    <div class="field-wrap">
+                        <select form='deployment' name='deployment_mode'
+                                style="height:40px; line-height:31px;">
+                            <option disabled selected>Deployment Mode</option>
+                            <option value="create">Create</option>
+                            <option value="replace">Replace</option>
+                            <option value="add">Add</option>
+                        </select>
+                    </div>
+
+                    <div class="field-wrap">
+                        <label>
+                            Instance Count<span class="req">*</span>
+                        </label>
+                        <input name='instance_count' type="text" required/>
+                    </div>
+                </div>
+                <div class="field-wrap">
+                    <select form='deployment' name='instance_type' style="height:40px; line-height:31px;">
+                        <option disabled selected>SageMaker Instance Type</option>
+                        <option value="ml.t2.medium">ml.t2.medium</option>
+                        <option value="ml.t2.large">ml.t2.large</option>
+                        <option value="ml.t2.xlarge">ml.t2.xlarge</option>
+                        <option value="ml.t2.2xlarge">ml.t2.2xlarge</option>
+                        <option value="ml.m5.large">ml.m5.large</option>
+                        <option value="ml.m5.xlarge">ml.m5.xlarge</option>
+                        <option value="ml.m5.2xlarge">ml.m5.2xlarge</option>
+                        <option value="ml.m5.4xlarge">ml.m5.4xlarge</option>
+                        <option value="ml.m5.12xlarge">ml.m5.12xlarge</option>
+                        <option value="ml.m5.24xlarge">ml.m5.24xlarge</option>
+                        <option value="ml.m4.xlarge">ml.m4.xlarge</option>
+                        <option value="ml.m4.4xlarge">ml.m4.4xlarge</option>
+                        <option value="ml.m4.10xlarge">ml.m4.10xlarge</option>
+                        <option value="ml.m4.16xlarge">ml.m4.16xlarge</option>
+                        <option value="ml.c5.large">ml.c5.large</option>
+                        <option value="ml.c5.xlarge">ml.c5.xlarge</option>
+                        <option value="ml.c5.2xlarge">ml.c5.2xlarge</option>
+                        <option value="ml.c5.4xlarge">ml.c5.4xlarge</option>
+                        <option value="ml.c5.9xlarge">ml.c5.9xlarge</option>
+                        <option value="ml.c5.18xlarge">ml.c5.18xlarge</option>
+                        <option value="ml.c4.large">ml.c4.large</option>
+                        <option value="ml.c4.xlarge">ml.c4.xlarge</option>
+                        <option value="ml.c4.2xlarge">ml.c4.2xlarge</option>
+                        <option value="ml.c4.4xlarge">ml.c4.4xlarge</option>
+                        <option value="ml.c4.8xlarge">ml.c4.8xlarge</option>
+                        <option value="ml.p3.2xlarge">ml.p3.2xlarge</option>
+                        <option value="ml.p3.8xlarge">ml.p3.8xlarge</option>
+                        <option value="ml.p3.16xlarge">ml.p3.16xlarge</option>
+                        <option value="ml.p2.xlarge">ml.p2.xlarge</option>
+                        <option value="ml.p2.8xlarge">ml.p2.8xlarge</option>
+                        <option value="ml.p2.16xlarge">ml.p2.16xlarge</option>
+                        <option value="ml.p2.16xlarge">ml.p2.16xlarge</option>
+                    </select>
+
+                </div>
+                <button class='button' type="submit">Submit</button>
+            </form>
+
+        </div>
+
+        <div id="login">
+
+        </div>
+
+    </div><!-- tab-content -->
+
+</div> <!-- /form -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

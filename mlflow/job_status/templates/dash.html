@@ -9,31 +9,43 @@
 <body>
 <span class="bckg"></span>
 <header>
-    <img class='banner-img' width='50%'
-         src="{{ url_for('static', filename='img/splice_logo.png') }}"/>
+    <a href="/dash"><img class='banner-img' width='50%'
+                         src="{{ url_for('static', filename='img/splice_logo.png') }}"/></a>
     <nav>
         <ul>
             <li>
-                <a class="menu-item" href="javascript:void(0);" data-title="ML Jobs Tracker">ML Jobs</a>
+                <a class="menu-item" href="javascript:void(0);" data-title="ML Jobs Tracker">ML
+                    Jobs</a>
             </li>
-        <li style="padding-left:15px;">
-                <a style="font-size:20px;" class="menu-item" href="javascript:void(0);" data-title="Service Status">Service Status</a>
+            <li style="padding-left:15px;">
+                <a style="font-size:20px;" class="menu-item" href="javascript:void(0);"
+                   data-title="Service Status">Service Status</a>
             </li>
-          {% for service_data in statuses %}
-        <li style="padding-left:15px;">
-            <a class='status-item' style='font-size:14px; font-family:sans-serif;' href="javascript:void(0);" data-title="{{service_data.service}}: {{service_data.status}}">{{service_data.service}}: {{service_data.status}}</a>
-        </li>
-        {% endfor %}
+            {% for service_data in statuses %}
+            <li style="padding-left:15px;">
+                <a class='status-item' style='font-size:14px; font-family:sans-serif;'
+                   href="javascript:void(0);"
+                   data-title="{{service_data.service}}: {{service_data.status}}">{{service_data.service}}:
+                    {{service_data.status}}</a>
+            </li>
+            {% endfor %}
         </ul>
     </nav>
 </header>
 <main>
     <div class="title">
-        <h2>ML Jobs Tracker</h2>
+        <h2>ML Jobs Tracker
+            <button class='deploy-btn' onclick='deploy_onclick()' data-label="deploy">Deploy a new
+                model
+            </button>&nbsp;
+            <button class='deploy-btn' style='width:210px' onclick='toggle_onclick()'
+                    data-label="toggle services">Toggle Services
+            </button>
+        </h2>
         <a href="javascript:void(0);">Hello Splice User!</a>
     </div>
 
-    <article class="larg">
+    <article id='art' class="larg">
 
         {% for job in jobs %}
         <div>
@@ -70,7 +82,8 @@
                 Action: {{job.payload['action']}}<br><br>
 
                 {% endif %}
-                <button style="float:center;" data-label="refresh">refresh</button>
+                <button class='button refresh' style="float:center;" data-label="refresh">refresh
+                </button>
             </p>
         </div>
         {% endfor %}

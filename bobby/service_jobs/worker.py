@@ -7,7 +7,6 @@ import traceback
 import yaml
 from pyspark import SparkConf
 
-from retrainer import Trainer
 from splicemachine_queue import SpliceMachineQueue
 
 """
@@ -197,9 +196,8 @@ class Worker(object):
 
         Returns:
     """
-        if self.queue.is_service_allowed(task.handler):
-
-            try:
+        try:
+            if self.queue.is_service_allowed(task.handler):
                 os.environ['AWS_DEFAULT_REGION'] = task.payload['sagemaker_region']
 
                 logger.debug(task.payload)
@@ -216,14 +214,16 @@ class Worker(object):
 
                 self.queue.dequeue(task.job_id)  # Dequeue task from queue (Finish the job)
                 self.queue.upinfo(task.job_id, 'Pushed Model to SageMaker! Success.')  # update info
-
-            except:
-                stack_trace = Worker._format_python_string_as_html(traceback.format_exc())
-                print(stack_trace)
-                self.queue.upinfo(task.job_id, 'Failure!<br>' + stack_trace)
+            else:
+                self.queue.upinfo(task.job_id, 'Failure!<br>' + 'Deployment is disabled!')
                 self.queue.dequeue(task.job_id, True)
-        else:
-            logger.fatal('service ' + task.handler + ' is not allowed')
+
+
+        except:
+            stack_trace = Worker._format_python_string_as_html(traceback.format_exc())
+            print(stack_trace)
+            self.queue.upinfo(task.job_id, 'Failure!<br>' + stack_trace)
+            self.queue.dequeue(task.job_id, True)
 
         """
             self.start_scheduler_handler(None)
@@ -284,6 +284,11 @@ class Worker(object):
                                payload['deployment_mode']])
 
     def stop_service_handler(self, task):
+        """
+        Disable a specific service
+        :param task: task from json
+        :return: True on success, False on exception
+        """
         service_to_stop = task.payload['service']
         if self.queue.disable_service(service_to_stop):
             self.queue.upstat(task.job_id, 'UPDATED')
@@ -293,6 +298,11 @@ class Worker(object):
             return False
 
     def start_service_handler(self, task):
+        """
+        Enable a specific service
+        :param task: task from json
+        :return: True on success, False on exception
+        """
         service_to_start = task.payload['service']
         if self.queue.enable_service(service_to_start):
             self.queue.upstat(task.job_id, 'UPDATED')
@@ -302,19 +312,37 @@ class Worker(object):
             return False
 
     def start_scheduler_handler(self, task):
+        """
+        Start a metrenome app that will resubmit task every task.payload['interval'] minutes
+        :param task: task from json
+        :return: NotImplementedError (until implemented)
+        """
+        raise NotImplementedError()
+
+    def spark_test(self, task):
+        """
+        Test the Splice Machine Spark
+        :param task:
+        :return:
+        """
         a = self.sc.parallelize((1, 2, 3))
         logger.info(str(a.collect()))
         print(str(a.collect()))
         logger.debug(str(a.collect()))
 
     def stop_scheduler_handler(self, task):
-        pass
+        raise NotImplementedError()
 
     def retrain_handler(self, task):
-        if self.queue.is_service_allowed(task.handler):
-            self.download_current_s3_state(task.id)
-            trainer = Trainer(self.sc, self.sqlContext, task, self.queue)
-        else:
+        try:
+            if self.queue.is_service_allowed(task.handler):
+                self.download_current_s3_state(task.id)
+                # trainer = Trainer(self.sc, self.sqlContext, task, self.queue)
+                raise NotImplementedError()
+            else:
+                self.queue.upinfo(task.job_id, 'Failure!<br>' + 'Retraining is disabled!')
+                self.queue.dequeue(task.job_id, True)
+        except:
             logger.fatal('service ' + task.handler + 'is not allowed to run')
 
     def loop(self):
