@@ -33,7 +33,7 @@ mkdir -p /var/tmp/tmp_conf_files
 echo "Starting up Docker Daemon"
 nohup ./bob/utilities/run_dind.sh &
 
-#echo "Copying config from HRegionServer"
+#echo "Copying config from HMaster on DBaaS cluster"
 
 #curl -kLs  "http://hmaster-0-node.${FRAMEWORK_NAME}.mesos:16010/logs/conf.tar.gz" | tar -xz -C \
 #   /var/tmp/tmp_conf_files
@@ -46,8 +46,7 @@ echo "Cleaning Up conf files"
 rm -r /var/tmp/tmp_conf_files
 
 echo "Starting Worker"
-#cd /bob/service_jobs &&
-#    nohup python worker.py > /tmp/worker.log &
+cd /bob/service_jobs &&
+    nohup python worker.py > /tmp/worker.log &
 
-echo "Keeping Alive!"
-cd /bob/service_jobs && python worker.py
+python /bob/utilities/keep_alive.py

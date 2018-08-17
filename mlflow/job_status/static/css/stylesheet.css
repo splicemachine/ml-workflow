@@ -153,7 +153,16 @@ header nav ul li:first-child a:before {
 .deploy-btn2:before {
     background-color:grey;
 }
+.wrap {
+ width: 600px; height: 390px; padding: 0; overflow: hidden;
+ }
 
+.frame {
+zoom: 0.75; -moz-transform: scale(0.75); -moz-transform-origin: 0 0;
+}
+#home {
+    display:none;
+}
 main {
   flex: 1;
   -webkit-flex: 1;

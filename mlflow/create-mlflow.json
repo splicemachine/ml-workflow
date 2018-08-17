@@ -12,7 +12,7 @@
     "type": "DOCKER",
     "volumes": [],
     "docker": {
-      "image": "splicemachine/mlflow:6.6",
+      "image": "splicemachine/mlflow:6.8",
       "network": "HOST",
       "privileged": false,
       "parameters": [],

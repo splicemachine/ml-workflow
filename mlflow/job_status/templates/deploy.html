@@ -14,8 +14,6 @@
                 SageMaker AWS Region you are deploying before submitting this form
             </center>
             <br>
-            <hr>
-            <br><br>
             <form action="/deploy" id='deployment' method="post">
 
 
@@ -82,7 +80,8 @@
                     </div>
                 </div>
                 <div class="field-wrap">
-                    <select form='deployment' name='instance_type' style="height:40px; line-height:31px;">
+                    <select form='deployment' name='instance_type'
+                            style="height:40px; line-height:31px;">
                         <option disabled selected>SageMaker Instance Type</option>
                         <option value="ml.t2.medium">ml.t2.medium</option>
                         <option value="ml.t2.large">ml.t2.large</option>

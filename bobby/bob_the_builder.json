@@ -6,14 +6,20 @@
   "disk": 0,
   "instances": 1,
   "acceptedResourceRoles": [
-    "slave_public"
+    "*"
   ],
-  
+  "constraints": [
+   [
+     "tasktype",
+     "LIKE",
+     "privateagent"
+   ]
+ ],
   "container": {
     "type": "DOCKER",
     "volumes": [],
     "docker": {
-      "image": "splicemachine/bobby:test-cs",
+      "image": "splicemachine/bobby:5.4",
       "network": "HOST",
       "privileged": true,
       "parameters": [],

@@ -58,7 +58,9 @@ def __generate_retrain_template(json_returned, handler):
             'instance_type': json_returned.get('instance_type', 'none'),
             'iam_role': json_returned.get('iam_role', 'none'),
             'source_table': json_returned.get('source_table', 'none'),
-            'train_size': json_returned['train_size']
+            'train_size': json_returned['train_size'],
+            'random_string': str(md5(str(random.randint(0, 10 ** 5)).encode('utf-8')).hexdigest())
+
         }
     elif handler == 'retrain':
         return {
@@ -74,7 +76,9 @@ def __generate_retrain_template(json_returned, handler):
             'instance_type': json_returned.get('instance_type', 'none'),
             'iam_role': json_returned.get('iam_role', 'none'),
             'source_table': json_returned.get('source_table', 'none'),
-            'train_size': json_returned['train_size']
+            'train_size': json_returned['train_size'],
+            'random_string': str(md5(str(random.randint(0, 10 ** 5)).encode('utf-8')).hexdigest())
+
         }
     else:
         return None
@@ -181,7 +185,9 @@ def deploy_handler():
             'instance_count': json_returned['instance_count'],
             'iam_role': json_returned['iam_role'],
             'deployment_mode': json_returned['deployment_mode'],
-            'app_name': json_returned['app_name']
+            'app_name': json_returned['app_name'],
+            'random_string': str(md5(str(random.randint(0, 10 ** 5)).encode('utf-8')).hexdigest())
+
         }
         job_id = queue.enqueue('deploy', assembled_metadata)
         return jsonify(job_id=job_id, status='pending')

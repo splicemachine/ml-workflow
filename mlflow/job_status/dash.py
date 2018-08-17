@@ -1,8 +1,10 @@
 import json
 import logging
 import os
+import random
 from collections import namedtuple
 from datetime import datetime
+from hashlib import md5
 
 import cachetools.func
 import jaydebeapi
@@ -142,6 +144,7 @@ def deploy():
             'iam_role': request.form['iam_role'],
             'deployment_mode': request.form['deployment_mode'],
             'app_name': request.form['app_name'],
+            'random_string': str(md5(str(random.randint(0, 10 ** 5)).encode('utf-8')).hexdigest())
         }
 
         r = requests.post(host, json=assembled_metadata)

@@ -23,7 +23,7 @@ a:hover {
 .form {
   background: rgba(19, 35, 47, 0.9);
   padding: 40px;
-  max-width: 600px;
+  max-width: 900px;
   margin: 40px auto;
   border-radius: 4px;
   box-shadow: 0 4px 10px 4px rgba(19, 35, 47, 0.3);
@@ -134,7 +134,7 @@ textarea {
 
 .field-wrap {
   position: relative;
-  margin-bottom: 40px;
+  margin-bottom: 35px;
 }
 
 .top-row:after {
@@ -151,7 +151,8 @@ textarea {
   margin: 0;
 }
 
-
+body {background:none transparent;
+}
 .button {
   border: 0;
   outline: none;

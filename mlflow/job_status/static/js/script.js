@@ -38,11 +38,13 @@ for (var i=btns.length-1;i>=0;i--) {
 
 var deploy_onclick = function(){
     article_elem = document.getElementById('art')
-    article_elem.innerHTML = '<iframe src="/deploy" frameborder="0"  height="1000px" width="100%"></iframe>'
+    article_elem.innerHTML = '<iframe src="/deploy" frameborder="0"  height="810px" width="100%" allowtransparency="true"></iframe>'
 }
+
+
 var toggle_onclick = function(){
     article_elem = document.getElementById('art')
-    article_elem.innerHTML = '<iframe src="/toggle" frameborder="0"  height=600px" width="100%"></iframe>'
+    article_elem.innerHTML = '<iframe src="/toggle" frameborder="0"  height=600px" width="100%" allowtransparency="true"></iframe>'
 }
 $('.form').find('input, textarea').on('keyup blur focus', function (e) {
 

@@ -49,6 +49,6 @@ cd /api/job_status && \
     nohup gunicorn --bind 0.0.0.0:$DASH_PORT --workers 4 dash:app > /tmp/dash.log &
 
 echo "Starting Mlflow Server on 0.0.0.0"
-mlflow server --host 0.0.0.0 -p $MLFLOW_PORT --file-store /mlruns
+nohup mlflow server --host 0.0.0.0 -p $MLFLOW_PORT --file-store /mlruns & > /tmp/mlflow.log
 
 python /api/utilities/keep_alive.py
