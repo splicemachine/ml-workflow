@@ -12,135 +12,176 @@
 <div class="container">
     <div class="row">
         <center><img width='40%' src="{{ url_for('static', filename='img/logo.png') }}"/><br>
-            <p style="font-size:18px">Intelligent Banking Application Demo</p></center>
-        <form class="col s12" id="reg-form">
-            <div class="row">
-                <div class="input-field col s6">
-                    <input name="first_name" id="first_name" type="number" class="validate"
-                           required>
-                    <label for="first_name">Age</label>
-                </div>
-                <div class="input-field col s6">
-                    <select id="job" style="display:block; height:30px; margin-top:15px;" name="job"
-                            form="reg-form">
-                        <option disabled selected>Profession</option>
-                        <option value="management">management</option>
-                        <option value="technician">technician</option>
-                        <option value="entrepreneur">entrepreneur</option>
-                        <option value="blue-collar">blue-collar</option>
-                        <option value="unknown">unknown</option>
-                        <option value="retired">retired</option>
-                        <option value="admin.">admin.</option>
-                        <option value="services">services</option>
-                        <option value="self-employed">self-employed</option>
-                        <option value="unemployed">unemployed</option>
-                        <option value="housemaid">housemaid</option>
-                        <option value="student">student</option>
-                    </select>
+        </center>
 
-                </div>
-            </div>
-            <div class="row">
+        {% if predicted %}
+        <center>
+            <p style="font-size:18px">Inference: <i>Powered by Splice Machine</i></p>
 
-                <div class="input-field col s4">
-                    <select id="marital" style="display:block; height:30px; margin-top:15px;"
-                            name="marital" form="reg-form">
-                        <option disabled selected>Marital Status</option>
-                        <option value="married">married</option>
-                        <option value="single">single</option>
-                        <option value="divorced">divorced</option>
-                    </select>
-                </div>
-                <div class="input-field col s4">
-                    <select id="education" style="display:block; height:30px; margin-top:15px;"
-                            name="education" form="reg-form">
-                        <option disabled selected>Education</option>
-                        <option value="tertiary">tertiary</option>
-                        <option value="secondary">secondary</option>
-                        <option value="primary">primary</option>
-                        <option value="unknown">unknown</option>
+            {% if prediction == 1.0 %}
+            <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130.2 130.2">
+                <circle class="path circle" fill="none" stroke="#73AF55" stroke-width="6"
+                        stroke-miterlimit="10" cx="65.1" cy="65.1" r="62.1"/>
+                <polyline class="path check" fill="none" stroke="#73AF55" stroke-width="6"
+                          stroke-linecap="round" stroke-miterlimit="10"
+                          points="100.2,40.2 51.5,88.8 29.8,67.5 "/>
+            </svg>
+            <p class="success">This person is likely to buy a term deposit</p>
+            {% endif %}
 
-                    </select>
-                </div>
-                <div class="input-field col s4">
-                    <select id="default_credit" style="display:block; height:30px; margin-top:15px;"
-                            name="default_credit" form="reg-form">
-                        <option disabled selected>Default Credit</option>
-                        <option value="yes">yes</option>
-                        <option value="no">no</option>
-                    </select>
-                </div>
-            </div>
-            <br>
-            <div class="row">
-                <div class="input-field col s4">
-                    <input id="balance" name='balance' type="number" class="validate" minlength="1"
-                           required>
-                    <label for="balance">Account Balance</label>
-                </div>
-                <div class="input-field col s4">
-                    <select id="housing" style="display:block; height:30px; margin-top:15px;"
-                            name="housing" form="reg-form">
-                        <option disabled selected>Housing</option>
-                        <option value="yes">yes</option>
-                        <option value="no">no</option>
+            {% if prediction == 0.0 %}
+            <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130.2 130.2">
+                <circle class="path circle" fill="none" stroke="#D06079" stroke-width="6"
+                        stroke-miterlimit="10" cx="65.1" cy="65.1" r="62.1"/>
+                <line class="path line" fill="none" stroke="#D06079" stroke-width="6"
+                      stroke-linecap="round" stroke-miterlimit="10" x1="34.4" y1="37.9" x2="95.8"
+                      y2="92.3"/>
+                <line class="path line" fill="none" stroke="#D06079" stroke-width="6"
+                      stroke-linecap="round" stroke-miterlimit="10" x1="95.8" y1="38" x2="34.4"
+                      y2="92.2"/>
+            </svg>
+            <p class="error">This person is unlikely to buy a term deposit</p>
+            {% endif %}
 
-                    </select>
-                </div>
-                <div class="input-field col s4">
-                    <select id="loan" style="display:block; height:30px; margin-top:15px;"
-                            name="loan" form="reg-form">
-                        <option disabled selected>Loan</option>
-                        <option value="yes">yes</option>
-                        <option value="no">no</option>
-                    </select>
-                </div>
-            </div>
-            <div class="row">
-                <div class="input-field col s6">
-                    <input name='duration' id="duration" type="number" class="validate"
-                           minlength="1"
-                           required>
-                    <label for="duration">Call Duration</label>
-                </div>
-                <div class="input-field col s6">
-                    <input name='campaign' id="campaign" type="number" class="validate"
-                           minlength="1"
-                           required>
-                    <label for="campaign">Call # (this campaign)</label>
-                </div>
-            </div>
-            <div class="row">
-                <div class="input-field col s6">
-                    <input name="previous" id="previous" type="number" class="validate"
-                           minlength="1"
-                           required>
-                    <label for="previous">Previous Campaigns #</label>
-                </div>
-                <div class="input-field col s6">
+            <a href="/">
+                <button style='width:50%'
+                        class="btn btn-large btn-register waves-effect waves-light">Try again
+                </button>
+            </a>
+        </center>
+        {% endif %}
+        {% if not predicted %}
+        <center>
+            <p style="font-size:18px">Intelligent Banking Application Demo</p>
 
-                    <select id="poutcome" style="display:block; height:30px; margin-top:15px;"
-                            name="poutcome" form="reg-form">
-                        <option disabled selected>Previous Outcome</option>
-                        <option value="success">success</option>
-                        <option value="failure">failure</option>
-                        <option value="unknown">unknown</option>
-                        <option value="other">other</option>
+            <form class="col s12" id="reg-form" action="/demo" , method="POST">
+                <div class="row">
+                    <div class="input-field col s6">
+                        <select id="job" style="display:block; height:30px; margin-top:15px;"
+                                name="JOB"
+                                form="reg-form">
+                            <option disabled selected>Profession</option>
+                            <option value="management">management</option>
+                            <option value="technician">technician</option>
+                            <option value="entrepreneur">entrepreneur</option>
+                            <option value="blue-collar">blue-collar</option>
+                            <option value="unknown">unknown</option>
+                            <option value="retired">retired</option>
+                            <option value="admin.">admin.</option>
+                            <option value="services">services</option>
+                            <option value="self-employed">self-employed</option>
+                            <option value="unemployed">unemployed</option>
+                            <option value="housemaid">housemaid</option>
+                            <option value="student">student</option>
+                        </select>
 
-                    </select>
+                    </div>
+                    <div class="input-field col s6">
+                        <select id="marital" style="display:block; height:30px; margin-top:15px;"
+                                name="MARITAL" form="reg-form">
+                            <option disabled selected>Marital Status</option>
+                            <option value="married">married</option>
+                            <option value="single">single</option>
+                            <option value="divorced">divorced</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
-            <div class="row">
+                <div class="row">
 
-                <div class="input-field col s12">
-                    <button style='width:100%'
-                            class="btn btn-large btn-register waves-effect waves-light"
-                            type="submit" name="action">Go
-                        <i class="material-icons right">done</i>
-                    </button>
+                    <div class="input-field col s6">
+                        <select id="education" style="display:block; height:30px; margin-top:15px;"
+                                name="EDUCATION" form="reg-form">
+                            <option disabled selected>Education</option>
+                            <option value="tertiary">tertiary</option>
+                            <option value="secondary">secondary</option>
+                            <option value="primary">primary</option>
+                            <option value="unknown">unknown</option>
+
+                        </select>
+                    </div>
+                    <div class="input-field col s6">
+                        <select id="default_credit"
+                                style="display:block; height:30px; margin-top:15px;"
+                                name="DEFAULT_CREDIT" form="reg-form">
+                            <option disabled selected>Default Credit</option>
+                            <option value="yes">yes</option>
+                            <option value="no">no</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
-        </form>
+                <br>
+                <div class="row">
+                    <div class="input-field col s4">
+                        <input id="balance" name='BALANCE' type="number" class="validate"
+                               minlength="1"
+                               required>
+                        <label for="balance">Account Balance</label>
+                    </div>
+                    <div class="input-field col s4">
+                        <select id="housing" style="display:block; height:30px; margin-top:15px;"
+                                name="HOUSING" form="reg-form">
+                            <option disabled selected>Housing</option>
+                            <option value="yes">yes</option>
+                            <option value="no">no</option>
+
+                        </select>
+                    </div>
+                    <div class="input-field col s4">
+                        <select id="loan" style="display:block; height:30px; margin-top:15px;"
+                                name="LOAN" form="reg-form">
+                            <option disabled selected>Loan</option>
+                            <option value="yes">yes</option>
+                            <option value="no">no</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="input-field col s6">
+                        <input name='DURATION' id="duration" type="number" class="validate"
+                               minlength="1"
+                               required>
+                        <label for="duration">Call Duration</label>
+                    </div>
+                    <div class="input-field col s6">
+                        <input name='CAMPAIGN' id="campaign" type="number" class="validate"
+                               minlength="1"
+                               required>
+                        <label for="campaign">Call # (this campaign)</label>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="input-field col s6">
+                        <input name="PREVIOUS" id="previous" type="number" class="validate"
+                               minlength="1"
+                               required>
+                        <label for="previous">Previous Campaigns #</label>
+                    </div>
+                    <div class="input-field col s6">
+
+                        <select id="poutcome" style="display:block; height:30px; margin-top:15px;"
+                                name="POUTCOME" form="reg-form">
+                            <option disabled selected>Previous Outcome</option>
+                            <option value="success">success</option>
+                            <option value="failure">failure</option>
+                            <option value="unknown">unknown</option>
+                            <option value="other">other</option>
+
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+
+                    <div class="input-field col s12">
+                        <button style='width:100%'
+                                class="btn btn-large btn-register waves-effect waves-light"
+                                type="submit" name="action">Go
+                            <i class="material-icons right">done</i>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </center>
+        {% endif %}
     </div>
     <a title="Splice Machine" href='https://splicemachine.com'
        class="ngl btn-floating btn-large waves-effect waves-light red"><i class="material-icons">input</i></a>
