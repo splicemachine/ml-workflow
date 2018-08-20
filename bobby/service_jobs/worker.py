@@ -14,7 +14,10 @@ This module contains a worker that reads a Splice Machine Queue and redirects it
 correct handfler. This module allows for jobs to be handled asynchronously, rather than waiting
 for a response to be returned by the MLFlow Rest API.
 Runtime for deployment: ~ 4.5 mins
+
 """
+
+# TODO: Add Scheduling and Retraining to this file. Also, deploy to SageMaker if thresh is passed
 
 __author__ = "Splice Machine, Inc."
 __copyright__ = "Copyright 2018, Splice Machine Inc. Some Rights Reserved"
@@ -43,6 +46,7 @@ class Worker(object):
 
         self.poll_interval = 5  # seconds to wait
 
+        # USE SPARK CONTEXT TO CONNECT TO SPLICEMACHINE
         # conf = self.generate_spark_conf()
         # print(conf.getAll())
         # self.sc = SparkContext(conf=conf)
@@ -163,14 +167,10 @@ class Worker(object):
             yaml.dump(yf, ml_write_yml, default_flow_style=False)  # write it to a file
 
     def download_current_s3_state(self, task_id):
-        """Download the current S3 State (metadata bucket contents) ONCE
-
-        Args:
-          task_id: the current task_id for logging
-
-        Returns:
-          Exception if fails
-
+        """
+        Download the current S3 MLFlow bucket
+        :param task_id: job_id from task
+        :return:
         """
         self.queue.upinfo(task_id, 'Syncing Current MLFlow Data from S3')
         s3_bucket_name = os.environ.get('S3_BUCKET_NAME')
@@ -186,13 +186,11 @@ class Worker(object):
                                '/mlruns'])
 
     def deploy_handler(self, task):
-        """Deploy a specified Job to SageMaker
-
-        Args:
-          task: return:
-
-        Returns:
-    """
+        """
+        Deploy a specified job to SageMaker
+        :param task: task to deploy
+        :return:
+        """
         try:
             if self.queue.is_service_allowed(task.handler):
                 os.environ['AWS_DEFAULT_REGION'] = task.payload['sagemaker_region']
@@ -222,25 +220,11 @@ class Worker(object):
             self.queue.upinfo(task.job_id, 'Failure!<br>' + stack_trace)
             self.queue.dequeue(task.job_id, True)
 
-        """
-            self.start_scheduler_handler(None)
-            self.start_scheduler_handler(None)
-            self.start_scheduler_handler(None)
-            self.start_scheduler_handler(None)
-            self.start_scheduler_handler(None)
-            self.start_scheduler_handler(None)
-
-        else:
-        """
-
     def build_and_push_image(self, task_id):
-        """Push and build MLFlow docker image to ECR
-
-        Args:
-          task_id: the job id calculated by hashing task
-
-        Returns:
-          Exception on failure
+        """
+        Push and build MLFlow docker image to ECR
+        :param task_id: the job id calculated by hashing task
+        :return: Exception on failure
 
         """
         self.queue.upinfo(task_id, 'Building and Pushing MLFlow Docker Container to ECR')
@@ -249,14 +233,12 @@ class Worker(object):
             ['mlflow', 'sagemaker', 'build-and-push-container'])  # Push and build container
 
     def deploy_model_to_sagemaker(self, task_id, payload):
-        """Deploy a model to sagemaker using a specified iam role, app name, model path and region
+        """
+        Deploy a model to sagemaker using a specified iam role, app name, model path and region
+        :param task_id: the job_id (calculated from metadata hash)
+        :param payload: job payload e.g. app name, IAM role, sagemaker region
 
-        Args:
-          task_id: the job_id (calculated from metadata hash)
-          payload: job payload e.g. app name, IAM role, sagemaker region
-
-        Returns:
-          Exception on failure
+        :returns: Exception on failure
 
         """
 
@@ -324,23 +306,43 @@ class Worker(object):
         """
         a = self.sc.parallelize((1, 2, 3))
         logger.info(str(a.collect()))
-        print(str(a.collect()))
-        logger.debug(str(a.collect()))
 
     def stop_scheduler_handler(self, task):
         raise NotImplementedError()
 
     def retrain_handler(self, task):
+        """
+        Retrain on parameters given by the JSON here. Retraining is still WIP until we get
+        spark context to run outside of Zeppelin, so we need to finish this before we can push
+
+        :param task: namedtuple containing task information
+        :return:
+        """
         try:
             if self.queue.is_service_allowed(task.handler):
                 self.download_current_s3_state(task.id)
-                # trainer = Trainer(self.sc, self.sqlContext, task, self.queue)
+                """
+                DEPLOY TO SAGEMAKER ON SUCCESSFUL TRAIN. DOESN'T WORK WITHOUT SPARKCONTEXT 
+                # POINTING TO SPLICE DB
+                
+                trainer = Trainer(self.sc, self.sqlContext, task, self.queue)
+                should_we_deploy = trainer.train()
+                if should_we_deploy:
+                    self.queue.upinfo(task.job_id, 'Deploying Model to SageMaker! Model Constraints Passed')
+                    self.deploy_handler(task)
+                else:
+                    self.queue.upstat(task.job_id, 'Retraining Finished. Not Deploying...') 
+                    self.queue.dequeue(task.job_id)
+                """
                 raise NotImplementedError()
             else:
                 self.queue.upinfo(task.job_id, 'Failure!<br>' + 'Retraining is disabled!')
                 self.queue.dequeue(task.job_id, True)
         except:
-            logger.fatal('service ' + task.handler + 'is not allowed to run')
+            stack_trace = Worker._format_python_string_as_html(traceback.format_exc())
+            print(stack_trace)
+            self.queue.upinfo(task.job_id, 'Failure!<br>' + stack_trace)
+            self.queue.dequeue(task.job_id, True)
 
     def loop(self):
         """Loop and wait for incoming requests"""

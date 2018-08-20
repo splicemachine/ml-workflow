@@ -1,6 +1,6 @@
 Flask==1.0.2
 scipy
-mlflow==0.4.2
+mlflow==0.5
 gunicorn
 jaydebeapi
 pyyaml
