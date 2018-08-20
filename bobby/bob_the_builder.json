@@ -19,7 +19,7 @@
     "type": "DOCKER",
     "volumes": [],
     "docker": {
-      "image": "splicemachine/bobby:demo",
+      "image": "splicemachine/bobby:demo-3",
       "network": "HOST",
       "privileged": true,
       "parameters": [],

@@ -140,10 +140,10 @@ class Worker(object):
               - numpy=1.14.3
               - pandas=0.22.0
               - scikit-learn=0.19.1
-              - pyspark
               - h2o
               - pip:
-                - mlflow==0.4.0
+                - pyspark==2.2.2
+                - mlflow==0.4.2
             """
         with open(model_path + '/conda.yaml',
                   'w') as conda_file:  # Write conda yaml to a file under the model path
@@ -161,7 +161,7 @@ class Worker(object):
 
         with open(model_path + '/MLmodel', 'w') as ml_write_yml:
             yaml.dump(yf, ml_write_yml, default_flow_style=False)  # write it to a file
-            
+
     def download_current_s3_state(self, task_id):
         """Download the current S3 State (metadata bucket contents) ONCE
 
