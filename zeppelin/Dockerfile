@@ -34,7 +34,7 @@ ENV ZEPPELIN_PORT 8080
 ENV ZEPPELIN_HOME /usr/zeppelin
 ENV ZEPPELIN_CONF_DIR $ZEPPELIN_HOME/conf
 ENV ZEPPELIN_NOTEBOOK_DIR /notebook
-ENV ZEPPELIN_COMMIT v0.8.0
+ENV ZEPPELIN_COMMIT v0.7.3
 RUN echo '{ "allow_root": true }' > /root/.bowerrc
 RUN set -ex \
  && buildDeps=' \
@@ -74,7 +74,10 @@ RUN pip install mlflow
 RUN mlflow
 ADD about.json $ZEPPELIN_NOTEBOOK_DIR/2BTRWA9EV/note.json
 
-RUN apt-get update && apt-get install -y rsync
+RUN apt-get update && apt-get install -y rsync git && \
+    git clone https://github.com/splicemachine/pysplice && \
+    cd pysplice && \
+    pip install .
 
 WORKDIR $ZEPPELIN_HOME
 RUN python -c 'import mlflow; mlflow.log_param("test","success")'

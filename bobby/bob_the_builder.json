@@ -19,7 +19,7 @@
     "type": "DOCKER",
     "volumes": [],
     "docker": {
-      "image": "splicemachine/bobby:5.4",
+      "image": "splicemachine/bobby:demo",
       "network": "HOST",
       "privileged": true,
       "parameters": [],
@@ -32,7 +32,7 @@
   "env": {
     "JDBC_URL": "jdbc:splice://amritsaccount-mlflow.splicemachine-qa.io:1527/splicedb;ssl=basic",
     "USER": "splice",
-    "PASSWORD": "8AdzEmCE",
+    "PASSWORD": "lYOaWxfQ",
     "S3_BUCKET_NAME": "s3://amrit-splice",
     "FRAMEWORK_NAME": "amritsaccount-mlflow-35a2d97d73"
   },

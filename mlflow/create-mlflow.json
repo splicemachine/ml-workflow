@@ -36,7 +36,7 @@
   "env": {
     "JDBC_URL": "jdbc:splice://amritsaccount-mlflow.splicemachine-qa.io:1527/splicedb;ssl=basic",
     "USER": "splice",
-    "PASSWORD": "8AdzEmCE",
+    "PASSWORD": "lYOaWxfQ",
     "S3_BUCKET_NAME": "s3://amrit-splice",
     "API_PORT": "5002",
     "MLFLOW_PORT": "5001",
