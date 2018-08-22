@@ -1,8 +1,5 @@
 FROM gettyimages/spark:2.2.0-hadoop-2.7
 
-ENV AWS_ACCESS_KEY_ID="AKIAILC2A7RT2GK5RFBQ" 
-ENV AWS_SECRET_ACCESS_KEY="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" 
-ENV AWS_DEFAULT_REGION=us-east-1
 # SciPy
 RUN set -ex \
  && buildDeps=' \
