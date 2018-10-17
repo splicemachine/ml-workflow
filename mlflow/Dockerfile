@@ -10,6 +10,11 @@ RUN apk add bash rsync openjdk8 gcc g++ && \
 
 WORKDIR /api
 
+# Disable IPv6
+# https://www.itzgeek.com/how-tos/linux/centos-how-tos/how-do-i-disable-ipv6-on-centos-7-rhel-7.html
+COPY config/sysctl.conf /etc/sysctl.conf
+RUN sysctl -p
+
 # make it so we don't have to reinstall this every time we change our source code
 COPY utilities/requirements.txt /api
 RUN pip install -r requirements.txt
