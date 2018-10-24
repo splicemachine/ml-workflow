@@ -3,11 +3,11 @@
 # <n> means replace this with an appropriate value
 
 #docker rm mlflow
+#
+#echo "Building MLFlow Container"
+#docker build -t mlflow .
 
-echo "Building MLFlow Container"
-docker build -t mlflow .
-
-echo "Running Container"
+#echo "Running Container"
 #docker run --name mlflow \
 #	#--network mynetwork \
 #    -p 4040:4040 \
@@ -37,4 +37,4 @@ docker run \
 	-e MLFLOW_PORT='4040' \
 	-e API_PORT='4041' \
 	-e AWS_ACCESS_KEY_ID='AKIAILC2A7RT2GK5RFBQ' \
-	-e AWS_SECRET_ACCESS_KEY='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' mlflow
+	-e AWS_SECRET_ACCESS_KEY='zbEbCsSV2eVwuUxvZp6NCzQd8btEu5BCKGlZYKXi' splicemachine/mlflow
