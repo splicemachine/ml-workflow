@@ -2,7 +2,7 @@
 
 # <n> means replace this with an appropriate value
 
-docker rm mlflow
+#docker rm mlflow
 
 echo "Building MLFlow Container"
 docker build -t mlflow .

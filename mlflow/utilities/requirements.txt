@@ -2,8 +2,6 @@ Flask==1.0.2
 scipy
 mlflow==0.5
 gunicorn
-jaydebeapi
-pyyaml
 py4j
 pyspark==2.2.2
 scipy
@@ -12,3 +10,4 @@ jaydebeapi
 numpy==1.15.0
 pyyaml
 awscli
+retry
