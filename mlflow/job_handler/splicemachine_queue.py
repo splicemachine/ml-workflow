@@ -5,7 +5,7 @@ from collections import namedtuple
 from datetime import datetime
 from hashlib import md5
 from json import dumps, loads
-
+from retry import retry
 import jaydebeapi
 
 logging.basicConfig()
@@ -64,6 +64,7 @@ class SpliceMachineQueue(object):
         difference = date_2 - date_1
         return difference.total_seconds() / 60
 
+    @retry(delay=1, backoff=2)
     def authenticate(self, _force=False):
         """
         If the time difference between the last time we renewed our JDBC connection
