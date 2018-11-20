@@ -2,7 +2,7 @@ scipy
 jaydebeapi
 pyspark==2.2.2
 numpy==1.15.0
-mlflow==0.4.2
+mlflow==0.8.0
 pyyaml
 py4j
 jaydebeapi

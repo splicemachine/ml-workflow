@@ -19,6 +19,7 @@ RUN set -ex \
     numpy \
     pandasql \
     scipy \
+    mlflow==0.8.0 \
  ' \
  && pip3 install $packages \
  && rm -rf /root/.cache/pip \
@@ -32,6 +33,8 @@ ENV ZEPPELIN_HOME /usr/zeppelin
 ENV ZEPPELIN_CONF_DIR $ZEPPELIN_HOME/conf
 ENV ZEPPELIN_NOTEBOOK_DIR /notebook
 ENV ZEPPELIN_COMMIT v0.7.3
+# ENV MLFLOW_TRACKING_URI http://mlflow:5001 will not work until container "mlflow" is stood up!
+
 RUN echo '{ "allow_root": true }' > /root/.bowerrc
 RUN set -ex \
  && buildDeps=' \
@@ -64,17 +67,15 @@ RUN set -ex \
 RUN ln -s /usr/bin/pip3 /usr/bin/pip \
  && ln -s /usr/bin/python3 /usr/bin/python
 COPY entrypoint.sh /bin/entrypoint.sh
-COPY ./s3_sync.py /tmp/s3_sync.py
 RUN pip install --upgrade setuptools
 
-RUN pip install mlflow
-RUN mlflow
 ADD about.json $ZEPPELIN_NOTEBOOK_DIR/2BTRWA9EV/note.json
 
 RUN apt-get update && apt-get install -y rsync git && \
     git clone https://github.com/splicemachine/pysplice && \
     cd pysplice && \
     pip install .
+RUN mlflow --version
 
 WORKDIR $ZEPPELIN_HOME
 RUN python -c 'import mlflow; mlflow.log_param("test","success")'

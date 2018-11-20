@@ -147,7 +147,7 @@ class Worker(object):
               - h2o
               - pip:
                 - pyspark==2.2.2
-                - mlflow==0.4.2
+                - mlflow==0.8.0
             """
         with open(model_path + '/conda.yaml',
                   'w') as conda_file:  # Write conda yaml to a file under the model path
@@ -176,7 +176,7 @@ class Worker(object):
         s3_bucket_name = os.environ.get('S3_BUCKET_NAME')
         logger.debug(s3_bucket_name)
         subprocess.check_call(['python',
-                               '/bob/service_jobs/s3_sync.py',
+                               '/bob/service_jobs/s3_sync_bob.py',
                                'download',
                                '-b',
                                s3_bucket_name,

@@ -158,12 +158,12 @@ class S3Daemon(object):
         :return:
         """
         if path.endswith('artifacts') or path.endswith(
-                'artifacts/') and not os.path.isfile(path + '/upload_sp1c3.txt'):
+                'artifacts/') and not os.path.isfile(path + '/temp.txt'):
             # write a fake artifact to a file so S3 won't ignore an empty
             # directory
 
             create_fake_artifact_code = os.system(
-                'echo Hello World > ' + path + '/upload_sp1c3.txt')
+                'echo Hello World > ' + path + '/temp.txt')
 
             Utils.check_output_code(
                 'fake artifact create',
@@ -171,10 +171,10 @@ class S3Daemon(object):
 
             # write a fake parameter
         elif path.endswith('params') or path.endswith('params/') and not \
-                os.path.isfile(path + '/z_locz'):  # some random string a user will never upload
+                os.path.isfile(path + '/temp'):  # some random string a user will never upload
             # to a file so S3 won't ignore the empty directory
 
-            create_fake_param_code = os.system('echo s3 > ' + path + '/z_locz')
+            create_fake_param_code = os.system('echo s3 > ' + path + '/temp')
 
             Utils.check_output_code(
                 'fake param create',
@@ -199,25 +199,25 @@ class S3Daemon(object):
         :param path: intermediate dir on target
         :return: n/a
         """
-        if os.path.isfile(path + '/upload_sp1c3.txt'):
+        if os.path.isfile(path + '/temp.txt'):
             # delete fake artifacts
             delete_artifact_code = subprocess.call(
-                ['rm', path + '/upload_sp1c3.txt'])
+                ['rm', path + '/temp.txt'])
             Utils.check_output_code(
                 'fake artifact delete',
                 delete_artifact_code)
 
-        elif os.path.isfile(path + '/z_locz'):
+        elif os.path.isfile(path + '/temp'):
             # delete fake params
-            delete_fake_param_code = subprocess.call(['rm', path + '/z_locz'])
+            delete_fake_param_code = subprocess.call(['rm', path + '/temp'])
             Utils.check_output_code(
                 'fake param delete',
                 delete_fake_param_code)
 
-        elif os.path.isfile(path + '/valideeeto5'):
+        elif os.path.isfile(path + '/temp'):
             # delete fake metrics
             delete_fake_metric_code = subprocess.call(
-                ['rm', path + '/valideeeto5'])
+                ['rm', path + '/temp'])
             Utils.check_output_code(
                 'fake metric delete',
                 delete_fake_metric_code)
@@ -229,8 +229,14 @@ class S3Daemon(object):
         :param arguments: user inputs
         :return: n/a
         """
+        sync_dir_cmd = subprocess.call(['rsync',
+                                        '-tr',
+                                        arguments.mlflow_dir + '/',
+                                        arguments.intermediate_dir])
         S3Daemon.format_for_s3(
-            'upload', arguments.mlflow_dir)  # Create fake metadata
+            'upload', arguments.intermediate_dir)  # Create fake metadata
+
+        Utils.check_output_code('rsync to dir', sync_dir_cmd)
 
     @staticmethod
     def clean_download(arguments):
@@ -295,7 +301,7 @@ class S3Daemon(object):
                 process_code = subprocess.call(['aws',
                                                 's3',
                                                 'sync',
-                                                arguments.mlflow_dir,
+                                                arguments.intermediate_dir,
                                                 arguments.bucket_url,
                                                 '--delete',
                                                 '--size-only'], stdout=log_file)  # Execute upload
