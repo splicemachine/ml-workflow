@@ -14,7 +14,7 @@ import time
 
 __author__ = "Splice Machine, Inc."
 __copyright__ = "Copyright 2018, Splice Machine Inc. Some Rights Reserved"
-__credits__ = ["Amrit Baveja", "Murray Brown", "Monte Zweben"]
+__credits__ = ["Amrit Baveja", "Murray Brown", "Monte Zweben", "Ben Epstein"]
 
 __license__ = "Apache-2.0"
 __version__ = "2.0"
@@ -181,12 +181,12 @@ class S3Daemon(object):
                 create_fake_param_code)
 
         elif path.endswith('metrics') or path.endswith('metrics/') and not os.path.isfile(
-                path + '/valideeeto5'):
+                path + '/temp'):
             # write a fake metric to  a file so S3 won't ignore the empty
             # directory
 
             create_fake_metric_code = os.system(
-                'echo 1516407499 1 > ' + path + '/valideeeto5')
+                'echo 1516407499 1 > ' + path + '/temp')
 
             Utils.check_output_code(
                 'fake metric create',
@@ -232,7 +232,8 @@ class S3Daemon(object):
         sync_dir_cmd = subprocess.call(['rsync',
                                         '-tr',
                                         arguments.mlflow_dir + '/',
-                                        arguments.intermediate_dir])
+                                        arguments.intermediate_dir,
+                                        '--delete'])
         S3Daemon.format_for_s3(
             'upload', arguments.intermediate_dir)  # Create fake metadata
 
@@ -295,6 +296,7 @@ class S3Daemon(object):
                     process_code = subprocess.call(['aws', 's3', 'sync',
                                                     arguments.bucket_url,
                                                     arguments.mlflow_dir], stdout=log_file)
+                    S3Daemon.format_for_s3("download", arguments.mlflow_dir)
         else:
             S3Daemon.clean_and_format(arguments)
             with open('/tmp/upload.log', 'w') as log_file:

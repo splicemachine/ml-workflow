@@ -14,7 +14,7 @@ logger.setLevel(logging.DEBUG)
 
 __author__ = "Splice Machine, Inc."
 __copyright__ = "Copyright 2018, Splice Machine Inc. Some Rights Reserved"
-__credits__ = ["Amrit Baveja", "Murray Brown", "Monte Zweben"]
+__credits__ = ["Amrit Baveja", "Murray Brown", "Monte Zweben", "Ben Epstein"]
 
 __license__ = "Apache-2.0"
 __version__ = "2.0"
