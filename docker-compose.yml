@@ -15,7 +15,7 @@ services:
       PASSWORD: pcaTFuI1
       AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
       AWS_SECRET_ACCESS_KEY: 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
-      S3_BUCKET_NAME: s3://splice-demo1
+      S3_BUCKET_NAME: s3://mlflow-code
       MLFLOW_PORT: 5001
       API_PORT: 5002
       SAGEMAKER_ROLE: arn:aws:iam::953558963498:role/splice-sagemaker
@@ -40,7 +40,7 @@ services:
       AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
       AWS_SECRET_ACCESS_KEY: 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
       PASSWORD: pcaTFuI1
-      S3_BUCKET_NAME: s3://splice-demo1
+      S3_BUCKET_NAME: s3://mlflow-code
       FRAMEWORK_NAME: monte-streamtest-6160590510
     build: ./bobby
 

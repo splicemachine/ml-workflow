@@ -289,27 +289,6 @@ class RetrainHandler(BaseHandler):
         :return:
         """
         try:
-            """
-            if self.queue.is_service_allowed(task.handler):
-                self.download_current_s3_state(task.id)
-            
-                DEPLOY TO SAGEMAKER ON SUCCESSFUL TRAIN. DOESN'T WORK WITHOUT SPARKCONTEXT 
-                # POINTING TO SPLICE DB
-                
-                trainer = Trainer(self.sc, self.sqlContext, task, self.queue)
-                should_we_deploy = trainer.train()
-                if should_we_deploy:
-                    self.queue.upinfo(task.job_id, 'Deploying Model to SageMaker! Model Constraints Passed')
-                    self.deploy_handler(task)
-                else:
-                    self.queue.upstat(task.job_id, 'Retraining Finished. Not Deploying...') 
-                    self.queue.dequeue(task.job_id)
-            
-                raise NotImplementedError()
-            else:
-                self.queue.upinfo(task.job_id, 'Failure!<br>' + 'Retraining is disabled!')
-                self.queue.dequeue(task.job_id, True)
-        """
             raise NotImplementedError()
         except:
             stack_trace = self._format_python_string_as_html(traceback.format_exc())
@@ -336,68 +315,6 @@ class Worker(object):
             "stop_schedule": StopScheduleHandler
         }
 
-        # USE SPARK CONTEXT TO CONNECT TO SPLICEMACHINE
-        # conf = self.generate_spark_conf()
-        # print(conf.getAll())
-        # self.sc = SparkContext(conf=conf)
-
-        # spark_conf_dir = os.environ['SPARK_HOME'] + '/conf/'
-        # self.sc.addFile(spark_conf_dir + '/core-site.xml')
-        # self.sc.addFile(spark_conf_dir + '/fairscheduler.xml')
-        # self.sc.addFile(spark_conf_dir + '/hbase-site.xml')
-        # self.sc.addFile(spark_conf_dir + '/hdfs-site.xml')
-        # self.sqlContext = SQLContext(self.sc)
-
-        # print(self.sc.parallelize([1, 2, 3]))
-        # self.sc.addFile()
-        # self.context = SparkContext()
-
-    @staticmethod
-    def generate_spark_conf():
-        options = {
-            "spark.driver.port": "60020",
-            "spark.driver.extraLibraryPath": "native",
-            "spark.kryo.registrator": "com.splicemachine.derby.impl.SpliceSparkKryoRegistrator",
-            "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
-            "spark.kryo.referenceTracking": "false",
-            "spark.kryoserializer.buffer.max": "512m",
-            "spark.kryoserializer.buffer": "4m",
-            "spark.dynamicAllocation.cachedExecutorIdleTimeout": "120",
-            "spark.dynamicAllocation.enabled": "true",
-            "spark.dynamicAllocation.executorIdleTimeout": "120",
-            "spark.dynamicAllocation.maxExecutors": "20",
-            "spark.dynamicAllocation.minExecutors": "1",
-            "spark.executor.cores": "4",
-            "spark.executor.extraLibraryPath": "native",
-            "spark.executor.extraClassPath": "/",
-            "spark.executor.heartbeatInterval": "10s",
-            "spark.executor.memory": "4g",
-            "spark.log.conf": "true",
-            "spark.master": "mesos://zk://master.mesos:2181/mesos",
-            "spark.mesos.constraints": "tasktype:sparkexecutor",
-            "spark.mesos.role": "spark",
-            "spark.mesos.executor.memoryOverhead": "2048",
-            "spark.mesos.rejectOfferDuration": "120s",
-            "spark.network.timeout": "120s",
-            "spark.scheduler.mode": "FAIR",
-            "spark.shuffle.service.enabled": "true",
-            "spark.sql.catalogImplementation": "in-memory",
-            "spark.streaming.ui.retainedBatches": "100",
-            "spark.ui.port": "4042",
-            "spark.ui.retainedStages": "100",
-            "spark.worker.ui.retainedDrivers": "100",
-            "spark.worker.ui.retainedExecutors": "100",
-            "spark.mesos.uris": "https://s3.amazonaws.com/splicemachine/artifacts/docker.tar.gz",
-            "spark.mesos.executor.docker.forcePullImage": "true",
-            "spark.mesos.mesosExecutor.cores": "0.5",
-            "spark.mesos.executor.docker.volumes": "spark/tmp0:/spark/tmp0:/spark/tmp1:/spark/tmp1"
-        }
-
-        sparkConf = SparkConf()
-        for option, value in options.items():
-            sparkConf = sparkConf.set(option, value)
-
-        return sparkConf
 
     def loop(self):
         """Loop and wait for incoming requests"""
