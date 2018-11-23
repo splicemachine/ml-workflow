@@ -18,6 +18,7 @@ services:
       S3_BUCKET_NAME: s3://splice-demo1
       MLFLOW_PORT: 5001
       API_PORT: 5002
+      SAGEMAKER_ROLE: arn:aws:iam::953558963498:role/splice-sagemaker
       DASH_PORT: 5003
 
     ports:

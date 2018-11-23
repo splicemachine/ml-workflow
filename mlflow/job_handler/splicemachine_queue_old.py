@@ -55,50 +55,42 @@ class SpliceMachineQueue(object):
         else:
             logger.info('Table for State exists')
 
-    def if_variable_exists(self, string_var):
-        try:
-            exec(string_var)
-            return True
-        except:
-            return False
+    @staticmethod
+    def _time_hrs_difference(date_1, date_2):
+        """
+        Check the difference in hours between two dates
+        :param date_1: date 1
+        :param date_2: date 2
+        :return: float denoting the number of hours
+        """
+        difference = date_2 - date_1
+        return round(difference.total_seconds() / 60)
 
-    def authenticate(self):
+    def authenticate(self, _force=False):
         """
         If the time difference between the last time we renewed our JDBC connection
         is greater that 510 minutes, renew our connection via environment variable info
         :return: nothing
         """
-        try:
-            if not self.authenticated:
-                raise Exception # go to exception case
-                ss
-            self.cursor.execute("VALUES 1")
-            record = self.cursor.fetchone()
-            logger.info("Tested DB Connection! Active! " + str(record))
-            return
-        except:
-            logger.info("Found bad/nonexistant connection... terminating")
+        if _force:
+            logger.info("Forcing JDBC Reconnect")
+        t_diff = SpliceMachineQueue._time_hrs_difference(self.last_authenticated, datetime.today())
+        if t_diff >= 0 or not self.authenticated or _force:
+            jdbc_url = os.environ.get('JDBC_URL')
+            username = os.environ.get('USER')
+            password = os.environ.get('PASSWORD')
+            jdbc_conn = jaydebeapi.connect("com.splicemachine.db.jdbc.ClientDriver", jdbc_url,
+                                           {'user': username,
+                                            'password': password, 'ssl': "basic"},
+                                           "../utilities/db-client-2.7.0.1815.jar")
+            logger.info("Created JDBC Connection!")
+            # establish a JDBC connection to your database
+            self.cursor = jdbc_conn.cursor()  # get a cursor
+            logger.info("Got JDBC Cursor")
+            self.authenticated = True
+            self.last_authenticated = datetime.today()
 
-            if self.if_variable_exists("self.cursor"):
-                logger.info("Closed current cursor")
-                self.cursor.close()
 
-            try:
-                jdbc_conn = jaydebeapi.connect("com.splicemachine.db.jdbc.ClientDriver",
-                                            os.environ.get('JDBC_URL'),
-                                            {'user': os.environ.get('USER'),
-                                            'password': os.environ.get('PASSWORD'), 'ssl': "basic"},
-                                            "../utilities/db-client-2.7.0.1815.jar")
-            
-                logger.info("Opened new JDBC Connection")
-                # establish a JDBC connection to your database
-                self.cursor = jdbc_conn.cursor()  # get a cursor
-                logger.info("Opened new JDBC Cursor. Success!")
-                self.authenticated = True
-            except Exception as e:
-                logger.error("ERROR! " + str(e))
-                time.sleep(2)
-                self.authenticate()
     @staticmethod
     def _generate_timestamp():
         """
@@ -118,7 +110,6 @@ class SpliceMachineQueue(object):
 
     def _execute_sql(self, sql, _auth_error=False):
         logger.info(sql)
-        self.authenticate()
         try:
             self.cursor.execute(sql)
             return True
@@ -291,7 +282,7 @@ class SpliceMachineQueue(object):
         :param status: the status you would like the job id to have
         :return: True if success, False if failure... maybe record doesn't exist
         """
-
+        self.authenticate()
         cmd = """
         UPDATE {table}
             SET status='{status}'
@@ -307,7 +298,7 @@ class SpliceMachineQueue(object):
         :param message: the message you would like the job id to have
         :return:
         """
-
+        self.authenticate()
         cmd = """
            UPDATE {table}
                SET info='{message}'
@@ -323,7 +314,7 @@ class SpliceMachineQueue(object):
         :param job_id: the unique job id
         :return: True if success, False if failure... maybe the record doesn't exist?
         """
-
+        self.authenticate()
         cmd = """
         DELETE FROM {table}
             WHERE id='{job_id}'
@@ -337,7 +328,7 @@ class SpliceMachineQueue(object):
         :param failed: whether the process failed
         :return: True if success, False if not... maybe record doesn't exist?
         """
-
+        self.authenticate()
         if failed:
             return self.upstat(job_id, 'FAILED')
         return self.upstat(job_id, 'FINISHED')

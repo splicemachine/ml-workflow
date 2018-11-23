@@ -13,10 +13,10 @@ import subprocess
 import time
 
 __author__ = "Splice Machine, Inc."
-__copyright__ = "Copyright 2018, Splice Machine Inc. Some Rights Reserved"
+__copyright__ = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
 __credits__ = ["Amrit Baveja", "Murray Brown", "Monte Zweben", "Ben Epstein"]
 
-__license__ = "Apache-2.0"
+__license__ = "Commerical"
 __version__ = "2.0"
 __maintainer__ = "Amrit Baveja"
 __email__ = "abaveja@splicemachine.com"

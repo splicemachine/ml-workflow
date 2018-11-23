@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import random
+from retry import retry
 from collections import namedtuple
 from datetime import datetime
 from hashlib import md5
@@ -11,8 +12,23 @@ import jaydebeapi
 import requests
 from flask import Flask, render_template, request
 
-logging.basicConfig()
+
+__author__ = "Splice Machine, Inc."
+__copyright__ = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
+__credits__ = ["Amrit Baveja", "Murray Brown", "Monte Zweben", "Ben Epstein"]
+
+__license__ = "Commerical"
+__version__ = "2.0"
+__maintainer__ = "Amrit Baveja"
+__email__ = "abaveja@splicemachine.com"
+__status__ = "Quality Assurance (QA)"
+
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s - %(name)s (%(lineno)s) - %(levelname)s: %(message)s",
+                    datefmt='%Y.%m.%d %H:%M:%S')
 logger = logging.getLogger('dash')
+
 logger.setLevel(logging.DEBUG)
 
 app = Flask(__name__)
@@ -29,36 +45,44 @@ class JDBCUtils(object):
     ServiceStatus = namedtuple('ServiceStatus', ['service', 'status'])
 
     @staticmethod
-    def _renew():
-        """Establish a new JDBC Connection to the server
+    def authenticate():
+        """
+        If the time difference between the last time we renewed our JDBC connection
+        is greater that 510 minutes, renew our connection via environment variable info
         :return: nothing
         """
-        jdbc_conn = jaydebeapi.connect("com.splicemachine.db.jdbc.ClientDriver",
-                                       JDBCUtils.jdbc_url,
-                                       {'user': JDBCUtils.username,
-                                        'password': JDBCUtils.password, 'ssl': "basic"},
-                                       "../utilities/db-client-2.7.0.1815.jar")
-        JDBCUtils.cursor = jdbc_conn.cursor()
-        JDBCUtils.last_authenticated = datetime.today()
+        try:
+            if not JDBCUtils.cursor:
+                raise Exception # go to except condition
 
-    @staticmethod
-    def renew_jdbc_connection():
-        """Refresh every 51 mins, so that we won't time out JDBC connection
-        :return: nothing
-        """
-        if JDBCUtils.last_authenticated:
-            logger.debug('Checking JDBC Connection')
-            last_renewed_diff = datetime.today() - JDBCUtils.last_authenticated
+            JDBCUtils.cursor.execute("VALUES 1")
+            record = JDBCUtils.cursor.fetchone()
+            logger.info("Tested DB Connection! Active! " + str(record))
+            return
 
-            logger.debug('minutes since last renewal ' + str(last_renewed_diff.total_seconds() /
-                                                             60))
-            if last_renewed_diff.total_seconds() / 60 >= 51:
-                logger.debug('Renewing JDBC Connection')
-                JDBCUtils._renew()
+        except:
+            logger.info("Found bad/nonexistant connection... terminating")
 
-        else:
-            logger.debug('Renewing JDBC Connection')
-            JDBCUtils._renew()
+            if JDBCUtils.cursor:
+                logger.info("Closed current cursor")
+                JDBCUtils.cursor.close()
+
+            try:
+                jdbc_conn = jaydebeapi.connect("com.splicemachine.db.jdbc.ClientDriver",
+                                            os.environ.get('JDBC_URL'),
+                                            {'user': os.environ.get('USER'),
+                                            'password': os.environ.get('PASSWORD'), 'ssl': "basic"},
+                                            "../utilities/db-client-2.7.0.1815.jar")
+            
+                logger.info("Opened new JDBC Connection")
+                # establish a JDBC connection to your database
+                JDBCUtils.cursor = jdbc_conn.cursor()  # get a cursor
+                logger.info("Opened new JDBC Cursor. Success!")
+
+            except Exception as e:
+                logger.error("ERROR! " + str(e))
+                time.sleep(2)
+                JDBCUtils.authenticate()
 
     @staticmethod
     @cachetools.func.ttl_cache(maxsize=1024, ttl=10)
@@ -68,7 +92,7 @@ class JDBCUtils(object):
         :return: list of namedtuples containing jobs, or False if exception
 
         """
-        JDBCUtils.renew_jdbc_connection()
+        JDBCUtils.authenticate()
         logger.debug('Getting Jobs')
         try:
             JDBCUtils.cursor.execute('SELECT * FROM ML.JOBS ORDER BY TIMESTAMP DESC')
@@ -98,7 +122,7 @@ class JDBCUtils(object):
         load extremely slowly
         :return: list of namedtuples containing handler statuses, or False if exception
         """
-        JDBCUtils.renew_jdbc_connection()
+        JDBCUtils.authenticate()
         logger.debug('Getting Statuses')
         try:
             JDBCUtils.cursor.execute('SELECT * FROM ML.ACTIVE_SERVICES')
@@ -110,6 +134,9 @@ class JDBCUtils(object):
             logger.error(e)
             return False
 
+INITIAL_JOBS = JDBCUtils.get_jobs() # initially get the jobs on startup so that page load is faster
+INITIAL_STATUSES = JDBCUtils.get_statuses() # initially get the statuses on startup so that page load is faster
+COMPLETED_INITIAL_DATABASE_RETRIEVAL = [False] # put in a list to comply with PEP 8 of not using "global"
 
 @app.route('/', methods=['GET'])
 @app.route('/dash', methods=['GET'])
@@ -119,8 +146,17 @@ def dash():
     :return: HTML file rendered by browser
 
     """
-    return render_template('dash.html', jobs=JDBCUtils.get_jobs(),
-                           statuses=JDBCUtils.get_statuses())
+    if not COMPLETED_INITIAL_DATABASE_RETRIEVAL[0]:
+        logger.debug("USING INTIAL DATABASE RETRIEVAL METHOD")
+        jobs = INITIAL_JOBS
+        statuses = INITIAL_STATUSES
+        COMPLETED_INITIAL_DATABASE_RETRIEVAL[0] = True
+    else:
+        jobs = JDBCUtils.get_jobs()
+        statuses = JDBCUtils.get_statuses()
+
+    return render_template('dash.html', jobs=jobs,
+                           statuses=statuses)
 
 
 @app.route('/deploy', methods=['GET', 'POST'])
@@ -135,18 +171,18 @@ def deploy():
         host = 'http://0.0.0.0:{api_port}/deploy'.format(api_port=os.environ['API_PORT'])
         assembled_metadata = {
             'handler': 'deploy',
-            'path': '/mlruns/{experiment_id}/{run_id}/artifacts/'.format(
-                experiment_id=request.form['experiment_id'], run_id=request.form['run_id']),
+            'experiment_id': request.form['experiment_id'], 
+            'run_id': request.form['run_id'],
             'region': request.form['region'],
-            'postfix': 'pysparkmodel',
+            #'iam_role': request.form['iam_role'],
+            'postfix': 'spark_model',
             'instance_type': request.form['instance_type'],
             'instance_count': request.form['instance_count'],
-            'iam_role': request.form['iam_role'],
             'deployment_mode': request.form['deployment_mode'],
             'app_name': request.form['app_name'],
             'random_string': str(md5(str(random.randint(0, 10 ** 5)).encode('utf-8')).hexdigest())
         }
-
+        
         r = requests.post(host, json=assembled_metadata)
         if r.ok:
             return render_template('check.html')
@@ -155,6 +191,9 @@ def deploy():
     else:
         return '<h1>Request not understood</h1>'
 
+@app.route('/check', methods=['GET'])
+def success():
+    return render_template("check.html")
 
 @app.route('/toggle', methods=['GET', 'POST'])
 def toggle():
