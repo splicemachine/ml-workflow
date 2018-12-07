@@ -8,9 +8,9 @@ from json import dumps, loads
 from retry import retry
 import jaydebeapi
 
-logging.basicConfig()
+# logging.basicConfig()
 logger = logging.getLogger('queue')
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 __author__ = "Splice Machine, Inc."
 __copyright__ = "Copyright 2018, Splice Machine Inc. Some Rights Reserved"
@@ -33,6 +33,10 @@ class SpliceMachineQueue(object):
         self.table = 'ML.JOBS'
         self.state_table = 'ML.ACTIVE_SERVICES'
 
+        self.jdbc_conn = None
+        self.cursor = None
+        self.created = False
+
         self.datetime_format = "%m-%d-%Y %H:%M:%S"
         self.last_authenticated = datetime.today()
         self.Job = namedtuple(
@@ -53,6 +57,17 @@ class SpliceMachineQueue(object):
         else:
             logger.info('Table for State exists')
 
+    def __del__(self):
+        logger.info('Closing Splice Machine Connection')
+
+        if self.jdbc_conn:
+            self.jdbc_conn.close()
+            self.jdbc_conn = None
+
+        if self.cursor:
+            self.cursor.close()
+            self.cursor = None
+
     @staticmethod
     def _time_hrs_difference(date_1, date_2):
         """
@@ -66,13 +81,15 @@ class SpliceMachineQueue(object):
 
     @retry(delay=1, backoff=2)
     def authenticate(self, _force=False):
+
         """
         If the time difference between the last time we renewed our JDBC connection
         is greater that 510 minutes, renew our connection via environment variable info
         :return: nothing
         """
         t_diff = SpliceMachineQueue._time_hrs_difference(self.last_authenticated, datetime.today())
-        if t_diff >= 51 or not self.authenticated:
+        if t_diff >= 51 or not self.authenticated or _force:
+            self.__del__()
             jdbc_url = os.environ.get('JDBC_URL')
             username = os.environ.get('USER')
             password = os.environ.get('PASSWORD')
@@ -80,6 +97,8 @@ class SpliceMachineQueue(object):
                                            {'user': username,
                                             'password': password, 'ssl': "basic"},
                                            "../utilities/db-client-2.7.0.1815.jar")
+
+            self.jdbc_conn = jdbc_conn
 
             # establish a JDBC connection to your database
             self.cursor = jdbc_conn.cursor()  # get a cursor

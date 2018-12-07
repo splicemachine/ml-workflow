@@ -17,7 +17,7 @@ __copyright__ = "Copyright 2018, Splice Machine Inc. Some Rights Reserved"
 __credits__ = ["Amrit Baveja", "Murray Brown", "Monte Zweben"]
 
 __license__ = "Apache-2.0"
-__version__ = "2.0"
+__version__ = "3.0"
 __maintainer__ = "Amrit Baveja"
 __email__ = "abaveja@splicemachine.com"
 __status__ = "Quality Assurance (QA)"
@@ -114,6 +114,7 @@ class S3Daemon(object):
         """
         if arguments.role == 'upload':  # download current S3 first time
             # sync as download daemon one time
+            print('downloading')
             S3Daemon.sync(arguments, override_role=True)
 
         while True:
@@ -278,27 +279,25 @@ class S3Daemon(object):
         if override_role or arguments.role == 'download':
             # whether we are initially downloading the current S3 contents first
             # Execute download bash
-            with open('/tmp/download.log', 'w') as log_file:
-                if not override_role:
-                    process_code = subprocess.call(['aws', 's3', 'sync',
-                                                    arguments.bucket_url,
-                                                    arguments.intermediate_dir,
-                                                    '--size-only'], stdout=log_file)
-                    S3Daemon.clean_and_format(arguments)
-                else:
-                    process_code = subprocess.call(['aws', 's3', 'sync',
-                                                    arguments.bucket_url,
-                                                    arguments.mlflow_dir], stdout=log_file)
+            if not override_role:
+                process_code = subprocess.call(['aws', 's3', 'sync',
+                                                arguments.bucket_url,
+                                                arguments.intermediate_dir,
+                                                '--size-only'])
+                S3Daemon.clean_and_format(arguments)
+            else:
+                process_code = subprocess.call(['aws', 's3', 'sync',
+                                                arguments.bucket_url,
+                                                arguments.mlflow_dir])
         else:
             S3Daemon.clean_and_format(arguments)
-            with open('/tmp/upload.log', 'w') as log_file:
-                process_code = subprocess.call(['aws',
-                                                's3',
-                                                'sync',
-                                                arguments.mlflow_dir,
-                                                arguments.bucket_url,
-                                                '--delete',
-                                                '--size-only'], stdout=log_file)  # Execute upload
+            process_code = subprocess.call(['aws',
+                                            's3',
+                                            'sync',
+                                            arguments.mlflow_dir,
+                                            arguments.bucket_url,
+                                            '--delete',
+                                            '--size-only'])  # Execute upload
             # bash command
 
         Utils.check_output_code('aws s3 sync', process_code)
