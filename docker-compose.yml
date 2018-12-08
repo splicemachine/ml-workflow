@@ -2,8 +2,8 @@ version: '3'
 services:
   zeppelin:
     environment:
-      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
-      AWS_SECRET_ACCESS_KEY: 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
+      AWS_ACCESS_KEY_ID: 
+      AWS_SECRET_ACCESS_KEY: 
     ports:
       - "8080:8080"
     build: ./zeppelin
@@ -13,8 +13,8 @@ services:
       JDBC_URL: jdbc:splice://monte-streamtest.splicemachine.io:1527/splicedb;ssl=basic
       USER: splice
       PASSWORD: pcaTFuI1
-      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
-      AWS_SECRET_ACCESS_KEY: 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
+      AWS_ACCESS_KEY_ID: 
+      AWS_SECRET_ACCESS_KEY: 
       S3_BUCKET_NAME: s3://mlflow-code
       MLFLOW_PORT: 5001
       API_PORT: 5002
@@ -37,8 +37,8 @@ services:
     environment:
       JDBC_URL: jdbc:splice://monte-streamtest.splicemachine.io:1527/splicedb;ssl=basic
       USER: splice
-      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
-      AWS_SECRET_ACCESS_KEY: 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
+      AWS_ACCESS_KEY_ID: 
+      AWS_SECRET_ACCESS_KEY: 
       PASSWORD: pcaTFuI1
       S3_BUCKET_NAME: s3://mlflow-code
       FRAMEWORK_NAME: monte-streamtest-6160590510
