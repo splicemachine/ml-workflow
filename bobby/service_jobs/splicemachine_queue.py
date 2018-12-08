@@ -71,7 +71,7 @@ class SpliceMachineQueue(object):
         try:
             if not self.authenticated:
                 raise Exception # go to exception case
-                ss
+                
             self.cursor.execute("VALUES 1")
             record = self.cursor.fetchone()
             logger.info("Tested DB Connection! Active! " + str(record))

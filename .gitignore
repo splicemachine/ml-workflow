@@ -1,6 +1,5 @@
 __pycache__
 *.pyc
-*.zip
 .idea
 .DS_Store
 *.old

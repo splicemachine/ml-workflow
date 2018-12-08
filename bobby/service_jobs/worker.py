@@ -164,10 +164,7 @@ class DeploymentHandler(BaseHandler):
               - defaults
             dependencies:
               - python=3.6
-              - numpy=1.14.3
               - pandas=0.22.0
-              - scikit-learn=0.19.1
-              - h2o
               - pip:
                 - pyspark==2.2.2
                 - mlflow==0.8.0
