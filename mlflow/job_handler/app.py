@@ -9,11 +9,11 @@ from splicemachine_queue import SpliceMachineQueue
 
 app = Flask(__name__)
 
-queue = SpliceMachineQueue()
-
 logging.basicConfig()
 logger = logging.getLogger('job_handler_api')
 logger.setLevel(logging.DEBUG)
+
+queue = SpliceMachineQueue()
 
 available_actions = ['start', 'stop']
 available_handlers = ['deploy', 'schedule', 'retrain']
