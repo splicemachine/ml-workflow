@@ -8,9 +8,7 @@ from json import dumps, loads
 from retry import retry
 import jaydebeapi
 
-# logging.basicConfig()
 logger = logging.getLogger('queue')
-# logger.setLevel(logging.DEBUG)
 
 __author__ = "Splice Machine, Inc."
 __copyright__ = "Copyright 2018, Splice Machine Inc. Some Rights Reserved"
@@ -57,7 +55,7 @@ class SpliceMachineQueue(object):
         else:
             logger.info('Table for State exists')
 
-    def __del__(self):
+    def _close(self):
         logger.info('Closing Splice Machine Connection')
 
         if self.jdbc_conn:
@@ -67,6 +65,10 @@ class SpliceMachineQueue(object):
         if self.cursor:
             self.cursor.close()
             self.cursor = None
+
+    def __del__(self):
+        self._close()
+        super(SpliceMachineQueue, self).__del__() 
 
     @staticmethod
     def _time_hrs_difference(date_1, date_2):
@@ -89,7 +91,7 @@ class SpliceMachineQueue(object):
         """
         t_diff = SpliceMachineQueue._time_hrs_difference(self.last_authenticated, datetime.today())
         if t_diff >= 51 or not self.authenticated or _force:
-            self.__del__()
+            self._close()
             jdbc_url = os.environ.get('JDBC_URL')
             username = os.environ.get('USER')
             password = os.environ.get('PASSWORD')
