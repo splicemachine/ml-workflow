@@ -1,4 +1,4 @@
-NAME = splicemachine/mlflow
+NAME = splicemachine/bobby
 VERSION = 8.0.0
 SPLICE_BASE_IMAGE_VERSION = 0.0.4
 STATIC_BASE_ARTIFACT_URI = https://s3.amazonaws.com/splicemachine/artifacts
