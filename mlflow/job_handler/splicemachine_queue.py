@@ -12,7 +12,6 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s (%(lineno)s) - %(levelname)s: %(message)s",
                     datefmt='%Y.%m.%d %H:%M:%S')
 logger = logging.getLogger('queue')
-logger.setLevel(logging.DEBUG)
 
 __author__ = "Splice Machine, Inc."
 __copyright__ = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
@@ -34,6 +33,10 @@ class SpliceMachineQueue(object):
         self.authenticated = False
         self.table = 'ML.JOBS'
         self.state_table = 'ML.ACTIVE_SERVICES'
+
+        self.jdbc_conn = None
+        self.cursor = None
+        self.created = False
 
         self.datetime_format = "%m-%d-%Y %H:%M:%S"
         self.last_authenticated = datetime.today()
@@ -153,7 +156,7 @@ class SpliceMachineQueue(object):
                                             {'user': os.environ.get('USER'),
                                             'password': os.environ.get('PASSWORD'), 'ssl': "basic"},
                                             "../utilities/db-client-2.7.0.1815.jar")
-            
+
                 logger.info("Opened new JDBC Connection")
                 # establish a JDBC connection to your database
                 self.cursor = jdbc_conn.cursor()  # get a cursor

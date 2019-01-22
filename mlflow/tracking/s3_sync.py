@@ -114,6 +114,7 @@ class S3Daemon(object):
         """
         if arguments.role == 'upload':  # download current S3 first time
             # sync as download daemon one time
+            print('uploading')
             S3Daemon.sync(arguments, override_role=True)
 
         while True:

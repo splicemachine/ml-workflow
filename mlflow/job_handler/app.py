@@ -30,6 +30,8 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger('job_handler_api')
 logger.setLevel(logging.DEBUG)
 
+queue = SpliceMachineQueue()
+
 available_actions = ['start', 'stop']
 available_handlers = ['deploy', 'schedule', 'retrain']
 
