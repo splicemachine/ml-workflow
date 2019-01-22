@@ -13,11 +13,11 @@ import subprocess
 import time
 
 __author__ = "Splice Machine, Inc."
-__copyright__ = "Copyright 2018, Splice Machine Inc. Some Rights Reserved"
-__credits__ = ["Amrit Baveja", "Murray Brown", "Monte Zweben"]
+__copyright__ = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
+__credits__ = ["Amrit Baveja", "Murray Brown", "Monte Zweben", "Ben Epstein"]
 
-__license__ = "Apache-2.0"
-__version__ = "3.0"
+__license__ = "Commerical"
+__version__ = "2.0"
 __maintainer__ = "Amrit Baveja"
 __email__ = "abaveja@splicemachine.com"
 __status__ = "Quality Assurance (QA)"
@@ -159,12 +159,12 @@ class S3Daemon(object):
         :return:
         """
         if path.endswith('artifacts') or path.endswith(
-                'artifacts/') and not os.path.isfile(path + '/upload_sp1c3.txt'):
+                'artifacts/') and not os.path.isfile(path + '/temp.txt'):
             # write a fake artifact to a file so S3 won't ignore an empty
             # directory
 
             create_fake_artifact_code = os.system(
-                'echo Hello World > ' + path + '/upload_sp1c3.txt')
+                'echo Hello World > ' + path + '/temp.txt')
 
             Utils.check_output_code(
                 'fake artifact create',
@@ -172,22 +172,22 @@ class S3Daemon(object):
 
             # write a fake parameter
         elif path.endswith('params') or path.endswith('params/') and not \
-                os.path.isfile(path + '/z_locz'):  # some random string a user will never upload
+                os.path.isfile(path + '/temp'):  # some random string a user will never upload
             # to a file so S3 won't ignore the empty directory
 
-            create_fake_param_code = os.system('echo s3 > ' + path + '/z_locz')
+            create_fake_param_code = os.system('echo s3 > ' + path + '/temp')
 
             Utils.check_output_code(
                 'fake param create',
                 create_fake_param_code)
 
         elif path.endswith('metrics') or path.endswith('metrics/') and not os.path.isfile(
-                path + '/valideeeto5'):
+                path + '/temp'):
             # write a fake metric to  a file so S3 won't ignore the empty
             # directory
 
             create_fake_metric_code = os.system(
-                'echo 1516407499 1 > ' + path + '/valideeeto5')
+                'echo 1516407499 1 > ' + path + '/temp')
 
             Utils.check_output_code(
                 'fake metric create',
@@ -200,25 +200,25 @@ class S3Daemon(object):
         :param path: intermediate dir on target
         :return: n/a
         """
-        if os.path.isfile(path + '/upload_sp1c3.txt'):
+        if os.path.isfile(path + '/temp.txt'):
             # delete fake artifacts
             delete_artifact_code = subprocess.call(
-                ['rm', path + '/upload_sp1c3.txt'])
+                ['rm', path + '/temp.txt'])
             Utils.check_output_code(
                 'fake artifact delete',
                 delete_artifact_code)
 
-        elif os.path.isfile(path + '/z_locz'):
+        elif os.path.isfile(path + '/temp'):
             # delete fake params
-            delete_fake_param_code = subprocess.call(['rm', path + '/z_locz'])
+            delete_fake_param_code = subprocess.call(['rm', path + '/temp'])
             Utils.check_output_code(
                 'fake param delete',
                 delete_fake_param_code)
 
-        elif os.path.isfile(path + '/valideeeto5'):
+        elif os.path.isfile(path + '/temp'):
             # delete fake metrics
             delete_fake_metric_code = subprocess.call(
-                ['rm', path + '/valideeeto5'])
+                ['rm', path + '/temp'])
             Utils.check_output_code(
                 'fake metric delete',
                 delete_fake_metric_code)
@@ -230,8 +230,15 @@ class S3Daemon(object):
         :param arguments: user inputs
         :return: n/a
         """
+        sync_dir_cmd = subprocess.call(['rsync',
+                                        '-tr',
+                                        arguments.mlflow_dir + '/',
+                                        arguments.intermediate_dir,
+                                        '--delete'])
         S3Daemon.format_for_s3(
-            'upload', arguments.mlflow_dir)  # Create fake metadata
+            'upload', arguments.intermediate_dir)  # Create fake metadata
+
+        Utils.check_output_code('rsync to dir', sync_dir_cmd)
 
     @staticmethod
     def clean_download(arguments):
@@ -279,25 +286,28 @@ class S3Daemon(object):
         if override_role or arguments.role == 'download':
             # whether we are initially downloading the current S3 contents first
             # Execute download bash
-            if not override_role:
-                process_code = subprocess.call(['aws', 's3', 'sync',
-                                                arguments.bucket_url,
-                                                arguments.intermediate_dir,
-                                                '--size-only'])
-                S3Daemon.clean_and_format(arguments)
-            else:
-                process_code = subprocess.call(['aws', 's3', 'sync',
-                                                arguments.bucket_url,
-                                                arguments.mlflow_dir])
+            with open('/tmp/download.log', 'w') as log_file:
+                if not override_role:
+                    process_code = subprocess.call(['aws', 's3', 'sync',
+                                                    arguments.bucket_url,
+                                                    arguments.intermediate_dir,
+                                                    '--size-only'], stdout=log_file)
+                    S3Daemon.clean_and_format(arguments)
+                else:
+                    process_code = subprocess.call(['aws', 's3', 'sync',
+                                                    arguments.bucket_url,
+                                                    arguments.mlflow_dir], stdout=log_file)
+                    S3Daemon.format_for_s3("download", arguments.mlflow_dir)
         else:
             S3Daemon.clean_and_format(arguments)
-            process_code = subprocess.call(['aws',
-                                            's3',
-                                            'sync',
-                                            arguments.mlflow_dir,
-                                            arguments.bucket_url,
-                                            '--delete',
-                                            '--size-only'])  # Execute upload
+            with open('/tmp/upload.log', 'w') as log_file:
+                process_code = subprocess.call(['aws',
+                                                's3',
+                                                'sync',
+                                                arguments.intermediate_dir,
+                                                arguments.bucket_url,
+                                                '--delete',
+                                                '--size-only'], stdout=log_file)  # Execute upload
             # bash command
 
         Utils.check_output_code('aws s3 sync', process_code)

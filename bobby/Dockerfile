@@ -1,7 +1,7 @@
 FROM centos:7
 MAINTAINER abaveja@splicemachine.com
 
-ENV SPLICEMACHINE_PY_VERSION='6.0'
+ENV SPLICEMACHINE_PY_VERSION='13.1'
 ARG sm_version=2.7.0.1828
 ARG dbaas_build=1.0.1533
 ARG spark_version=2.2.2
@@ -43,10 +43,16 @@ RUN wget -O /usr/local/bin/dind "https://raw.githubusercontent.com/docker/docker
 # Copy files
 RUN mkdir -p /bob
 COPY . /bob
+
 # make the entrypoint executable by all users
 RUN chmod a+x /bob/utilities/entrypoint.sh && \
     chmod a+x /bob/utilities/run_dind.sh && \
+    unzip /bob/utilities/mlflow.zip && \
     cat /bob/goodies/bobby.txt
+
+# we have to copy the mlflow binary because MLFlow has TONS of
+# problems with their Java Artifact Store in Maven which effect deployment. 
+# this way is much easier
 
 # do good stuff
 CMD ["/bob/utilities/entrypoint.sh"]

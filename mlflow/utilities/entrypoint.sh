@@ -39,9 +39,10 @@ fi
 # do actual stuff
 echo "Starting S3 Daemon"
 mkdir -p /mlruns
+mkdir -p /tmp/mlruns 
 
 cd /api/job_handler && nohup gunicorn --bind 0.0.0.0:$API_PORT --workers 4 app:app  &
-nohup python /api/tracking/s3_sync.py download -b $S3_BUCKET_NAME -m /mlruns -l 5 -i /tmp/mlcopy &
+nohup python /api/tracking/s3_sync.py upload -b $S3_BUCKET_NAME/persist -m /mlruns -i /tmp/mlruns -l 5 &
 
 echo "Starting Job Tracker"
 echo "Starting Dashboard UI"
@@ -49,6 +50,6 @@ cd /api/job_status && \
     nohup gunicorn --bind 0.0.0.0:$DASH_PORT --workers 4 dash:app > /tmp/dash.log &
 
 echo "Starting Mlflow Server on 0.0.0.0"
-nohup mlflow server --host 0.0.0.0 -p $MLFLOW_PORT --file-store /mlruns & > /tmp/mlflow.log
+cd /mlruns && nohup mlflow server --host 0.0.0.0 --default-artifact-root $S3_BUCKET_NAME/artifacts -p $MLFLOW_PORT & > /tmp/mlflow.log
 
 python /api/utilities/keep_alive.py

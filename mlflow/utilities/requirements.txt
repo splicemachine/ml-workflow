@@ -1,5 +1,5 @@
 Flask==1.0.2
-mlflow==0.5
+mlflow==0.8.0
 gunicorn
 py4j
 pyspark==2.2.2

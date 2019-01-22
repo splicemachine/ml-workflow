@@ -1,15 +1,32 @@
 import logging
 import random
 import sys
+import os
 from hashlib import md5
 
 from flask import Flask, request, jsonify, make_response
 
 from splicemachine_queue import SpliceMachineQueue
 
+
+__author__ = "Splice Machine, Inc."
+__copyright__ = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
+__credits__ = ["Amrit Baveja", "Murray Brown", "Monte Zweben", "Ben Epstein"]
+
+__license__ = "Commerical"
+__version__ = "2.0"
+__maintainer__ = "Amrit Baveja"
+__email__ = "abaveja@splicemachine.com"
+__status__ = "Quality Assurance (QA)"
+
+
 app = Flask(__name__)
 
-logging.basicConfig()
+queue = SpliceMachineQueue()
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s - %(name)s (%(lineno)s) - %(levelname)s: %(message)s",
+                    datefmt='%Y.%m.%d %H:%M:%S')
 logger = logging.getLogger('job_handler_api')
 logger.setLevel(logging.DEBUG)
 
@@ -175,15 +192,17 @@ def deploy_handler():
     """
     try:
         json_returned = request.get_json()
-        postfix = json_returned['postfix']
+        logger.info(json_returned)
 
         assembled_metadata = {
             'handler': 'deploy',
-            'ml_model_path': json_returned['path'] + postfix,
+            'experiment_id': json_returned['experiment_id'],
+            'run_id': json_returned['run_id'],
+            'postfix': json_returned['postfix'],
             'sagemaker_region': json_returned['region'],
             'instance_type': json_returned['instance_type'],
             'instance_count': json_returned['instance_count'],
-            'iam_role': json_returned['iam_role'],
+            'iam_role': os.environ['SAGEMAKER_ROLE'],
             'deployment_mode': json_returned['deployment_mode'],
             'app_name': json_returned['app_name'],
             'random_string': str(md5(str(random.randint(0, 10 ** 5)).encode('utf-8')).hexdigest())

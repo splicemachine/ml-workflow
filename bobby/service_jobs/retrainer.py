@@ -15,7 +15,7 @@ scheduled_run = zeppelin.Run()
 
 
 class Trainer(object):
-    def __init__(self, sc, sqlContext, task, queue):
+    def __init__(self, spark, task, queue):
         """
         Retrain on a fitted piepline
         :param sc: spark context
@@ -23,8 +23,8 @@ class Trainer(object):
         :param task: namedtuple containing task info
         :param queue: splice machine qeueu
         """
-        self.sc = sc
-        self.sqlContext = sqlContext
+        self.sc = spark.sc
+        self.sqlContext = spark._wrapped
         self.task = task
         self.queue = queue
 

@@ -62,11 +62,11 @@
                 Detailed Status: {{job.info | safe}}<br><br>
                 <i>Job Payload:</i><br>
                 Handler: {{job.payload['handler']}}<br>
-                MLFlow Model Path: {{job.payload['ml_model_path']}}<br>
+                MLFlow Run ID: {{job.payload['run_id']}}<br>
+                MLFlow Experiment ID: {{job.payload['experiment_id']}}<br>
                 ML EC2 Instance Type: {{job.payload['instance_type']}}<br>
                 ML EC2 Instance Count: {{job.payload['instance_count']}}<br>
                 AWS Region: {{job.payload['sagemaker_region']}}<br>
-                IAM Role: {{job.payload['iam_role']}}<br>
                 SageMaker App Name: {{job.payload['app_name']}}<br><br>
 
                 {% endif %}
