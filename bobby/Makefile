@@ -1,7 +1,10 @@
 NAME = splicemachine/bobby
-VERSION = 8.0.0
+VERSION = integration-0.0.1
 SPLICE_BASE_IMAGE_VERSION = 0.0.4
-STATIC_BASE_ARTIFACT_URI = https://s3.amazonaws.com/splicemachine/artifacts
+SPLICE_BUILD=2.7.0.1849
+DBAAS_BUILD_NUMBER=1724
+BASE_ARTIFACT_URI = https://s3.amazonaws.com/splicemachine/$(SPLICE_BUILD)-1.0.$(DBAAS_BUILD_NUMBER)/artifacts
+PYSPLICE_VERSION = 0.0.2
 
 GITTAG=$(shell git describe --tags)
 
@@ -17,16 +20,15 @@ run:
 	docker run $(NAME):$(VERSION)
 
 build:
-	docker build --rm -t $(NAME):$(VERSION) .
+	docker \
+		build \
+		--rm \
+		--build-arg splice_base_image_version=${SPLICE_BASE_IMAGE_VERSION} \
+		--build-arg pysplice_version=${PYSPLICE_VERSION} \
+		-t $(NAME):$(VERSION) \
+		.
 	docker tag $(NAME):$(VERSION) $(NAME):latest
 	docker tag $(NAME):$(VERSION) $(NAME):$(GITTAG)
-
-build:
-	docker build --rm --build-arg splice_base_image_version=${SPLICE_BASE_IMAGE_VERSION} \
-      --build-arg static_base_artifact_uri=${STATIC_BASE_ARTIFACT_URI} -t $(NAME):$(VERSION) .
-	docker tag $(NAME):$(VERSION) $(NAME):latest
-	docker tag $(NAME):$(VERSION) $(NAME):$(GITTAG)
-
 
 push:
 	docker push $(NAME):latest
