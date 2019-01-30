@@ -36,7 +36,7 @@ mkdir -p /mlruns
 mkdir -p /var/tmp/tmp_conf_files
 
 echo "Starting up Docker Daemon"
-nohup ./bob/utilities/run_dind.sh &
+nohup /bob/utilities/run_dind.sh &
 
 #echo "Copying config from HMaster on DBaaS cluster"
 
