@@ -21,14 +21,14 @@ run:
 	-e "AWS_DEFAULT_REGION=us-east-1" \
 	-e "USER=splice" \
 	-e "PASSWORD=admin" \
-	-e "S3_BUCKET_NAME=s3://splice-demo/machine-learning/test" \
+	-e "S3_BUCKET_NAME=s3://splice-demo/machine-learning/sync" \
 	-e "MLFLOW_PORT=5001" \
 	-p 5001:5001 \
 	-e "API_PORT=5002" \
 	-p 5002:5002 \
 	-e "DASH_PORT=5003" \
 	-p 5003:5003 \
-	-e "FRAMEWORK_NAME=nikhilsaccount-ml-09b79ef73d" \
+	-e "FRAMEWORK_NAME=nikhilsaccount-ml-c1e6c0a1d1" \
 	-e "SAGEMAKER_ROLE=arn:aws:iam::953558963498:role/splice-sagemaker" \
 	$(NAME):$(VERSION)
 
