@@ -1,5 +1,5 @@
 NAME = splicemachine/bobby
-VERSION = 0.0.2
+VERSION = 0.0.3
 SPLICE_BASE_IMAGE_VERSION = 0.0.4
 SPLICE_BUILD=2.7.0.1849
 DBAAS_BUILD_NUMBER=1724
@@ -17,7 +17,19 @@ endif
 all: build
 
 run:
-	docker run $(NAME):$(VERSION)
+	docker run \
+	-e "JDBC_URL=jdbc:splice://nikhilsaccount-ml.splicemachine-dev.io:1527/splicedb;ssl=basic;user=splice;password=admin;" \
+	-e "AWS_ACCESS_KEY_ID=AKIAI2LKZ2P4DLZS7FZA" \
+	-e "AWS_SECRET_ACCESS_KEY=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" \
+	-e "AWS_DEFAULT_REGION=us-east-1" \
+	-e "BOBBY_PORT=2375" \
+	-p 2375:2375 \
+	-e "USER=splice" \
+	-e "PASSWORD=admin" \
+	-e "S3_BUCKET_NAME=s3://splice-demo/machine-learning/test" \
+	-e "FRAMEWORK_NAME=nikhilsaccount-ml-09b79ef73d" \
+	-e "SAGEMAKER_ROLE=arn:aws:iam::953558963498:role/splice-sagemaker" \
+	$(NAME):$(VERSION)
 
 build:
 	docker \

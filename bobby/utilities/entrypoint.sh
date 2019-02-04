@@ -51,7 +51,6 @@ echo "Cleaning Up conf files"
 rm -r /var/tmp/tmp_conf_files
 
 echo "Starting Worker"
-cd /bob/service_jobs &&
-    nohup python worker.py > /tmp/worker.log &
+cd /bob/service_jobs && nohup python worker.py &
 
 python /bob/utilities/keep_alive.py

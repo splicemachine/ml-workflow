@@ -1,4 +1,3 @@
-import logging
 import os
 import subprocess
 import time
@@ -10,6 +9,11 @@ import mlflow
 import mlflow.sagemaker
 
 from splicemachine_queue import SpliceMachineQueue
+
+import logging
+import sys
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+
 
 """
 This module contains a worker that reads a Splice Machine Queue and redirects it to the
@@ -31,11 +35,12 @@ __maintainer__ = "Amrit Baveja"
 __email__ = "abaveja@splicemachine.com"
 __status__ = "Quality Assurance (QA)"
 
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s - %(name)s (%(lineno)s) - %(levelname)s: %(message)s",
-                    datefmt='%Y.%m.%d %H:%M:%S')
-logger = logging.getLogger('worker')
-logger.setLevel(logging.DEBUG)
+# logging.basicConfig(format='%(message)s')
+# logging.basicConfig(level=logging.INFO,
+#                     format="%(asctime)s - %(name)s (%(lineno)s) - %(levelname)s: %(message)s",
+#                     datefmt='%Y.%m.%d %H:%M:%S')
+# logger = logging.getLogger('worker')
+# logger.setLevel(logging.DEBUG)
 
 HANDLERS = ['deploy', 'retrain']
 
@@ -75,6 +80,7 @@ class StartServiceHandler(BaseHandler):
         :param task: task from json
         :return: True on success, False on exception
         """
+        logging.warning("start_service_handler", task)
         service_to_start = task.payload['service']
         if self.queue.enable_service(service_to_start):
             self.queue.upstat(task.job_id, 'UPDATED')
@@ -143,7 +149,7 @@ class DeploymentHandler(BaseHandler):
     def __init__(self, queue, task, sleep_interval=3):
         BaseHandler.__init__(self, queue, task)
         self.sleep_interval = sleep_interval
-        self.root_path = '/tmp/'
+        self.root_path = '/bob/tmp/'
         self.deploy_handler(task)
 
     def conda_setup(self, task_id, model_path):
@@ -154,7 +160,7 @@ class DeploymentHandler(BaseHandler):
 
         self.queue.upinfo(
             task_id, 'Configuring Conda Environment')  # Update info
-        logger.debug('doing conda')
+        logging.warning('doing conda')
 
         # Conda YAML File Contents for SageMaker
         conda_yaml_contents = \
@@ -171,17 +177,17 @@ class DeploymentHandler(BaseHandler):
             """
         with open(model_path + '/conda.yaml',
                   'w') as conda_file:  # Write conda yaml to a file under the model path
-            logger.debug('writing pkl to: ' + model_path + '/conda.yaml')
-            logger.debug(conda_yaml_contents)
+            logging.warning('writing pkl to: ' + model_path + '/conda.yaml')
+            logging.warning(conda_yaml_contents)
             conda_file.write(conda_yaml_contents)  # write
 
         with open(model_path + '/MLmodel') as mlmodel_yaml:  # Open model metadata file
             yf = yaml.load(mlmodel_yaml)  # load it as yaml
-            logger.debug(yf)
+            logging.warning(yf)
             yf['flavors']['python_function'][
                 'env'] = 'conda.yaml'  # tell docker to use the conda environment on AWS
-            logger.debug(yf)
-            logger.debug('writing mlmodel' + 'to ' + model_path + '/MLmodel')
+            logging.warning(yf)
+            logging.warning('writing mlmodel' + 'to ' + model_path + '/MLmodel')
 
         with open(model_path + '/MLmodel', 'w') as ml_write_yml:
             yaml.dump(yf, ml_write_yml, default_flow_style=False)  # write it to a file
@@ -199,10 +205,14 @@ class DeploymentHandler(BaseHandler):
             experiment=experiment_id
         )
 
+        logging.warning("artifact_uri: " + artifact_uri)
+        logging.warning("path: " + self.root_path + "model/")
+
         subprocess.check_call([
             'aws', 's3', 'sync', artifact_uri, self.root_path + "model/"
         ])
 
+        logging.warning("returning this path from download_current_s3_state " +  self.root_path + "model")
         return self.root_path + "model"
 
     def deploy_handler(self, task):
@@ -215,7 +225,7 @@ class DeploymentHandler(BaseHandler):
             if self.queue.is_service_allowed(task.handler):
                 os.environ['AWS_DEFAULT_REGION'] = task.payload['sagemaker_region']
 
-                logger.debug(task.payload)
+                logging.warning(task.payload)
                 path = self.download_current_s3_state(
                     task.job_id,
                     task.payload['run_id'],
@@ -266,8 +276,8 @@ class DeploymentHandler(BaseHandler):
         """
 
         self.queue.upinfo(task_id, 'Deploying model to SageMaker')  # Update Information
-        
-        mlflow.sagemaker.deploy(payload['app_name'], path, execution_role_arn=payload['iam_role'], 
+
+        mlflow.sagemaker.deploy(payload['app_name'], path, execution_role_arn=payload['iam_role'],
              region_name=payload['sagemaker_region'], mode=payload['deployment_mode'],
              instance_type=payload['instance_type'], instance_count=int(payload['instance_count'])
         )
@@ -319,7 +329,7 @@ class Worker(object):
             time.sleep(self.poll_interval)  # wait for next poll
             task = self.queue.service_job()
             if task:
-                logger.debug(task)
+                logging.warning(task)
 
                 if task.handler in self.MAPPING:
                     handler = self.MAPPING[task.handler](self.queue, task)
