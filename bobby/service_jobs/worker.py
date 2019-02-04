@@ -198,6 +198,11 @@ class DeploymentHandler(BaseHandler):
         :param task_id: job_id from task
         :return:
         """
+
+        logging.warning("task_id: " + task_id)
+        logging.warning("run_id: " + run_id)
+        logging.warning("experiment_id: " + experiment_id)
+
         self.queue.upinfo(task_id, 'Downloading Artifact from S3')
         artifact_uri = '{s3_bucket}/artifacts/{experiment}/{run_id}/'.format(
             s3_bucket=os.environ.get('S3_BUCKET_NAME'),

@@ -26,8 +26,8 @@ run:
 	-p 2375:2375 \
 	-e "USER=splice" \
 	-e "PASSWORD=admin" \
-	-e "S3_BUCKET_NAME=s3://splice-demo/machine-learning/test" \
-	-e "FRAMEWORK_NAME=nikhilsaccount-ml-09b79ef73d" \
+	-e "S3_BUCKET_NAME=s3://splice-demo/machine-learning/sync" \
+	-e "FRAMEWORK_NAME=nikhilsaccount-ml-c1e6c0a1d1" \
 	-e "SAGEMAKER_ROLE=arn:aws:iam::953558963498:role/splice-sagemaker" \
 	$(NAME):$(VERSION)
 
