@@ -1,17 +1,23 @@
-# Running
+# Build
 
 ```bash
-docker \
-    run \
-    --privileged \
-    -e S3_BUCKET_NAME='<YOUR S3 BUCKET' \
-    -e JDBC_URL='<YOUR JDBC URL>' \
-    -e USER='splice' \
-    -e PASSWORD='admin' \
-    -e AWS_ACCESS_KEY_ID='' \
-    -e AWS_SECRET_ACCESS_KEY='' \
-    -e DASH_PORT='2375' \
-    -p 2375:2375 \
-    --name bobby \
-    bobby
+make
 ```
+
+# Publish
+
+```bash
+make push
+```
+
+# Local
+
+```bash
+make run
+```
+**Note:** Edit the Makefile to provide:
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `JDBC_URL`
+- `FRAMEWORK_NAME`
+- `S3_BUCKET_NAME`
