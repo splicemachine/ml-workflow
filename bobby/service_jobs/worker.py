@@ -282,6 +282,9 @@ class DeploymentHandler(BaseHandler):
 
         self.queue.upinfo(task_id, 'Deploying model to SageMaker')  # Update Information
 
+        if payload['sagemaker_region'] == 'us-east-1':
+            payload['sagemaker_region'] = ''
+
         mlflow.sagemaker.deploy(payload['app_name'], path, execution_role_arn=payload['iam_role'],
              region_name=payload['sagemaker_region'], mode=payload['deployment_mode'],
              instance_type=payload['instance_type'], instance_count=int(payload['instance_count'])
