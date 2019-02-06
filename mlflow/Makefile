@@ -18,7 +18,7 @@ run:
 	-e "JDBC_URL=jdbc:splice://nikhilsaccount-ml.splicemachine-dev.io:1527/splicedb;ssl=basic;user=splice;password=admin;" \
 	-e "AWS_ACCESS_KEY_ID=AKIAI2LKZ2P4DLZS7FZA" \
 	-e "AWS_SECRET_ACCESS_KEY=" \
-	-e "AWS_DEFAULT_REGION=us-east-1" \
+	-e "AWS_DEFAULT_REGION=us-east-2" \
 	-e "USER=splice" \
 	-e "PASSWORD=admin" \
 	-e "S3_BUCKET_NAME=s3://splice-demo/machine-learning/sync" \
