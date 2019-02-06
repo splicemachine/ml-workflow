@@ -36,10 +36,15 @@ if [[ "$DASH_PORT" == "" ]]; then
    exit 1
 fi
 
+if [[ "$SAGEMAKER_ROLE" == "" ]]; then
+   echo "Error: environment variable SAGEMAKER_ROLE is required"
+   exit 1
+fi
+
 # do actual stuff
 echo "Starting S3 Daemon"
 mkdir -p /mlruns
-mkdir -p /tmp/mlruns 
+mkdir -p /tmp/mlruns
 
 cd /api/job_handler && nohup gunicorn --bind 0.0.0.0:$API_PORT --workers 4 app:app  &
 nohup python /api/tracking/s3_sync.py upload -b $S3_BUCKET_NAME/persist -m /mlruns -i /tmp/mlruns -l 5 &

@@ -1,5 +1,5 @@
 NAME = splicemachine/mlflow
-VERSION = 8.0.0
+VERSION = 0.0.7
 SPLICE_BASE_IMAGE_VERSION = 0.0.4
 STATIC_BASE_ARTIFACT_URI = https://s3.amazonaws.com/splicemachine/artifacts
 
@@ -14,7 +14,23 @@ endif
 all: build
 
 run:
-	docker run $(NAME):$(VERSION)
+	docker run \
+	-e "JDBC_URL=jdbc:splice://nikhilsaccount-ml.splicemachine-dev.io:1527/splicedb;ssl=basic;user=splice;password=admin;" \
+	-e "AWS_ACCESS_KEY_ID=AKIAI2LKZ2P4DLZS7FZA" \
+	-e "AWS_SECRET_ACCESS_KEY=" \
+	-e "AWS_DEFAULT_REGION=us-east-2" \
+	-e "USER=splice" \
+	-e "PASSWORD=admin" \
+	-e "S3_BUCKET_NAME=s3://splice-demo/machine-learning/sync" \
+	-e "MLFLOW_PORT=5001" \
+	-p 5001:5001 \
+	-e "API_PORT=5002" \
+	-p 5002:5002 \
+	-e "DASH_PORT=5003" \
+	-p 5003:5003 \
+	-e "FRAMEWORK_NAME=nikhilsaccount-ml-c1e6c0a1d1" \
+	-e "SAGEMAKER_ROLE=arn:aws:iam::953558963498:role/splice-sagemaker" \
+	$(NAME):$(VERSION)
 
 build:
 	docker build --rm -t $(NAME):$(VERSION) .
