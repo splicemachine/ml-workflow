@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 import random
 from retry import retry
 from collections import namedtuple
@@ -73,7 +74,7 @@ class JDBCUtils(object):
                                             {'user': os.environ.get('USER'),
                                             'password': os.environ.get('PASSWORD'), 'ssl': "basic"},
                                             "../utilities/db-client-2.7.0.1815.jar")
-            
+
                 logger.info("Opened new JDBC Connection")
                 # establish a JDBC connection to your database
                 JDBCUtils.cursor = jdbc_conn.cursor()  # get a cursor
@@ -171,7 +172,7 @@ def deploy():
         host = 'http://0.0.0.0:{api_port}/deploy'.format(api_port=os.environ['API_PORT'])
         assembled_metadata = {
             'handler': 'deploy',
-            'experiment_id': request.form['experiment_id'], 
+            'experiment_id': request.form['experiment_id'],
             'run_id': request.form['run_id'],
             'region': request.form['region'],
             #'iam_role': request.form['iam_role'],
@@ -182,7 +183,7 @@ def deploy():
             'app_name': request.form['app_name'],
             'random_string': str(md5(str(random.randint(0, 10 ** 5)).encode('utf-8')).hexdigest())
         }
-        
+
         r = requests.post(host, json=assembled_metadata)
         if r.ok:
             return render_template('check.html')
