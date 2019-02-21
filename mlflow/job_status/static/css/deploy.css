@@ -8,7 +8,7 @@ html {
 
 body {
   background: #c1bdba;
-  font-family: 'Titillium Web', sans-serif;
+  font-family: 'Open Sans', sans-serif;
 }
 
 a {
@@ -21,12 +21,15 @@ a:hover {
 }
 
 .form {
-  background: rgba(19, 35, 47, 0.9);
+  background: #fff;
   padding: 40px;
   max-width: 900px;
   margin: 40px auto;
-  border-radius: 4px;
+  border-radius: 0;
   box-shadow: 0 4px 10px 4px rgba(19, 35, 47, 0.3);
+}
+#signup b{
+  color: #888;
 }
 
 .tab-group {
@@ -54,7 +57,7 @@ a:hover {
 }
 .tab-group li a:hover {
   background: #179b77;
-  color: #ffffff;
+  color: #555;
 }
 .tab-group .active a {
   background: #1ab188;
@@ -67,8 +70,9 @@ a:hover {
 
 h1 {
   text-align: center;
-  color: #ffffff;
+  color: #3390db;
   font-weight: 300;
+  letter-spacing: .05em;
   margin: 0 0 40px;
 }
 
@@ -76,12 +80,15 @@ label {
   position: absolute;
   -webkit-transform: translateY(6px);
           transform: translateY(6px);
-  left: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  left: 10px;
+  color: #999;
+  opacity: .8;
   transition: all 0.25s ease;
   -webkit-backface-visibility: hidden;
   pointer-events: none;
-  font-size: 22px;
+  font-weight: 300;
+  font-size: 20px;
+  letter-spacing: .05em;
 }
 label .req {
   margin: 2px;
@@ -93,30 +100,33 @@ label.active {
           transform: translateY(50px);
   left: 2px;
   font-size: 14px;
+  display: none;
 }
 label.active .req {
   opacity: 0;
 }
 
 label.highlight {
-  color: #ffffff;
+  color: #888;
 }
 
 select, input, textarea {
-  font-size: 22px;
+  font-size: 20px;
   display: block;
+  font-weight: 300;
   width: 100%;
   height: 100%;
   padding: 5px 10px;
   background: none;
   background-image: none;
-  border: 1px solid #a0b3b0;
-  color: #ffffff;
+  border: 1px solid #ccc;
+  color: #888;
   border-radius: 0;
+  letter-spacing: .05em;
   transition: border-color .25s ease, box-shadow .25s ease;
 }
 select {
-    color: rgba(255, 255, 255, 0.5);
+    color: #888;
     height:30px;
     padding:5px 3px;
     border-radius:1px;
@@ -124,17 +134,17 @@ select {
 }
 select:focus, input:focus, textarea:focus {
   outline: 0;
-  border-color: #1ab188;
+  border-color: #3390db;
 }
 
 textarea {
-  border: 2px solid #a0b3b0;
+  border: 2px solid #ccc;
   resize: vertical;
 }
 
 .field-wrap {
   position: relative;
-  margin-bottom: 35px;
+  margin-bottom: 15px;
 }
 
 .top-row:after {
@@ -162,15 +172,17 @@ body {background:none transparent;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .1em;
-  background: #1ab188;
+  background: #f7a800;
+  border:1px solid #f7a800;
   border-radius:5px;
   width:100%;
-  color: #ffffff;
+  color: #fff;
   transition: all 0.5s ease;
   -webkit-appearance: none;
 }
 .button:hover, .button:focus {
-  background: #179b77;
+  background: #fff;
+  color: #f7a800;
 }
 
 .button-block {
