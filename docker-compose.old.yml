@@ -1,0 +1,47 @@
+version: '3'
+services:
+  zeppelin:
+    environment:
+      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
+      AWS_SECRET_ACCESS_KEY: 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
+    ports:
+      - "8080:8080"
+    build: ./zeppelin
+
+  mlflow:
+    environment:
+      JDBC_URL: jdbc:splice://monte-streamtest.splicemachine.io:1527/splicedb;ssl=basic
+      USER: splice
+      PASSWORD: pcaTFuI1
+      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
+      AWS_SECRET_ACCESS_KEY: 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
+      S3_BUCKET_NAME: s3://mlflow-code
+      MLFLOW_PORT: 5001
+      API_PORT: 5002
+      SAGEMAKER_ROLE: arn:aws:iam::953558963498:role/splice-sagemaker
+      DASH_PORT: 5003
+
+    ports:
+      - "5001:5001"
+      - "5002:5002"
+      - "5003:5003"
+
+    build:
+      args:
+        splice_base_image_version: 0.0.4
+        splice_base_artifact_uri: https://s3.amazonaws.com/splicemachine/artifacts
+      context: ./mlflow
+    
+  bobby:
+    privileged: true
+    environment:
+      JDBC_URL: jdbc:splice://monte-streamtest.splicemachine.io:1527/splicedb;ssl=basic
+      USER: splice
+      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
+      AWS_SECRET_ACCESS_KEY: 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
+      PASSWORD: pcaTFuI1
+      S3_BUCKET_NAME: s3://mlflow-code
+      FRAMEWORK_NAME: monte-streamtest-6160590510
+    build: ./bobby
+
+

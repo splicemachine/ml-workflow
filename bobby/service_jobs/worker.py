@@ -4,6 +4,7 @@ import time
 import traceback
 
 import yaml
+import boto3
 from pyspark import SparkConf
 import mlflow
 import mlflow.sagemaker
@@ -150,7 +151,30 @@ class DeploymentHandler(BaseHandler):
         BaseHandler.__init__(self, queue, task)
         self.sleep_interval = sleep_interval
         self.root_path = '/bob/tmp/'
+        self.client = boto3.client('ecr', region_name=task.payload['sagemaker_region'], verify=False)
         self.deploy_handler(task)
+
+    def __repository_exists(self, repo_name):
+        """
+        Return whether or not a repository exists in ECR
+        :param repo_name: the repository to check for the existance of
+        """
+        response = self.client.describe_repositories()
+        for repository in response['repositories']:
+            if repository['repositoryName'] == repo_name:
+                return True
+        return False
+
+    def create_ecr_repo(self, repo_name):
+        """
+        Create an ECR Repo if it doesn't exist
+        :param repo_name: the repository to check/create
+        """
+        if not self.repository_exists(image_name):
+            self.client.create_repository(
+                    repositoryName=repo_name
+                )
+            
 
     def conda_setup(self, task_id, model_path):
         """Setup conda environment so that SageMaker will not throw any errors
@@ -241,6 +265,7 @@ class DeploymentHandler(BaseHandler):
                 self.conda_setup(task.job_id,
                                  path + '/artifacts/' + task.payload[
                                      'postfix'])  # Setup conda environment
+                self.create_ecr_repo()
                 self.build_and_push_image(task.job_id)  # Push image to ECR
 
                 time.sleep(self.sleep_interval)
