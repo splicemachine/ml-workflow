@@ -152,6 +152,38 @@ class S3Daemon(object):
                 S3Daemon.remove_fake_metadata(path)  # remove fake metadata
 
     @staticmethod
+    def bucket_exists(bucket_url):
+        """
+        Returns whether a specified bucket exists in S3
+        """
+        bucket_exists_cmd = subprocess.call(["aws", 
+                                            "s3api", 
+                                            "head-bucket", 
+                                            "--bucket", 
+                                            bucket_url.split("s3://")[1],
+                                            "--no-verify-ssl"])
+        if bucket_exists_cmd == 0: # success 
+            return True # bucket_exists
+        else:
+            return False # bucket doesn't exist
+    
+    @staticmethod
+    def create_s3_bucket(bucket_url):
+        if not bucket_exists(bucket_url):
+            bucket_create_cmd = subprocess.call(["aws", 
+                                                "s3api", 
+                                                "create-bucket", 
+                                                "--bucket", 
+                                                bucket_url.split("s3://")[1], 
+                                                "--region", 
+                                                "us-east-1",
+                                                "--no-verify-ssl"])
+            Utils.check_output_code(
+                'bucket_create',
+                bucket_create_cmd
+            )
+
+    @staticmethod
     def create_fake_metadata(path):
         """
         Create fake metadata so S3 won't delete folders
@@ -318,6 +350,7 @@ class S3Daemon(object):
         Main Function
         """
         args = S3Daemon.input_parser()  # Get inputs from user
+        S3Daemon.create_s3_bucket(args.bucket_url) # try to create S3 bucket
         if args.loop_interval:  # Check whether we are running continuously
             S3Daemon.loop(args)
         else:

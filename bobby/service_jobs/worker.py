@@ -170,7 +170,7 @@ class DeploymentHandler(BaseHandler):
         Create an ECR Repo if it doesn't exist
         :param repo_name: the repository to check/create
         """
-        if not self.repository_exists(image_name):
+        if not self.__repository_exists(image_name):
             self.client.create_repository(
                     repositoryName=repo_name
                 )
@@ -216,6 +216,17 @@ class DeploymentHandler(BaseHandler):
         with open(model_path + '/MLmodel', 'w') as ml_write_yml:
             yaml.dump(yf, ml_write_yml, default_flow_style=False)  # write it to a file
 
+    @staticmethod
+    def change_s3_creds():
+        splice_access_key_id_aws = os.environ.get('SPLICE_AWS_ACCESS_KEY_ID')
+        splice_secret_key_aws = os.environ.get('SPLICE_AWS_SECRET_ACCESS_KEY')
+
+        if not (splice_access_key_id_aws or splice_secret_key_aws):
+            raise Exception("No Splice AWS Credentials Found! ERROR!")
+
+        os.environ['AWS_ACCESS_KEY_ID'] = splice_access_key_id_aws
+        os.environ['AWS_SECRET_ACCESS_KEY'] = splice_secret_key_aws
+
     def download_current_s3_state(self, task_id, run_id, experiment_id):
         """
         Download the current S3 MLFlow bucket
@@ -260,7 +271,7 @@ class DeploymentHandler(BaseHandler):
                     task.payload['run_id'],
                     task.payload['experiment_id']
                 )  # Download the current S3 State
-
+                self.change_s3_creds() # switch to splice aws creds
                 time.sleep(self.sleep_interval)  # Pause for 3 secs
                 self.conda_setup(task.job_id,
                                  path + '/artifacts/' + task.payload[

@@ -16,7 +16,7 @@ RUN set -ex \
     libopenblas-dev \
     git \
  && packages=' \
-    numpy \
+    numpy==1.15.4 \
     pandasql \
     scipy \
     mlflow==0.8.0 \
