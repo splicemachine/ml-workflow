@@ -160,21 +160,24 @@ class S3Daemon(object):
                                             "s3api", 
                                             "head-bucket", 
                                             "--bucket", 
-                                            bucket_url.split("s3://")[1],
+                                            bucket_url.split("s3://")[1].split('/')[0],
                                             "--no-verify-ssl"])
         if bucket_exists_cmd == 0: # success 
             return True # bucket_exists
         else:
             return False # bucket doesn't exist
-    
+
     @staticmethod
     def create_s3_bucket(bucket_url):
-        if not bucket_exists(bucket_url):
+        """
+        Create S3 bucket if it doesn't exist
+        """
+        if not S3Daemon.bucket_exists(bucket_url):
             bucket_create_cmd = subprocess.call(["aws", 
                                                 "s3api", 
                                                 "create-bucket", 
                                                 "--bucket", 
-                                                bucket_url.split("s3://")[1], 
+                                                bucket_url.split("s3://")[1].split("/")[0], 
                                                 "--region", 
                                                 "us-east-1",
                                                 "--no-verify-ssl"])

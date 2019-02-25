@@ -26,11 +26,6 @@ if [[ "$FRAMEWORK_NAME" == "" ]]; then
    exit 1
 fi
 
-if [[ "$SAGEMAKER_ROLE" == "" ]]; then
-   echo "Error: environment variable SAGEMAKER_ROLE is required"
-   exit 1
-fi
-
 echo "Creating Directories..."
 mkdir -p /mlruns
 mkdir -p /var/tmp/tmp_conf_files

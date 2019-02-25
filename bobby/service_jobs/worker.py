@@ -170,7 +170,8 @@ class DeploymentHandler(BaseHandler):
         Create an ECR Repo if it doesn't exist
         :param repo_name: the repository to check/create
         """
-        if not self.__repository_exists(image_name):
+        if not self.__repository_exists(repo_name):
+            logging.warning("Creating new ECR Repo: " + repo_name)
             self.client.create_repository(
                     repositoryName=repo_name
                 )
@@ -223,7 +224,7 @@ class DeploymentHandler(BaseHandler):
 
         if not (splice_access_key_id_aws or splice_secret_key_aws):
             raise Exception("No Splice AWS Credentials Found! ERROR!")
-
+        logging.warning("Changing S3 creds from Customer to Splice")
         os.environ['AWS_ACCESS_KEY_ID'] = splice_access_key_id_aws
         os.environ['AWS_SECRET_ACCESS_KEY'] = splice_secret_key_aws
 
@@ -276,7 +277,7 @@ class DeploymentHandler(BaseHandler):
                 self.conda_setup(task.job_id,
                                  path + '/artifacts/' + task.payload[
                                      'postfix'])  # Setup conda environment
-                self.create_ecr_repo()
+                self.create_ecr_repo("mlflow-pyfunc") # setup ecr repo if it doesn't exist in that region
                 self.build_and_push_image(task.job_id)  # Push image to ECR
 
                 time.sleep(self.sleep_interval)

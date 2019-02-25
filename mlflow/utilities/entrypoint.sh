@@ -41,6 +41,15 @@ if [[ "$SAGEMAKER_ROLE" == "" ]]; then
    exit 1
 fi
 
+if [[ "$AWS_ACCESS_KEY_ID" == "" ]]; then
+   echo "Error: environment variable AWS_ACCESS_KEY_ID is required"
+   exit 1
+fi
+
+if [[ "$AWS_SECRET_ACCESS_KEY" == "" ]]; then
+   echo "Error: environment variable AWS_SECRET_ACCESS_KEY is required"
+   exit 1
+fi
 # do actual stuff
 echo "Starting S3 Daemon"
 mkdir -p /mlruns

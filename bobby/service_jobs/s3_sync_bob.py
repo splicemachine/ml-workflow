@@ -169,7 +169,7 @@ class S3Daemon(object):
     
     @staticmethod
     def create_s3_bucket(bucket_url):
-        if not bucket_exists(bucket_url):
+        if not S3Daemon.bucket_exists(bucket_url):
             bucket_create_cmd = subprocess.call(["aws", 
                                                 "s3api", 
                                                 "create-bucket", 
