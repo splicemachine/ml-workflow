@@ -1,5 +1,5 @@
 NAME = splicemachine/mlflow
-VERSION = 0.0.10
+VERSION = 0.0.11
 SPLICE_BASE_IMAGE_VERSION = 0.0.4
 STATIC_BASE_ARTIFACT_URI = https://s3.amazonaws.com/splicemachine/artifacts
 
