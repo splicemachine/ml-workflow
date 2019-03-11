@@ -10,20 +10,17 @@
     <div class="tab-content">
         <div id="signup">
             <h1>Deploy to SageMaker</h1>
-            <center style="color:white"><b>Please create an ECR repository called mlflow-pyfunc in the
-                SageMaker AWS Region you are deploying before submitting this form</b>
-            </center>
             <br>
             <form action="/deploy" id='deployment' method="post">
                 <div class="field-wrap">
                     <label>
-                        Run UUID (can be found in MLFlow UI)<span class="req">*</span>
+                        Run ID (can be found in MLFlow UI)<span class="req">*</span>
                     </label>
                     <input name='run_id' type="text" required/>
                 </div>
                 <div class="field-wrap">
                     <label>
-                        Run Experiment ID (can be found in MLFlow UI)<span class="req">*</span>
+                        Experiment ID (can be found in MLFlow UI)<span class="req">*</span>
                     </label>
                     <input name='experiment_id' type="text" required/>
                 </div>
@@ -35,7 +32,7 @@
                 </div>
                 <div class="field-wrap">
                     <select form='deployment' name='region' style="height:40px; line-height:31px;">
-                        <option disabled selected>AWS Region</option>
+                        <option disabled selected>SageMaker AWS Region</option>
                         <!--<option value="us-east-1">us-east-1</option>-->
                         <option value="us-east-2">us-east-2</option>
                         <option value="us-west-1">us-west-1</option>
