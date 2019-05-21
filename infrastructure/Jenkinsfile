@@ -1,0 +1,50 @@
+node('python') {
+
+  // run tests
+  try {
+
+    // Mark the code checkout 'stage'....
+    stage('Checkout') {
+      // Checkout code from repository
+      checkout scm
+    }
+
+      stage('Prep') {
+        // install gem dependencies
+        sh 'pip3 install -r infrastructure/requirements.txt --user'
+     }
+
+      stage('Apply') {
+       withCredentials([[
+         $class: 'AmazonWebServicesCredentialsBinding',
+         credentialsId: 'prod_iam_credentials',
+         accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+         secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+       ]]) {
+         sh 'AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} python3 infrastructure/create_pyfunc_repo.py'
+       }
+     }
+
+  } catch (any) {
+
+    // if there was an exception thrown, the build failed
+    currentBuild.result = "FAILED"
+    throw any
+
+  } finally {
+
+    // success or failure, always send notifications
+    setBuildStatus("Build update", currentBuild.result);
+
+  }
+}
+
+void setBuildStatus(String message, String state) {
+  step([
+      $class: "GitHubCommitStatusSetter",
+      reposSource: [$class: "ManuallyEnteredRepositorySource", url: "https://github.com/splicemachine/ml-workflow"],
+      contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/jenkins/build-status"],
+      errorHandlers: [[$class: "ChangingBuildStatusErrorHandler", result: "UNSTABLE"]],
+      statusResultSource: [ $class: "ConditionalStatusResultSource", results: [[$class: "AnyBuildResult", message: message, state: state]] ]
+  ]);
+}
