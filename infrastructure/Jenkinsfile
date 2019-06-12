@@ -18,10 +18,10 @@ node('dockerpython') {
       withCredentials([[
         $class: 'AmazonWebServicesCredentialsBinding',
         credentialsId: 'prod_iam_credentials',
-        accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-        secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+        // accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+        // secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
       ]]) {
-        sh 'AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} python3 infrastructure/create_pyfunc_repo.py'
+        sh 'python3 infrastructure/create_pyfunc_repo.py'
       }
     }
 
