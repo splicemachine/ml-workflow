@@ -1,8 +1,9 @@
 import json
 import logging
 import os
-import random
 import time
+import random
+from retry import retry
 from collections import namedtuple
 from datetime import datetime
 from hashlib import md5
@@ -11,6 +12,7 @@ import cachetools.func
 import jaydebeapi
 import requests
 from flask import Flask, render_template, request
+
 
 __author__ = "Splice Machine, Inc."
 __copyright__ = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
@@ -21,6 +23,7 @@ __version__ = "2.0"
 __maintainer__ = "Amrit Baveja"
 __email__ = "abaveja@splicemachine.com"
 __status__ = "Quality Assurance (QA)"
+
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s (%(lineno)s) - %(levelname)s: %(message)s",
@@ -51,7 +54,7 @@ class JDBCUtils(object):
         """
         try:
             if not JDBCUtils.cursor:
-                raise Exception  # go to except condition
+                raise Exception # go to except condition
 
             JDBCUtils.cursor.execute("VALUES 1")
             record = JDBCUtils.cursor.fetchone()
@@ -67,11 +70,10 @@ class JDBCUtils(object):
 
             try:
                 jdbc_conn = jaydebeapi.connect("com.splicemachine.db.jdbc.ClientDriver",
-                                               os.environ.get('JDBC_URL'),
-                                               {'user': os.environ.get('USER'),
-                                                'password': os.environ.get('PASSWORD'),
-                                                'ssl': "basic"},
-                                               "../utilities/db-client-2.7.0.1815.jar")
+                                            os.environ.get('JDBC_URL'),
+                                            {'user': os.environ.get('USER'),
+                                            'password': os.environ.get('PASSWORD'), 'ssl': "basic"},
+                                            "../utilities/db-client-2.7.0.1815.jar")
 
                 logger.info("Opened new JDBC Connection")
                 # establish a JDBC connection to your database
@@ -133,13 +135,9 @@ class JDBCUtils(object):
             logger.error(e)
             return False
 
-
-INITIAL_JOBS = JDBCUtils.get_jobs()  # initially get the jobs on startup so that page load is faster
-INITIAL_STATUSES = JDBCUtils.get_statuses()  # initially get the statuses on startup so that page
-# load is faster
-COMPLETED_INITIAL_DATABASE_RETRIEVAL = [False]  # put in a list to comply with PEP 8 of not
-# using "global"
-
+INITIAL_JOBS = JDBCUtils.get_jobs() # initially get the jobs on startup so that page load is faster
+INITIAL_STATUSES = JDBCUtils.get_statuses() # initially get the statuses on startup so that page load is faster
+COMPLETED_INITIAL_DATABASE_RETRIEVAL = [False] # put in a list to comply with PEP 8 of not using "global"
 
 @app.route('/', methods=['GET'])
 @app.route('/dash', methods=['GET'])
@@ -177,7 +175,7 @@ def deploy():
             'experiment_id': request.form['experiment_id'],
             'run_id': request.form['run_id'],
             'region': request.form['region'],
-            # 'iam_role': request.form['iam_role'],
+            #'iam_role': request.form['iam_role'],
             'postfix': 'spark_model',
             'instance_type': request.form['instance_type'],
             'instance_count': request.form['instance_count'],
@@ -194,11 +192,9 @@ def deploy():
     else:
         return '<h1>Request not understood</h1>'
 
-
 @app.route('/check', methods=['GET'])
 def success():
     return render_template("check.html")
-
 
 @app.route('/toggle', methods=['GET', 'POST'])
 def toggle():
