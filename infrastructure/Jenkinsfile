@@ -17,7 +17,7 @@ node('dockerpython') {
     stage('Apply') {
       withCredentials([[
         $class: 'AmazonWebServicesCredentialsBinding',
-        credentialsId: 'prod_iam_credentials',
+        credentialsId: 'splicemachine',
         accessKeyVariable: 'AWS_ACCESS_KEY_ID',
         secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
       ]]) {
