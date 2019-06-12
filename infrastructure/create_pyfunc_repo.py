@@ -1,20 +1,10 @@
-import base64
-import json
-import logging
-
+import sys
+import os
 import boto3
 import docker
-
-__author__ = "Splice Machine, Inc."
-__copyright__ = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
-__credits__ = ["Ben Epstein", "Amrit Baveja", "Erin Driggers"]
-
-__license__ = "Commerical"
-__version__ = "2.0"
-__maintainer__ = "Ben Epstein"
-__email__ = "bepstein@splicemachine.com"
-__status__ = "Quality Assurance (QA)"
-
+import json
+import base64
+import logging
 
 # define vars and functions
 def _repository_exists(client, repo_name):
@@ -24,24 +14,21 @@ def _repository_exists(client, repo_name):
             return True
     return False
 
-
 def _image_tag_exists(client, repo_name, image_tag):
     images = client.list_images(repositoryName=repo_name)
     for i in images['imageIds']:
         try:
-            if (i['imageTag'] == image_tag):
+            if(i['imageTag'] == image_tag):
                 return True
         except:
             continue
     return False
-
 
 def _get_uri(client, repo_name):
     response = client.describe_repositories()
     for repository in response['repositories']:
         if repository['repositoryName'] == repo_name:
             return repository['repositoryUri']
-
 
 def ecr_docker_login(client, docker_client):
     token = client.get_authorization_token()
@@ -52,10 +39,11 @@ def ecr_docker_login(client, docker_client):
     auth_config = {'username': username, 'password': password}
     return auth_config
 
-
 def main():
     REPO_NAME = 'mlflow-pyfunc'
     IMAGE_TAG = '0.8.0'
+    ACCESS_KEY = os.environ['AWS_ACCESS_KEY_ID']
+    SECRET_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
     full_image = 'splicemachine/{}:{}'.format(REPO_NAME, IMAGE_TAG)
 
     # read config file
@@ -70,19 +58,17 @@ def main():
         logging.warning('Creating ECR client for {}'.format(reg))
         # recreate the client for each region... will need new creds for prod/qa?
         client = boto3.client('ecr',
-                              region_name=reg)  # no credentials are required because
-        # EC2 instances should have the correct instance profile.
-
+                              region_name=reg,
+                              aws_access_key_id=ACCESS_KEY,
+                              aws_secret_access_key=SECRET_KEY
+                              )
         logging.warning('Checking if repo exists...')
         if not _repository_exists(client, REPO_NAME):
             logging.warning(
                 'No repo exists... Creating new ECR Repo: ' + REPO_NAME)
-
             client.create_repository(repositoryName=REPO_NAME)
-
         logging.warning('Repo exists in {}, skipping creation'.format(reg))
         logging.warning('Checking if image exists...')
-
         if not _image_tag_exists(client, REPO_NAME, IMAGE_TAG):
             logging.warning(
                 'No image exists... Pushing image : {}:{}'.format(REPO_NAME, IMAGE_TAG))
@@ -96,7 +82,6 @@ def main():
             auth_config = ecr_docker_login(client, docker_client)
             # push image
             docker_client.push(uri, tag=IMAGE_TAG, auth_config=auth_config)
-
         logging.warning(
             'Image exists for region {}, skipping push'.format(reg))
 
