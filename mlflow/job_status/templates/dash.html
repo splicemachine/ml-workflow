@@ -49,7 +49,7 @@
 
         {% for job in jobs %}
         <div>
-            <h3>{{job.payload['handler']}} | Job ID: {{job.job_id}} | <b>{{job.status}}</b>
+            <h3>{{job.payload['handler']}} | <b>{{job.status}} | {{job.timestamp}} UTC</b>
                 <span class="entypo-down-open"></span></h3>
             <p>
                 {% if job.payload['handler'] == 'deploy' %}

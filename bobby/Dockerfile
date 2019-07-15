@@ -1,63 +1,61 @@
 ARG splice_base_image_version
 FROM splicemachine/splice_base:$splice_base_image_version
 
-LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com"
+LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 
-ARG pysplice_version
+# Docker in Docker Configuration
 ARG dind_commit='52379fa76dee07ca038624d639d9e14f4fb719ff'
-
 ENV DIND_ARTIFACT="https://raw.githubusercontent.com/docker/docker/${dind_commit}/hack/dind"
-ENV PYSPLICE_VERSION=${pysplice_version}
 
-VOLUME /var/lib/docker
-EXPOSE 2375
+# ODBC Driver Configuration
+ARG odbc_driver_version='2.7.61.0'
+ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-\
+                              ${odbc_driver_version}.tar.gz'
+# Defining Root Directory
+ENV BOBBY_SRC_HOME=/opt/bobby
+ENV BOBBY_BUILD_HOME=/tmp
+ENV BOBBY_WORKER_HOME=/opt/worker
+
+# Number of workers for handling jobs
+ENV WORKER_THREADS=5
+
+# where MLFlow Server stores Artifacts (relative) in S3
+ENV MLFLOW_PERSIST_PATH='/artifacts'
 
 # Add the list of necessary environment packages for development.
-COPY ./yum_packages.txt /tmp/yum_packages.txt
-COPY ./target/splicemachine-jars/* $SPARK_HOME/jars/
-COPY ./requirements.txt /tmp/requirements.txt
+COPY build $BOBBY_BUILD_HOME
 
-# Add the repository for docker
-RUN yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+# Add the repository for docker and IUS Repo fo Python3
+RUN yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo && \
+    yum install -y https://centos7.iuscommunity.org/ius-release.rpm
 
 # Install development packages.
 RUN yum clean all && \
     rm -rf /var/cache/yum && \
-    yum -y install $(cat /tmp/yum_packages.txt)
+    yum -y install $(cat /$BOBBY_BUILD_HOME/yum_packages.txt)
 
-## Install python2.7 and corresponding pip
-RUN \
-  curl --silent --show-error https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py && \
-  python /tmp/get-pip.py && \
-  rm -rf /var/cache/yum && yum clean all
+# Install ODBC Driver
+RUN wget -O $BOBBY_BUILD_HOME/splice_odbc.tar.gz $ODBC_DRIVER_ARTIFACT_&& \
+    tar xzf $BOBBY_BUILD_HOME/splice_odbc.tar.gz &&
+    sh $BOBBY_BUILD_HOME/splice_odbc_linux64-${odbc_driver_version}/install.sh -q
+
 
 # Install Python dependencies
-RUN pip install -r /tmp/requirements.txt
-
-# Install pysplice
-RUN \
-  wget --no-check-certificate https://github.com/splicemachine/pysplice/archive/${PYSPLICE_VERSION}.zip && \
-  unzip -o ${PYSPLICE_VERSION}.zip && \
-  cd pysplice-${PYSPLICE_VERSION} && \
-  pip install .
+RUN pip install -r $BOBBY_BUILD_HOME/requirements.txt
 
 # Install Dind
 RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
 	chmod a+x /usr/local/bin/dind
 
 # Copy files
-RUN mkdir -p /bob
-COPY . /bob
+RUN mkdir -p $BOBBY_HOME && \
+    mkdir -p $BOBBY_WORKER_HOME
+COPY src $BOBBY_HOME
 
 # make the entrypoint executable by all users
-RUN chmod a+x /bob/utilities/entrypoint.sh && \
-    chmod a+x /bob/utilities/run_dind.sh && \
-    unzip /bob/utilities/mlflow.zip && \
-    cat /bob/goodies/bobby.txt
+RUN chmod a+x $BOBBY_HOME/scripts/entrypoint.sh && \
+    chmod a+x $BOBBY_HOME/scripts/run_dind.sh
 
-# we have to copy the mlflow binary because MLFlow has TONS of
-# problems with their Java Artifact Store in Maven which effect deployment.
-# this way is much easier
-
-# do good stuff
-CMD ["/bob/utilities/entrypoint.sh"]
+VOLUME /var/lib/docker
+EXPOSE 2375
+CMD [".", "/opt/bobby/utilities/entrypoint.sh"]

@@ -36,10 +36,6 @@ if [[ "$DASH_PORT" == "" ]]; then
    exit 1
 fi
 
-if [[ "$SAGEMAKER_ROLE" == "" ]]; then
-   echo "Error: environment variable SAGEMAKER_ROLE is required"
-   exit 1
-fi
 
 # do actual stuff
 echo "Starting S3 Daemon"

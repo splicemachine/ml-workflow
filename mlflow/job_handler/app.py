@@ -1,7 +1,7 @@
 import logging
 import random
 import sys
-import os
+import traceback
 from hashlib import md5
 
 from flask import Flask, request, jsonify, make_response
@@ -29,8 +29,6 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y.%m.%d %H:%M:%S')
 logger = logging.getLogger('job_handler_api')
 logger.setLevel(logging.DEBUG)
-
-queue = SpliceMachineQueue()
 
 available_actions = ['start', 'stop']
 available_handlers = ['deploy', 'schedule', 'retrain']
@@ -202,7 +200,6 @@ def deploy_handler():
             'sagemaker_region': json_returned['region'],
             'instance_type': json_returned['instance_type'],
             'instance_count': json_returned['instance_count'],
-            'iam_role': os.environ['SAGEMAKER_ROLE'],
             'deployment_mode': json_returned['deployment_mode'],
             'app_name': json_returned['app_name'],
             'random_string': str(md5(str(random.randint(0, 10 ** 5)).encode('utf-8')).hexdigest())
@@ -212,7 +209,7 @@ def deploy_handler():
         return jsonify(job_id=job_id, status='pending')
 
     except Exception as e:
-        logger.info(e)
+        logger.info(traceback.format_exc())
         return failed_response(status='failed', msg=parse_exception())
 
 

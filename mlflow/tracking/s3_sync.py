@@ -66,7 +66,7 @@ class S3Daemon(object):
             choices=[
                 'upload',
                 'download'],
-            help='Either "upload" or "download" (eg. zeppelin is upload, mlflow client is '
+            help='Either "upload" or "download" (eg. jupyter is upload, mlflow client is '
                  'download)')
 
         parser.add_argument(
