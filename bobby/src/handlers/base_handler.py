@@ -1,8 +1,9 @@
 import logging
+
 from traceback import format_exc
 from abc import abstractmethod
 
-from .definitions import Job, Handler, ManagedDBSession
+from .definitions import Job, Handler, SessionFactory
 
 logger = logging.getLogger(__name__)
 
@@ -12,18 +13,29 @@ class BaseHandler(object):
     Base Class for all Handlers
     """
 
-    def __init__(self, task: Job, handler_name: str = None) -> None:
+    def __init__(self, task_id: int, handler_name: str = None, mutable: bool = True) -> None:
         """
         Construct a new instance
         of Base Handler (cannot actually
         be instantiated because abstract
         methods need to be implemented)
 
-        :param task: (Job) the job object
-            to handle
+        :param task_id: (int) the job id of the pending
+            task to handle
+        :param handler_name: (str) the name of the handler (how it will be referenced in DB)
+        :param mutable: (bool) whether or not this handler can be toggled in its availability through
+            access handlers
+
         """
-        self.task: Job = task
+
+        self.task_id: int = task_id
+
+        self.task: Job or None = None  # assigned later
+
         self.handler_name: str = handler_name
+
+        self.mutable: bool = mutable
+        self.Session = SessionFactory()
 
     def is_handler_enabled(self) -> bool:
         """
@@ -32,8 +44,10 @@ class BaseHandler(object):
 
         :return: (boolean) whether or not the handler is enabled
         """
-        with ManagedDBSession() as Session:
-            handler: Handler = Session.query(Handler).filter_by(handler_name=self.handler_name).first()
+        if not self.mutable:  # non-mutable handlers are always enabled
+            return True
+
+        handler: Handler = self.Session.query(Handler).filter_by(name=self.handler_name).first()
 
         if handler:
             return handler.enabled
@@ -72,9 +86,8 @@ class BaseHandler(object):
         the appropriate attributes of the task and commit it
         """
         self.task.update(status=status, info=info)
-
-        with ManagedDBSession() as Session:
-            Session.add(self.task)
+        self.Session.add(self.task)
+        self.Session.commit()
 
     def succeed_task_in_db(self, success_message: str) -> None:
         """
@@ -86,9 +99,8 @@ class BaseHandler(object):
 
         """
         self.task.succeed(success_message)
-
-        with ManagedDBSession() as Session:
-            Session.add(self.task)
+        self.Session.add(self.task)
+        self.Session.commit()
 
     def fail_task_in_db(self, failure_message: str) -> None:
         """
@@ -101,8 +113,8 @@ class BaseHandler(object):
         """
         self.task.fail(failure_message)
 
-        with ManagedDBSession() as Session:
-            Session.add(self.task)
+        self.Session.add(self.task)
+        self.Session.commit()
 
     @abstractmethod
     def _handle(self) -> None:
@@ -118,16 +130,26 @@ class BaseHandler(object):
         Handle the given task and update
         statuses/detailed info on error/success
         """
-
         try:
+            logger.info("Checking Handler Availability")
             if self.is_handler_enabled():
-                self.update_task_in_db(status='RUNNING')
+                logger.info("Handler is available")
+                self.task: Job = self.Session.query(Job).filter(Job.id == self.task_id).first()
+                self.task.parse_payload()
+                logger.info("Retrieved task: " + str(self.task.__dict__))
+
+                self.update_task_in_db(status='RUNNING', info='A Service Worker has found your Job')
                 self._handle()
-                self.succeed_task_in_db(f"Task {self.task.handler_name} finished successfully")
+                self.succeed_task_in_db(f"Success! Target '{self.handler_name} completed successfully.")
             else:
-                self.fail_task_in_db(f"Failure:<br>{self.task.handler_name} is disabled")
+                self.fail_task_in_db(f"Error: Target '{self.handler_name}' is disabled")
+
+            self.Session.commit()
+
         except Exception:
-            logger.exception("An unexpected error occurred while handling task")
-            # this will print the message along with the stack trace
-            self.fail_task_in_db(f"Failure:<br>{self._format_html_exception(format_exc())}")
-            # format traceback as HTML for render in deployment GUI
+            logger.exception(f"Encountered an unexpected error while processing Task #{self.task_id}")
+            self.Session.rollback()
+            self.fail_task_in_db(f"Error: <br>{self._format_html_exception(format_exc())}")
+
+        finally:
+            self.Session.close()  # close the thread local session in all cases, exception or no exception

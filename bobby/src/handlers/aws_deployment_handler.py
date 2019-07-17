@@ -32,7 +32,7 @@ DOCKER_CONDA_ENVIRONMENT: str = \
             - mlflow=={VERSIONS['mlflow']}
     """
 
-DOWNLOAD_PATH: str = env_vars["BOBBY_WORKER_HOME"] + "/downloads"
+DOWNLOAD_PATH: str = env_vars["BOBBY_WORKER_HOME"] + "/pmml"
 
 
 class SageMakerDeploymentHandler(BaseHandler):
@@ -51,7 +51,7 @@ class SageMakerDeploymentHandler(BaseHandler):
 
         """
         BaseHandler.__init__(self, task, _handler_name)
-        self.downloaded_model_path: str = f"{env_vars['BOBBY_WORKER_HOME']}/pmml"
+        self.downloaded_model_path: str = DOWNLOAD_PATH
 
     def _retrieve_model_from_s3(self) -> None:
         """

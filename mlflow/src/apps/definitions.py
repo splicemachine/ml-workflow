@@ -220,3 +220,4 @@ def execute_sql(sql: str) -> list:
 Base.metadata.bind = engine
 Base.metadata.create_all(checkfirst=True)  # check if each table exists, if it doesn't, create it
 SessionFactory = scoped_session(sessionmaker(bind=engine, expire_on_commit=False))
+

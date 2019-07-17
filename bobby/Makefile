@@ -32,7 +32,6 @@ build:
 		build \
 		--rm \
 		--build-arg splice_base_image_version=${SPLICE_BASE_IMAGE_VERSION} \
-		--build-arg pysplice_version=${PYSPLICE_VERSION} \
 		-t $(NAME):$(VERSION) \
 		.
 	docker tag $(NAME):$(VERSION) $(NAME):latest

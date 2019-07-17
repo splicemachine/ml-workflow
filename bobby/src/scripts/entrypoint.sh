@@ -1,51 +1,73 @@
 #!/usr/bin/env bash
-# test required inputs
 
-if [[ "$ODBC_HOST" == "" ]]; then
-   echo "Error: environment variable ODBC_HOST is required"
+# Test Required Variables (data validation)
+
+if [[ "$DB_HOST" == "" ]]
+then
+   echo "Error: environment variable DB_HOST is required"
    exit 1
 fi
 
-if [[ "$ODBC_USER" == "" ]]; then
-   echo "Error: environment variable USER is required"
+if [[ "$DB_USER" == "" ]]
+then
+   echo "Error: environment variable DB_USER is required"
    exit 1
 fi
 
-if [[ "$ODBC_PASSWORD" == "" ]]; then
-   echo "Error: environment variable PASSWORD is required"
+if [[ "$DB_PASSWORD" == "" ]]
+then
+   echo "Error: environment variable DB_PASSWORD is required"
    exit 1
 fi
 
-if [[ "$S3_BUCKET_NAME" == "" ]]; then
-   echo "Error: environment variable S3_BUCKET_NAME is required"
+if [[ "$S3_BUCKET_NAME" == "" ]]
+then
+   echo "Error: environment variable S#_BUCKET_NAME is required"
    exit 1
 fi
 
-if [[ "$SAGEMAKER_ROLE" == "" ]]; then
+if [[ "$SAGEMAKER_ROLE" == "" ]]
+then
    echo "Error: environment variable SAGEMAKER_ROLE is required"
    exit 1
 fi
 
-echo "Creating Directories..."
-mkdir -p /mlruns
-mkdir -p /var/tmp/tmp_conf_files
 
+if [[ "$FRAMEWORK_NAME" == "" ]]
+then
+    echo "Error: environment variable FRAMEWORK_NAME is required"
+    exit 1
+fi
+
+# Test Optional Environment Variables
+if [[ "$DB_PORT" == "" ]]
+then
+    export DB_PORT=1527
+fi
+
+if [[ "$TASK_NAME" == "" ]]
+then
+    export TASK_NAME="bobby-0"
+fi
+
+if [[ "$COMPONENT" == "" ]]
+then
+    export COMPONENT="mlmanager"
+fi
+
+if [[ "$WORKER_THREADS" == "" ]]
+then
+    export WORKER_THREADS=5
+fi
+
+if [[ "$MLFLOW_PERSIST_PATH" == "" ]]
+then
+    export MLFLOW_PERSIST_PATH="/artifacts"
+fi
+
+# Start Main Processes
 echo "Starting up Docker Daemon"
-nohup /bob/utilities/run_dind.sh &
-
-#echo "Copying config from HMaster on DBaaS cluster"
-
-#curl -kLs  "http://hmaster-0-node.${FRAMEWORK_NAME}.mesos:16010/logs/conf.tar.gz" | tar -xz -C \
-#   /var/tmp/tmp_conf_files
-#cp  /var/tmp/tmp_conf_files/conf/core-site.xml $SPARK_HOME/conf/
-#cp  /var/tmp/tmp_conf_files/conf/fairscheduler.xml $SPARK_HOME/conf/
-#cp  /var/tmp/tmp_conf_files/conf/hbase-site.xml $SPARK_HOME/conf/
-#cp  /var/tmp/tmp_conf_files/conf/hdfs-site.xml $SPARK_HOME/conf/
-
-echo "Cleaning Up conf files"
-rm -r /var/tmp/tmp_conf_files
+nohup ${BOBBY_SRC_HOME}/scripts/run_dind.sh
 
 echo "Starting Worker"
-cd /bob/service_jobs && nohup python worker.py &
-
-python /bob/utilities/keep_alive.py
+python3.6 ${BOBBY_SRC_HOME}/main.py

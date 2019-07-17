@@ -4,7 +4,7 @@
 # The purpose of this script is to run the bobby container on your local system.
 #
 
-JDBC_URL=
+DB_HOST=
 DB_USER=splice
 DB_PASSWORD=admin
 S3_BUCKET_NAME="s3://splice-demo/machine-learning/sync"
@@ -19,16 +19,16 @@ HOST_PORT=2375
 
 function show_usage() {
     echo
-    echo "Usage: ${0} --jdbc_url jdbc url [--db_user user {splice}] [--db_password password {admin}] [-s3_bucket_name number of nodes {s3://splice-demo/machine-learning/sync}] --aws_access_key_id Aws Access Key Id --aws_secret_access_key AWS Secret [--container_port container port {2375} [--host_port host port {2375}]"
+    echo "Usage: ${0} --db_host splice url [--db_user user {splice}] [--db_password password {admin}] [-s3_bucket_name number of nodes {s3://splice-demo/machine-learning/sync}] --aws_access_key_id Aws Access Key Id --aws_secret_access_key AWS Secret [--container_port container port {2375} [--host_port host port {2375}]"
     echo
     echo
-    echo -e "\t--jdbc_url\t\t\tThis is the splice machine jdbc url.  It should not include the password.  A valid example is  jdbc:splice://nikhilsaccount-ml.splicemachine-dev.io:1527/splicedb;ssl=basic"
+    echo -e "\t--db_host\t\t\tThis is the splice machine odbc host  It should not include the user/password.  A valid example is nikhilsaccount-ml.splicemachine-dev.io"
     echo
 	echo -e "\t--db_user\t\t\tThe splice machine database user.  Defaults to splice."
     echo
-    echo -e "\t--db_password\t\t\tThe splice machine database password.  Defaults tp admin"
+    echo -e "\t--db_password\t\t\tThe splice machine database password.  Defaults to admin"
     echo
-	echo -e "\t--s3_bucket_name\t\tThe bucket name to use for testing purposes. Defaults to s3://splice-demo/machine-learning/sync "
+	echo -e "\t--s3_bucket_name\t\tThe artifact bucket name to use for testing purposes. Defaults to s3://splice-demo/machine-learning/sync "
     echo
 	echo -e "\t--aws_access_key_id\t\tThe AWS access key id.  It must have ECR, S3 and SageMaker permissions. "
     echo
@@ -46,7 +46,7 @@ function show_usage() {
 #
 function print_parameters() {
     echo "=========== Parameters ================="
-    echo "JDBC_URL=$JDBC_URL"
+    echo "d=$JDBC_URL"
     echo "DB_USER=$DB_USER"
     echo "DB_PASSWORD=$DB_PASSWORD"
     echo "S3_BUCKET_NAME=$S3_BUCKET_NAME"
@@ -71,9 +71,9 @@ function run_container() {
     echo "Running Bobby Container"
     docker run --privileged \
     -e S3_BUCKET_NAME="$S3_BUCKET_NAME" \
-    -e JDBC_URL="$JDBC_URL" \
-    -e USER="$DB_USER" \
-    -e PASSWORD="$DB_PASSWORD" \
+    -e DB_HOST="$JDBC_URL" \
+    -e DB_USER="$DB_USER" \
+    -e DB_PASSWORD="$DB_PASSWORD" \
     -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
     -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
     -e DASH_PORT=$CONTAINER_PORT \
@@ -85,8 +85,8 @@ function run_container() {
 PARAMS=""
 while (( "$#" )); do
   case "$1" in
-    -j|--jdbc_url)
-      JDBC_URL=$2
+    -d|--db_host)
+      DB_HOST=$2
       shift 2
       ;;
     -u|--db_user)
@@ -147,8 +147,8 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
 	exit 2
 fi
 
-if [ -z "$JDBC_URL" ]; then
-    echo "Missing jdbc url. "
+if [ -z "$DB_HOST" ]; then
+    echo "Missing db url. "
     show_usage
 	exit 2
 fi
