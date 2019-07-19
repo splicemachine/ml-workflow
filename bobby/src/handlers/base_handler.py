@@ -3,9 +3,29 @@ import logging
 from traceback import format_exc
 from abc import abstractmethod
 
-from .definitions import Job, Handler, SessionFactory
+from mlmanager_lib.database.models import Handler, Job, SessionFactory
 
-logger = logging.getLogger(__name__)
+__author__: str = "Splice Machine, Inc."
+__copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
+__credits__: list = ["Amrit Baveja"]
+
+__license__: str = "Proprietary"
+__version__: str = "2.0"
+__maintainer__: str = "Amrit Baveja"
+__email__: str = "abaveja@splicemachine.com"
+
+LOGGER = logging.getLogger(__name__)
+
+"""
+Module containing the base class for all handlers
+(Handlers don't need to worry about creating
+DB Sessions, checking for handler status, catching
+exception etc.). That behavior is uniform. Each individual
+handler MUST implement the *abstract method* 
+`def _handle(self)` to carry out their own handle.
+This function will be called in the `def handle(self)`
+function.
+"""
 
 
 class BaseHandler(object):
@@ -23,7 +43,7 @@ class BaseHandler(object):
         :param task_id: (int) the job id of the pending
             task to handle
         :param handler_name: (str) the name of the handler (how it will be referenced in DB)
-        :param mutable: (bool) whether or not this handler can be toggled in its availability through
+        :param mutable: (bool) whether or not this handler can be toggled in its availability via
             access handlers
 
         """
@@ -59,7 +79,7 @@ class BaseHandler(object):
         """
         Turn a Python string into HTML so that it can be rendered in the deployment GUI
 
-        :param string: string to format for the GUI
+        :param traceback: string to format for the GUI
         :returns: string in HTML pre-formatted code-block format
 
         """
@@ -125,31 +145,34 @@ class BaseHandler(object):
         pass
 
     # noinspection PyBroadException
-    def handle(self):
+    def handle(self) -> None:
         """
         Handle the given task and update
         statuses/detailed info on error/success
         """
         try:
-            logger.info("Checking Handler Availability")
+            LOGGER.info("Checking Handler Availability")
             if self.is_handler_enabled():
-                logger.info("Handler is available")
+                LOGGER.info("Handler is available")
                 self.task: Job = self.Session.query(Job).filter(Job.id == self.task_id).first()
                 self.task.parse_payload()
-                logger.info("Retrieved task: " + str(self.task.__dict__))
+                LOGGER.info("Retrieved task: " + str(self.task.__dict__))
 
                 self.update_task_in_db(status='RUNNING', info='A Service Worker has found your Job')
                 self._handle()
-                self.succeed_task_in_db(f"Success! Target '{self.handler_name} completed successfully.")
+                self.succeed_task_in_db(
+                    f"Success! Target '{self.handler_name} completed successfully."
+                )
             else:
                 self.fail_task_in_db(f"Error: Target '{self.handler_name}' is disabled")
 
-            self.Session.commit()
+            self.Session.commit()  # commit transaction to database
 
         except Exception:
-            logger.exception(f"Encountered an unexpected error while processing Task #{self.task_id}")
+            LOGGER.exception(
+                f"Encountered an unexpected error while processing Task #{self.task_id}")
             self.Session.rollback()
             self.fail_task_in_db(f"Error: <br>{self._format_html_exception(format_exc())}")
 
         finally:
-            self.Session.close()  # close the thread local session in all cases, exception or no exception
+            self.Session.close()  # close the thread local session in all cases

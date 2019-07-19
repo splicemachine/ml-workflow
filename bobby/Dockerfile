@@ -11,16 +11,16 @@ ENV DIND_ARTIFACT='https://raw.githubusercontent.com/docker/docker/'$dind_commit
 ARG odbc_driver_version='2.7.63.0'
 ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
-# Defining Root Directory
-ENV BOBBY_SRC_HOME=/opt/bobby
-ENV BOBBY_BUILD_HOME=/tmp
-ENV BOBBY_WORKER_HOME=/opt/worker
+# Defining Directories
+ENV SRC_HOME=/opt/bobby
+ENV BUILD_HOME=/tmp
+ENV WORKER_HOME=/opt/worker
 
 # where MLFlow Server stores Artifacts (relative) in S3
 ENV MLFLOW_PERSIST_PATH='/artifacts'
 
 # Add the list of necessary environment packages for development.
-COPY build $BOBBY_BUILD_HOME
+COPY build $BUILD_HOME
 
 # Add the repository for docker and IUS Repo fo Python3
 RUN yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo && \
@@ -29,10 +29,10 @@ RUN yum-config-manager --add-repo https://download.docker.com/linux/centos/docke
 # Install development packages.
 RUN yum clean all && \
     rm -rf /var/cache/yum && \
-    yum -y install $(cat /$BOBBY_BUILD_HOME/yum_packages.txt)
+    yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
 
 # Install ODBC Driver
-RUN cd $BOBBY_BUILD_HOME && \
+RUN cd $BUILD_HOME && \
     wget -O splice_odbc.tar.gz $ODBC_DRIVER_ARTIFACT && \
     tar xzf splice_odbc.tar.gz && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
@@ -40,24 +40,24 @@ RUN cd $BOBBY_BUILD_HOME && \
 
 
 # Install Python dependencies
-RUN pip3.6 install -r $BOBBY_BUILD_HOME/requirements.txt
+RUN pip3.6 install -r $BUILD_HOME/requirements.txt
 
 # Install Dind
 RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
 	chmod a+x /usr/local/bin/dind
 
 # Clean up Build Dependencies and setup src directories
-RUN rm -r $BOBBY_BUILD_HOME/* && \
-    mkdir -p "$BOBBY_SRC_HOME" && \
-    mkdir -p "$BOBBY_WORKER_HOME"
+RUN rm -r $BUILD_HOME/* && \
+    mkdir -p "$SRC_HOME" && \
+    mkdir -p "$WORKER_HOME"
 
-COPY src $BOBBY_SRC_HOME
+COPY src $SRC_HOME
 
 # make the entrypoint executable by all users
-RUN chmod a+x $BOBBY_SRC_HOME/scripts/entrypoint.sh && \
-    chmod a+x $BOBBY_SRC_HOME/scripts/run_dind.sh
+RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh && \
+    chmod a+x $SRC_HOME/scripts/run_dind.sh
 
 VOLUME /var/lib/docker
 EXPOSE 2375
 
-CMD $BOBBY_SRC_HOME"/scripts/entrypoint.sh"
+CMD $SRC_HOME"/scripts/entrypoint.sh"

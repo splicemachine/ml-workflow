@@ -1,45 +1,8 @@
 #!/usr/bin/env bash
 
+MLFLOW_LOG_FILE='/var/log/mlflow_server.log'
+
 # check environment vars
-if [[ "$JDBC_URL" == "" ]]; then
-   echo "Error: environment variable JDBC_URL is required"
-   exit 1
-fi
-
-if [[ "$USER" == "" ]]; then
-   echo "Error: environment variable USER is required"
-   exit 1
-fi
-
-if [[ "$PASSWORD" == "" ]]; then
-   echo "Error: environment variable PASSWORD is required"
-   exit 1
-fi
-
-if [[ "$S3_BUCKET_NAME" == "" ]]; then
-   echo "Error: environment variable S3_BUCKET_NAME is required"
-   exit 1
-fi
-
-if [[ "$MLFLOW_PORT" == "" ]]; then
-   echo "Error: environment variable MLFLOW_PORT is required"
-   exit 1
-fi
-
-if [[ "$API_PORT" == "" ]]; then
-   echo "Error: environment variable API_PORT is required"
-   exit 1
-fi
-
-if [[ "$DASH_PORT" == "" ]]; then
-   echo "Error: environment variable DASH_PORT is required"
-   exit 1
-fi
-
-#!/usr/bin/env bash
-
-# Test Required Variables (data validation)
-
 if [[ "$DB_HOST" == "" ]]
 then
    echo "Error: environment variable DB_HOST is required"
@@ -64,12 +27,20 @@ then
    exit 1
 fi
 
-if [[ "$SAGEMAKER_ROLE" == "" ]]
-then
-   echo "Error: environment variable SAGEMAKER_ROLE is required"
+if [[ "$MLFLOW_PORT" == "" ]]; then
+   echo "Error: environment variable MLFLOW_PORT is required"
    exit 1
 fi
 
+if [[ "$API_PORT" == "" ]]; then
+   echo "Error: environment variable API_PORT is required"
+   exit 1
+fi
+
+if [[ "$GUI_PORT" == "" ]]; then
+   echo "Error: environment variable DASH_PORT is required"
+   exit 1
+fi
 
 if [[ "$FRAMEWORK_NAME" == "" ]]
 then
@@ -85,7 +56,7 @@ fi
 
 if [[ "$TASK_NAME" == "" ]]
 then
-    export TASK_NAME="bobby-0"
+    export TASK_NAME="mlflow-0"
 fi
 
 if [[ "$COMPONENT" == "" ]]
@@ -93,9 +64,9 @@ then
     export COMPONENT="mlmanager"
 fi
 
-if [[ "$WORKER_THREADS" == "" ]]
+if [[ "$GUNICORN_THREADS" == "" ]]
 then
-    export WORKER_THREADS=5
+    export GUNICORN_THREADS=5
 fi
 
 if [[ "$MLFLOW_PERSIST_PATH" == "" ]]
@@ -103,27 +74,23 @@ then
     export MLFLOW_PERSIST_PATH="/artifacts"
 fi
 
-# Start Main Processes
-echo "Starting up Docker Daemon"
-nohup ${BOBBY_SRC_HOME}/scripts/run_dind.sh
+export SQLALCHEMY_ODBC_URL="splicemachinesa://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/splicedb"
 
-echo "Starting Worker"
-python3.6 ${BOBBY_SRC_HOME}/main.py
+# Start Job Tracker GUI
+echo "Starting Job Tracking UI on port :${GUI_PORT}"
+nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${MLFLOW_SRC_HOME}/job_gui --workers ${GUNICORN_THREADS} gui:app &
 
-# do actual stuff
-echo "Starting S3 Daemon"
-mkdir -p /mlruns
-mkdir -p /tmp/mlruns
+# Start Job Submission REST API
+echo "Starting Job Submission REST API on port :${API_PORT}"
+nohup gunicorn --bind 0.0.0.0:${API_PORT} --chdir ${MLFLOW_SRC_HOME}/job_api --workers ${GUNICORN_THREADS} api:app &
 
 cd /api/job_handler && nohup gunicorn --bind 0.0.0.0:$API_PORT --workers 4 app:app  &
 nohup python /api/tracking/s3_sync.py upload -b $S3_BUCKET_NAME/persist -m /mlruns -i /tmp/mlruns -l 5 &
 
-echo "Starting Job Tracker"
-echo "Starting Dashboard UI"
-cd /api/job_status && \
-    nohup gunicorn --bind 0.0.0.0:$DASH_PORT --workers 4 dash:app > /tmp/dash.log &
+# Start MLFlow Tracking Server
+echo "Starting MLFlow Server on port :${MLFLOW_PORT}"
 
-echo "Starting Mlflow Server on 0.0.0.0"
-cd /mlruns && nohup mlflow server --host 0.0.0.0 --default-artifact-root $S3_BUCKET_NAME/artifacts -p $MLFLOW_PORT & > /tmp/mlflow.log
+mlflow server --host 0.0.0.0 --backend-store-uri "${SQLALCHEMY_ODBC_URL}" \
+    --default-artifact-root "${S3_BUCKET_NAME}/${MLFLOW_PERSIST_PATH}" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
 
-python /api/utilities/keep_alive.py
+

@@ -22,7 +22,7 @@ fi
 
 if [[ "$S3_BUCKET_NAME" == "" ]]
 then
-   echo "Error: environment variable S#_BUCKET_NAME is required"
+   echo "Error: environment variable S3_BUCKET_NAME is required"
    exit 1
 fi
 
@@ -63,6 +63,14 @@ fi
 if [[ "$MLFLOW_PERSIST_PATH" == "" ]]
 then
     export MLFLOW_PERSIST_PATH="/artifacts"
+fi
+
+if [[ "$MODE" == ""  ]] || [[ "$MODE" == "production" ]]
+then
+    export MODE="production"
+elif [[ "$MODE" == "development" ]]
+then
+    export MODE="development"
 fi
 
 # Start Main Processes

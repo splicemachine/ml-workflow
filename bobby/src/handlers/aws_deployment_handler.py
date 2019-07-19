@@ -1,15 +1,30 @@
 import logging
 from os import environ as env_vars
 from subprocess import check_call as run_shell_command
-from yaml import load as load_yaml, dump as write_yaml
-
-from .definitions import Job
-from .base_handler import BaseHandler
 
 import mlflow
 import mlflow.sagemaker
+from yaml import load as load_yaml, dump as write_yaml
 
-logger = logging.getLogger(__name__)
+from mlmanager_lib.database.models import Job
+
+from .base_handler import BaseHandler
+
+"""
+Contains handler and functions
+pertaining to AWS Model Deployment
+"""
+
+__author__: str = "Splice Machine, Inc."
+__copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
+__credits__: list = ["Amrit Baveja"]
+
+__license__: str = "Proprietary"
+__version__: str = "2.0"
+__maintainer__: str = "Amrit Baveja"
+__email__: str = "abaveja@splicemachine.com"
+
+LOGGER = logging.getLogger(__name__)
 
 # Anaconda Versions for Deployed Docker Container
 VERSIONS: dict = {
@@ -32,7 +47,7 @@ DOCKER_CONDA_ENVIRONMENT: str = \
             - mlflow=={VERSIONS['mlflow']}
     """
 
-DOWNLOAD_PATH: str = env_vars["BOBBY_WORKER_HOME"] + "/pmml"
+DOWNLOAD_PATH: str = env_vars["WORKER_HOME"] + "/pmml"
 
 
 class SageMakerDeploymentHandler(BaseHandler):
@@ -63,12 +78,12 @@ class SageMakerDeploymentHandler(BaseHandler):
         artifact_uri: str = f'{env_vars["S3_BUCKET_NAME"]}/{env_vars["MLFLOW_PERSIST_PATH"]}/' \
             f'{self.task.payload["experiment_id"]}/{self.task.payload["run_id"]}/'
 
-        logger.info(f"Downloading Model MLFlow Artifact from S3 @ {artifact_uri}")
+        LOGGER.info(f"Downloading Model MLFlow Artifact from S3 @ {artifact_uri}")
 
         shell_command: tuple = ('aws', 's3', 'sync', artifact_uri, self.downloaded_model_path)
 
         run_shell_command(shell_command)
-        logger.debug(f"Completed download of Artifact from S3 -> {self.downloaded_model_path}")
+        LOGGER.debug(f"Completed download of Artifact from S3 -> {self.downloaded_model_path}")
 
     def _configure_anaconda_environment(self) -> None:
         """
@@ -82,21 +97,22 @@ class SageMakerDeploymentHandler(BaseHandler):
         conda_file_path: str = f"{self.downloaded_model_path}/conda.yaml"
         ml_model_file_path: str = f"{self.downloaded_model_path}/MLmodel"
 
-        logger.debug(f"Configuring Conda File for Deployment @ {conda_file_path}")
+        LOGGER.debug(f"Configuring Conda File for Deployment @ {conda_file_path}")
 
         with open(conda_file_path, 'w') as conda_file:
             conda_file.write(DOCKER_CONDA_ENVIRONMENT)
 
-        logger.debug(f"Configuring MLmodel file to use Anaconda @ {ml_model_file_path}")
+        LOGGER.debug(f"Configuring MLmodel file to use Anaconda @ {ml_model_file_path}")
 
         with open(ml_model_file_path, 'r+') as ml_model_file:
             ml_model_yaml: dict = load_yaml(ml_model_file)
-            ml_model_yaml['flavors']['python_function']['env'] = 'conda.yaml'  # reference above file when deployed
+            ml_model_yaml['flavors']['python_function'][
+                'env'] = 'conda.yaml'  # reference above file when deployed
             ml_model_file.seek(0)  # go back to beginning of file so we can overwrite it
             write_yaml(ml_model_yaml, stream=ml_model_file, default_flow_style=False)
             ml_model_file.truncate()
 
-        logger.info("Done configuring MLmodel file to use conda environment when deployed.")
+        LOGGER.info("Done configuring MLmodel file to use conda environment when deployed.")
 
     def _build_and_push_image(self) -> None:
         """
@@ -105,14 +121,14 @@ class SageMakerDeploymentHandler(BaseHandler):
 
         self.update_task_in_db(info="Building and Pushing Model Container to AWS")
 
-        logger.debug("Running Bash Command to build and push MLFlow Docker Container to ECR")
+        LOGGER.debug("Running Bash Command to build and push MLFlow Docker Container to ECR")
         shell_commands = ("mlflow", "sagemaker", "build-and-push-container")
 
-        # TODO @amrit: Do this in jenkins (somehow) so we can get rid of DIND and just deploy because
-        # image will already be in ECR
+        # TODO @amrit: Do this in jenkins (somehow) so we can get rid of DIND and just deploy
+        #  because image will already be in ECR
 
         run_shell_command(shell_commands)
-        logger.info("Done Building and Pushing MLFlow Docker container to ECR")
+        LOGGER.info("Done Building and Pushing MLFlow Docker container to ECR")
 
     def _deploy_model_to_sagemaker(self) -> None:
         """
@@ -125,7 +141,8 @@ class SageMakerDeploymentHandler(BaseHandler):
 
         mlflow.sagemaker.deploy(
             payload['app_name'],
-            f"{self.downloaded_model_path}/{payload['model_dir']}",  # local path of model with suffix
+            f"{self.downloaded_model_path}/{payload['model_dir']}",
+            # local path of model with suffix
             execution_role_arn=env_vars['SAGEMAKER_ROLE'],
             region_name=payload['sagemaker_region'],
             mode=payload['deployment_mode'],

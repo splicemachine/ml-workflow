@@ -5,8 +5,8 @@ import boto3
 from flask import render_template, Flask, request, jsonify
 
 logging.basicConfig()
-logger = logging.getLogger('dash')
-logger.setLevel(logging.DEBUG)
+LOGGER = logging.getLogger('dash')
+LOGGER.setLevel(logging.DEBUG)
 
 app = Flask(__name__)
 
