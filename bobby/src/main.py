@@ -3,15 +3,15 @@ This module has a Master, which polls Splice Machine
 for new jobs and dispatches them to Workers for execution
 (in threads). This execution happens in parallel.
 """
-
+# TODO rename handlers
 from time import sleep as wait
 from os import environ as env_vars
 from workerpool import Job as Task, WorkerPool
 
 from mlmanager_lib.logger.logging_config import logging
-from mlmanager_lib.database.models import Handler, Job, SessionFactory, execute_sql, \
-    populate_handlers
+from mlmanager_lib.database.models import Handler, KnownHandlers, Job, SessionFactory, DBUtilities
 from mlmanager_lib.worker.ledger import JobLedger
+from mlmanager_lib.database.constants import HandlerNames
 
 from handlers.aws_deployment_handler import SageMakerDeploymentHandler
 from handlers.access_handlers import EnableHandler, DisableHandler
@@ -31,17 +31,22 @@ LEDGER_MAX_SIZE: int = int(env_vars['WORKER_THREADS'] * 2)
 
 # how many previous jobs to remember (to account for jobs in processing)
 
-HANDLERS_MAPPING: dict = {  # For adding new handlers, make sure to update
-    # mlmanager_lib/database/constants.py or they won't be populated
-    'DEPLOY_AWS': SageMakerDeploymentHandler,
-    'DEPLOY_AZURE': NotImplementedError,
-    'ENABLE_SERVICE': EnableHandler,
-    'DISABLE_SERVICE': DisableHandler
-}
 
 Session = SessionFactory()
 
 LOGGER = logging.getLogger(__name__)
+
+
+def register_handlers() -> None:
+    """
+    Register all handlers
+    to their associated
+    handler classes
+    """
+    KnownHandlers.register(HandlerNames.deploy_aws, SageMakerDeploymentHandler)
+    KnownHandlers.register(HandlerNames.deploy_azure, NotImplementedError)
+    KnownHandlers.register(HandlerNames.enable_service, EnableHandler)
+    KnownHandlers.register(HandlerNames.disable_service, DisableHandler)
 
 
 class Runner(Task):
@@ -71,7 +76,7 @@ class Runner(Task):
         """
         try:
             LOGGER.info(f"Runner executing job id {self.task_id} --> {self.handler_name}")
-            HANDLERS_MAPPING[self.handler_name](self.task_id).handle()
+            KnownHandlers.get_class(self.handler_name)(self.task_id).handle()
         except Exception:  # uncaught exceptions should't break the runner
             LOGGER.exception(
                 f"Uncaught Exception Encountered while processing task #{self.task_id}")
@@ -114,7 +119,7 @@ class Master(object):
         """
         # Since this is running a lot, we will
         # use SQL so that it is more efficient
-        return execute_sql(Master.poll_sql_query)
+        return DBUtilities.execute_sql(Master.poll_sql_query)
         # SELECT only the `id` + `handler_name` column from the first inserted pending task
 
     def poll(self) -> None:
@@ -136,6 +141,6 @@ class Master(object):
 
 
 if __name__ == '__main__':
-    populate_handlers(Session)
+    DBUtilities.populate_handlers(Session)
     dispatcher: Master = Master()  # initialize worker pool
     dispatcher.poll()

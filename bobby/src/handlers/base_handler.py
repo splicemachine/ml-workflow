@@ -33,7 +33,7 @@ class BaseHandler(object):
     Base Class for all Handlers
     """
 
-    def __init__(self, task_id: int, handler_name: str = None, mutable: bool = True) -> None:
+    def __init__(self, task_id: int, handler_name: str) -> None:
         """
         Construct a new instance
         of Base Handler (cannot actually
@@ -43,19 +43,30 @@ class BaseHandler(object):
         :param task_id: (int) the job id of the pending
             task to handle
         :param handler_name: (str) the name of the handler (how it will be referenced in DB)
-        :param mutable: (bool) whether or not this handler can be toggled in its availability via
-            access handlers
-
         """
 
         self.task_id: int = task_id
-
-        self.task: Job or None = None  # assigned later
-
         self.handler_name: str = handler_name
 
-        self.mutable: bool = mutable
+        self.handler: Handler = Handler or None  # assigned later
+        self.task: Job or None = None  # assigned later
+
         self.Session = SessionFactory()
+
+    def retrieve_handler(self) -> None:
+        """
+        Set the handler specified
+        in handler_name as an instance variable
+        """
+        self.handler = self.Session.query(Handler).filter(Handler.name == self.handler_name)
+
+    def retrieve_task(self) -> None:
+        """
+        Set the task specified
+        in task_id as an instance variable
+        """
+        self.task = self.Session.query(Job).filter(Job.id == self.task_id)
+        self.task.parse_payload()  # deserialize json
 
     def is_handler_enabled(self) -> bool:
         """
@@ -64,13 +75,9 @@ class BaseHandler(object):
 
         :return: (boolean) whether or not the handler is enabled
         """
-        if not self.mutable:  # non-mutable handlers are always enabled
-            return True
 
-        handler: Handler = self.Session.query(Handler).filter_by(name=self.handler_name).first()
-
-        if handler:
-            return handler.enabled
+        if self.handler:
+            return self.handler.enabled
 
         raise Exception(f"Handler {self.handler_name} cannot be found in the database")
 
@@ -132,7 +139,6 @@ class BaseHandler(object):
 
         """
         self.task.fail(failure_message)
-
         self.Session.add(self.task)
         self.Session.commit()
 
@@ -152,10 +158,10 @@ class BaseHandler(object):
         """
         try:
             LOGGER.info("Checking Handler Availability")
+            self.retrieve_handler()
             if self.is_handler_enabled():
                 LOGGER.info("Handler is available")
-                self.task: Job = self.Session.query(Job).filter(Job.id == self.task_id).first()
-                self.task.parse_payload()
+                self.retrieve_task()
                 LOGGER.info("Retrieved task: " + str(self.task.__dict__))
 
                 self.update_task_in_db(status='RUNNING', info='A Service Worker has found your Job')

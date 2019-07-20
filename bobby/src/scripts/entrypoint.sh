@@ -75,7 +75,7 @@ fi
 
 # Start Main Processes
 echo "Starting up Docker Daemon"
-nohup ${BOBBY_SRC_HOME}/scripts/run_dind.sh
+nohup ${SRC_HOME}/scripts/run_dind.sh
 
 echo "Starting Worker"
-python3.6 ${BOBBY_SRC_HOME}/main.py
+python3.6 ${SRC_HOME}/main.py

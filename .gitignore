@@ -1,6 +1,8 @@
 __pycache__
 *.pyc
-.idea
+.idea/
+.vscode/
+splice_mlmanager/*
 .DS_Store
 *.old
 *.zip

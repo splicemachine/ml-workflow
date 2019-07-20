@@ -4,8 +4,7 @@ from flask import Flask, request, Response, jsonify as create_json, render_templ
 
 from mlmanager.logger.logging_config import logging
 from mlmanager_lib.rest.http_utils import HTTP, APIStatuses, Authentication
-from mlmanager_lib.database.models import SessionFactory, Job, Handler
-from mlmanager_lib.database.constants import Handlers
+from mlmanager_lib.database.models import SessionFactory, Job, Handler, Handlers
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
@@ -45,14 +44,16 @@ def handler_queue_job(handler_name: str) -> dict:
                         message=message)
         )
     # Queue Job
+    request_data: dict = request.form if request.form else request.json
+
     payload: dict = {}
     for required_key in handler.required_payload_args:
-        payload[required_key] = request.json[required_key]
+        payload[required_key] = request_data[required_key]
 
     for optional_key in handler.optional_payload_args:
-        supplied_value: object = request.json.get(optional_key)
-        payload[optional_key] = supplied_value if supplied_value else handler.optional_payload_args[
-            optional_key]
+        supplied_value: object = request_data.get(optional_key)
+        payload[optional_key] = supplied_value if supplied_value \
+            else handler.optional_payload_args[optional_key]
 
     current_time: int = int(timestamp())
     job: Job = Job(timestamp=current_time, handler=handler, payload=serialize_json(payload))

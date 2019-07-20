@@ -3,6 +3,15 @@ FROM splicemachine/splice_base:$splice_base_image_version
 
 LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 
+# ml-workflow-build Configuration
+
+######################################################################
+# TODO @AMRIT CHANGE THIS TO A RELEASE NUMBER BEFORE THIS IS RELEASE #
+######################################################################
+
+ARG github_PAT
+ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git"
+
 # Docker in Docker Configuration
 ARG dind_commit='52379fa76dee07ca038624d639d9e14f4fb719ff'
 ENV DIND_ARTIFACT='https://raw.githubusercontent.com/docker/docker/'$dind_commit'/hack/dind'
@@ -15,9 +24,6 @@ ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/L
 ENV SRC_HOME=/opt/bobby
 ENV BUILD_HOME=/tmp
 ENV WORKER_HOME=/opt/worker
-
-# where MLFlow Server stores Artifacts (relative) in S3
-ENV MLFLOW_PERSIST_PATH='/artifacts'
 
 # Add the list of necessary environment packages for development.
 COPY build $BUILD_HOME
@@ -38,9 +44,10 @@ RUN cd $BUILD_HOME && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
     sh ./install.sh -q
 
-
+RUN echo ss
 # Install Python dependencies
-RUN pip3.6 install -r $BUILD_HOME/requirements.txt
+RUN pip3.6 install $ML_WORKFLOW_LIB_PACKAGE && \
+    pip3.6 install -r $BUILD_HOME/requirements.txt
 
 # Install Dind
 RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
