@@ -2,12 +2,11 @@ import logging
 from os import environ as env_vars
 from subprocess import check_call as run_shell_command
 
-import mlflow
 import mlflow.sagemaker
+from mlmanager_lib.database.models import Job
 from yaml import load as load_yaml, dump as write_yaml
 
-from mlmanager_lib.database.models import Job
-
+import mlflow
 from .base_handler import BaseHandler
 
 """
@@ -55,7 +54,7 @@ class SageMakerDeploymentHandler(BaseHandler):
     Handler for handling deployment jobs
     """
 
-    def __init__(self, task: Job, _handler_name='DEPLOY_AWS') -> None:
+    def __init__(self, task: Job) -> None:
         """
         Initialize Base Handler
         constructor (set instance variables
@@ -65,7 +64,7 @@ class SageMakerDeploymentHandler(BaseHandler):
             handler job to process
 
         """
-        BaseHandler.__init__(self, task, _handler_name)
+        BaseHandler.__init__(self, task)
         self.downloaded_model_path: str = DOWNLOAD_PATH
 
     def _retrieve_model_from_s3(self) -> None:

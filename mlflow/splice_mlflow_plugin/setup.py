@@ -17,18 +17,15 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
+VERSION: str = "0.0.1"
 setup(
     name='sm_mlflow',
     description='MLFlow Plugin for Splice Machine RDBMS. It allows Splice Machine to be used'
                 'as a tracking backend for SQLAlchemy Store in MLFlow',
     author='Splice Machine',
     url='https://splicemachine.com',
-    install_requires=[
-        'splicemachinesa==0.0.7.dev0',
-        'sqlalchemy',
-        'alembic'
-        'mlflow>=1.0.0'
-    ],
+    version=VERSION,
+    license="Proprietary",
     packages=find_packages(),
     entry_points={
         "mlflow.tracking_store": "splicemachinesa=sm_mlflow:SpliceMachineTrackingStore"

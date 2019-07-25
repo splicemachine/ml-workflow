@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+
+{% block css %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/jquery.bootgrid.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tableexport.css') }}"/>
+{% endblock %}
+
+{% block content %}
+<div class="welcome">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-10">
+                <div class="content">
+                    <h2>Job Tracker</h2>
+                    <p>The MLManager Director Job Tracker allows you to track
+                        the status of your jobs in real time, as well as carry out
+                        governance of previous jobs. You can set the MLManager Director to
+                        automatically update the UI when a job updates its status, but
+                        note that this may cause some small slowdowns of your Splice Machine
+                        Database.
+                        Otherwise, you can just refresh.
+                    </p>
+                    <h5>By default, some of the columns in the table are hidden. You can toggle
+                        their visibility by clicking the list icon in the upper right hand corner of
+                        the table.</h5>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="content">
+                    <center><img id='governance-logo'
+                                 src="{{ url_for('static', filename='img/governance.jpg') }}">
+                    </center>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="statistics">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="box">
+                    <form>
+                        <div class="row">
+                            <div class="col-md-7">
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_polling' class='form--label'>Polling Interval
+                                        (s)</label>
+                                    <input id='input_polling' type="number" value="2"/>
+                                </div>
+                            </div>
+                            <div class='col-md-2'>
+                                <input id='sbt-btn' class='sbt-btn-job' value="Start Polling"
+                                       type='submit'>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<section class="statistics" style="color:black">
+    <div class="welcome">
+        <div class="container-fluid">
+            <div class="box" style='background-color: white'>
+                <table data-toggle="bootgrid" data-ajax="true" data-url="/api/ui/get_jobs"
+                       id="grid-data" class="table table-condensed table-hover table-striped">
+                    <thead>
+                    <tr>
+                        <th data-column-id="ID" data-visible="false" data-type="numeric">Job ID</th>
+                        <th data-column-id="TIMESTAMP" data-order='desc'>Timestamp</th>
+                        <th data-column-id="USER" data-html='allow'>User</th>
+                        <th data-column-id="HANDLER_NAME">Action</th>
+                        <th data-column-id="TARGET" data-visible="false" data-html='allow'
+                            data-sortable="false">Target
+                        </th>
+                        <th data-column-id="PAYLOAD" data-sortable="false" data-visible="false"
+                            data-html='allow'>Job Payload
+                        </th>
+                        <th data-column-id="STATUS" data-html='allow'>Status</th>
+                        <th data-column-id="INFO" data-sortable="false" data-visible="false"
+                            data-html='allow'>Detailed Status
+                        </th>
+                        <th data-column-id="MLFLOW_URL" data-sortable="false" data-visible="false"
+                            data-html='allow'>
+                            MLFlow Run URL
+                        </th>
+                    </tr>
+                    </thead>
+                </table>
+            </div>
+            <br><br>
+        </div>
+    </div>
+    <br>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/FileSaver.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tableexport.js') }}"></script>
+<script src="{{ url_for('static', filename='js/jquery.bootgrid.js') }}"></script>
+<script src="index.js"></script>
+<script>
+    $("#grid-data").bootgrid(
+    {
+        "caseSensitive": false
+    });
+    $("#grid-data").tableExport();
+
+
+</script>
+{% endblock %}

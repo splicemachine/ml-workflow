@@ -3,7 +3,7 @@ FROM splicemachine/splice_base:$splice_base_image_version
 
 LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 
-# ml-workflow-build Configuration
+# ml-workflow-lib Configuration
 
 ######################################################################
 # TODO @AMRIT CHANGE THIS TO A RELEASE NUMBER BEFORE THIS IS RELEASE #
@@ -44,7 +44,6 @@ RUN cd $BUILD_HOME && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
     sh ./install.sh -q
 
-RUN echo ss
 # Install Python dependencies
 RUN pip3.6 install $ML_WORKFLOW_LIB_PACKAGE && \
     pip3.6 install -r $BUILD_HOME/requirements.txt

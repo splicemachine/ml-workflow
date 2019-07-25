@@ -1,7 +1,8 @@
 import logging
-
 from traceback import format_exc
 from abc import abstractmethod
+
+from sqlalchemy.orm import load_only
 
 from mlmanager_lib.database.models import Handler, Job, SessionFactory
 
@@ -33,7 +34,7 @@ class BaseHandler(object):
     Base Class for all Handlers
     """
 
-    def __init__(self, task_id: int, handler_name: str) -> None:
+    def __init__(self, task_id: int) -> None:
         """
         Construct a new instance
         of Base Handler (cannot actually
@@ -42,44 +43,28 @@ class BaseHandler(object):
 
         :param task_id: (int) the job id of the pending
             task to handle
-        :param handler_name: (str) the name of the handler (how it will be referenced in DB)
         """
 
         self.task_id: int = task_id
-        self.handler_name: str = handler_name
-
-        self.handler: Handler = Handler or None  # assigned later
         self.task: Job or None = None  # assigned later
 
         self.Session = SessionFactory()
 
-    def retrieve_handler(self) -> None:
+    def is_handler_enabled(self) -> None:
         """
         Set the handler specified
         in handler_name as an instance variable
         """
-        self.handler = self.Session.query(Handler).filter(Handler.name == self.handler_name)
+        return self.Session.query(Handler).options(load_only("enabled")).filter(
+            Handler.name == self.task.handler_name).first().enabled
 
     def retrieve_task(self) -> None:
         """
         Set the task specified
         in task_id as an instance variable
         """
-        self.task = self.Session.query(Job).filter(Job.id == self.task_id)
+        self.task = self.Session.query(Job).filter(Job.id == self.task_id).first()
         self.task.parse_payload()  # deserialize json
-
-    def is_handler_enabled(self) -> bool:
-        """
-        Check whether the associated handler
-        is enabled in the database
-
-        :return: (boolean) whether or not the handler is enabled
-        """
-
-        if self.handler:
-            return self.handler.enabled
-
-        raise Exception(f"Handler {self.handler_name} cannot be found in the database")
 
     @staticmethod
     def _format_html_exception(traceback: str) -> str:
@@ -158,19 +143,18 @@ class BaseHandler(object):
         """
         try:
             LOGGER.info("Checking Handler Availability")
-            self.retrieve_handler()
+            self.retrieve_task()
             if self.is_handler_enabled():
                 LOGGER.info("Handler is available")
-                self.retrieve_task()
                 LOGGER.info("Retrieved task: " + str(self.task.__dict__))
 
                 self.update_task_in_db(status='RUNNING', info='A Service Worker has found your Job')
                 self._handle()
                 self.succeed_task_in_db(
-                    f"Success! Target '{self.handler_name} completed successfully."
+                    f"Success! Target '{self.task.handler_name} completed successfully."
                 )
             else:
-                self.fail_task_in_db(f"Error: Target '{self.handler_name}' is disabled")
+                self.fail_task_in_db(f"Error: Target '{self.task.handler_name}' is disabled")
 
             self.Session.commit()  # commit transaction to database
 

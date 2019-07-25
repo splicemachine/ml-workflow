@@ -39,8 +39,7 @@ class EnableHandler(BaseHandler):
     Handles ENABLE_HANDLER Jobs
     """
 
-    def __init__(self, task: Job, _handler_name: str = 'ENABLE_HANDLER',
-                 _mutable: bool = False) -> None:
+    def __init__(self, task: Job) -> None:
         """
         Initialize Base Handler
         constructor (set instance variables
@@ -50,13 +49,12 @@ class EnableHandler(BaseHandler):
             handler job to process
 
         """
-        BaseHandler.__init__(self, task, _handler_name, _mutable)
+        BaseHandler.__init__(self, task)
 
     def _handle(self) -> None:
         """
         Enable a specific service
         """
-
         service_to_start: Handler = _get_handler_by_name(
             self.Session,
             self.task.parsed_payload['service']
@@ -64,9 +62,13 @@ class EnableHandler(BaseHandler):
 
         LOGGER.info(f"Enabling service: {service_to_start}")
         if service_to_start:
-            service_to_start.enable()
-            self.Session.add(service_to_start)
-            self.Session.commit()
+            if service_to_start.mutable:
+                service_to_start.enable()
+                self.Session.add(service_to_start)
+                self.Session.commit()
+            else:
+                LOGGER.error(f"Error enabling service: {service_to_start} - not mutable")
+                raise Exception(f"Service {service_to_start} is not modifiable")
         else:
             LOGGER.error(f"Unable to find service: {service_to_start}")
             raise Exception(
@@ -78,24 +80,22 @@ class DisableHandler(BaseHandler):
     Handles DISABLE_HANDLER Jobs
     """
 
-    def __init__(self, task: Job, _handler_name: str = 'DISABLE_HANDLER',
-                 _mutable: bool = False) -> None:
+    def __init__(self, task: Job) -> None:
         """
         Initialize Base Handler
         constructor (set instance variables
         etc.)
 
-        :param task: (Job) the disable
+        :param task: (Job) the enable
             handler job to process
 
         """
-        BaseHandler.__init__(self, task, _handler_name, _mutable)
+        BaseHandler.__init__(self, task)
 
     def _handle(self) -> None:
         """
         Disable a specific service
         """
-
         service_to_stop: Handler = _get_handler_by_name(
             self.Session,
             self.task.parsed_payload['service']
@@ -103,11 +103,15 @@ class DisableHandler(BaseHandler):
 
         LOGGER.info(f"Disabling service: {service_to_stop}")
         if service_to_stop:
-            service_to_stop.disable()
-            self.Session.add(service_to_stop)
-            self.Session.commit()
+            if service_to_stop.mutable:
+                service_to_stop.disable()
+                self.Session.add(service_to_stop)
+                self.Session.commit()
+            else:
+                LOGGER.error(f"Error disabling service: {service_to_stop} - not mutable")
+                raise Exception(f"Service {service_to_stop} is not modifiable")
         else:
             LOGGER.error(f"Unable to find service: {service_to_stop}")
             raise Exception(
-                f"Error enabling service: {str(service_to_stop)} - Cannot find Service in DB!"
-            )
+                f"Error disabling service: {str(service_to_stop)} - Cannot find Service in DB!")
+

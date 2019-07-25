@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MLManager Director</title>
+    {% block css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/font-awesome.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/droid_sans.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base_stylesheet.css') }}">
+    {% endblock %}
+</head>
+<body>
+<aside class="side-nav" id="show-side-navigation1">
+    <i class="fa fa-bars close-aside hidden-sm hidden-md hidden-lg"
+       data-close="show-side-navigation1"></i>
+    <div class="heading">
+        <img src=" {{ url_for('static', filename='img/user_icon.png') }}" alt="">
+        <div class="info">
+            <h3><a href="#">Amrit Baveja</a></h3>
+            <p>Role: <b>User</b></p>
+        </div>
+    </div>
+    <ul class="categories">
+        <li><i class="fa fa-home fa-fw" aria-hidden="true"></i><a href="/"> <b>Home</b></a>
+        </li>
+        <li><i class="fa fa-globe fa-fw"></i><a href="/tracker"> Job Tracker</a>
+        </li>
+        <li><i class="fa fa-play fa-fw"></i><a href="#"> Initiate Jobs</a>
+            <ul class="side-nav-dropdown">
+                <li><a href="/deploy/deploy_aws">Deploy Model to AWS</a></li>
+                <li><a href="#">Deploy Model to Azure</a></li>
+            </ul>
+        </li>
+        <li><i class="fa fa-users fa-fw"></i><a href="access.html"> Manage Access</a>
+        </li>
+        <li><i class="fa fa-server fa-fw"></i><a href="/api_info"> API</a>
+        </li>
+        <li><i class="fa fa-question-circle fa-fw"></i><a href="/contact"> Contact Us</a></li>
+    </ul>
+</aside>
+<section id="contents">
+    <nav class="navbar navbar-default">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse"
+                        data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+                    <i class="fa fa-align-right"></i>
+                </button>
+                <a class="navbar-brand" href="#">
+                    <img id='logo'
+                         src="{{ url_for('static', filename='img/splice_logo.png') }}"/></a>
+            </div>
+            <div class="collapse navbar-collapse navbar-right" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav">
+                    <li class="dropdown">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button"
+                           aria-haspopup="true" aria-expanded="false">User <span
+                                class="caret"></span></a>
+                        <ul class="dropdown-menu">
+                            <li><a href="#"><i class="fa fa-sign-out"></i> Log out</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#"><i data-show="show-side-navigation1"
+                                       class="fa fa-bars show-side-btn"></i><span>&nbsp;</span></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    {% block content %}
+    {% endblock %}
+
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/index.js') }}"></script>
+<script src="{{ url_for('static', filename='js/jquery-latest.js') }}"></script>
+<script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+{% endblock %}
+
+</body>
+</html>

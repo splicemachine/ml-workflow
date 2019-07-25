@@ -3,10 +3,10 @@ This module has a Master, which polls Splice Machine
 for new jobs and dispatches them to Workers for execution
 (in threads). This execution happens in parallel.
 """
-# TODO rename handlers
+# TODO add governance
 from time import sleep as wait
 from os import environ as env_vars
-from workerpool import Job as Task, WorkerPool
+from workerpool import Job as ThreadedTask, WorkerPool
 
 from mlmanager_lib.logger.logging_config import logging
 from mlmanager_lib.database.models import Handler, KnownHandlers, Job, SessionFactory, DBUtilities
@@ -49,7 +49,7 @@ def register_handlers() -> None:
     KnownHandlers.register(HandlerNames.disable_service, DisableHandler)
 
 
-class Runner(Task):
+class Runner(ThreadedTask):
     """
     A Threaded Worker that will be
     scaled across a pool via threading
@@ -107,7 +107,7 @@ class Master(object):
         Initializes workerpool on construction of
         object
         """
-        self.worker_pool: WorkerPool = WorkerPool(size=int(env_vars['WORKER_THREADS']))
+        self.worker_pool: WorkerPool = WorkerPool(size=30)
         self.ledger: JobLedger = JobLedger(LEDGER_MAX_SIZE)
 
     @staticmethod
@@ -131,6 +131,7 @@ class Master(object):
 
         while True:
             job_data: list = Master._get_first_pending_task_id_handler()
+            LOGGER.info(job_data)
             if job_data and job_data[0][0] not in self.ledger:
                 job_id, handler_name = job_data[0]  # unpack arguments
                 LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
@@ -141,6 +142,7 @@ class Master(object):
 
 
 if __name__ == '__main__':
+    register_handlers()
     DBUtilities.populate_handlers(Session)
     dispatcher: Master = Master()  # initialize worker pool
     dispatcher.poll()

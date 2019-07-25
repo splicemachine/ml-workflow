@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="welcome">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="content">
+                    <h2>Welcome to MLManager Director, {user}</h2>
+                    <p>From the Splice Machine MLManager Director you can track active jobs
+                        (e.g. deployment),
+                        create new jobs, and manage access to various services</p>
+                    <p id="loading"></p>
+                    <button id='refresh-btn' onclick="refresh(true)">Force Refresh Widgets</button>
+                    <!-- force refresh of widgets -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<section class="statistics">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="box">
+                    <i class="fa fa-play fa-fw prim"></i>
+                    <div class="info">
+                        <h3 id="job_num"></h3> <span>Total Jobs</span>
+                        <p>have been executed so far</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="box">
+                    <i class="fa fa-list-ol fa-fw secc"></i>
+                    <div class="info">
+                        <h3 id="handler_num"></h3> <span>Enabled Services</span>
+                        <p>are currently available</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<section class="charts">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="chart-container">
+                    <h3>Jobs Executed</h3>
+                    <canvas id="myChart2"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<br>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/Chart.bundle.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chart_config.js') }}"></script>
+<script src="{{ url_for('static', filename='js/widgets.js') }}"></script>
+<script>
+    refresh(false);
+</script>
+{% endblock %}
