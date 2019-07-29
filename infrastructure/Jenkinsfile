@@ -38,13 +38,10 @@ node('dockerpython') {
 
   }
 }
-
 void setBuildStatus(String message, String state) {
   step([
     $class: "GitHubCommitStatusSetter",
-    reposSource: [$class: "ManuallyEnteredRepositorySource", url: "https://github.com/splicemachine/ml-workflow"],
-    contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/jenkins/build-status"],
-    errorHandlers: [[$class: "ChangingBuildStatusErrorHandler", result: "UNSTABLE"]],
+    contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/jenkins/build-status", context: 'PerBuildTest'],
     statusResultSource: [ $class: "ConditionalStatusResultSource", results: [[$class: "AnyBuildResult", message: message, state: state]] ]
   ]);
 }
