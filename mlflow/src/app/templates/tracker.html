@@ -24,10 +24,10 @@
     </div>
 </div>
 
-<section class="statistics" style="color:black">
+<section class="statistics" style="color:black;">
     <div class="welcome">
         <div class="container-fluid">
-            <div class="box" style='background-color: white'>
+            <div class="box" style='background-color: white; overflow:visible;'>
                 <table data-toggle="bootgrid" data-ajax="true" data-url="/api/ui/get_jobs"
                        id="grid-data" class="table table-condensed table-hover table-striped">
                     <thead>
@@ -36,7 +36,7 @@
                         <th data-column-id="TIMESTAMP" data-order='desc'>Timestamp</th>
                         <th data-column-id="USER" data-html='allow'>User</th>
                         <th data-column-id="HANDLER_NAME">Action</th>
-                        <th data-column-id="TARGET" data-visible="false" data-html='allow'
+                        <th data-column-id="TARGET_SERVICE" data-visible="false" data-html='allow'
                             data-sortable="false">Target
                         </th>
                         <th data-column-id="PAYLOAD" data-sortable="false" data-visible="false"

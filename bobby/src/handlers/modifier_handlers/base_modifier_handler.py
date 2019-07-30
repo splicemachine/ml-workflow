@@ -35,19 +35,12 @@ class BaseModifierHandler(BaseHandler):
         """
         BaseHandler.__init__(self, task_id)
         self.action: str = action
-        self.task.target_service: str = self.task.parsed_payload['service']
-        self.target_handler_object: Handler = self._get_handler_by_name(
-            self.task.target_service
-        )
-        # rendering in GUI Table
 
     def _get_handler_by_name(self, handler_name: str) -> Handler:
         """
         Retrieve a Handler object from the database
         by its name
 
-        :param session: (Session) the scoped
-            database session to execute under
         :param handler_name: (str) the name of the
             handler to retrieve
         :return: (Handler) retrieved handler object (Python) from the database
@@ -67,8 +60,12 @@ class BaseModifierHandler(BaseHandler):
         Run modifications
         """
         LOGGER.debug(f"Running Modifier Handler: {self.action}")
+        self.task.target_service: str = self.task.parsed_payload['service']
+        self.target_handler_object: Handler = self._get_handler_by_name(
+            self.task.target_service
+        )
         if self.target_handler_object:
-            if self.target_handler_object.modifiabe:
+            if self.target_handler_object.modifiable:
                 self.modify()
                 self.Session.add(self.target_handler_object)
                 self.Session.add(self.task)  # changes for GUI

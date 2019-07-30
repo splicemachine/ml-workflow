@@ -75,7 +75,7 @@ class BaseHandler(object):
         :returns: string in HTML pre-formatted code-block format
 
         """
-        # what we need to change in order to get formatted HTML <code>
+        # what we need to change in order to get formatted HTML <pre>
         replacements: dict = {
             '\n': '<br>',
             "'": ""
@@ -83,7 +83,7 @@ class BaseHandler(object):
         for subject, target in replacements.items():
             traceback: str = traceback.replace(subject, target)
 
-        return f'<br><code>{traceback}</code>'
+        return f'<br>{traceback}'
 
     def update_task_in_db(self, status: str = None, info: str = None) -> None:
         """

@@ -239,6 +239,12 @@ body {background-color: #2a2b3d}
   padding: 15px;
   overflow: hidden;
 }
+
+.tableview {
+    background-color: #31348;
+    padding:15px;
+}
+
 .statistics .box > i {
   float: left;
   color: #FFF;
