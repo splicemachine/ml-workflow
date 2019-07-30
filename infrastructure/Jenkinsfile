@@ -29,12 +29,14 @@ node('dockerpython') {
 
     // if there was an exception thrown, the build failed
     setBuildStatus("Build Failed", "FAILURE");
+    currentBuild.result = "FAILED"
     throw any
 
   } finally {
 
     // success or failure, always send notifications
     setBuildStatus("Build Succeeded", "SUCCESS");
+    currentBuild.result = "SUCCESS"
 
   }
 }
