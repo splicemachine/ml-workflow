@@ -6,10 +6,7 @@ node('dockerpython') {
     // Mark the code checkout 'stage'....
     stage('Checkout') {
       // Checkout code from repository
-      def scmVar = checkout scm
-      echo "${scmVar}"
-      env.GIT_COMMIT = scmVar.GIT_COMMIT
-      echo "${env.GIT_COMMIT}"
+      checkout scm
     }
 
     stage('Prep') {
@@ -48,7 +45,7 @@ def getRepoURL() {
 
 def updateGithubCommitStatus(build) {
   repoUrl = getRepoURL()
-  commitSha = env.GIT_COMMIT
+  commitSha = sh(returnStdout: true, script: 'git rev-parse HEAD')
 
   step([
     $class: 'GitHubCommitStatusSetter',
