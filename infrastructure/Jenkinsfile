@@ -45,7 +45,7 @@ def getRepoURL() {
 
 def updateGithubCommitStatus(build) {
   repoUrl = getRepoURL()
-  commitSha = env.GIT_COMMIT
+  commitSha = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
 
   step([
     $class: 'GitHubCommitStatusSetter',
