@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>MLManager Director</title>
-    {% block css %}
+    {% block css %} <!-- so other pages can inject their own custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/font-awesome.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/droid_sans.css') }}">
@@ -17,11 +17,17 @@
     <div class="heading">
         <img src=" {{ url_for('static', filename='img/user_icon.png') }}" alt="">
         <div class="info">
-            <h3><a href="#">Amrit Baveja</a></h3>
+            {% if current_user.id %}
+            <h3><a href="#">{{ current_user.id }}</a></h3>
             <p>Role: <b>User</b></p>
+            {% else %}
+            <h3><a href="#">Anonymous</a></h3>
+            {% endif %}
         </div>
     </div>
+    {% block sidebar %}
     <ul class="categories">
+
         <li><i class="fa fa-home fa-fw" aria-hidden="true"></i><a href="/"> <b>Home</b></a>
         </li>
         <li><i class="fa fa-globe fa-fw"></i><a href="/tracker"> Job Tracker</a>
@@ -32,12 +38,13 @@
                 <li><a href="#">Deploy Model to Azure</a></li>
             </ul>
         </li>
-        <li><i class="fa fa-users fa-fw"></i><a href="access.html"> Manage Access</a>
+        <li><i class="fa fa-users fa-fw"></i><a href="/access"> Manage Access</a>
         </li>
         <li><i class="fa fa-server fa-fw"></i><a href="/api_info"> API</a>
         </li>
         <li><i class="fa fa-question-circle fa-fw"></i><a href="/contact"> Contact Us</a></li>
     </ul>
+    {% endblock %}
 </aside>
 <section id="contents">
     <nav class="navbar navbar-default">
@@ -56,9 +63,9 @@
                     <li class="dropdown">
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button"
                            aria-haspopup="true" aria-expanded="false">User <span
-                                class="caret"></span></a>
+                                ></span></a>
                         <ul class="dropdown-menu">
-                            <li><a href="#"><i class="fa fa-sign-out"></i> Log out</a></li>
+                            <li><a href="/logout"><i class="fa fa-external-link-alt"></i> Log out</a></li>
                         </ul>
                     </li>
                     <li><a href="#"><i data-show="show-side-navigation1"
@@ -72,12 +79,12 @@
     {% endblock %}
 
 
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/index.js') }}"></script>
-<script src="{{ url_for('static', filename='js/jquery-latest.js') }}"></script>
-<script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
-{% endblock %}
+    {% block scripts %}
+    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jquery-latest.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+    {% endblock %}
 
 </body>
 </html>

@@ -567,6 +567,11 @@ pre, code {
     padding-bottom:5px;
     padding-left:20px;
     padding-right:20px;
+
+}
+
+.button-outline {
+
     color: #BBB;
     border: 1px solid #BBB;
     height:30px;
@@ -574,7 +579,13 @@ pre, code {
     border-radius:3px;
 }
 
-#refresh-btn:hover {
+.button-group {
+    padding-left:15px;
+    padding-right:15px;
+    margin: 15px;
+}
+
+.button-outline:hover {
     background: #BBB;
     color: #313348;
 }
@@ -586,4 +597,9 @@ pre, code {
 
 table {
     color: black;
+}
+
+.access-form-btn {
+    padding-left:15px;
+    padding-right:15px;
 }

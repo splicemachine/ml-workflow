@@ -101,7 +101,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             URI for
         :return: (str) the default artifact location for the given experiment
         """
-        return str(super(SpliceMachineTrackingStore, self)._get_artifact_location(experiment_id))
+        return str(super()._get_artifact_location(experiment_id))
 
     def create_run(self, experiment_id, user_id, start_time, tags):
         """

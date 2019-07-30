@@ -3,18 +3,16 @@ This module has a Master, which polls Splice Machine
 for new jobs and dispatches them to Workers for execution
 (in threads). This execution happens in parallel.
 """
-# TODO add governance
-from time import sleep as wait
 from os import environ as env_vars
-from workerpool import Job as ThreadedTask, WorkerPool
+from time import sleep as wait
 
-from mlmanager_lib.logger.logging_config import logging
-from mlmanager_lib.database.models import Handler, KnownHandlers, Job, SessionFactory, DBUtilities
-from mlmanager_lib.worker.ledger import JobLedger
+from handlers.modifier_handlers import EnableServiceHandler, DisableServiceHandler
+from handlers.run_handlers import SageMakerDeploymentHandler
 from mlmanager_lib.database.constants import HandlerNames
-
-from handlers.aws_deployment_handler import SageMakerDeploymentHandler
-from handlers.access_handlers import EnableHandler, DisableHandler
+from mlmanager_lib.database.models import KnownHandlers, Job, SessionFactory, DBUtilities
+from mlmanager_lib.logger.logging_config import logging
+from mlmanager_lib.worker.ledger import JobLedger
+from workerpool import Job as ThreadedTask, WorkerPool
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -25,16 +23,13 @@ __version__: str = "2.0"
 __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
+LOGGER = logging.getLogger(__name__)
+
 POLL_INTERVAL: int = 2  # check for new jobs every 2 seconds
-
 LEDGER_MAX_SIZE: int = int(env_vars['WORKER_THREADS'] * 2)
-
 # how many previous jobs to remember (to account for jobs in processing)
 
-
 Session = SessionFactory()
-
-LOGGER = logging.getLogger(__name__)
 
 
 def register_handlers() -> None:
@@ -45,8 +40,8 @@ def register_handlers() -> None:
     """
     KnownHandlers.register(HandlerNames.deploy_aws, SageMakerDeploymentHandler)
     KnownHandlers.register(HandlerNames.deploy_azure, NotImplementedError)
-    KnownHandlers.register(HandlerNames.enable_service, EnableHandler)
-    KnownHandlers.register(HandlerNames.disable_service, DisableHandler)
+    KnownHandlers.register(HandlerNames.enable_service, EnableServiceHandler)
+    KnownHandlers.register(HandlerNames.disable_service, DisableServiceHandler)
 
 
 class Runner(ThreadedTask):

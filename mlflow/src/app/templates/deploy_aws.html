@@ -3,7 +3,7 @@
 <div class="welcome">
     <div class="container-fluid">
         <div class="row">
-            <div class="col-md-10">
+            <div class="col-md-12">
                 <div class="content">
                     <h2>Deploy a model to Amazon SageMaker</h2>
                     <p>Note: You must log a pipeline
@@ -13,31 +13,37 @@
                         You can track the status of your job (as well as see/export job history)
                         <a href="/job_tracker.html">here</a>.</h4>
 
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="content">
-                    <center>
-                        <img id="sagemaker-logo"
-                             src="{{ url_for('static', filename='img/aws.png') }}"/>
-                    </center>
+                    {% if msg %}
+                    <h3>{{ msg }}</h3>
+                    {% endif %}
+
                 </div>
             </div>
         </div>
     </div>
 </div>
+<!-- In the backend, after a POST request from form submission,
+the values in this field are referenced via request.form(n) where
+n is the name of the input field. Therefore, it is important that the input
+names correspond to those in mlmanager_lib/database/models.py -->
+
 <section class="statistics">
     <div class="container-fluid">
         <div class="row">
             <div class="col-md-12">
                 <div class="box">
-                    <form>
+                    <form method='POST' action="/api/ui/initiate">
                         <div class="row">
                             <div class="col-md-6">
+                                <!-- governance -->
+                                <input type="hidden" name="user" value="{{ current_user.id }}"/>
+                                <input type="hidden" name="handler_name"
+                                       value="DEPLOY_AWS"/>
                                 <div class='form--inputContainer js-input'>
                                     <label for='input_run_uuid' class='form--label'>Run ID *</label>
                                     <input id='input_run_uuid' class='js-input-fullName' type='text'
                                            placeholder='e.g. cd93d9342bae4024a5290b908c02f386'
+                                           name="run_id"
                                            required>
                                 </div>
                             </div>
@@ -46,7 +52,8 @@
                                     <label for='input_app_name' class='form--label'>SageMaker App
                                         Name when Deployed *</label>
                                     <input id='input_app_name' class='js-input-fullName' type='text'
-                                           placeholder="MySpliceMachineApp" required>
+                                           placeholder="MySpliceMachineApp" name="app_name"
+                                           required>
                                 </div>
                             </div>
                         </div>
@@ -56,8 +63,9 @@
                                 <div class='form--inputContainer js-input'>
                                     <label for='input_region' class='form--label'>SageMaker
                                         Region</label>
-                                    <select id='input_region' class='js-input-fullName' type='text'>
-                                        <option value="us-east-2" default selected>us-east-2
+                                    <select id='input_region' class='js-input-fullName'>
+                                        <option value="us-east-2" name="sagemaker_region" default
+                                                selected>us-east-2
                                         </option>
                                         <option value="us-west-1">us-west-1</option>
                                         <option value="us-west-2">us-west-2</option>
@@ -70,7 +78,7 @@
                                     <label for='input_deployment_mode' class='form--label'>SageMaker
                                         Deployment Mode</label>
                                     <select id='input_deployment_mode' class='js-input-fullName'
-                                            type='text'>
+                                            name="deployment_mode">
                                         <option value="replace" default selected>Replace
                                             (recommended)
                                         </option>
@@ -86,7 +94,7 @@
                                     <label for='input_instance' class='form--label'>SageMaker
                                         Instance Type</label>
                                     <select id='input_instance' class='js-input-fullName'
-                                            type='text'>
+                                            name='instance_type'>
                                         <option value="ml.m5.xlarge" default selected> ml.m5.xlarge
                                             (~$0.27/hr)
                                         </option>
@@ -95,10 +103,11 @@
                             </div>
                             <div class="col-md-6">
                                 <div class='form--inputContainer js-input'>
-                                    <label for='input_count' class='form--label'>Instance
+                                    <label for='input_count' name='instance_count'
+                                           class='form--label'>Instance
                                         Count</label>
                                     <input id='input_count' class='js-input-fullName' type='number'
-                                           value=1 required>
+                                           value=1 name="instance_count" required>
                                 </div>
                             </div>
                         </div>

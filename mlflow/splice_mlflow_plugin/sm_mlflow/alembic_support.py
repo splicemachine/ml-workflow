@@ -1,12 +1,9 @@
 from alembic.ddl import base
 from alembic.ddl.base import ColumnType, RenameTable, ColumnName, ColumnNullable, alter_table, \
     format_column_name
-
 from alembic.ddl.impl import DefaultImpl
-
 from sqlalchemy.ext.compiler import compiles
 
-DUMMY_QUERY: str = 'VALUES 1'
 AVAILABLE_TRANSFER_TYPES: tuple = (
     'VARCHAR', 'LONGVARCHAR', 'BLOB', 'CLOB'
 )  # columns which can have their length mutated
@@ -28,23 +25,23 @@ class SpliceMachineImpl(DefaultImpl):
             print(traceback.format_exc())
 
 
+# Override Alembic default ALTER TABLE
+
 @compiles(ColumnType, 'splicemachinesa')
 def visit_column_type(element, compiler, **kw) -> str:
     """
-    TODO @amrit: This is an extremely hacky temporary fix for our databases lack of support
+    TODO @amrit: This is a temporary fix for our databases lack of support
     of Altering the length of non string-based columns. We essentially just ignore length changes,
     which is fine for MLFlow, but not if we are sending this code out to production
     """
 
     if str(element.type_) in AVAILABLE_TRANSFER_TYPES:
-        print("Transfer type " + (str(element.type_)))
         data_type = base.format_type(compiler, element.type_)
         return "%s %s %s" % (
             base.alter_table(compiler, element.table_name, element.schema),
             base.alter_column(compiler, element.column_name),
             "SET DATA TYPE %s" % data_type
         )
-    print("Ignoring Query")
     return ";"  # just a placeholder to indicate no action should be taken
 
 

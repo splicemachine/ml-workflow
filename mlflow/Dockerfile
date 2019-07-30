@@ -33,7 +33,7 @@ RUN cd $BUILD_HOME && \
     tar xzf splice_odbc.tar.gz && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
     sh ./install.sh -q
-RUN echo ssssddeedddd
+RUN echo sddf
 # Install Python dependencies
 COPY splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
 RUN pip3.6 install -r $BUILD_HOME/requirements.txt && \

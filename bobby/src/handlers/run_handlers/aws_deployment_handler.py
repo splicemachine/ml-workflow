@@ -3,11 +3,10 @@ from os import environ as env_vars
 from subprocess import check_call as run_shell_command
 
 import mlflow.sagemaker
-from mlmanager_lib.database.models import Job
 from yaml import load as load_yaml, dump as write_yaml
 
 import mlflow
-from .base_handler import BaseHandler
+from .base_run_handler import BaseRunHandler
 
 """
 Contains handler and functions
@@ -49,22 +48,21 @@ DOCKER_CONDA_ENVIRONMENT: str = \
 DOWNLOAD_PATH: str = env_vars["WORKER_HOME"] + "/pmml"
 
 
-class SageMakerDeploymentHandler(BaseHandler):
+class SageMakerDeploymentHandler(BaseRunHandler):
     """
     Handler for handling deployment jobs
     """
 
-    def __init__(self, task: Job) -> None:
+    def __init__(self, task_id: int) -> None:
         """
         Initialize Base Handler
         constructor (set instance variables
         etc.)
 
-        :param task: (Job) the disable
-            handler job to process
+        :param task: (int) Id of job to process
 
         """
-        BaseHandler.__init__(self, task)
+        BaseRunHandler.__init__(self, task_id)
         self.downloaded_model_path: str = DOWNLOAD_PATH
 
     def _retrieve_model_from_s3(self) -> None:
@@ -75,7 +73,7 @@ class SageMakerDeploymentHandler(BaseHandler):
         self.update_task_in_db(info="Downloading Model PMML from S3")
 
         artifact_uri: str = f'{env_vars["S3_BUCKET_NAME"]}/{env_vars["MLFLOW_PERSIST_PATH"]}/' \
-            f'{self.task.payload["experiment_id"]}/{self.task.payload["run_id"]}/'
+            f'{self.task.parsed_payload["experiment_id"]}/{self.task.parsed_payload["run_id"]}/'
 
         LOGGER.info(f"Downloading Model MLFlow Artifact from S3 @ {artifact_uri}")
 
@@ -123,9 +121,6 @@ class SageMakerDeploymentHandler(BaseHandler):
         LOGGER.debug("Running Bash Command to build and push MLFlow Docker Container to ECR")
         shell_commands = ("mlflow", "sagemaker", "build-and-push-container")
 
-        # TODO @amrit: Do this in jenkins (somehow) so we can get rid of DIND and just deploy
-        #  because image will already be in ECR
-
         run_shell_command(shell_commands)
         LOGGER.info("Done Building and Pushing MLFlow Docker container to ECR")
 
@@ -136,7 +131,7 @@ class SageMakerDeploymentHandler(BaseHandler):
 
         self.update_task_in_db(info='Deploying model to SageMaker')  # Update Information
 
-        payload: dict = self.task.payload
+        payload: dict = self.task.parsed_payload
 
         mlflow.sagemaker.deploy(
             payload['app_name'],
@@ -149,7 +144,7 @@ class SageMakerDeploymentHandler(BaseHandler):
             instance_count=int(payload['instance_count'])
         )
 
-    def _handle(self) -> None:
+    def execute(self) -> None:
         """
         Deploy Job to SageMaker
         """

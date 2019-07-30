@@ -62,7 +62,7 @@ fi
 
 if [[ "$GUNICORN_THREADS" == "" ]]
 then
-    export GUNICORN_THREADS=5
+    export GUNICORN_THREADS=3
 fi
 
 if [[ "$MLFLOW_PERSIST_PATH" == "" ]]
@@ -82,12 +82,12 @@ export SQLALCHEMY_ODBC_URL="splicemachinesa://${DB_USER}:${DB_PASSWORD}@${DB_HOS
 
 # Start Job Tracker GUI
 echo "Starting Job Tracking UI on port :${GUI_PORT}"
-nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:app &
+nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
 
 # Start MLFlow Tracking Server
 echo "Starting MLFlow Server on port :${MLFLOW_PORT}"
 
 mlflow server --host 0.0.0.0 --backend-store-uri "${SQLALCHEMY_ODBC_URL}" \
-    --default-artifact-root "${S3_BUCKET_NAME}/${MLFLOW_PERSIST_PATH}" -p ${MLFLOW_PORT} #2>&1 | tee ${MLFLOW_LOG_FILE}
+    --default-artifact-root "${S3_BUCKET_NAME}/${MLFLOW_PERSIST_PATH}" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
 
 
