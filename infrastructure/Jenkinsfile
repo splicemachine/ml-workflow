@@ -43,14 +43,9 @@ def getRepoURL() {
   return readFile(".git/remote-url").trim()
 }
 
-def getCommitSha() {
-  sh "git rev-parse HEAD > .git/current-commit"
-  return readFile(".git/current-commit").trim()
-}
-
 def updateGithubCommitStatus(build) {
   repoUrl = getRepoURL()
-  commitSha = getCommitSha()
+  commitSha = env.GIT_COMMIT
 
   step([
     $class: 'GitHubCommitStatusSetter',
@@ -67,3 +62,7 @@ def updateGithubCommitStatus(build) {
     ]
   ])
 }
+
+
+
+
