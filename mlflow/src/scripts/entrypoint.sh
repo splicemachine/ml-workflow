@@ -27,24 +27,33 @@ then
    exit 1
 fi
 
-if [[ "$MLFLOW_PORT" == "" ]]; then
-   echo "Error: environment variable MLFLOW_PORT is required"
-   exit 1
-fi
-
-
-if [[ "$GUI_PORT" == "" ]]; then
-   echo "Error: environment variable GUI_PORT is required"
-   exit 1
-fi
-
 if [[ "$FRAMEWORK_NAME" == "" ]]
 then
     echo "Error: environment variable FRAMEWORK_NAME is required"
     exit 1
 fi
 
+if [[ "$AWS_ACCESS_KEY_ID" == "" ]]
+then
+    echo "Error: environment variable AWS_ACCESS_KEY_ID is required"
+    exit 1
+fi
+
+if [[ "$AWS_SECRET_ACCESS_KEY" == "" ]]
+then
+    echo "Error: environment variable AWS_SECRET_ACCESS_KEY is required"
+    exit 1
+fi
+
 # Test Optional Environment Variables
+if [[ "$MLFLOW_PORT" == "" ]]
+then
+    export MLFLOW_PORT=5001
+fi
+if [[ "$GUI_PORT" == "" ]]; then
+    export GUI_PORT=5003;
+fi
+
 if [[ "$DB_PORT" == "" ]]
 then
     export DB_PORT=1527
@@ -88,6 +97,6 @@ nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GU
 echo "Starting MLFlow Server on port :${MLFLOW_PORT}"
 
 mlflow server --host 0.0.0.0 --backend-store-uri "${SQLALCHEMY_ODBC_URL}" \
-    --default-artifact-root "${S3_BUCKET_NAME}/${MLFLOW_PERSIST_PATH}" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
+    --default-artifact-root "${S3_BUCKET_NAME}${MLFLOW_PERSIST_PATH}" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
 
 

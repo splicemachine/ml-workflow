@@ -25,6 +25,10 @@ ENV SRC_HOME=/opt/bobby
 ENV BUILD_HOME=/tmp
 ENV WORKER_HOME=/opt/worker
 
+# Bug w/ click
+ENV LC_ALL en_US.utf-8
+ENV LANG en_US.utf-8
+
 # Add the list of necessary environment packages for development.
 COPY build $BUILD_HOME
 

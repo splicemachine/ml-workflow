@@ -8,7 +8,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from mlmanager_lib.database.constants import HandlerNames
 from mlmanager_lib.database.models import SessionFactory, Job, Handler, KnownHandlers
 from mlmanager_lib.logger.logging_config import logging
-from mlmanager_lib.rest.authentication import Authentication, User
+from mlmanager_lib.rest.authentication import Authentication, User, basic_auth_required
 from mlmanager_lib.rest.constants import APIStatuses, TrackerTableMapping
 from mlmanager_lib.rest.responses import HTTP
 from sqlalchemy import func, text
@@ -135,6 +135,7 @@ def initiate_job_ui() -> dict:
 
 
 @APP.route('/api/rest/initiate', methods=['POST'])
+@basic_auth_required
 @HTTP.generate_json_response
 def initiate_job_rest() -> dict:
     """

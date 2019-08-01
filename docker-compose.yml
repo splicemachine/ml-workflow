@@ -1,55 +1,55 @@
 version: '3'
 services:
   jupyter:
+    user: root
     volumes:
       - "./notebooks:/home/joyvan/work"
     environment:
       AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
       AWS_SECRET_ACCESS_KEY: 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
+      GRANT_SUDO: 'yes'
+
     ports:
       - "8888:8888"
     build: ./jupyter
 
   mlflow:
     environment:
-      JDBC_URL: jdbc:splice://monte-streamtest.splicemachine.io:1527/splicedb;ssl=basic
-      # TODO use ODBC or another Python based JDBC lib
-      USER: splice
-      PASSWORD: pcaTFuI1
-      AWS_ACCESS_KEY_ID:  AKIAILC2A7RT2GK5RFBQ
+      DB_HOST: host.docker.internal
+      DB_USER: splice
+      DB_PASSWORD: admin
+      FRAMEWORK_NAME: amrit-streamtest-6160590510
+      S3_BUCKET_NAME: s3://splice-demo/machine-learning/sync
+      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
       AWS_SECRET_ACCESS_KEY: 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
-      SAGEMAKER_ROLE: arn:aws:iam::953558963498:role/splice-sagemaker
-      S3_BUCKET_NAME: s3://mlflow-code
-      MLFLOW_PORT: 5001
-      API_PORT: 5002
-      DASH_PORT: 5003
-
+      MODE: development
     ports:
       - "5001:5001"
-      - "5002:5002"
       - "5003:5003"
 
     build:
       args:
         splice_base_image_version: 0.0.4
         splice_base_artifact_uri: https://s3.amazonaws.com/splicemachine/artifacts
+        github_PAT: 673b31154d0c179f921dd03d1e74f4fe9f58c337
       context: ./mlflow
     
   bobby:
     privileged: true
     environment:
-      JDBC_URL: jdbc:splice://monte-streamtest.splicemachine.io:1527/splicedb;ssl=basic
-      USER: splice
-      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ # TODO get rid of AWS keys and use instance profiles
+      DB_HOST: host.docker.internal
+      DB_USER: splice
+      DB_PASSWORD: admin
+      FRAMEWORK_NAME: amrit-streamtest-6160590510
+      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
       AWS_SECRET_ACCESS_KEY: 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
-      PASSWORD: pcaTFuI1
-      S3_BUCKET_NAME: s3://mlflow-code
       SAGEMAKER_ROLE: arn:aws:iam::953558963498:role/splice-sagemaker
-      FRAMEWORK_NAME: monte-streamtest-6160590510
+      MODE: development
     build:
       args:
         splice_base_image_version: 0.0.4
         splice_base_artifact_uri: https://s3.amazonaws.com/splicemachine/artifacts
+        github_PAT: 673b31154d0c179f921dd03d1e74f4fe9f58c337
       context: ./bobby
 
 

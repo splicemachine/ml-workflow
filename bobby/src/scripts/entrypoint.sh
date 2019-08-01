@@ -20,18 +20,11 @@ then
    exit 1
 fi
 
-if [[ "$S3_BUCKET_NAME" == "" ]]
-then
-   echo "Error: environment variable S3_BUCKET_NAME is required"
-   exit 1
-fi
-
 if [[ "$SAGEMAKER_ROLE" == "" ]]
 then
    echo "Error: environment variable SAGEMAKER_ROLE is required"
    exit 1
 fi
-
 
 if [[ "$FRAMEWORK_NAME" == "" ]]
 then
@@ -39,10 +32,32 @@ then
     exit 1
 fi
 
+if [[ "$MLFLOW_URL" == "" ]]
+then
+    echo "Error: environment variable MLFLOW_URL is required"
+fi
+
+if [[ "$AWS_ACCESS_KEY_ID" == "" ]]
+then
+    echo "Error: environment variable AWS_ACCESS_KEY_ID is required"
+    exit 1
+fi
+
+if [[ "$AWS_SECRET_ACCESS_KEY" == "" ]]
+then
+    echo "Error: environment variable AWS_SECRET_ACCESS_KEY is required"
+    exit 1
+fi
+
 # Test Optional Environment Variables
 if [[ "$DB_PORT" == "" ]]
 then
     export DB_PORT=1527
+fi
+
+if [[ "$MLFLOW_PORT" == "" ]]
+then
+    export MLFLOW_PORT=5001
 fi
 
 if [[ "$TASK_NAME" == "" ]]
@@ -60,11 +75,7 @@ then
     export WORKER_THREADS=5
 fi
 
-if [[ "$MLFLOW_PERSIST_PATH" == "" ]]
-then
-    export MLFLOW_PERSIST_PATH="/artifacts"
-fi
-
+# Setting mode to development/production changes the logging levels
 if [[ "$MODE" == ""  ]] || [[ "$MODE" == "production" ]]
 then
     export MODE="production"
@@ -75,7 +86,7 @@ fi
 
 # Start Main Processes
 echo "Starting up Docker Daemon"
-nohup ${SRC_HOME}/scripts/run_dind.sh
+nohup ${SRC_HOME}/scripts/run_dind.sh &
 
 echo "Starting Worker"
 python3.6 ${SRC_HOME}/main.py

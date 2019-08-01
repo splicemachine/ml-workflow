@@ -25,7 +25,7 @@ __email__: str = "abaveja@splicemachine.com"
 
 LOGGER = logging.getLogger(__name__)
 
-POLL_INTERVAL: int = 2  # check for new jobs every 2 seconds
+POLL_INTERVAL: int = 5  # check for new jobs every 2 seconds
 LEDGER_MAX_SIZE: int = int(env_vars['WORKER_THREADS'] * 2)
 # how many previous jobs to remember (to account for jobs in processing)
 
