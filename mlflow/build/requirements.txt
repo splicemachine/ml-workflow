@@ -6,10 +6,5 @@ gunicorn==19.9.0
 cachetools==3.1.1
 awscli==1.16.177
 alembic
-<<<<<<< HEAD
-azure-cli
-=======
-shortuuid
->>>>>>> e70754b160dd8e4f48aabdc9721447c9b9f9d634
 flask-executor==0.9.2
 flask-login
