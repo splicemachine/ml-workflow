@@ -8,11 +8,7 @@
                     <h2>Deploy a model to Amazon SageMaker</h2>
                     <p>Note: You must log a pipeline
                         to an MLFlow run using the MLManager library
-                        before you can deploy a pipeline.</p><br><br>
-                    <h4>
-                        You can track the status of your job (as well as see/export job history)
-                        <a href="/job_tracker.html">here</a>.</h4>
-
+                        before you can deploy a pipeline.</p>
                     {% if msg %}
                     <h3>{{ msg }}</h3>
                     {% endif %}
@@ -128,7 +124,6 @@ names correspond to those in mlmanager_lib/database/models.py -->
                 <div class="col-md-12">
                     <div class="content">
                         <h2>Help</h2>
-                        <br>
                         <h3>
                             What are deployment modes?
                         </h3>
@@ -172,5 +167,5 @@ names correspond to those in mlmanager_lib/database/models.py -->
             </div>
         </div>
     </div>
-</section>
+</section><br><br>
 {% endblock %}

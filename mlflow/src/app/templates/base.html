@@ -15,14 +15,12 @@
     <i class="fa fa-bars close-aside hidden-sm hidden-md hidden-lg"
        data-close="show-side-navigation1"></i>
     <div class="heading">
-        <img src=" {{ url_for('static', filename='img/user_icon.png') }}" alt="">
+        <img src=" /static/img/splice_logo.png" alt="">
         <div class="info">
-            {% if current_user.id %}
-            <h3><a href="#">{{ current_user.id }}</a></h3>
-            <p>Role: <b>User</b></p>
-            {% else %}
-            <h3><a href="#">Anonymous</a></h3>
-            {% endif %}
+
+            <h3></h3>
+
+
         </div>
     </div>
     {% block sidebar %}
@@ -45,6 +43,7 @@
         <li><i class="fa fa-question-circle fa-fw"></i><a href="/contact"> Contact Us</a></li>
     </ul>
     {% endblock %}
+
 </aside>
 <section id="contents">
     <nav class="navbar navbar-default">
@@ -54,20 +53,17 @@
                         data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
                     <i class="fa fa-align-right"></i>
                 </button>
-                <a class="navbar-brand" href="#">
-                    <img id='logo'
-                         src="{{ url_for('static', filename='img/splice_logo.png') }}"/></a>
             </div>
+            {% block logout %}
+            <a class="navbar-brand" href="#">
+                <button class="button-outline" id="refresh-btn">
+                    <a class="button-link" href="/logout">Logout, {{ current_user.id }}
+                    </a>
+                </button>
+            </a>
+            {% endblock %}
             <div class="collapse navbar-collapse navbar-right" id="bs-example-navbar-collapse-1">
                 <ul class="nav navbar-nav">
-                    <li class="dropdown">
-                        <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button"
-                           aria-haspopup="true" aria-expanded="false">User <span
-                                ></span></a>
-                        <ul class="dropdown-menu">
-                            <li><a href="/logout"><i class="fa fa-external-link-alt"></i> Log out</a></li>
-                        </ul>
-                    </li>
                     <li><a href="#"><i data-show="show-side-navigation1"
                                        class="fa fa-bars show-side-btn"></i><span>&nbsp;</span></a>
                     </li>

@@ -4,6 +4,16 @@ from alembic.ddl.base import ColumnType, RenameTable, ColumnName, ColumnNullable
 from alembic.ddl.impl import DefaultImpl
 from sqlalchemy.ext.compiler import compiles
 
+__author__: str = "Splice Machine, Inc."
+__copyright__: str = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
+__credits__: list = ["Amrit Baveja", "Murray Brown", "Monte Zweben", "Ben Epstein"]
+
+__license__: str = "Apache"
+__version__: str = "2.0"
+__maintainer__: str = "Amrit Baveja"
+__email__: str = "abaveja@splicemachine.com"
+__status__: str = "Quality Assurance (QA)"
+
 AVAILABLE_TRANSFER_TYPES: tuple = (
     'VARCHAR', 'LONGVARCHAR', 'BLOB', 'CLOB'
 )  # columns which can have their length mutated

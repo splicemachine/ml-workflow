@@ -8,31 +8,18 @@ Chart.defaults.global.defaultFontSize = 10; // Font size for every label
 
 // Chart.defaults.global.tooltips.backgroundColor = '#FFF'; // Tooltips background color
 Chart.defaults.global.tooltips.borderColor = 'white'; // Tooltips border color
-Chart.defaults.global.legend.labels.padding = 0;
 Chart.defaults.scale.ticks.beginAtZero = true;
 Chart.defaults.scale.gridLines.zeroLineColor = 'rgba(255, 255, 255, 0.1)';
 Chart.defaults.scale.gridLines.color = 'rgba(255, 255, 255, 0.02)';
 
-Chart.defaults.global.legend.display = false;
+Chart.defaults.global.legend.display = true;
 var Chart2 = document.getElementById('myChart2').getContext('2d');
 
 var chart = new Chart(Chart2, {
 type: 'bar',
 data: {
   labels: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "November", "December"],
-  datasets: [{
-    label: "Month",
-    fill: false,
-    lineTension: .4,
-    startAngle: 2,
-    data: [],
-    // , '#ff6384', '#4bc0c0', '#ffcd56', '#457ba1'
-    backgroundColor: "transparent",
-    pointBorderColor: "#ffcd56",
-    borderColor: '#ffcd56',
-    borderWidth: 2,
-    showLine: true,
-  }]
+  datasets: []
 },
 
 // Configuration options
@@ -40,6 +27,10 @@ options: {
   title: {
     display: false,
     maintainAspectRatio: false
+  },
+  scales: {
+    xAxes: [{ stacked: true }],
+    yAxes: [{ stacked: true }]
   }
 }
 });

@@ -3,7 +3,7 @@
 All Rights Reserved
 **/
 var WIDGET_SIZE = 'col-md-6'; // bootstrap div size for access widgets
-
+var chart_colors = ['#18466f', '#22629b', '#2c7ec7', '#318dde', '#5aa3e4', '#83baeb', '#acd1f1', '#d5e8f8']
 /**
 Cache API UI responses to SessionStorage
 to avoid excessive db calls
@@ -13,6 +13,34 @@ function setGlobalJobData(chartData, total) {
     sessionStorage.setItem('total', JSON.stringify(total));
 }
 
+/**
+* Setup Chart Widget
+**/
+function setupChart(chart_data){
+    chart.data.datasets = [];
+    var color_idx = 0;
+    var max_color_idx = chart_colors.length - 1;
+
+    for (var user in chart_data){
+        chart.data.datasets.push(
+            {
+                label: user,
+                data: chart_data[user],
+                backgroundColor: chart_colors[color_idx],
+                fillColor: 'rgba(220,220,220,0)',
+                hoverBackgroundColor: chart_colors[color_idx],
+                hoverBorderWidth: 0
+            }
+        );
+        if (color_idx == max_color_idx){
+            color_idx = 0;
+        } else {
+            color_idx++;
+        }
+    }
+
+   chart.update();
+}
 /**
 Get monthly aggregated
 job data, along with the total
@@ -33,8 +61,7 @@ function getJobData(force) {
                 var json_response = JSON.parse(this.responseText);
                 console.log(json_response);
                 setGlobalJobData(json_response.data, json_response.total);
-                chart.data.datasets[0].data = json_response.data;
-                chart.update();
+                setupChart(json_response.data);
                 document.getElementById('job_num').innerHTML = json_response.total;
                 document.getElementById('refresh-btn').innerHTML = 'Refresh'
             }
@@ -42,8 +69,7 @@ function getJobData(force) {
         }
         xhr.send();
     } else {
-        chart.data.datasets[0].data = JSON.parse(sessionStorage.getItem('chart'));
-        chart.update();
+        setupChart(JSON.parse(sessionStorage.getItem('chart')));
         document.getElementById('job_num').innerHTML = JSON.parse(sessionStorage.getItem('total'));
     }
 }
@@ -72,7 +98,7 @@ function createAccessWidgetHTML(enabled, widget_name) {
                  <i id="${widget_name}_ICON" class="${icon_class}"></i>
                  <div class="info">
                      <h3>${widget_name.replace('_', ' ')}</h3>
-                      <p id="${widget_name}_STATUS">${status}</p>
+                      <p style="margin-top:0" id="${widget_name}_STATUS">${status}</p>
                   </div>
              </div>
             </div>`;

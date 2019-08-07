@@ -25,6 +25,10 @@ ENV SRC_HOME=/opt/bobby
 ENV BUILD_HOME=/tmp
 ENV WORKER_HOME=/opt/worker
 
+# Bug w/ click
+ENV LC_ALL en_US.utf-8
+ENV LANG en_US.utf-8
+
 # Add the list of necessary environment packages for development.
 COPY build $BUILD_HOME
 
@@ -43,7 +47,7 @@ RUN cd $BUILD_HOME && \
     tar xzf splice_odbc.tar.gz && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
     sh ./install.sh -q
-RUN echo 333ff
+RUN echo 333ffdd
 # Install Python dependencies
 RUN pip3.6 install $ML_WORKFLOW_LIB_PACKAGE && \
     pip3.6 install -r $BUILD_HOME/requirements.txt

@@ -6,5 +6,6 @@ gunicorn==19.9.0
 cachetools==3.1.1
 awscli==1.16.177
 alembic
+azure-cli
 flask-executor==0.9.2
 flask-login

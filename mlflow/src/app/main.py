@@ -1,3 +1,4 @@
+from collections import defaultdict
 from json import dumps as serialize_json
 from time import time as timestamp
 
@@ -11,7 +12,7 @@ from mlmanager_lib.logger.logging_config import logging
 from mlmanager_lib.rest.authentication import Authentication, User
 from mlmanager_lib.rest.constants import APIStatuses, TrackerTableMapping
 from mlmanager_lib.rest.responses import HTTP
-from sqlalchemy import func, text
+from sqlalchemy import text
 
 # TODO: add basic auth for internal API endpoints
 
@@ -189,25 +190,25 @@ def get_monthly_aggregated_jobs() -> dict:
     for the chart on the main page
     :return: (dict) response for the javascript to render
     """
-    parse_dates_query = Session.query(
-        func.TIMESTAMP(Job.timestamp).label('parsed_date')
-    ).subquery()
+    job_table: str = "MLMANAGER.JOBS"
+    results: list = list(Session.execute(str(f"""
+        SELECT MONTH(INNER_TABLE.parsed_date) AS month_1, COUNT(*) AS count_1, user_1
+        FROM (
+            SELECT TIMESTAMP("timestamp") AS parsed_date, "user" as user_1
+            FROM {job_table}
+        ) AS INNER_TABLE
+        WHERE YEAR(INNER_TABLE.parsed_date) = YEAR(CURRENT_TIMESTAMP)
+        GROUP BY 1, 3
+    """)))
 
-    aggregate_query = Session.query(
-        func.MONTH(parse_dates_query.c.parsed_date), func.count(),
-    ).filter(
-        func.YEAR(parse_dates_query.c.parsed_date) == func.YEAR(func.NOW())
-    ).group_by(
-        func.MONTH(parse_dates_query.c.parsed_date)
-    )
-    # essentially parse string dates from the database,
-    # group them by their month, filter to only this year.
-    # this is for the chart on the home page.
+    data: defaultdict = defaultdict(lambda: [0] * 12)
+    total_count: int = 0
+    for row in results:
+        month, count, user = row
+        total_count += count
+        data[user][int(month - 1)] = count
 
-    results: list = [0] * 12
-    for month, count in Session.execute(aggregate_query):
-        results[month - 1] = count
-    return dict(data=results, total=sum(results))
+    return dict(data=data, total=total_count)
 
 
 @APP.route('/api/ui/get_handler_data', methods=['GET'])

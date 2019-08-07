@@ -1,41 +1,26 @@
 #!/usr/bin/env bash
 
-MLFLOW_LOG_FILE='/var/log/mlflow_server.log'
+MLFLOW_LOG_FILE='/var/log/mlflow-server.log'
+
+foundNoArgumentExit () {
+    echo "Error: environment variable $1 is required"
+    exit 1;
+}
 
 # check environment vars
 if [[ "$DB_HOST" == "" ]]
 then
-   echo "Error: environment variable DB_HOST is required"
-   exit 1
+   foundNoArgumentExit "DB_HOST"
 fi
 
 if [[ "$DB_USER" == "" ]]
 then
-   echo "Error: environment variable DB_USER is required"
-   exit 1
+   foundNoArgumentExit "DB_USER"
 fi
 
 if [[ "$DB_PASSWORD" == "" ]]
 then
-   echo "Error: environment variable DB_PASSWORD is required"
-   exit 1
-fi
-
-if [[ "$S3_BUCKET_NAME" == "" ]]
-then
-   echo "Error: environment variable S#_BUCKET_NAME is required"
-   exit 1
-fi
-
-if [[ "$MLFLOW_PORT" == "" ]]; then
-   echo "Error: environment variable MLFLOW_PORT is required"
-   exit 1
-fi
-
-
-if [[ "$GUI_PORT" == "" ]]; then
-   echo "Error: environment variable GUI_PORT is required"
-   exit 1
+   foundNoArgumentExit "DB_PASSWORD"
 fi
 
 if [[ "$FRAMEWORK_NAME" == "" ]]
@@ -44,7 +29,64 @@ then
     exit 1
 fi
 
+if [[ "$MLFLOW_PERSIST_PATH" == "" ]]
+then
+    export MLFLOW_PERSIST_PATH="/artifacts"
+fi
+
+if [[ "$ENVIRONMENT" == "aws" ]]
+then
+    echo "Running on AWS..."
+    if [[ "$AWS_ACCESS_KEY_ID" == "" ]]
+    then
+       foundNoArgumentExit "AWS_ACCESS_KEY_ID"
+    fi
+
+    if [[ "$AWS_SECRET_ACCESS_KEY" == "" ]]
+    then
+        foundNoArgumentExit "AWS_SECRET_ACCESS_KEY"
+    fi
+
+    if [[ "$S3_BUCKET_NAME" == "" ]]
+    then
+        foundNoArgumentExit "S3_BUCKET_NAME"
+    fi
+
+    export MLFLOW_DEFAULT_ARTIFACT_STORE="${S3_BUCKET_NAME}${MLFLOW_PERSIST_PATH}"
+
+elif [[ "$ENVIRONMENT" == "azure" ]]
+then
+    echo "Running on Azure..."
+    if [[ "$AZURE_STORAGE_ACCESS_KEY" == "" ]]
+    then
+        foundNoArgumentExit "AZURE_STORAGE_KEY"
+    fi
+
+    if [[ "$AZURE_STORAGE_CONTAINER" == "" ]]
+    then
+        foundNoArgumentExit "AZURE_STORAGE_CONTAINER"
+    fi
+
+    if [[ "$AZURE_STORAGE_ACCOUNT" == "" ]]
+    then
+        foundNoArgumentExit "AZURE_STORAGE_ACCOUNT"
+    fi
+    export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=${AZURE_STORAGE_ACCOUNT};AccountKey=${AZURE_STORAGE_ACCESS_KEY}EndpointSuffix=core.windows.net"
+    export MLFLOW_DEFAULT_ARTIFACT_STORE="wasbs://${AZURE_STORAGE_CONTAINER}@${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net${MLFLOW_PERSIST_PATH}"
+else
+    foundNoArgumentExit "ENVIRONMENT"
+fi
+
 # Test Optional Environment Variables
+if [[ "$MLFLOW_PORT" == "" ]]
+then
+    export MLFLOW_PORT=5001
+fi
+if [[ "$GUI_PORT" == "" ]]
+then
+    export GUI_PORT=5003;
+fi
+
 if [[ "$DB_PORT" == "" ]]
 then
     export DB_PORT=1527
@@ -65,10 +107,6 @@ then
     export GUNICORN_THREADS=3
 fi
 
-if [[ "$MLFLOW_PERSIST_PATH" == "" ]]
-then
-    export MLFLOW_PERSIST_PATH="/artifacts"
-fi
 
 if [[ "$MODE" == ""  ]] || [[ "$MODE" == "production" ]]
 then
@@ -86,8 +124,5 @@ nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GU
 
 # Start MLFlow Tracking Server
 echo "Starting MLFlow Server on port :${MLFLOW_PORT}"
-
 mlflow server --host 0.0.0.0 --backend-store-uri "${SQLALCHEMY_ODBC_URL}" \
-    --default-artifact-root "${S3_BUCKET_NAME}/${MLFLOW_PERSIST_PATH}" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
-
-
+    --default-artifact-root "${MLFLOW_DEFAULT_ARTIFACT_STORE}" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
