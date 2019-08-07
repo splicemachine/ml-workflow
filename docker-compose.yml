@@ -34,7 +34,7 @@ services:
         splice_base_artifact_uri: https://s3.amazonaws.com/splicemachine/artifacts
         github_PAT: 673b31154d0c179f921dd03d1e74f4fe9f58c337
       context: mlflow
-    
+
   bobby:
     privileged: true
     environment:

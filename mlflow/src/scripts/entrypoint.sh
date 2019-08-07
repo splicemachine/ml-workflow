@@ -29,6 +29,7 @@ then
     exit 1
 fi
 
+<<<<<<< HEAD
 if [[ "$MLFLOW_PERSIST_PATH" == "" ]]
 then
     export MLFLOW_PERSIST_PATH="/artifacts"
@@ -75,6 +76,24 @@ then
     export MLFLOW_DEFAULT_ARTIFACT_STORE="wasbs://${AZURE_STORAGE_CONTAINER}@${AZURE_STORAGE_ACCOUNT}.blob.core.windows.net${MLFLOW_PERSIST_PATH}"
 else
     foundNoArgumentExit "ENVIRONMENT"
+=======
+if [[ "$FRAMEWORK_NAME" == "" ]]
+then
+    echo "Error: environment variable FRAMEWORK_NAME is required"
+    exit 1
+fi
+
+if [[ "$AWS_ACCESS_KEY_ID" == "" ]]
+then
+    echo "Error: environment variable AWS_ACCESS_KEY_ID is required"
+    exit 1
+fi
+
+if [[ "$AWS_SECRET_ACCESS_KEY" == "" ]]
+then
+    echo "Error: environment variable AWS_SECRET_ACCESS_KEY is required"
+    exit 1
+>>>>>>> e70754b160dd8e4f48aabdc9721447c9b9f9d634
 fi
 
 # Test Optional Environment Variables
@@ -82,8 +101,12 @@ if [[ "$MLFLOW_PORT" == "" ]]
 then
     export MLFLOW_PORT=5001
 fi
+<<<<<<< HEAD
 if [[ "$GUI_PORT" == "" ]]
 then
+=======
+if [[ "$GUI_PORT" == "" ]]; then
+>>>>>>> e70754b160dd8e4f48aabdc9721447c9b9f9d634
     export GUI_PORT=5003;
 fi
 
@@ -125,4 +148,10 @@ nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GU
 # Start MLFlow Tracking Server
 echo "Starting MLFlow Server on port :${MLFLOW_PORT}"
 mlflow server --host 0.0.0.0 --backend-store-uri "${SQLALCHEMY_ODBC_URL}" \
+<<<<<<< HEAD
     --default-artifact-root "${MLFLOW_DEFAULT_ARTIFACT_STORE}" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
+=======
+    --default-artifact-root "${S3_BUCKET_NAME}${MLFLOW_PERSIST_PATH}" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
+
+
+>>>>>>> e70754b160dd8e4f48aabdc9721447c9b9f9d634

@@ -33,7 +33,9 @@ RUN cd $BUILD_HOME && \
     tar xzf splice_odbc.tar.gz && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
     sh ./install.sh -q
+
 RUN echo sddffffgdd
+
 # Install Python dependencies
 COPY splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
 RUN pip3.6 install -r $BUILD_HOME/requirements.txt && \
@@ -45,5 +47,5 @@ RUN rm -rf $BUILD_HOME/* && \
     mkdir -p $SRC_HOME
 
 COPY src $SRC_HOME
-ENV AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=bemltest;AccountKey=tGQgQMA30RTEfiDedByEGhSpzTBiSYR6k3F90K+GqHFJn6dNIS4GTzfiuCDaT15c2TW91AbE8ifM1cs2i1FfMQ==;EndpointSuffix=core.windows.net"
+
 CMD $SRC_HOME"/scripts/entrypoint.sh"
