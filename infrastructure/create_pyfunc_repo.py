@@ -7,6 +7,11 @@ import base64
 import logging
 
 # define vars and functions
+REPO_NAME = 'mlflow-pyfunc'
+IMAGE_TAG = '1.1.0'
+ACCESS_KEY = os.environ['AWS_ACCESS_KEY_ID']
+SECRET_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
+
 def _repository_exists(client, repo_name):
     response = client.describe_repositories()
     for repository in response['repositories']:
@@ -40,10 +45,6 @@ def ecr_docker_login(client, docker_client):
     return auth_config
 
 def main():
-    REPO_NAME = 'mlflow-pyfunc'
-    IMAGE_TAG = '0.8.0'
-    ACCESS_KEY = os.environ['AWS_ACCESS_KEY_ID']
-    SECRET_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
     full_image = 'splicemachine/{}:{}'.format(REPO_NAME, IMAGE_TAG)
 
     # read config file
