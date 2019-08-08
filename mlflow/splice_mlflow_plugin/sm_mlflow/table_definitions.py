@@ -9,10 +9,10 @@ Base = declarative_base()
 
 
 class SqlArtifact(Base):
-    __tablename__: str = "experiments"
+    __tablename__: str = "artifacts"
 
     run_uuid: Column = Column(String(100), nullable=False)
-    path: Column = Column(String(500), nullable=False)
+    name: Column = Column(String(500), nullable=False)
     # in Python 2, this object passed to this must be of type
     # bytearray as the bytes object is an alias for str. However,
     # in Python 3, the bytes object can be passed in (byte stream)

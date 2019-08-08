@@ -15,11 +15,12 @@ from mlflow.tracking.utils import _is_local_uri
 from mlflow.utils.file_utils import mkdir, local_file_uri_to_path
 from mlmanager_lib.database.constants import Database
 from mlmanager_lib.logger.logging_config import logging
-from sm_mlflow import add_schemas_to_tables
 from sm_mlflow.alembic_support import SpliceMachineImpl
 from sqlalchemy import inspect as reflection, create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
+
+from sm_mlflow import add_schemas_to_tables
 
 # ^ we need this in our global namespace so that alembic will be able to find our dialect during
 # DB migrations

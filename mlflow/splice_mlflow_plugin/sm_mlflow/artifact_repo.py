@@ -1,8 +1,9 @@
 from mlflow.store.artifact_repo import ArtifactRepository
 from mlmanager_lib.database.constants import Database
-from sm_mlflow import add_schemas_to_tables
 from sm_mlflow.table_definitions import SqlArtifact, Base
 from sqlalchemy import create_engine
+
+from sm_mlflow import add_schemas_to_tables
 
 
 class SpliceMachineArtifactStore(ArtifactRepository):
