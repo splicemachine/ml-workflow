@@ -28,7 +28,7 @@ setup(
     license="Proprietary",
     packages=find_packages(),
     entry_points={
-        "mlflow.tracking_store": "splicemachinesa=sm_mlflow:SpliceMachineTrackingStore",
-        "mlflow.artifact_store": "splicemachinedb=sm_mlflow:SpliceMachineArtifactStore"
+        "mlflow.tracking_store": "splicetracking=sm_mlflow:SpliceMachineTrackingStore",
+        "mlflow.artifact_repository": "spliceartifacts=sm_mlflow:SpliceMachineArtifactStore"
     }
 )

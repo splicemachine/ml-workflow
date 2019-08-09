@@ -86,14 +86,11 @@ then
     export MODE="development"
 fi
 
-export SQLALCHEMY_ODBC_URL="${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/splicedb"
-
 # Start Job Tracker GUI
 echo "Starting Job Tracking UI on port :${GUI_PORT}"
 nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
 
-# Start MLFlow Tracking Server
+# Start MLFlow Tracking Server logging to mlflow log file
 echo "Starting MLFlow Server on port :${MLFLOW_PORT}"
-mlflow server --host 0.0.0.0 --backend-store-uri "splicemachinesa://${SQLALCHEMY_ODBC_URL}" \
-    --default-artifact-root "splicemachinedb://${MLFLOW_DEFAULT_ARTIFACT_STORE}" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
-
+mlflow server --host 0.0.0.0 --backend-store-uri "splicetracking://" \
+    --default-artifact-root "spliceartifacts://" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}

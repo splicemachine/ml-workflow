@@ -593,7 +593,7 @@ pre, code {
     width:inh;
 }
 
-#refresh-btn {
+#refresh-btn, #logout-btn {
     margin-top:10px;
     padding-top:5px;
     padding-bottom:5px;

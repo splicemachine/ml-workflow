@@ -19,3 +19,4 @@ which
 nc
 unzip
 docker-ce
+java-1.8.0-openjdk

@@ -15,7 +15,7 @@ class DisableServiceHandler(BaseModifierHandler):
     Handle DISABLE_HANDLER Jobs
     """
 
-    def __init__(self, task_id: int) -> None:
+    def __init__(self, task_id: int, spark_context=None) -> None:
         """
         Initialize Base Handler
         constructor (set instance variables

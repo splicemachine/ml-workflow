@@ -20,6 +20,11 @@ ENV DIND_ARTIFACT='https://raw.githubusercontent.com/docker/docker/'$dind_commit
 ARG odbc_driver_version='2.7.63.0'
 ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
+# Spark Configuration
+ARG spark_version='2.4.3'
+ARG hadoop_version='2.7'
+ENV SPARK_ARTIFACT='http://www-eu.apache.org/dist/spark/spark-$spark_version/spark-$spark_version-bin-hadoop$hadoop_version.tgz'
+
 # Defining Directories
 ENV SRC_HOME=/opt/bobby
 ENV BUILD_HOME=/tmp
@@ -47,7 +52,12 @@ RUN cd $BUILD_HOME && \
     tar xzf splice_odbc.tar.gz && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
     sh ./install.sh -q
-RUN echo 333ffdd
+
+# Install Spark
+RUN cd / &&
+    wget -O $SPARK_ARTIFACT spark.tgz && \
+    tar -xzf spark.tgz
+
 # Install Python dependencies
 RUN pip3.6 install $ML_WORKFLOW_LIB_PACKAGE && \
     pip3.6 install -r $BUILD_HOME/requirements.txt
@@ -58,6 +68,7 @@ RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
 
 # Clean up Build Dependencies and setup src directories
 RUN rm -r $BUILD_HOME/* && \
+    rm -rf /spark.tgz && \
     mkdir -p "$SRC_HOME" && \
     mkdir -p "$WORKER_HOME"
 

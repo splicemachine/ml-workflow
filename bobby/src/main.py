@@ -12,6 +12,8 @@ from mlmanager_lib.database.constants import HandlerNames
 from mlmanager_lib.database.models import KnownHandlers, Job, SessionFactory, DBUtilities
 from mlmanager_lib.logger.logging_config import logging
 from mlmanager_lib.worker.ledger import JobLedger
+from py4j.java_gateway import java_import
+from pyspark import SparkConf, SparkContext
 from workerpool import Job as ThreadedTask, WorkerPool
 
 __author__: str = "Splice Machine, Inc."
@@ -25,11 +27,45 @@ __email__: str = "abaveja@splicemachine.com"
 
 LOGGER = logging.getLogger(__name__)
 
+# Jobs
 POLL_INTERVAL: int = 5  # check for new jobs every 2 seconds
-LEDGER_MAX_SIZE: int = int(env_vars['WORKER_THREADS'] * 2)
-# how many previous jobs to remember (to account for jobs in processing)
+LEDGER_MAX_SIZE: int = int(env_vars['WORKER_THREADS'] * 2)  # how many previous jobs to account for
 
+# Spark
+SPARK_SCHEDULING_FILE: str = "configuration/fair_scheduling.xml"
+
+# DB
 Session = SessionFactory()
+
+
+def create_spark() -> SparkContext:
+    """
+    Create a Global Spark Context
+    that runs in the FAIR
+    scheduling mode. This means that
+    it shares resources across threads.
+    We need a Spark Context to create
+    the directory structure from a
+    deserialized PipelineModel (formerly
+    a byte stream in the database)
+
+    :return: (SparkContext) a Global Spark
+        Context
+    """
+
+    spark_config: SparkConf = SparkConf(). \
+        setAppName(env_vars['TASK_NAME']). \
+        setMaster('local[*]'). \
+        set('spark.scheduler.mode', 'FAIR'). \
+        set('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}')
+
+    spark_context: SparkContext = SparkContext(conf=spark_config)
+    java_import(spark_context._jvm, 'java.io.{ByteArrayInputStream, ObjectInputStream}')
+    # we need these to deserialize byte stream.
+    return spark_context
+
+
+SPARK_CONTEXT: SparkContext = create_spark()  # Global Spark Context
 
 
 def register_handlers() -> None:
@@ -50,7 +86,7 @@ class Runner(ThreadedTask):
     scaled across a pool via threading
     """
 
-    def __init__(self, task_id: int, handler_name: str) -> None:
+    def __init__(self, spark_context: SparkContext, task_id: int, handler_name: str) -> None:
         """
         :param task_id: (int) the job id to process.
             Unfortunately, one of the limitations
@@ -62,6 +98,7 @@ class Runner(ThreadedTask):
             This conforms to SQLAlchemy's 'thread-local' architecture.
         """
         super().__init__()
+        self.spark_context: SparkContext = spark_context
         self.task_id: id = task_id
         self.handler_name = handler_name
 
@@ -71,7 +108,8 @@ class Runner(ThreadedTask):
         """
         try:
             LOGGER.info(f"Runner executing job id {self.task_id} --> {self.handler_name}")
-            KnownHandlers.get_class(self.handler_name)(self.task_id).handle()
+            KnownHandlers.get_class(self.handler_name)(self.task_id,
+                                                       spark_context=self.spark_context).handle()
         except Exception:  # uncaught exceptions should't break the runner
             LOGGER.exception(
                 f"Uncaught Exception Encountered while processing task #{self.task_id}")
@@ -90,7 +128,7 @@ class Master(object):
     job_table_name: str = Job.__table_schema_name__
     service_status: str = 'PENDING'
 
-    poll_sql_query = \
+    poll_sql_query: str = \
         f"""
         SELECT TOP 1 {id_col}, {handler_col} FROM {job_table_name}
         WHERE {status_col}='{service_status}'

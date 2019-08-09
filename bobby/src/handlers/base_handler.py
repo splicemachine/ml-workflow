@@ -1,10 +1,10 @@
 import logging
-from traceback import format_exc
 from abc import abstractmethod
-
-from sqlalchemy.orm import load_only
+from traceback import format_exc
 
 from mlmanager_lib.database.models import Handler, Job, SessionFactory
+from pyspark import SparkContext
+from sqlalchemy.orm import load_only
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -34,7 +34,7 @@ class BaseHandler(object):
     Base Class for all Handlers
     """
 
-    def __init__(self, task_id: int) -> None:
+    def __init__(self, task_id: int, spark_context: SparkContext = None) -> None:
         """
         Construct a new instance
         of Base Handler (cannot actually
@@ -47,7 +47,7 @@ class BaseHandler(object):
 
         self.task_id: int = task_id
         self.task: Job or None = None  # assigned later
-
+        self.spark_context: SparkContext = spark_context
         self.Session = SessionFactory()
 
     def is_handler_enabled(self) -> None:

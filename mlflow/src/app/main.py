@@ -136,7 +136,6 @@ def initiate_job_ui() -> dict:
 
 
 @APP.route('/api/rest/initiate', methods=['POST'])
-@basic_auth_required
 @HTTP.generate_json_response
 def initiate_job_rest() -> dict:
     """

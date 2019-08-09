@@ -24,11 +24,11 @@ class BaseRunHandler(BaseHandler):
     handlers that execute jobs (AWS Deployment etc.)
     """
 
-    def __init__(self, task_id: int) -> None:
+    def __init__(self, task_id: int, spark_context) -> None:
         """
         :param task_id: (int) id of the task to execute
         """
-        BaseHandler.__init__(self, task_id)
+        BaseHandler.__init__(self, task_id, spark_context=spark_context)
         self.mlflow_run: object = None
 
     @staticmethod

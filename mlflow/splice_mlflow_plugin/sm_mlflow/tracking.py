@@ -9,18 +9,20 @@ from mlflow.entities import RunStatus, SourceType
 from mlflow.entities.lifecycle_stage import LifecycleStage
 from mlflow.exceptions import MlflowException
 from mlflow.protos.databricks_pb2 import INVALID_STATE
-from mlflow.store.dbmodels.models import Base, SqlMetric, SqlParam, SqlTag, SqlRun, SqlExperiment
+from mlflow.store.db.utils import _upgrade_db
+from mlflow.store.dbmodels.initial_models import Base as InitialBase, SqlMetric as InitialSqlMetric, \
+    SqlParam as InitialSqlParam, SqlTag as InitialSqlTag, SqlRun as InitialSqlRun, \
+    SqlExperiment as InitialSqlExperiment  # pre-migration sqlalchemy tables
+from mlflow.store.dbmodels.models import Base, SqlRun, SqlTag
 from mlflow.store.sqlalchemy_store import SqlAlchemyStore
-from mlflow.tracking.utils import _is_local_uri
-from mlflow.utils.file_utils import mkdir, local_file_uri_to_path
-from mlmanager_lib.database.constants import Database
+from mlmanager_lib.database.mlflow_models import SqlArtifact
+from mlmanager_lib.database.models import ENGINE
 from mlmanager_lib.logger.logging_config import logging
 from sm_mlflow.alembic_support import SpliceMachineImpl
-from sqlalchemy import inspect as reflection, create_engine
+from sm_mlflow.utilities import add_schemas_to_tables
+from sqlalchemy import inspect as peer_into_splice_db
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
-
-from sm_mlflow import add_schemas_to_tables
 
 # ^ we need this in our global namespace so that alembic will be able to find our dialect during
 # DB migrations
@@ -39,7 +41,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 class SpliceMachineTrackingStore(SqlAlchemyStore):
-    TABLES: tuple = (SqlExperiment, SqlRun, SqlTag, SqlMetric, SqlParam)
+    ALEMBIC_TABLES: tuple = (
+        InitialSqlExperiment, InitialSqlRun, InitialSqlTag, InitialSqlMetric, InitialSqlParam
+    )  # alembic migrations will be applied to these initial tables
+
+    NON_ALEMBIC_TABLES: tuple = (SqlArtifact,)
+    TABLES: tuple = ALEMBIC_TABLES + NON_ALEMBIC_TABLES
 
     def __init__(self, store_uri: str = None, artifact_uri: str = None) -> None:
         """
@@ -53,31 +60,49 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
 
         super(SqlAlchemyStore, self).__init__()
 
-        self.db_uri: str = store_uri
         self.db_type: str = 'splicemachinesa'
         self.artifact_root_uri: str = artifact_uri
-        self.engine = create_engine(store_uri, **Database.engine_options)
+        self.engine = ENGINE
 
-        insp: reflection = reflection(self.engine)
+        expected_tables = {table.__tablename__ for table in self.TABLES}
+        inspector = peer_into_splice_db(self.engine)
 
-        expected_tables: set = {table.__tablename__ for table in self.TABLES}
-        # even though artifacts aren't handled by this tracking store,
-        # we create its table in the same place as the other tables
-
-        if len(expected_tables & set(insp.get_table_names())) == 0:
+        if len(expected_tables & set(inspector.get_table_names())) == 0:
             SqlAlchemyStore._initialize_tables(self.engine)
 
-        Base.metadata.bind = self.engine
-        SessionMaker: sessionmaker = sessionmaker(bind=self.engine)
-        self.ManagedSessionMaker = self._get_managed_session_maker(SessionMaker)
-        SqlAlchemyStore._verify_schema(self.engine)
+        self._initialize_tables()
 
-        if _is_local_uri(artifact_uri):
-            mkdir(local_file_uri_to_path(artifact_uri))
+        Base.metadata.bind = self.engine
+        SessionMaker: sessionmaker = sessionmaker(bind=ENGINE)
+        self.ManagedSessionMaker = self._get_managed_session_maker(SessionMaker)
+        SqlAlchemyStore._verify_schema(ENGINE)
 
         if len(self.list_experiments()) == 0:
             with self.ManagedSessionMaker() as session:
                 self._create_default_experiment(session)
+
+    def _initialize_tables(self):
+        """
+        This function creates MLFlow tables
+        that require alembic revisions first and
+        applies alembic revisions to those tables.
+        Then, it creates all tables (that we added)
+        that don't require alembic revisions
+        """
+        LOGGER.info("Creating initial Alembic MLflow database tables...")
+        InitialBase.metadata.create_all(
+            self.engine,
+            tables=[table.__table__ for table in self.ALEMBIC_TABLES]
+        )  # create older versions of alembic tables to apply upgrades
+
+        engine_url = str(self.engine.url)
+        _upgrade_db(engine_url)  # apply alembic revisions serially
+
+        LOGGER.info("Creating Non-Alembic database tables...")
+        Base.metadata.create_all(
+            self.engine,
+            tables=[table.__table__ for table in self.NON_ALEMBIC_TABLES]
+        )
 
     def _get_artifact_location(self, experiment_id: int) -> str:
         """
