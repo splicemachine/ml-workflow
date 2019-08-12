@@ -5,6 +5,7 @@ import docker
 import json
 import base64
 import logging
+from subprocess import Popen
 
 # define vars and functions
 REPO_NAME = 'mlflow-pyfunc'
@@ -45,6 +46,9 @@ def ecr_docker_login(client, docker_client):
     return auth_config
 
 def main():
+    #start the docker deamon
+    Popen(['dockerd'])
+ 
     full_image = 'splicemachine/{}:{}'.format(REPO_NAME, IMAGE_TAG)
 
     # read config file
