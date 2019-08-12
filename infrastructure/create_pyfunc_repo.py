@@ -74,7 +74,7 @@ def main():
             logging.warning(
                 'No image exists... Pushing image : {}:{}'.format(REPO_NAME, IMAGE_TAG))
             # get the docker image
-            docker_client.pull(full_image)
+            docker_client.pull(REPO_NAME,tag=IMAGE_TAG)
             # get uri from ECR and tag docker image
             uri = _get_uri(client, REPO_NAME)
             # tag the image
