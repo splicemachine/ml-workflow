@@ -8,7 +8,7 @@ import logging
 
 # define vars and functions
 REPO_NAME = 'mlflow-pyfunc'
-IMAGE_TAG = '0.8.0'
+IMAGE_TAG = '1.1.0'
 ACCESS_KEY = os.environ['AWS_ACCESS_KEY_ID']
 SECRET_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
 
@@ -74,7 +74,7 @@ def main():
             logging.warning(
                 'No image exists... Pushing image : {}:{}'.format(REPO_NAME, IMAGE_TAG))
             # get the docker image
-            docker_client.pull('splicemachine/{}'.format(REPO_NAME),tag=IMAGE_TAG)
+            docker_client.pull(full_image)
             # get uri from ECR and tag docker image
             uri = _get_uri(client, REPO_NAME)
             # tag the image
