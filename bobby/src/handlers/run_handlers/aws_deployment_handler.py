@@ -89,7 +89,7 @@ class SageMakerDeploymentHandler(BaseRunHandler):
         # Convert BLOB (Java byte[]) to a Python Pipeline Model via py4j
         binary_input_stream = self.spark_context._jvm.java.io.ByteArrayInputStream(self.artifact)
         object_input_stream = self.spark_context._jvm.java.io.ObjectInputStream(binary_input_stream)
-        object_input_stream.close()
+        
 
         deserialized_pipeline: PipelineModel = PipelineModel._from_java(
             object_input_stream.readObject()
@@ -99,18 +99,21 @@ class SageMakerDeploymentHandler(BaseRunHandler):
         # MLFlow's Spark.save_model will create an MLModel and conda environment
         # opposed to Spark... saves model to disk
 
-    def _build_and_push_image(self) -> None:
-        """
-        Build and push MLFlow Container to ECR
-        """
+        #close the stream
+        object_input_stream.close()
 
-        self.update_task_in_db(info="Building and Pushing Model Container to AWS")
+    # def _build_and_push_image(self) -> None:
+    #     """
+    #     Build and push MLFlow Container to ECR
+    #     """
 
-        LOGGER.debug("Running Bash Command to build and push MLFlow Docker Container to ECR")
-        shell_commands = ("mlflow", "sagemaker", "build-and-push-container")
+    #     self.update_task_in_db(info="Building and Pushing Model Container to AWS")
 
-        run_shell_command(shell_commands)
-        LOGGER.info("Done Building and Pushing MLFlow Docker container to ECR")
+    #     LOGGER.debug("Running Bash Command to build and push MLFlow Docker Container to ECR")
+    #     shell_commands = ("mlflow", "sagemaker", "build-and-push-container")
+
+    #     run_shell_command(shell_commands)
+    #     LOGGER.info("Done Building and Pushing MLFlow Docker container to ECR")
 
     def _deploy_model_to_sagemaker(self) -> None:
         """
@@ -152,7 +155,7 @@ class SageMakerDeploymentHandler(BaseRunHandler):
         steps: tuple = (
             self._retrieve_model_binary_stream_from_db,  # Retrieve Model BLOB
             self._deserialize_artifact_stream,  # Deserialize it to the Disk
-            self._build_and_push_image,  # Push MLFlow Image to ECR
+            # self._build_and_push_image,  # Push MLFlow Image to ECR -- Don't think we need this, DBAAS-2175
             self._deploy_model_to_sagemaker,  # Deploy model to SageMaker
             self._cleanup  # Cleanup unnecessary files
         )
