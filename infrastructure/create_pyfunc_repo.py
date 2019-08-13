@@ -22,19 +22,21 @@ def _repository_exists(client, repo_name):
 
 def _image_tag_exists(client, repo_name, image_tag):
     images = client.list_images(repositoryName=repo_name)
-    for i in images['imageIds']:
-        try:
-            if(i['imageTag'] == image_tag):
-                return True
-        except:
-            continue
+    if 'imageIds' in images:
+        for i in images['imageIds']:
+            try:
+                if(i['imageTag'] == image_tag):
+                    return True
+            except:
+                continue
     return False
 
 def _get_uri(client, repo_name):
     response = client.describe_repositories()
-    for repository in response['repositories']:
-        if repository['repositoryName'] == repo_name:
-            return repository['repositoryUri']
+    if 'repositories' in response:
+        for repository in response['repositories']:
+            if 'repositoryName' in repository and repository['repositoryName'] == repo_name:
+                return repository['repositoryUri']
 
 def ecr_docker_login(client, docker_client):
     token = client.get_authorization_token()
