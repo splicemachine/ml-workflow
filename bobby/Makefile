@@ -1,10 +1,6 @@
 NAME = splicemachine/bobby
 VERSION = 0.0.10
 SPLICE_BASE_IMAGE_VERSION = 0.0.4
-SPLICE_BUILD=2.7.0.1849
-DBAAS_BUILD_NUMBER=1724
-BASE_ARTIFACT_URI = https://s3.amazonaws.com/splicemachine/$(SPLICE_BUILD)-1.0.$(DBAAS_BUILD_NUMBER)/artifacts
-PYSPLICE_VERSION = 0.0.3
 
 GITTAG=$(shell git describe --tags)
 
@@ -36,7 +32,6 @@ build:
 		build \
 		--rm \
 		--build-arg splice_base_image_version=${SPLICE_BASE_IMAGE_VERSION} \
-		--build-arg pysplice_version=${PYSPLICE_VERSION} \
 		-t $(NAME):$(VERSION) \
 		.
 	docker tag $(NAME):$(VERSION) $(NAME):latest
