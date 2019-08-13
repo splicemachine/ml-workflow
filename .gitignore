@@ -6,3 +6,5 @@ splice_mlmanager/*
 .DS_Store
 *.old
 *.zip
+docker-compose.yml
+.ipynb_checkpoints

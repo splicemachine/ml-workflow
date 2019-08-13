@@ -26,6 +26,7 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
 LOGGER = logging.getLogger(__name__)
+LOGGER.warn(f"Using Logging Level {logging.getLevelName(LOGGER.getEffectiveLevel())}")
 
 # Jobs
 POLL_INTERVAL: int = 5  # check for new jobs every 2 seconds
@@ -34,8 +35,11 @@ LEDGER_MAX_SIZE: int = int(env_vars['WORKER_THREADS'] * 2)  # how many previous 
 # Spark
 SPARK_SCHEDULING_FILE: str = "configuration/fair_scheduling.xml"
 
-# DB
+# Thread Local Database Session
 Session = SessionFactory()
+
+# We only need spark context for modifiable handlers
+RUN_HANDLERS: tuple = KnownHandlers.get_modifiable()
 
 
 def create_spark() -> SparkContext:
@@ -59,6 +63,7 @@ def create_spark() -> SparkContext:
         set('spark.scheduler.mode', 'FAIR'). \
         set('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}')
 
+    LOGGER.debug(f"Spark Configuration is: {spark_config.getAll()}")
     spark_context: SparkContext = SparkContext(conf=spark_config)
     java_import(spark_context._jvm, 'java.io.{ByteArrayInputStream, ObjectInputStream}')
     # we need these to deserialize byte stream.
@@ -108,8 +113,17 @@ class Runner(ThreadedTask):
         """
         try:
             LOGGER.info(f"Runner executing job id {self.task_id} --> {self.handler_name}")
+            options: dict = dict(
+                spark_context=self.spark_context
+            ) if self.handler_name in RUN_HANDLERS else {}
+
+            # for handlers that execute a job, e.g. retraining and deployment, we need to specify
+            # a spark context. for modification handlers, that is not necessary
+
             KnownHandlers.get_class(self.handler_name)(self.task_id,
-                                                       spark_context=self.spark_context).handle()
+                                                       **options).handle()
+            # execute the handler of the registered class with the specified handler_name
+
         except Exception:  # uncaught exceptions should't break the runner
             LOGGER.exception(
                 f"Uncaught Exception Encountered while processing task #{self.task_id}")
@@ -161,17 +175,18 @@ class Master(object):
         them to the queue where they will be
         serviced by free workers
         """
-
         while True:
-            job_data: list = Master._get_first_pending_task_id_handler()
-            LOGGER.info(job_data)
-            if job_data and job_data[0][0] not in self.ledger:
-                job_id, handler_name = job_data[0]  # unpack arguments
-                LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
-                self.ledger.record(job_id)
-                self.worker_pool.put(Runner(job_id, handler_name))
-
-            wait(POLL_INTERVAL)
+            try:
+                job_data: list = Master._get_first_pending_task_id_handler()
+                LOGGER.info(job_data)
+                if job_data and job_data[0][0] not in self.ledger:
+                    job_id, handler_name = job_data[0]  # unpack arguments
+                    LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
+                    self.ledger.record(job_id)
+                    self.worker_pool.put(Runner(SPARK_CONTEXT, job_id, handler_name))
+                wait(POLL_INTERVAL)
+            except Exception:
+                LOGGER.exception("Error: Encountered Fatal Error while locating and executing jobs")
 
 
 if __name__ == '__main__':

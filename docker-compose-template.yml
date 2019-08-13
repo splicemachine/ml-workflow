@@ -5,8 +5,6 @@ services:
     volumes:
       - "./notebooks:/home/joyvan/work"
     environment:
-      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
-      AWS_SECRET_ACCESS_KEY: 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
       GRANT_SUDO: 'yes'
 
     ports:
@@ -17,12 +15,8 @@ services:
     environment:
       DB_HOST: host.docker.internal
       DB_USER: splice
-      DB_PASSWORD: admin
+      DB_PASSWORD: [DB PASSWORD]
       FRAMEWORK_NAME: amrit-streamtest-6160590510
-      ENVIRONMENT: aws
-      S3_BUCKET_NAME: s3://splice-demo/machine-learning/sync
-      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
-      AWS_SECRET_ACCESS_KEY: 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
       MODE: development
     ports:
       - "5001:5001"
@@ -32,7 +26,8 @@ services:
       args:
         splice_base_image_version: 0.0.4
         splice_base_artifact_uri: https://s3.amazonaws.com/splicemachine/artifacts
-        github_PAT: 673b31154d0c179f921dd03d1e74f4fe9f58c337
+        github_PAT: [YOUR GITHUB PERSONAL ACCESS TOKEN]
+
       context: mlflow
 
   bobby:
@@ -40,19 +35,18 @@ services:
     environment:
       DB_HOST: host.docker.internal
       DB_USER: splice
-      DB_PASSWORD: admin
-      FRAMEWORK_NAME: amrit-streamtest-6160590510
-      ENVIRONMENT: aws
+      DB_PASSWORD: [REPLACE WITH DB PASSWORD]
+      FRAMEWORK_NAME: amrit-streamtest
       MLFLOW_URL: "http://mlflow:5001"
-      AWS_ACCESS_KEY_ID: AKIAILC2A7RT2GK5RFBQ
-      AWS_SECRET_ACCESS_KEY: zbEbCsSV2eVwuUxvZp6NCzQd8btEu5BCKGlZYKXi
-      SAGEMAKER_ROLE: arn:aws:iam::953558963498:role/splice-sagemaker
+      AWS_ACCESS_KEY_ID: [REPLACE WITH AWS ACCESS KEY]
+      AWS_SECRET_ACCESS_KEY: [REPLACE WITH AWS SECRET KEY]
+      SAGEMAKER_ROLE: arn:aws:iam::[AWS ACCOUNT NUMBER]:role/splice-sagemaker
       MODE: development
     build:
       args:
         splice_base_image_version: 0.0.4
         splice_base_artifact_uri: https://s3.amazonaws.com/splicemachine/artifacts
-        github_PAT: 673b31154d0c179f921dd03d1e74f4fe9f58c337
+        github_PAT: [YOUR GITHUB PERSONAL ACCESS TOKEN]
       context: bobby
 
 

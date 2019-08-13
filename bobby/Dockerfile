@@ -54,8 +54,8 @@ RUN cd $BUILD_HOME && \
     sh ./install.sh -q
 
 # Install Spark
-RUN cd / &&
-    wget -O $SPARK_ARTIFACT spark.tgz && \
+RUN cd / && \
+    wget -O spark.tgz $SPARK_ARTIFACT && \
     tar -xzf spark.tgz
 
 # Install Python dependencies
