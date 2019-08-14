@@ -20,11 +20,7 @@ then
    exit 1
 fi
 
-if [[ "$SAGEMAKER_ROLE" == "" ]]
-then
-   echo "Error: environment variable SAGEMAKER_ROLE is required"
-   exit 1
-fi
+
 
 if [[ "$FRAMEWORK_NAME" == "" ]]
 then
@@ -37,17 +33,19 @@ then
     echo "Error: environment variable MLFLOW_URL is required"
 fi
 
-if [[ "$AWS_ACCESS_KEY_ID" == "" ]]
+if [[ "$ENVIRONMENT" == "aws" ]]
 then
-    echo "Error: environment variable AWS_ACCESS_KEY_ID is required"
-    exit 1
+    if [[ "$SAGEMAKER_ROLE" == "" ]]
+    then
+       echo "Error: environment variable SAGEMAKER_ROLE is required"
+       exit 1
+    fi
+
+elif [[ "$ENVIRONMENT" == "azure" ]]
+then
+    export AZURE_SUBSCRIPTION_ID=$(python3.6 ${SRC_HOME}/scripts/login_azure.py)
 fi
 
-if [[ "$AWS_SECRET_ACCESS_KEY" == "" ]]
-then
-    echo "Error: environment variable AWS_SECRET_ACCESS_KEY is required"
-    exit 1
-fi
 
 # Test Optional Environment Variables
 if [[ "$DB_PORT" == "" ]]

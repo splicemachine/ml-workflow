@@ -37,9 +37,12 @@ ENV LANG en_US.utf-8
 # Add the list of necessary environment packages for development.
 COPY build $BUILD_HOME
 
-# Add the repository for docker and IUS Repo fo Python3
+# Add the repository for docker and IUS Repo fo Python3.
+# Azure forces this ugly code upon us. Any workarounds would be appreciated.
 RUN yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo && \
-    yum install -y https://centos7.iuscommunity.org/ius-release.rpm
+    yum install -y https://centos7.iuscommunity.org/ius-release.rpm && \
+    rpm --import https://packages.microsoft.com/keys/microsoft.asc && \
+    sh -c 'echo -e "[azure-cli]\nname=Azure CLI\nbaseurl=https://packages.microsoft.com/yumrepos/azure-cli\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/azure-cli.repo'
 
 # Install development packages.
 RUN yum clean all && \
