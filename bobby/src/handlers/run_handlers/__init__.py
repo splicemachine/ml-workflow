@@ -1,4 +1,5 @@
 from .aws_deployment_handler import SageMakerDeploymentHandler
+from .azure_deployment_handler import AzureDeploymentHandler
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
