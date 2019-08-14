@@ -7,8 +7,8 @@ from os import environ as env_vars
 from time import sleep as wait
 
 from handlers.modifier_handlers import EnableServiceHandler, DisableServiceHandler
-from handlers.run_handlers import SageMakerDeploymentHandler
-from mlmanager_lib.database.constants import HandlerNames
+from handlers.run_handlers import SageMakerDeploymentHandler, AzureDeploymentHandler
+from mlmanager_lib.database.constants import HandlerNames, Environments
 from mlmanager_lib.database.models import KnownHandlers, Job, SessionFactory, DBUtilities
 from mlmanager_lib.logger.logging_config import logging
 from mlmanager_lib.worker.ledger import JobLedger
@@ -79,8 +79,11 @@ def register_handlers() -> None:
     to their associated
     handler classes
     """
-    KnownHandlers.register(HandlerNames.deploy_aws, SageMakerDeploymentHandler)
-    KnownHandlers.register(HandlerNames.deploy_azure, NotImplementedError)
+    if env_vars['ENVIRONMENT'] == Environments.aws:
+        KnownHandlers.register(HandlerNames.deploy_aws, SageMakerDeploymentHandler)
+    elif env_vars['ENVIRONMENT'] == Environments.azure:
+        KnownHandlers.register(HandlerNames.deploy_azure, AzureDeploymentHandler)
+
     KnownHandlers.register(HandlerNames.enable_service, EnableServiceHandler)
     KnownHandlers.register(HandlerNames.disable_service, DisableServiceHandler)
 
