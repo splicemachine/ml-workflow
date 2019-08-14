@@ -62,6 +62,19 @@ def remove_session(response: Response) -> Response:
     return response
 
 
+@APP.context_processor
+def create_global_jinja_variables():
+    """
+    Create a dictionary of global jinja
+    variables that can be accessed in any
+    template
+
+    :return: (dict) Dictionary of key/values
+        mapping global variables to the corresponding
+        Jinja Variables
+    """
+    pass
+
 # Login Configuration
 @LOGIN_MANAGER.user_loader
 def user_loader(username: str) -> User:
