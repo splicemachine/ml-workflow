@@ -8,7 +8,7 @@ COPY build $BUILD_HOME
 
 # Install Apt Modules
 RUN apt update && \
-    apt install -y $(cat $BUILD_HOME/apt-packages.txt)
+    apt install -y $(cat $BUILD_HOME/apt_packages.txt)
 
 # Install Pip modules
 RUN pip install -r $BUILD_HOME/requirements.txt
