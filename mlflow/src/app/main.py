@@ -398,7 +398,7 @@ def contact() -> Response:
     return show_html('contact.html')
 
 
-@APP.route(KnownHandlers.get_url(CLOUD_ENVIRONMENT.handler_mapping['deploy']))
+@APP.route(KnownHandlers.get_url(HandlerNames.deploy_csp))
 @login_required
 def deploy_csp() -> Response:
     """

@@ -1,9 +1,19 @@
 FROM jupyter/pyspark-notebook:d4cbf2f80a2a
 
-EXPOSE 8888
-RUN pip install mlflow==1.1.0 && \
-    git clone https://github.com/splicemachine/pysplice && \
-    cd pysplice && \
-    git checkout DBAAS-2571 && \
-    pip install .
+USER root
 
+ENV BUILD_HOME=/tmp
+
+COPY build $BUILD_HOME
+
+# Install Apt Modules
+RUN apt update && \
+    apt install -y $(cat $BUILD_HOME/apt-packages.txt)
+
+# Install Pip modules
+RUN pip install -r $BUILD_HOME/requirements.txt
+
+# Delete Build Dependencies
+RUN rm -rf $BUILD_HOME
+
+EXPOSE 8888

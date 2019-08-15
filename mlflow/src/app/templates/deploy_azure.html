@@ -1,0 +1,228 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="welcome">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="content">
+                    <h2>Deploy a model to Azure ML</h2>
+                    <p>Note: You must log a pipeline
+                        to an MLFlow run using the MLManager library
+                        before you can deploy a pipeline.</p>
+                    {% if msg %}
+                    <h3>{{ msg }}</h3>
+                    {% endif %}
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- In the backend, after a POST request from form submission,
+the values in this field are referenced via request.form(n) where
+n is the name of the input field. Therefore, it is important that the input
+names correspond to those in mlmanager_lib/database/models.py -->
+
+<section class="statistics">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="box">
+                    <form method='POST' action="/api/ui/initiate">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <!-- governance -->
+                                <input type="hidden" name="user" value="{{ current_user.id }}"/>
+                                <input type="hidden" name="handler_name"
+                                       value="{{ handler_names.deploy_csp }}"/>
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_run_uuid' class='form--label'>Run ID *</label>
+                                    <input id='input_run_uuid' class='js-input-fullName' type='text'
+                                           placeholder='e.g. cd93d9342bae4024a5290b908c02f386'
+                                           name="run_id"
+                                           required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_app_name' class='form--lbel'>AzureML
+                                        Workspace</label>
+                                    <input id='input_app_name' class='js-input-fullName' type='text'
+                                           placeholder="Retrieved or Created" name="workspace"
+                                           required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_acs_ep_name' class='form--label'>ACS Endpoint
+                                        Name *</label>
+                                    <input id='input_acs_ep_name' class='js-input-fullName'
+                                           type='text'
+                                           placeholder='My ACS Endpoint Name'
+                                           name="endpoint_name"
+                                           required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_resource_group' class='form--lbel'>Azure
+                                        Resource Group</label>
+                                    <input id='input_resource_group' class='js-input-fullName'
+                                           type='text'
+                                           placeholder="Retrieved or Created" name="resource_name"
+                                           required>
+                                </div>
+                            </div>
+                        </div>
+                        <br><br>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_acs_ep_name' class='form--label'>ACS Endpoint
+                                        Name *</label>
+                                    <input id='input_acs_ep_name' class='js-input-fullName'
+                                           type='text'
+                                           placeholder='My ACS Endpoint Name'
+                                           name="endpoint_name"
+                                           required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_resource_group' class='form--lbel'>Azure
+                                        Resource Group</label>
+                                    <input id='input_resource_group' class='js-input-fullName'
+                                           type='text'
+                                           placeholder="Retrieved or Created" name="resource_name"
+                                           required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_model_name' class='form--label'>AzureML Model Name</label>
+                                    <input id='input_model_name' class='js-input-fullName'
+                                           type='text'
+                                           placeholder="Random if not specified" name="model_name"
+                                           required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_region' class='form--label'>Azure Region</label>
+                                    <select id='input_region' class='js-input-fullName'
+                                            name="deployment_mode">
+                                        <option value="East US" default selected>
+                                            East US
+                                        </option>
+                                         <option value="East US 2">
+                                            East US 2
+                                        </option>
+                                         <option value="Central US" >
+                                            Central US
+                                        </option>
+                                         <option value="West US 2">
+                                            West US 2
+                                        </option>
+                                         <option value="North Europe">
+                                            North Europe
+                                        </option>
+                                         <option value="West Europe">
+                                            West Europe
+                                        </option>
+                                           <option value="Japan East">
+                                            Japan East
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <br><br>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_instance' class='form--label'>SageMaker
+                                        Instance Type</label>
+                                    <select id='input_instance' class='js-input-fullName'
+                                            name='instance_type'>
+                                        <option value="ml.m5.xlarge" default selected> ml.m5.xlarge
+                                            (~$0.27/hr)
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class='form--inputContainer js-input'>
+                                    <label for='input_count' name='instance_count'
+                                           class='form--label'>Instance
+                                        Count</label>
+                                    <input id='input_count' class='js-input-fullName' type='number'
+                                           value=1 name="instance_count" required>
+                                </div>
+                            </div>
+                        </div>
+                        <br><br>
+                        <div class="row">
+                            <div class='col-md-12'>
+                                <input id='sbt-btn' type='submit'>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="welcome">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="content">
+                        <h2>Help</h2>
+                        <h3>
+                            What are deployment modes?
+                        </h3>
+                        <p>
+                            Deployment modes are how SageMaker
+                            handles naming conflicts in SageMaker
+                            apps. <br>
+                        <h4>Replace</h4>
+                        If an application of the specified name exists, its model(s) is replaced
+                        with the specified model. If no such application exists, it is created with
+                        the specified name and model. This is recommended for most applications to
+                        update models without
+                        downtime.<br>
+                        <h4>Add</h4>
+                        Add the specified model to a pre-existing application with the specified
+                        name, if one exists. If the application does not exist, a new application is
+                        created with the specified name and model. NOTE: If the application already
+                        exists, the specified model is added to the application’s corresponding
+                        SageMaker endpoint with an initial weight of zero (0). To route traffic to
+                        the model, update the application’s associated endpoint configuration using
+                        either the AWS console or the
+                        <code>UpdateEndpointWeightsAndCapacities</code> function defined <a
+                            href="https://docs.aws.amazon.com/sagemaker/latest/dg/API_UpdateEndpointWeightsAndCapacities.html">here</a>
+                        <h3>
+                            How do I find the Run ID?
+                        </h3>
+                        <p>
+                            Your Run ID can be found in the MLFlow UI:
+                        <ol style="margin-left:30px">
+                            <li>Go to the MLFlow UI (located on port 5001 of your cluster)</li>
+                            <li>Click on the experiment (right sidebar) containing your run</li>
+                            <li>Locate the run containing the model you would like to deploy. It may
+                                be helpful to order your runs by start time.
+                            </li>
+                            <li>Your Run ID is located at the top left corner of your screen.</li>
+                        </ol>
+                        <p>You can also accomplish the same task using the MLManager Python
+                            interface.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section><br><br>
+{% endblock %}
