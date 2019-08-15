@@ -23,21 +23,37 @@
     {% block sidebar %}
     <ul class="categories">
 
-        <li><i class="fa fa-home fa-fw" aria-hidden="true"></i><a href="/"> <b>Home</b></a>
+        <li><i class="fa fa-home fa-fw" aria-hidden="true"></i>
+            <a href="/"> <b>Home</b></a>
         </li>
-        <li><i class="fa fa-globe fa-fw"></i><a href="/tracker"> Job Tracker</a>
+        <li><i class="fa fa-globe fa-fw"></i>
+            <a href="/tracker"> Job Tracker</a>
         </li>
-        <li><i class="fa fa-play fa-fw"></i><a href="#"> Initiate Jobs</a>
+        <li>
+            <i class="fa fa-play fa-fw"></i><a href="#"> Initiate Jobs</a>
             <ul class="side-nav-dropdown">
-                <li><a href="/deploy/deploy_aws">Deploy Model to AWS</a></li>
-                <li><a href="#">Deploy Model to Azure</a></li>
+                <li><a href="{{ known_handlers.get_url(handler_names.deploy_csp) }}">
+                    Deploy Model to {{ cloud_environment_name }}</a>
+                </li>
             </ul>
         </li>
-        <li><i class="fa fa-users fa-fw"></i><a href="/access"> Manage Access</a>
+        <li><i class="fa fa-users fa-fw"></i>
+            <!-- It doesn't matter which handler_name is passed into
+            known handlers get_url (can be enable/disable service) since both
+            handlers originate from that endpoint -->
+            <a href="{{ known_handlers.get_url(handler_names.enable_service) }}">
+                Manage Access
+            </a>
         </li>
-        <li><i class="fa fa-server fa-fw"></i><a href="/api_info"> API</a>
+        <li>
+            <i class="fa fa-server fa-fw"></i>
+            <a href="/api_info">
+                API
+            </a>
         </li>
-        <li><i class="fa fa-question-circle fa-fw"></i><a href="/contact"> Contact Us</a></li>
+        <li>
+            <i class="fa fa-question-circle fa-fw"></i><a href="/contact"> Contact Us</a>
+        </li>
     </ul>
     {% endblock %}
 

@@ -6,8 +6,9 @@ from flask import Flask, request, Response, jsonify as create_json, render_templ
     redirect, url_for
 from flask_executor import Executor
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from mlmanager_lib.database.constants import HandlerNames
-from mlmanager_lib.database.models import SessionFactory, Job, Handler, KnownHandlers
+from mlmanager_lib import CloudEnvironment, CloudEnvironments
+from mlmanager_lib.database.handlers import KnownHandlers, HandlerNames
+from mlmanager_lib.database.models import SessionFactory, Job, Handler
 from mlmanager_lib.logger.logging_config import logging
 from mlmanager_lib.rest.authentication import Authentication, User
 from mlmanager_lib.rest.constants import APIStatuses, TrackerTableMapping
@@ -27,11 +28,13 @@ __email__: str = "abaveja@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
 APP: Flask = Flask(__name__)
+APP.config['EXECUTOR_PROPAGATE_EXCEPTIONS']: bool = True
+APP.config['SECRET_KEY']: str = "B1gd@t@4U!"  # cookie encryption
+
 EXECUTOR: Executor = Executor(APP)  # asynchronous parallel processing
 LOGIN_MANAGER: LoginManager = LoginManager(APP)  # session-based user authentication
 
-APP.config['EXECUTOR_PROPAGATE_EXCEPTIONS']: bool = True
-APP.config['SECRET_KEY']: str = "B1gd@t@4U!"  # cookie encryption
+CLOUD_ENVIRONMENT: CloudEnvironment = CloudEnvironments.get_current()
 
 Session = None  # db session-- created with every request
 
@@ -65,7 +68,7 @@ def remove_session(response: Response) -> Response:
 @APP.context_processor
 def create_global_jinja_variables():
     """
-    Create a dictionary of global jinja
+    Create a dictionary of global Jinja2
     variables that can be accessed in any
     template
 
@@ -73,7 +76,12 @@ def create_global_jinja_variables():
         mapping global variables to the corresponding
         Jinja Variables
     """
-    pass
+    return dict(
+        cloud_environment_name=CLOUD_ENVIRONMENT.name,
+        known_handlers=KnownHandlers,
+        handler_names=HandlerNames
+    )
+
 
 # Login Configuration
 @LOGIN_MANAGER.user_loader
@@ -203,18 +211,20 @@ def get_monthly_aggregated_jobs() -> dict:
     for the chart on the main page
     :return: (dict) response for the javascript to render
     """
-    job_table: str = "MLMANAGER.JOBS"
+
     results: list = list(Session.execute(str(f"""
         SELECT MONTH(INNER_TABLE.parsed_date) AS month_1, COUNT(*) AS count_1, user_1
         FROM (
             SELECT TIMESTAMP("timestamp") AS parsed_date, "user" as user_1
-            FROM {job_table}
+            FROM {Job.__table_schema_name__}
         ) AS INNER_TABLE
         WHERE YEAR(INNER_TABLE.parsed_date) = YEAR(CURRENT_TIMESTAMP)
         GROUP BY 1, 3
     """)))
 
-    data: defaultdict = defaultdict(lambda: [0] * 12)
+    data: defaultdict = defaultdict(lambda: [0] * 12)  # initialize a dictionary
+    # that for every new key, creates an array of 12 zeros: one for every month of the year
+
     total_count: int = 0
     for row in results:
         month, count, user = row
@@ -239,7 +249,6 @@ def get_handler_data() -> dict:
         Handler.modifiable == 1  # don't want access modifiers
     )
     results: list = Session.execute(enabled_handlers_query)
-    LOGGER.info(f'results: {results}')
     return dict(data=[tuple(res) for res in results])
 
 
@@ -273,7 +282,7 @@ def get_jobs() -> dict:
         table_query: text = _get_job_list_query(job_table, order_value, direction_suffix, limit,
                                                 int_offset)
 
-    total_query: text = f"""SELECT COUNT(*) FROM {job_table}"""  # how many pages to make in js?
+    total_query: text = f"""SELECT COUNT(*) FROM {job_table}"""  # how many pages to make in js
 
     # submit to threading and gather results-- we can execute these in || for faster execution
     futures: list = [
@@ -356,7 +365,10 @@ def _get_job_list_query(job_table: str, order_col: str, direction: str, limit: i
 
 
 # HTML Routes
-@APP.route('/access', methods=['GET'])
+
+# doesn't matter which name is used to generate the URL since both handlers
+# are started from this page
+@APP.route(KnownHandlers.get_url(HandlerNames.enable_service), methods=['GET'])
 @login_required
 def access() -> Response:
     """
@@ -386,14 +398,19 @@ def contact() -> Response:
     return show_html('contact.html')
 
 
-@APP.route('/deploy/deploy_aws', methods=['GET'])
+@APP.route(KnownHandlers.get_url(CLOUD_ENVIRONMENT.handler_mapping['deploy']))
 @login_required
-def deploy_aws() -> Response:
+def deploy_csp() -> Response:
     """
-    Return HTML containing AWS Deploy form
-    :return: (Response) HTML
+    Return HTML Containing Cloud Service
+    Specific Deployment Form
+    :return: (Response)
     """
-    return show_html('deploy_aws.html', handler_name=HandlerNames.deploy_aws)
+    # templates for deployment in app/templates  should be formatted like
+    # 1) deploy_aws.html, 2) deploy_azure.html, 3) deploy_gcp.html
+    # they need to match the names given to the CloudEnvironments
+    # given in ml-workflow-lib/mlmanager_lib/database/models.py:KnownHandlers
+    return show_html(f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html')
 
 
 @APP.route('/tracker', methods=['GET'])

@@ -9,8 +9,9 @@ from time import sleep as wait
 from handlers.modifier_handlers import EnableServiceHandler, DisableServiceHandler
 from handlers.run_handlers import SageMakerDeploymentHandler, AzureDeploymentHandler
 from mlmanager_lib import CloudEnvironments, CloudEnvironment
-from mlmanager_lib.database.constants import HandlerNames
-from mlmanager_lib.database.models import KnownHandlers, Job, SessionFactory, DBUtilities
+from mlmanager_lib.database.constants import JobStatuses
+from mlmanager_lib.database.handlers import KnownHandlers, HandlerNames, populate_handlers
+from mlmanager_lib.database.models import Job, SessionFactory, execute_sql
 from mlmanager_lib.logger.logging_config import logging
 from mlmanager_lib.worker.ledger import JobLedger
 from py4j.java_gateway import java_import
@@ -83,10 +84,10 @@ def register_handlers() -> None:
     current_environment: CloudEnvironment = CloudEnvironments.get_current()
 
     if current_environment == CloudEnvironments.aws:
-        KnownHandlers.register(HandlerNames.deploy_aws, SageMakerDeploymentHandler)
+        KnownHandlers.register(HandlerNames.deploy_csp, SageMakerDeploymentHandler)
 
     elif current_environment == CloudEnvironments.azure:
-        KnownHandlers.register(HandlerNames.deploy_azure, AzureDeploymentHandler)
+        KnownHandlers.register(HandlerNames.deploy_csp, AzureDeploymentHandler)
 
     KnownHandlers.register(HandlerNames.enable_service, EnableServiceHandler)
     KnownHandlers.register(HandlerNames.disable_service, DisableServiceHandler)
@@ -146,13 +147,11 @@ class Master(object):
     timestamp_col: str = "timestamp"
     status_col: str = "status"
     handler_col: str = "handler_name"
-    job_table_name: str = Job.__table_schema_name__
-    service_status: str = 'PENDING'
 
     poll_sql_query: str = \
         f"""
-        SELECT TOP 1 {id_col}, {handler_col} FROM {job_table_name}
-        WHERE {status_col}='{service_status}'
+        SELECT TOP 1 {id_col}, {handler_col} FROM {Job.__table_schema_name__}
+        WHERE {status_col}='{JobStatuses.pending}'
         ORDER BY "{timestamp_col}"
         """
 
@@ -173,7 +172,7 @@ class Master(object):
         """
         # Since this is running a lot, we will
         # use SQL so that it is more efficient
-        return DBUtilities.execute_sql(Master.poll_sql_query)
+        return execute_sql(Master.poll_sql_query)
         # SELECT only the `id` + `handler_name` column from the first inserted pending task
 
     def poll(self) -> None:
@@ -191,6 +190,7 @@ class Master(object):
                     LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
                     self.ledger.record(job_id)
                     self.worker_pool.put(Runner(SPARK_CONTEXT, job_id, handler_name))
+                    # dispatch to a thread
                 wait(POLL_INTERVAL)
             except Exception:
                 LOGGER.exception("Error: Encountered Fatal Error while locating and executing jobs")
@@ -198,6 +198,6 @@ class Master(object):
 
 if __name__ == '__main__':
     register_handlers()
-    DBUtilities.populate_handlers(Session)
+    populate_handlers(Session)
     dispatcher: Master = Master()  # initialize worker pool
     dispatcher.poll()

@@ -61,13 +61,14 @@ RUN cd / && \
     wget -O spark.tgz $SPARK_ARTIFACT && \
     tar -xzf spark.tgz
 
-# Install Python dependencies
-RUN pip3.6 install $ML_WORKFLOW_LIB_PACKAGE && \
-    pip3.6 install -r $BUILD_HOME/requirements.txt
-
-# Install Dind
+# Install Dind (Docker-In-Docker)
 RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
 	chmod a+x /usr/local/bin/dind
+
+# Install Python dependencies
+RUN echo sddffffgdddffffwv
+RUN pip3.6 install $ML_WORKFLOW_LIB_PACKAGE && \
+    pip3.6 install -r $BUILD_HOME/requirements.txt
 
 # Clean up Build Dependencies and setup src directories
 RUN rm -r $BUILD_HOME/* && \

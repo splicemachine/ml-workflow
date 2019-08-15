@@ -34,7 +34,7 @@ names correspond to those in mlmanager_lib/database/models.py -->
                                 <!-- governance -->
                                 <input type="hidden" name="user" value="{{ current_user.id }}"/>
                                 <input type="hidden" name="handler_name"
-                                       value="DEPLOY_AWS"/>
+                                       value="{{ handler_names.deploy_csp }}"/>
                                 <div class='form--inputContainer js-input'>
                                     <label for='input_run_uuid' class='form--label'>Run ID *</label>
                                     <input id='input_run_uuid' class='js-input-fullName' type='text'

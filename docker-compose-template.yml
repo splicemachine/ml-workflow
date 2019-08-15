@@ -18,6 +18,7 @@ services:
       DB_PASSWORD: [DB PASSWORD]
       FRAMEWORK_NAME: amrit-streamtest-6160590510
       MODE: development
+      ENVIRONMENT: aws
     ports:
       - "5001:5001"
       - "5003:5003"
@@ -38,6 +39,8 @@ services:
       DB_PASSWORD: [REPLACE WITH DB PASSWORD]
       FRAMEWORK_NAME: amrit-streamtest
       MLFLOW_URL: "http://mlflow:5001"
+      AZURE_USERNAME: [REPLACE WITH AZURE USERNAME]
+      AZURE_PASSWORD: [REPLACE WITH AZURE PASSWORD]
       AWS_ACCESS_KEY_ID: [REPLACE WITH AWS ACCESS KEY]
       AWS_SECRET_ACCESS_KEY: [REPLACE WITH AWS SECRET KEY]
       SAGEMAKER_ROLE: arn:aws:iam::[AWS ACCOUNT NUMBER]:role/splice-sagemaker
