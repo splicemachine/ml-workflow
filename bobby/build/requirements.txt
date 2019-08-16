@@ -6,6 +6,5 @@ pyyaml==5.1.1
 awscli==1.16.177
 boto3==1.9.168
 sqlalchemy==1.3
-pyspark==2.4.3
 azureml==0.2.7
 azureml-core==1.0.55

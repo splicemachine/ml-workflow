@@ -4,13 +4,9 @@ FROM splicemachine/splice_base:$splice_base_image_version
 LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 
 # ml-workflow-lib Configuration
-
-######################################################################
-# TODO @AMRIT CHANGE THIS TO A RELEASE NUMBER BEFORE THIS IS RELEASE #
-######################################################################
-
 ARG github_PAT
-ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git"
+ARG ml_workflow_lib_version='0.0.1-dev'
+ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # Docker in Docker Configuration
 ARG dind_commit='52379fa76dee07ca038624d639d9e14f4fb719ff'
@@ -68,7 +64,8 @@ RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
 # Install Python dependencies
 RUN echo sddffffgdddffffwv
 RUN pip3.6 install $ML_WORKFLOW_LIB_PACKAGE && \
-    pip3.6 install -r $BUILD_HOME/requirements.txt
+    pip3.6 install -r $BUILD_HOME/requirements.txt && \
+    pip3.6 install 'pyspark=='$spark_version
 
 # Clean up Build Dependencies and setup src directories
 RUN rm -r $BUILD_HOME/* && \

@@ -45,54 +45,19 @@
 <section class="statistics">
     <div class="container-fluid">
         <div class="row">
-            <div class="col-md-6">
+            <div class="col-md-12">
                 <div class="box">
                     <div class="info">
-                        <h3>Execute Active Run Deployment to AWS<br> (Python)</h3>
+                        <h3>Execute Active Run Deployment to {{ current_environment_name }}<br> (Python)</h3>
                         <pre><code class='bash'>$ pip install git+https://github.com/splicemachine/pysplice</code></pre>
-                        <pre><code
-                                class='python'>from splicemachine.ml.management import MLManager<br>manager = MLManager()<br>run = manager.search_runs(experiment_ids=[0,1], <br>   filter_string='metrics.f1 > 0.95')[0]<br>manager.set_active_run(run)<br><br>manager.deploy_active_run_sagemaker(<br> app_name='splice_app',<br> region='us-west-2',<br> instance_count=1,<br> instance_type='ml.m4.xlarge',<br> deployment_mode='replace'<br>)</code></pre>
+                        <pre><code class='python'>from splicemachine.ml.management import MLManager<br>manager = MLManager(splice_context)<br>run = manager.search_runs(experiment_ids=[0,1], <br>   filter_string='metrics.f1 > 0.95')[0]<br>manager.set_active_run(run)<br><br>manager.deploy_{{ cloud_environment_name }}(<br> app_name='splice_app',<br> region='us-west-2',<br> instance_count=1,<br> instance_type='ml.m4.xlarge',<br> deployment_mode='replace'<br>)</code></pre>
                         <br><br>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="box">
-                    <div class="info">
-                        <h3>Execute Deployment to AWS<br> (Python)</h3>
-                        <pre><code class='bash'>$ pip install git+https://github.com/splicemachine/pysplice</code></pre>
-                        <pre><code
-                                class='python'>from splicemachine.ml.management import MLManager<br>manager = MLManager()<br>run = manager.search_runs(experiment_ids=[0,1], <br>   filter_string='metrics.f1 > 0.95')[0]<br><br>manager.deploy_run_sagemaker(<br> run_id=run,<br> app_name='splice_app',<br> region='us-west-2',<br> instance_count=1,<br> instance_type='ml.m4.xlarge',<br> deployment_mode='replace'<br>)<br><br><br></code></pre>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     <br>
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-md-6">
-                <div class="box">
-                    <div class="info">
-                        <h3>Disable Service (Python)</h3>
-                        <pre><code class='bash'>$ pip install git+https://github.com/splicemachine/pysplice</code></pre>
-                        <pre><code
-                                class='python'>from splicemachine.ml.management import MLManager<br>manager = MLManager()<br>manager.disable_service('deploy_&lt;aws/azure&gt;')</code></pre>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="box">
-                    <div class="info">
-                        <h3>Enable Service (Python)</h3>
-                        <pre><code class='bash'>$ pip install git+https://github.com/splicemachine/pysplice</code></pre>
-                        <pre><code
-                                class='python'>from splicemachine.ml.management import MLManager<br>manager = MLManager()<br>manager.enable_service('deploy_&lt;aws/azure&gt;')</code></pre>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </section>
 <div class="welcome">
     <div class="container-fluid">

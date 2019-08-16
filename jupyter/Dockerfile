@@ -41,3 +41,5 @@ RUN rm -rf $BUILD_HOME
 
 USER jovyan
 EXPOSE 8888
+
+CMD jupyter notebook
