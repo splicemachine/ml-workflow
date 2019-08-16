@@ -66,8 +66,7 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
         :return:
         """
         self.update_task_in_db(info='Building MLFlow Docker Container')
-        self.azure_image, self.azure_image = mlflow_azureml.build_image(
-            image_name=self.task.parsed_payload['image_name'],  # name of container
+        self.azure_image, self.azure_model = mlflow_azureml.build_image(
             model_name=self.task.parsed_payload['model_name'],  # name of model
             model_uri=self.downloaded_model_path,
             workspace=self.Workspace,
