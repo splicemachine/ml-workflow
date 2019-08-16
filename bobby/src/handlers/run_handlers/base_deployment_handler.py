@@ -103,8 +103,10 @@ class BaseDeploymentHandler(BaseHandler):
         """
         Cleanup after the model is deployed
         """
+        temp_glob: str = "/tmp/tmp*"
         self.update_task_in_db(info='Cleaning Up')
         run_shell_command(('rm', '-Rf', self.downloaded_model_path))
+        run_shell_command(('rm', '-Rf', temp_glob))  # cleanup azure deployment files
 
     @abstractmethod
     def execute(self) -> None:
@@ -119,18 +121,24 @@ class BaseDeploymentHandler(BaseHandler):
         that can be displayed in a GUI for all
         of these Jobs.
         """
-        self.retrieve_run_from_mlflow()
-        run_url: str = f"/#/experiments/{self.mlflow_run.info.experiment_id}/" \
-            f"runs/{self.mlflow_run.info.run_uuid}"
+        try:
+            self.retrieve_run_from_mlflow()
+            run_url: str = f"/#/experiments/{self.mlflow_run.info.experiment_id}/" \
+                f"runs/{self.mlflow_run.info.run_uuid}"
 
-        LOGGER.info(f"Using Retrieved MLFlow Run: {self.mlflow_run}")
+            LOGGER.info(f"Using `Retrieved MLFlow Run: {self.mlflow_run}")
 
-        self.task.mlflow_url: str = f"<a href='{run_url}' target='_blank' onmouseover=" \
-            f"'javascript:event.target.port={env_vars['MLFLOW_PORT']}'>Link to Mlflow Run</a>"
+            self.task.mlflow_url: str = f"<a href='{run_url}' target='_blank' onmouseover=" \
+                f"'javascript:event.target.port={env_vars['MLFLOW_PORT']}'>Link to Mlflow Run</a>"
 
-        self.model_dir: str = self.mlflow_run.data.tags['splice.model_name']
+            self.model_dir: str = self.mlflow_run.data.tags['splice.model_name']
 
-        # populates a link to the associated Mlflow run that opens in a new tab.
-        self.Session.add(self.task)
-        self.Session.commit()
-        self.execute()
+            # populates a link to the associated Mlflow run that opens in a new tab.
+            self.Session.add(self.task)
+            self.Session.commit()
+            self.execute()
+        except Exception as e:
+            raise e
+
+        finally:
+            self._cleanup()  # always run cleanup, regardless of success or failure

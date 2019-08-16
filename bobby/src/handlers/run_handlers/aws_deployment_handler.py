@@ -68,7 +68,6 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
             self._retrieve_model_binary_stream_from_db,  # Retrieve Model BLOB
             self._deserialize_artifact_stream,  # Deserialize it to the Disk
             self._deploy_model_to_sagemaker,  # Deploy model to SageMaker
-            self._cleanup  # Cleanup unnecessary files
         )
 
         for execute_step in steps:
