@@ -184,7 +184,6 @@ class Master(object):
         while True:
             try:
                 job_data: list = Master._get_first_pending_task_id_handler()
-                LOGGER.info(job_data)
                 if job_data and job_data[0][0] not in self.ledger:
                     job_id, handler_name = job_data[0]  # unpack arguments
                     LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
