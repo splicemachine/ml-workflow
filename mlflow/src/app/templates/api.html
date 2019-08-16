@@ -24,6 +24,7 @@
                     <script>
                     var endpoint = window.location.protocol + "//" + window.location.host + "/api"
                     document.getElementById("endpoint").innerHTML += " <a href='"+ endpoint + "'><code>" + endpoint + "</code></a>"
+
                     </script>
                 </div>
             </div>
@@ -48,9 +49,11 @@
             <div class="col-md-12">
                 <div class="box">
                     <div class="info">
-                        <h3>Execute Active Run Deployment to {{ cloud_environment_name }}<br> (Python)</h3>
+                        <h3>Execute Active Run Deployment to {{ cloud_environment_name }}
+                            (Python)</h3>
                         <pre><code class='bash'>$ pip install git+https://github.com/splicemachine/pysplice</code></pre>
-                        <pre><code class='python'>from splicemachine.ml.management import MLManager<br>manager = MLManager(splice_context)<br>run = manager.search_runs(experiment_ids=[0,1], <br>   filter_string='metrics.f1 > 0.95')[0]<br>manager.set_active_run(run)<br><br>manager.deploy_{{ cloud_environment_name }}(<br> app_name='splice_app',<br> region='us-west-2',<br> instance_count=1,<br> instance_type='ml.m4.xlarge',<br> deployment_mode='replace'<br>)</code></pre>
+                        <pre><code
+                                class='python'>from splicemachine.ml.management import MLManager<br>manager = MLManager(splice_context)<br>run = manager.search_runs(experiment_ids=[0,1], <br>   filter_string='metrics.f1 > 0.95')[0]<br>manager.set_active_run(run)<br><br>manager.deploy_{{ cloud_environment_name.lower() }}(<br> app_name='splice_app',<br> region='us-west-2',<br> instance_count=1,<br> instance_type='ml.m4.xlarge',<br> deployment_mode='replace'<br>)</code></pre>
                         <br><br>
                     </div>
                 </div>

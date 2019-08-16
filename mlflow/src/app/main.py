@@ -145,6 +145,7 @@ def logout() -> redirect:
 # Api Routes
 @APP.route('/api/ui/initiate/', methods=['POST'])
 @HTTP.generate_html_in_home_response
+@login_required
 def initiate_job_ui() -> dict:
     """
     Initiate a Job from a web form-- redirects
@@ -158,6 +159,7 @@ def initiate_job_ui() -> dict:
 
 @APP.route('/api/rest/initiate', methods=['POST'])
 @HTTP.generate_json_response
+@Authentication.basic_auth_required
 def initiate_job_rest() -> dict:
     """
     Initiate job from the REST API-- returns
@@ -205,6 +207,7 @@ def handler_queue_job(request_payload: dict, handler: Handler) -> dict:
 # UI Routes
 @APP.route('/api/ui/get_monthly_aggregated_jobs', methods=['GET'])
 @HTTP.generate_json_response
+@login_required
 def get_monthly_aggregated_jobs() -> dict:
     """
     Get the monthly aggregated job counts
@@ -236,6 +239,7 @@ def get_monthly_aggregated_jobs() -> dict:
 
 @APP.route('/api/ui/get_handler_data', methods=['GET'])
 @HTTP.generate_json_response
+@login_required
 def get_handler_data() -> dict:
     """
     Get a count of the enabled handlers
@@ -254,6 +258,7 @@ def get_handler_data() -> dict:
 
 @APP.route('/api/ui/get_jobs', methods=['POST'])
 @HTTP.generate_json_response
+@login_required
 def get_jobs() -> dict:
     """
     As a temporary workaround,
