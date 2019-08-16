@@ -21,10 +21,10 @@ ARG odbc_driver_version='2.7.63.0'
 ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Spark Configuration
-ARG spark_version='2.4.3'
-ARG hadoop_version='2.7'
-ENV SPARK_ARTIFACT='http://www-eu.apache.org/dist/spark/spark-'$spark_version'/spark-'$spark_version'-bin-hadoop'$hadoop_version'.tgz'
+ARG spark_version='2.2.2'
+ARG hadoop_version='2.6'
 
+ENV SPARK_ARTIFACT='https://archive.apache.org/dist/spark/spark-'$spark_version'/spark-'$spark_version'-bin-hadoop'$hadoop_version'.tgz'
 # Defining Directories
 ENV SRC_HOME=/opt/bobby
 ENV BUILD_HOME=/tmp
