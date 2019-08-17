@@ -160,28 +160,17 @@ names correspond to those in mlmanager_lib/database/models.py -->
                     <div class="content">
                         <h2>Help</h2>
                         <h3>
-                            What are deployment modes?
+                            What is the ACS endpoint name?
                         </h3>
                         <p>
-                            Deployment modes are how SageMaker
-                            handles naming conflicts in SageMaker
-                            apps. <br>
-                        <h4>Replace</h4>
-                        If an application of the specified name exists, its model(s) is replaced
-                        with the specified model. If no such application exists, it is created with
-                        the specified name and model. This is recommended for most applications to
-                        update models without
-                        downtime.<br>
-                        <h4>Add</h4>
-                        Add the specified model to a pre-existing application with the specified
-                        name, if one exists. If the application does not exist, a new application is
-                        created with the specified name and model. NOTE: If the application already
-                        exists, the specified model is added to the application’s corresponding
-                        SageMaker endpoint with an initial weight of zero (0). To route traffic to
-                        the model, update the application’s associated endpoint configuration using
-                        either the AWS console or the
-                        <code>UpdateEndpointWeightsAndCapacities</code> function defined <a
-                            href="https://docs.aws.amazon.com/sagemaker/latest/dg/API_UpdateEndpointWeightsAndCapacities.html">here</a>
+                            The Azure Container Service endpoint name is the name of your Azure
+                            endpoint that you plan to deploy your trained model to. This is specified
+                            manually in your Azure account and region that you plan on deploying the model.
+                             <br>
+                        <h3>Retrieved or Created</h3>
+                        If the name provided for your AzureML Workspace or Resource Group has been 
+                        created in your Azure region, it will be retrieved and used, else it will be created
+                        dynamically and used.<br>
                         <h3>
                             How do I find the Run ID?
                         </h3>
