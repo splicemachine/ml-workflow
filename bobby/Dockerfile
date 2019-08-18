@@ -4,13 +4,9 @@ FROM splicemachine/splice_base:$splice_base_image_version
 LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 
 # ml-workflow-lib Configuration
-
-######################################################################
-# TODO @AMRIT CHANGE THIS TO A RELEASE NUMBER BEFORE THIS IS RELEASE #
-######################################################################
-
 ARG github_PAT
-ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git"
+ARG ml_workflow_lib_version='0.0.3-dev'
+ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # Docker in Docker Configuration
 ARG dind_commit='52379fa76dee07ca038624d639d9e14f4fb719ff'
@@ -21,9 +17,7 @@ ARG odbc_driver_version='2.7.63.0'
 ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Spark Configuration
-ARG spark_version='2.4.3'
-ARG hadoop_version='2.7'
-ENV SPARK_ARTIFACT='http://www-eu.apache.org/dist/spark/spark-'$spark_version'/spark-'$spark_version'-bin-hadoop'$hadoop_version'.tgz'
+ARG spark_version='2.2.2'
 
 # Defining Directories
 ENV SRC_HOME=/opt/bobby
@@ -56,11 +50,6 @@ RUN cd $BUILD_HOME && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
     sh ./install.sh -q
 
-# Install Spark
-RUN cd / && \
-    wget -O spark.tgz $SPARK_ARTIFACT && \
-    tar -xzf spark.tgz
-
 # Install Dind (Docker-In-Docker)
 RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
 	chmod a+x /usr/local/bin/dind
@@ -68,7 +57,8 @@ RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
 # Install Python dependencies
 RUN echo sddffffgdddffffwv
 RUN pip3.6 install $ML_WORKFLOW_LIB_PACKAGE && \
-    pip3.6 install -r $BUILD_HOME/requirements.txt
+    pip3.6 install -r $BUILD_HOME/requirements.txt && \
+    pip3.6 install 'pyspark=='$spark_version
 
 # Clean up Build Dependencies and setup src directories
 RUN rm -r $BUILD_HOME/* && \

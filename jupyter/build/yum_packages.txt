@@ -1,0 +1,7 @@
+python36u
+python36u-pip
+python36u-devel
+unixODBC
+unixODBC-devel
+gcc-c++
+gcc

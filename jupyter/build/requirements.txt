@@ -1,3 +1,6 @@
 splicemachinesa==0.1.0.dev0
 mlflow==1.1.0
 https://github.com/splicemachine/pysplice/archive/DBAAS-2571.zip
+ipython
+jupyter
+plotly

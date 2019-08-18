@@ -383,16 +383,6 @@ def access() -> Response:
     return show_html('access.html', handlers=KnownHandlers.get_modifiable())
 
 
-@APP.route('/api_info', methods=['GET'])
-@login_required
-def api_info() -> Response:
-    """
-    Return HTML containing API info
-    :return: (Response) HTML
-    """
-    return show_html('api.html')
-
-
 @APP.route('/contact', methods=['GET'])
 @login_required
 def contact() -> Response:

@@ -1,4 +1,8 @@
-FROM jupyter/pyspark-notebook:d4cbf2f80a2a
+# maybe change to a lighter image...
+ARG splice_base_image_version
+FROM splicemachine/splice_base:$splice_base_image_version
+
+LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
@@ -6,13 +10,16 @@ ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/L
 
 ENV BUILD_HOME=/build
 
+# Spark Configuration
+ARG spark_version='2.2.2'
+
 COPY build $BUILD_HOME
 
-USER root
-
-# Install Apt Modules | as root
-RUN apt update && \
-    apt install -y $(cat $BUILD_HOME/apt_packages.txt)
+# Install Yum Packages
+RUN yum install -y https://centos7.iuscommunity.org/ius-release.rpm && \
+    yum clean all && \
+    rm -rf /var/cache/yum && \
+    yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
 
 # Install ODBC Driver
 RUN cd $BUILD_HOME && \
@@ -24,10 +31,13 @@ RUN cd $BUILD_HOME && \
 # Spark needs the user to be non-root or it throws an error
 
 # Install Pip modules
-RUN pip install -r $BUILD_HOME/requirements.txt
+RUN pip3.6 install -r $BUILD_HOME/requirements.txt && \
+    pip3.6 install 'pyspark=='$spark_version
 
 # Delete Build Dependencies
 RUN rm -rf $BUILD_HOME
 
 USER jovyan
 EXPOSE 8888
+
+CMD jupyter notebook

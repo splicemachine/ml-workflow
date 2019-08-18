@@ -3,7 +3,8 @@ FROM splicemachine/splice_base:$splice_base_image_version
 
 # ml-workflow-lib Configuration
 ARG github_PAT
-ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git"
+ARG ml_workflow_lib_version='0.0.3-dev'
+ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
