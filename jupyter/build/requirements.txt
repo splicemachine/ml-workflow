@@ -4,3 +4,5 @@ https://github.com/splicemachine/pysplice/archive/DBAAS-2571.zip
 ipython
 jupyter
 plotly
+scikit-learn
+pandas

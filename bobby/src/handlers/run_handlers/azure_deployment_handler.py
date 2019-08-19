@@ -127,6 +127,9 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
             workspace=self.Workspace,
             synchronous=True  # block thread until job completes
         )
+        LOGGER.error(
+            f"Access the following URI for build logs: {self.azure_image.image_build_log_uri}"
+        )
 
     def _deploy_model_to_azure(self):
         """

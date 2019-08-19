@@ -9,6 +9,7 @@ ARG odbc_driver_version='2.7.63.0'
 ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 ENV BUILD_HOME=/build
+ENV SRC_HOME=/opt/notebook
 
 # Spark Configuration
 ARG spark_version='2.2.2'
@@ -31,13 +32,15 @@ RUN cd $BUILD_HOME && \
 # Spark needs the user to be non-root or it throws an error
 
 # Install Pip modules
+RUN echo blahx
 RUN pip3.6 install -r $BUILD_HOME/requirements.txt && \
     pip3.6 install 'pyspark=='$spark_version
 
 # Delete Build Dependencies
 RUN rm -rf $BUILD_HOME
 
+COPY notebooks $SRC_HOME
+WORKDIR $SRC_HOME
 USER jovyan
-EXPOSE 8888
+ENTRYPOINT ["jupyter","notebook","--ip=0.0.0.0","--port=8888","--allow-root","--workdir=$SRC_HOME"]
 
-CMD jupyter notebook

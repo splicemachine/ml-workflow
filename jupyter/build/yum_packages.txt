@@ -5,3 +5,4 @@ unixODBC
 unixODBC-devel
 gcc-c++
 gcc
+java-1.8.0-openjdk
