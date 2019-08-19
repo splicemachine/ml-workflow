@@ -1,7 +1,4 @@
-# maybe change to a lighter image...
-ARG splice_base_image_version
-FROM splicemachine/splice_base:$splice_base_image_version
-
+FROM beakerx/beakerx
 LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 
 # ODBC Driver Configuration
@@ -11,16 +8,15 @@ ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/L
 ENV BUILD_HOME=/build
 ENV SRC_HOME=/opt/notebook
 
-# Spark Configuration
-ARG spark_version='2.2.2'
+ARG pyspark_version='2.2.2'
 
 COPY build $BUILD_HOME
 
-# Install Yum Packages
-RUN yum install -y https://centos7.iuscommunity.org/ius-release.rpm && \
-    yum clean all && \
-    rm -rf /var/cache/yum && \
-    yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
+USER root
+
+# Install Apt Packages (sudo required)
+RUN apt-get update && \
+    apt-get install -y $(cat $BUILD_HOME/apt_packages.txt)
 
 # Install ODBC Driver
 RUN cd $BUILD_HOME && \
@@ -30,17 +26,16 @@ RUN cd $BUILD_HOME && \
     bash ./install.sh -q
 
 # Spark needs the user to be non-root or it throws an error
-
-# Install Pip modules
-RUN echo blahx
-RUN pip3.6 install -r $BUILD_HOME/requirements.txt && \
-    pip3.6 install 'pyspark=='$spark_version
+RUN /opt/conda/envs/beakerx/bin/pip  install -r $BUILD_HOME/requirements.txt && \
+    /opt/conda/envs/beakerx/bin/pip install 'pyspark=='$pyspark_version
 
 # Delete Build Dependencies
 RUN rm -rf $BUILD_HOME
 
 COPY notebooks $SRC_HOME
+
+RUN chmod -R 777 $SRC_HOME
+
 WORKDIR $SRC_HOME
-USER jovyan
-ENTRYPOINT ["jupyter","notebook","--ip=0.0.0.0","--port=8888","--allow-root","--workdir=$SRC_HOME"]
+
 
