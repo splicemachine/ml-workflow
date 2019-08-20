@@ -21,6 +21,7 @@ services:
       DB_USER: splice
       DB_PASSWORD: [DB PASSWORD]
       FRAMEWORK_NAME: amrit-streamtest-6160590510
+      ZEPPELIN_URL: https://monte-ml.splicemachine.io
       MODE: development
       ENVIRONMENT: aws
     ports:
