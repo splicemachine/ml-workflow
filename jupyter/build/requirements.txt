@@ -1,8 +1,8 @@
 splicemachinesa==0.1.0.dev0
 mlflow==1.1.0
 https://github.com/splicemachine/pysplice/archive/DBAAS-2571.zip
-ipython
-jupyter
-plotly
-scikit-learn
-pandas
+ipython==5.8.0
+jupyter==1.0.0
+plotly==4.1.0
+scikit-learn==0.20.3
+pandas==0.25.0

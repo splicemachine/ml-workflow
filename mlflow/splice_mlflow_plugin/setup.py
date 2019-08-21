@@ -8,7 +8,7 @@ registered upon the execution of this file
 from setuptools import setup, find_packages
 
 __author__: str = "Splice Machine, Inc."
-__copyright__: str = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
+__copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
 __credits__: list = ["Amrit Baveja", "Murray Brown", "Monte Zweben"]
 
 __license__: str = "Commercial"
