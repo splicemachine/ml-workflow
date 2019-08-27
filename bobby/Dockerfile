@@ -5,8 +5,13 @@ LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@
 
 # ml-workflow-lib Configuration
 ARG github_PAT
-ARG ml_workflow_lib_version='0.0.3-dev'
-ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
+
+# install from a branch instead of a version
+ARG ml_workflow_lib_branch='DBAAS-2827'
+ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
+
+# ARG ml_workflow_lib_version='0.0.3-dev'
+# ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # Docker in Docker Configuration
 ARG dind_commit='52379fa76dee07ca038624d639d9e14f4fb719ff'

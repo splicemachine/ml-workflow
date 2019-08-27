@@ -3,8 +3,12 @@ FROM splicemachine/splice_base:$splice_base_image_version
 
 # ml-workflow-lib Configuration
 ARG github_PAT
-ARG ml_workflow_lib_version='0.0.3-dev'
-ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
+# install from a branch instead of a version
+ARG ml_workflow_lib_branch='DBAAS-2827'
+ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
+
+# ARG ml_workflow_lib_version='0.0.3-dev'
+# ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
@@ -28,6 +32,9 @@ RUN yum clean all && \
     rm -rf /var/cache/yum && \
     yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
 
+#Install java 1.8
+RUN yum -y install java-1.8.0-openjdk-devel
+
 # Install ODBC Driver
 RUN cd $BUILD_HOME && \
     wget -O splice_odbc.tar.gz $ODBC_DRIVER_ARTIFACT && \
@@ -35,7 +42,7 @@ RUN cd $BUILD_HOME && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
     sh ./install.sh -q
 
-RUN echo sddffffgdddffffwv
+RUN echo s
 
 # Install Python dependencies
 COPY splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
