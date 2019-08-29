@@ -1,5 +1,5 @@
 ARG splice_base_image_version
-FROM splicemachine/sm_k8_base:$splice_base_image_version
+FROM splicemachine/sm_base:$splice_base_image_version
 
 # Shiro config
 ARG sm_version=2.8.0.1920
@@ -9,6 +9,7 @@ ARG splice_shiro_version=splice-shiro-$sm_version
 ENV SHIRO_CORE_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_core_version.jar
 ENV SHIRO_WEB_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_web_version.jar
 ENV SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shiro-2.7.0.1915.jar
+ENV SPLICE_BUILD=2.8.0.1920-SNAPSHOT
 
 # ml-workflow-lib Configuration
 ARG github_PAT
@@ -34,7 +35,7 @@ ENV LANG en_US.utf-8
 COPY build $BUILD_HOME
 
 # Install IUS Repo for Python3.6
-RUN yum install -y https://centos7.iuscommunity.org/ius-release.rpm
+RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm
 
 # Install development packages.
 RUN yum clean all && \
@@ -47,8 +48,6 @@ RUN cd $BUILD_HOME && \
     tar xzf splice_odbc.tar.gz && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
     sh ./install.sh -q
-
-RUN echo s
 
 # Install Python dependencies
 COPY splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
@@ -68,7 +67,7 @@ RUN \
   curl -kLs $SHIRO_CORE_URI      -o $SRC_HOME/lib/$shiro_core_version.jar && \
   curl -kLs $SHIRO_WEB_URI       -o $SRC_HOME/lib/$shiro_web_version.jar && \
   curl -kLs $SPLICE_SHIRO_URI    -o $SRC_HOME/lib/$splice_shiro_version.jar && \
-  curl -kLs https://www.slf4j.org/dist/slf4j-1.7.28.zip -o $SRC_HOME/lib/slf4j.zip && unzip $SRC_HOME/lib/slf4j.zip && \
+  curl -kLs https://www.slf4j.org/dist/slf4j-1.7.28.zip -o $SRC_HOME/lib/slf4j.zip && unzip $SRC_HOME/lib/slf4j.zip -d $SRC_HOME/lib/ && \
   rm -f $SRC_HOME/lib/slf4j.zip && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$SPLICE_BUILD/db-client-2.8.0.1920-20190620.183307-9.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$SPLICE_BUILD/db-client-2.8.0.1920-20190620.183307-9-sources.jar -o $SRC_HOME/lib/db-client-sources.jar

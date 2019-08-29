@@ -16,3 +16,4 @@ bind-utils
 unzip
 docker-ce
 java-1.8.0-openjdk
+which

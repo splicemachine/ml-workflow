@@ -1,5 +1,5 @@
 ARG splice_base_image_version
-FROM splicemachine/sm_k8_base:$splice_base_image_version
+FROM splicemachine/sm_base:$splice_base_image_version
 
 LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 
@@ -60,7 +60,6 @@ RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
 	chmod a+x /usr/local/bin/dind
 
 # Install Python dependencies
-RUN echo sddffffgdddffffwv
 RUN pip3.6 install $ML_WORKFLOW_LIB_PACKAGE && \
     pip3.6 install -r $BUILD_HOME/requirements.txt && \
     pip3.6 install 'pyspark=='$spark_version
