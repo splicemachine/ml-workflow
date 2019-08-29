@@ -11,7 +11,7 @@ services:
       - "8888:8888"
     build:
       args:
-        splice_base_image_version: 0.0.4
+        splice_base_image_version: 0.0.1
 
       context: jupyter
 
@@ -30,7 +30,7 @@ services:
 
     build:
       args:
-        splice_base_image_version: 0.0.4
+        splice_base_image_version: 0.0.1
         github_PAT: [YOUR GITHUB PERSONAL ACCESS TOKEN]
 
       context: mlflow
@@ -52,7 +52,7 @@ services:
       ENVIRONMENT: aws
     build:
       args:
-        splice_base_image_version: 0.0.4
+        splice_base_image_version: 0.0.1
         github_PAT: [YOUR GITHUB PERSONAL ACCESS TOKEN]
       context: bobby
 
