@@ -1,5 +1,5 @@
 ARG splice_base_image_version
-FROM splicemachine/splice_base:$splice_base_image_version
+FROM splicemachine/sm_k8_base:$splice_base_image_version
 
 LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 

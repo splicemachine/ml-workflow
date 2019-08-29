@@ -8,3 +8,4 @@ splice_mlmanager/*
 *.zip
 docker-compose.yml
 .ipynb_checkpoints
+.venv
