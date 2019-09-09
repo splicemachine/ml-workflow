@@ -1,5 +1,5 @@
 ARG splice_base_image_version
-FROM splicemachine/sm_base:$splice_base_image_version
+FROM splicemachine/sm_k8_base:$splice_base_image_version
 
 # Shiro config
 ARG sm_version=2.8.0.1920
@@ -34,8 +34,25 @@ ENV LANG en_US.utf-8
 
 COPY build $BUILD_HOME
 
-# Install IUS Repo for Python3.6
-RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm
+# Install python 3.7.3
+RUN yum update -y && \
+    yum install yum-utils -y && \
+    yum groupinstall development -y && \
+    yum -y --enablerepo=extras install epel-release && \
+    yum install -y gcc openssl-devel bzip2-devel libffi-devel && \
+    yum install -y make
+RUN cd /tmp && \
+  wget https://www.python.org/ftp/python/3.7.3/Python-3.7.3.tgz && \
+  tar xzf Python-3.7.3.tgz && \
+  cd Python-3.7.3  && \
+  ./configure --enable-optimizations && \
+  make altinstall && \
+  ln -sfn /usr/local/bin/python3.7 /usr/bin/python3 && \
+  ln -sfn /usr/local/bin/pip3.7 /usr/bin/pip3 && \
+  rm -rf /tmp/Python-3.7.3 && \
+  rm /tmp/rm -rf Python-3.7.3.tgz && \
+  yum remove -y  make gcc openssl-devel bzip2-devel && \
+  rm -rf /var/cache/yum && yum clean all
 
 # Install development packages.
 RUN yum clean all && \
@@ -51,9 +68,9 @@ RUN cd $BUILD_HOME && \
 
 # Install Python dependencies
 COPY splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
-RUN pip3.6 install -r $BUILD_HOME/requirements.txt && \
-    pip3.6 install $ML_WORKFLOW_LIB_PACKAGE && \
-    pip3.6 install $BUILD_HOME/splice_mlflow_plugin
+RUN pip3.7 install -r $BUILD_HOME/requirements.txt && \
+    pip3.7 install $ML_WORKFLOW_LIB_PACKAGE && \
+    pip3.7 install $BUILD_HOME/splice_mlflow_plugin
 
 # Remove Build Directories and Create source directory
 RUN rm -rf $BUILD_HOME/* && \
@@ -72,5 +89,5 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$SPLICE_BUILD/db-client-2.8.0.1920-20190620.183307-9.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$SPLICE_BUILD/db-client-2.8.0.1920-20190620.183307-9-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
-ENV CLASSPATH=$SRC_HOME/lib/*:$SRC_HOME/lib/slf4j-1.7.28/*:/usr/share/py4j/py4j0.10.8.1.jar
+ENV CLASSPATH=$SRC_HOME/lib/*:$SRC_HOME/lib/slf4j-1.7.28/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 CMD $SRC_HOME"/scripts/entrypoint.sh"
