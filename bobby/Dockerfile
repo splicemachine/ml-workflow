@@ -37,6 +37,9 @@ RUN echo te
 # Add the list of necessary environment packages for development.
 COPY build $BUILD_HOME
 
+# Install lzma dependency for Python 3.7.3
+RUN yum install -y xz-devel
+
 # Install python 3.7.3
 RUN yum update -y && \
     yum install yum-utils -y && \
@@ -56,7 +59,6 @@ RUN cd /tmp && \
   rm /tmp/rm -rf Python-3.7.3.tgz && \
   yum remove -y  make gcc openssl-devel bzip2-devel && \
   rm -rf /var/cache/yum && yum clean all
-
 
 # Add the repository for docker and IUS Repo fo Python3.
 # Azure forces this ugly code upon us. Any workarounds would be appreciated.

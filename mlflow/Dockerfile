@@ -34,6 +34,9 @@ ENV LANG en_US.utf-8
 
 COPY build $BUILD_HOME
 
+# Install lzma dependency for Python 3.7.3
+RUN yum install -y xz-devel
+
 # Install python 3.7.3
 RUN yum update -y && \
     yum install yum-utils -y && \
