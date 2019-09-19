@@ -6,12 +6,13 @@ LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@
 # ml-workflow-lib Configuration
 ARG github_PAT
 
-# install from a branch instead of a version
-ARG ml_workflow_lib_branch='DBAAS-2827'
-ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
+# if you want to install from a branch instead of a version
+# ARG ml_workflow_lib_branch='SOME_BRANCH'
+# ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
-# ARG ml_workflow_lib_version='0.0.3-dev'
-# ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
+# Install from a release version
+ARG ml_workflow_lib_version='0.0.4-dev'
+ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # Docker in Docker Configuration
 ARG dind_commit='52379fa76dee07ca038624d639d9e14f4fb719ff'
@@ -37,7 +38,7 @@ RUN echo te
 # Add the list of necessary environment packages for development.
 COPY build $BUILD_HOME
 
-# Install lzma dependency for Python 3.7.3
+# Install lzma python dependency for python 3.7.3
 RUN yum install -y xz-devel
 
 # Install python 3.7.3

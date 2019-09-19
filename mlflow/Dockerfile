@@ -13,12 +13,12 @@ ENV SPLICE_BUILD=2.8.0.1920-SNAPSHOT
 
 # ml-workflow-lib Configuration
 ARG github_PAT
-# install from a branch instead of a version
-ARG ml_workflow_lib_branch='DBAAS-2827'
-ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
+# If you want to install from a branch instead of a version
+# ARG ml_workflow_lib_branch='SOME_BRANCH'
+# ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
-# ARG ml_workflow_lib_version='0.0.3-dev'
-# ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
+ARG ml_workflow_lib_version='0.0.4-dev'
+ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
@@ -34,7 +34,7 @@ ENV LANG en_US.utf-8
 
 COPY build $BUILD_HOME
 
-# Install lzma dependency for Python 3.7.3
+# Install lzma python dependency python 3.7.3
 RUN yum install -y xz-devel
 
 # Install python 3.7.3

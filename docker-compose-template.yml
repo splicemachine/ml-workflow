@@ -24,10 +24,11 @@ services:
       ZEPPELIN_URL: https://monte-ml.splicemachine.io
       MODE: development
       ENVIRONMENT: aws
+    image: mlflow:0.0.19
     ports:
       - "5001:5001"
       - "5003:5003"
-
+  
     build:
       args:
         splice_base_image_version: 0.0.1
@@ -50,6 +51,7 @@ services:
       SAGEMAKER_ROLE: arn:aws:iam::[AWS ACCOUNT NUMBER]:role/splice-sagemaker
       MODE: development
       ENVIRONMENT: aws
+    image: bobby:0.0.19
     build:
       args:
         splice_base_image_version: 0.0.1
