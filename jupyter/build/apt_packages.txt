@@ -1,0 +1,6 @@
+unixodbc-dev
+unixodbc-bin
+unixodbc
+gcc
+g++
+default-jre

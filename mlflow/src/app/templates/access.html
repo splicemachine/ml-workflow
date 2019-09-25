@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block css %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/jquery.bootgrid.css') }}"/>
+{% endblock %}
+
+{% block content %}
+<div class="welcome">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="content">
+                    <h2>Manage Access</h2>
+                    <p>Here, you can enable and disable the execution of certain services.
+                        An example use case might be if a engineer deploys a model to AWS production
+                        and
+                        doesn't want it to be replaced by another model. This would be a "disable"
+                        operation of the AWS deploy service. However, this is only an informative
+                        measure-- its availability can be enabled by another user via the same
+                        interface. <br><br>Note: Your username will be recorded, alongside your
+                        action,
+                        if you alter the availability of a service
+                    </p>
+                    <button class='button-outline' id='refresh-btn' onclick="refreshAccess(true)">
+                        Refresh Widgets
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <section class="statistics">
+        <div class="container-fluid" id="widgets">
+            <!-- widgets propagated dynamically via javascript -->
+        </div>
+    </section>
+    <div class="welcome">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="content">
+                        <h2>Modify</h2>
+                        <p>Here, you can change the availability of services</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <section class="statistics">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="box">
+                        <form action="/api/ui/initiate" method="POST">
+                            <input type="hidden" name="user" value="{{ current_user.id }}"/>
+                            <input type="hidden" name="handler_name"
+                                   value="ENABLE_SERVICE"/>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_service_enable' class='form--label'>Service
+                                            to
+                                            Enable</label>
+                                        <select name='service' id='input_service_enable'
+                                                class='js-input-fullName'>
+                                            {% for handler in handlers %}
+                                            <option value="{{ handler }}" default selected>
+                                                {{ handler|replace("_", " ") }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="row">
+                                <div class='col-md-12'>
+                                    <input class='sbt-btn button-outline access-form-btn'
+                                           value="Enable Service" type='submit'>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="box">
+                        <form action="/api/ui/initiate" method="POST">
+                            <input type="hidden" name="user" value="{{ current_user.id }}"/>
+                            <input type="hidden" name="handler_name"
+                                   value="DISABLE_SERVICE"/>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_service_disable' class='form--label'>
+                                            Service to Disable</label>
+                                        <select name="service" id='input_service_disable'
+                                                class='js-input-fullName'>
+                                            {% for handler in handlers %}
+                                            <option value="{{ handler }}" default selected>
+                                                {{ handler|replace("_", " ") }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="row">
+                                <div class='col-md-12'>
+                                    <input class='sbt-btn button-outline access-form-btn'
+                                           value="Disable Service" type='submit'>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <div class="welcome">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="content">
+                        <h2>History</h2>
+                        <p>In the <a href="/tracker">Job Tracker</a> you can find a log of different
+                            actions that users have taken (can be used for governance). </p>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+        <br><br>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/widgets.js') }}"></script>
+<script>
+    refreshAccess(false);
+</script>
+{% endblock %}
