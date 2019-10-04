@@ -17,7 +17,7 @@ ARG github_PAT
 # ARG ml_workflow_lib_branch='SOME_BRANCH'
 # ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
-ARG ml_workflow_lib_version='0.0.4-dev'
+ARG ml_workflow_lib_version='0.0.5-dev'
 ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration
@@ -87,8 +87,10 @@ RUN \
   curl -kLs $SHIRO_CORE_URI      -o $SRC_HOME/lib/$shiro_core_version.jar && \
   curl -kLs $SHIRO_WEB_URI       -o $SRC_HOME/lib/$shiro_web_version.jar && \
   curl -kLs $SPLICE_SHIRO_URI    -o $SRC_HOME/lib/$splice_shiro_version.jar && \
-  curl -kLs https://www.slf4j.org/dist/slf4j-1.7.28.zip -o $SRC_HOME/lib/slf4j.zip && unzip $SRC_HOME/lib/slf4j.zip -d $SRC_HOME/lib/ && \
+  curl -kLs https://www.slf4j.org/dist/slf4j-1.7.28.zip -o $SRC_HOME/lib/slf4j.zip && \
+  unzip $SRC_HOME/lib/slf4j.zip -d $SRC_HOME/lib/ && \
   rm -f $SRC_HOME/lib/slf4j.zip && \
+  rm -rf $SRC_HOME/lib/slf4j-1.7.28/slf4j-jcl* && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$SPLICE_BUILD/db-client-2.8.0.1920-20190620.183307-9.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$SPLICE_BUILD/db-client-2.8.0.1920-20190620.183307-9-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 

@@ -1,17 +1,24 @@
 # Build
 
+* Edit ../docker-compose.yml to the incremented image tag
 ```bash
-make
+../docker-compose build
 ```
 
 # Publish
 
 ```bash
-make push
+docker push <IMAGE> 
 ```
 
 # Local
 
 ```bash
-./run_local.sh --jdbc_url "jdbc:splice://localhost:1527/splicedb;" --aws_access_key_id "YOUR_ACCESS_ID" --aws_secret_access_key "YOUR_SECRET_KEY"
+../docker-compose up
 ```
+**Note:** Edit the Makefile to provide:
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `JDBC_URL`
+- `FRAMEWORK_NAME`
+- `S3_BUCKET_NAME`

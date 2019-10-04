@@ -1,19 +1,20 @@
 # Build
 
+* Edit ../docker-compose.yml to the incremented image tag
 ```bash
-make
+../docker-compose build
 ```
 
 # Publish
 
 ```bash
-make push
+docker push <IMAGE> 
 ```
 
 # Local
 
 ```bash
-make run
+../docker-compose up
 ```
 **Note:** Edit the Makefile to provide:
 - `AWS_ACCESS_KEY_ID`

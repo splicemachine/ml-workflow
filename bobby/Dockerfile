@@ -23,7 +23,7 @@ ARG odbc_driver_version='2.7.63.0'
 ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Spark Configuration
-ARG spark_version='2.2.2'
+ARG spark_version='2.4.4'
 
 # Defining Directories
 ENV SRC_HOME=/opt/bobby
