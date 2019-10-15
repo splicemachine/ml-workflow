@@ -6,23 +6,24 @@ ARG sm_version=2.8.0.1920
 ARG shiro_core_version=shiro-core-1.2.3
 ARG shiro_web_version=shiro-web-1.2.3
 ARG splice_shiro_version=splice-shiro-$sm_version
-ENV SHIRO_CORE_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_core_version.jar
-ENV SHIRO_WEB_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_web_version.jar
-ENV SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shiro-2.7.0.1915.jar
-ENV SPLICE_BUILD=2.8.0.1920-SNAPSHOT
+ARG SHIRO_CORE_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_core_version.jar
+ARG SHIRO_WEB_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_web_version.jar
+ARG SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shiro-2.7.0.1915.jar
+ARG SPLICE_BUILD=2.8.0.1920-SNAPSHOT
 
 # ml-workflow-lib Configuration
 ARG github_PAT
+
 # If you want to install from a branch instead of a version
 # ARG ml_workflow_lib_branch='SOME_BRANCH'
-# ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
+# ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
 ARG ml_workflow_lib_version='0.0.5-dev'
-ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
+ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
-ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
+ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Defining Root Directory
 ENV SRC_HOME=/opt/mlflow
@@ -87,12 +88,11 @@ RUN \
   curl -kLs $SHIRO_CORE_URI      -o $SRC_HOME/lib/$shiro_core_version.jar && \
   curl -kLs $SHIRO_WEB_URI       -o $SRC_HOME/lib/$shiro_web_version.jar && \
   curl -kLs $SPLICE_SHIRO_URI    -o $SRC_HOME/lib/$splice_shiro_version.jar && \
-  curl -kLs https://www.slf4j.org/dist/slf4j-1.7.28.zip -o $SRC_HOME/lib/slf4j.zip && \
-  unzip $SRC_HOME/lib/slf4j.zip -d $SRC_HOME/lib/ && \
-  rm -f $SRC_HOME/lib/slf4j.zip && \
-  rm -rf $SRC_HOME/lib/slf4j-1.7.28/slf4j-jcl* && \
+  curl -kls http://repo2.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28.jar && \
+  curl -kls http://repo2.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-sources.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-sources.jar && \
+  curl -kls http://repo2.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-javadoc.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-javadoc.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$SPLICE_BUILD/db-client-2.8.0.1920-20190620.183307-9.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$SPLICE_BUILD/db-client-2.8.0.1920-20190620.183307-9-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
-ENV CLASSPATH=$SRC_HOME/lib/*:$SRC_HOME/lib/slf4j-1.7.28/*:/usr/local/share/py4j/py4j0.10.8.1.jar
+ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 CMD $SRC_HOME"/scripts/entrypoint.sh"
