@@ -8,19 +8,19 @@ ARG github_PAT
 
 # if you want to install from a branch instead of a version
 # ARG ml_workflow_lib_branch='SOME_BRANCH'
-# ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
+# ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
 # Install from a release version
 ARG ml_workflow_lib_version='0.0.4-dev'
-ENV ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
+ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # Docker in Docker Configuration
 ARG dind_commit='52379fa76dee07ca038624d639d9e14f4fb719ff'
-ENV DIND_ARTIFACT='https://raw.githubusercontent.com/docker/docker/'$dind_commit'/hack/dind'
+ARG DIND_ARTIFACT='https://raw.githubusercontent.com/docker/docker/'$dind_commit'/hack/dind'
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
-ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
+ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Spark Configuration
 ARG spark_version='2.4.4'
