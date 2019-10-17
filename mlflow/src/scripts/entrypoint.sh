@@ -82,3 +82,5 @@ nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GU
 echo "Starting MLFlow Server on port :${MLFLOW_PORT}"
 mlflow server --host 0.0.0.0 --backend-store-uri "splicetracking://" \
     --default-artifact-root "spliceartifacts://" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
+
+nohup java gateway &
