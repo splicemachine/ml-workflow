@@ -1,6 +1,5 @@
 from mlmanager_lib.database.constants import Database
 
-
 def add_schemas_to_tables(tables: tuple) -> None:
     """
     These tables should be under the MLMANAGER
