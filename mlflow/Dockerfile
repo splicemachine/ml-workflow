@@ -15,11 +15,11 @@ ARG SPLICE_BUILD=2.8.0.1920-SNAPSHOT
 ARG github_PAT
 
 # If you want to install from a branch instead of a version
-# ARG ml_workflow_lib_branch='SOME_BRANCH'
-# ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
+ARG ml_workflow_lib_branch='DBAAS-2955'
+ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
-ARG ml_workflow_lib_version='0.0.5-dev'
-ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
+#ARG ml_workflow_lib_version='0.0.5-dev'
+#ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'

@@ -154,7 +154,7 @@ def initiate_job_ui() -> dict:
     :return: (dict) output from queue submission
     """
     handler: Handler = KnownHandlers.MAPPING.get(request.form['handler_name'].upper())
-    return handler_queue_job(request.form, handler)
+    return handler_queue_job(request.form, handler, user=request.form['username'])
 
 
 @APP.route('/api/rest/initiate', methods=['POST'])
@@ -172,15 +172,16 @@ def initiate_job_rest() -> dict:
         LOGGER.error(message)
         return HTTP.responses['malformed'](create_json(status=APIStatuses.failure, message=message))
 
-    return handler_queue_job(request.json, handler)
+    return handler_queue_job(request.json, handler, user=request.authorization.username)
 
 
-def handler_queue_job(request_payload: dict, handler: Handler) -> dict:
+def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dict:
     """
     Handler for actions that execute services
     e.g. deploy, retrain.
     :param request_payload: (dict) payload to parse to create job
     :param handler: (Handler) the handler object
+    :param user: (str) Username of the person who submitted the job
     :return: (Response) JSON payload for success
     """
     # Format Payload
@@ -194,7 +195,7 @@ def handler_queue_job(request_payload: dict, handler: Handler) -> dict:
             else handler.optional_payload_args[optional_key]
 
     job: Job = Job(handler_name=handler.name,
-                   user=request_payload['user'],
+                   user=user,
                    payload=serialize_json(payload))
 
     Session.add(job)
