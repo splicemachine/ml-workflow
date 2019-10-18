@@ -78,6 +78,9 @@ fi
 echo "Starting Job Tracking UI on port :${GUI_PORT}"
 nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
 
+echo "Starting Java Gateway Server for py4j"
+nohup java gateway &
+
 # Start MLFlow Tracking Server logging to mlflow log file
 echo "Starting MLFlow Server on port :${MLFLOW_PORT}"
 mlflow server --host 0.0.0.0 --backend-store-uri "splicetracking://" \
