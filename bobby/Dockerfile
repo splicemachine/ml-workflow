@@ -6,6 +6,9 @@ LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@
 # ml-workflow-lib Configuration
 ARG github_PAT
 
+# so the pyspark drivers use python3.7 instead of python2
+ENV PYSPARK_PYTHON = /usr/local/bin/python3.7
+
 # if you want to install from a branch instead of a version
 # ARG ml_workflow_lib_branch='SOME_BRANCH'
 # ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
@@ -23,7 +26,7 @@ ARG odbc_driver_version='2.7.63.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Spark Configuration
-ARG spark_version='2.4.4'
+ARG spark_version='2.4.0'
 
 # Defining Directories
 ENV SRC_HOME=/opt/bobby
@@ -34,7 +37,6 @@ ENV WORKER_HOME=/opt/worker
 ENV LC_ALL en_US.utf-8
 ENV LANG en_US.utf-8
 
-RUN echo te
 # Add the list of necessary environment packages for development.
 COPY build $BUILD_HOME
 
@@ -91,8 +93,8 @@ RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE && \
 # Clean up Build Dependencies and setup src directories
 RUN rm -r $BUILD_HOME/* && \
     rm -rf /spark.tgz && \
-    mkdir -p "$SRC_HOME" && \
-    mkdir -p "$WORKER_HOME"
+    mkdir -p $SRC_HOME && \
+    mkdir -p $WORKER_HOME
 
 COPY src $SRC_HOME
 
