@@ -1,6 +1,6 @@
 splicemachinesa==0.1.0.dev0
 mlflow==1.1.0
-git+https://github.com/splicemachine/pysplice.git@1.0.3-k8
+git+https://github.com/splicemachine/pysplice.git@1.0.4-k8
 ipython
 jupyter
 plotly
