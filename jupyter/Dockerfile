@@ -8,7 +8,7 @@ ENV ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/L
 ENV BUILD_HOME=/build
 ENV SRC_HOME=/opt/notebook
 
-ARG pyspark_version='2.4.4'
+ARG pyspark_version='2.4.0'
 
 COPY build $BUILD_HOME
 

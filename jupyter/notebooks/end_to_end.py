@@ -3,7 +3,7 @@ How Do I Run this Script?
 -------------------------
 1) First Run the MLManager Stack via Docker-Compose
 2) SSH into the Jupyter Container via `docker exec -it [...] bash`
-3) Run this command `/opt/conda/envs/beakerx/bin/python /opt/notebooks/end_to_end.py`
+3) Run this command `/opt/conda/envs/beakerx/bin/python /opt/notebook/end_to_end.py`
 4) You should be Good to Go :)
 """
 
