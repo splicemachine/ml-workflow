@@ -2,7 +2,7 @@ ARG splice_base_image_version
 FROM splicemachine/sm_k8_base:$splice_base_image_version
 
 # Shiro config
-ARG sm_version=3.0.0.1931
+ARG sm_version=3.0.0.1934
 ARG shiro_core_version=shiro-core-1.2.3
 ARG shiro_web_version=shiro-web-1.2.3
 ARG splice_shiro_version=splice-shiro-$sm_version
