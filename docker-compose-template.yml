@@ -1,20 +1,17 @@
-version: '3'
+version: "3"
 services:
   jupyter:
     user: root
     volumes:
       - "./notebooks:/home/joyvan/work"
     environment:
-      GRANT_SUDO: 'yes'
-
+      GRANT_SUDO: "yes"
     ports:
       - "8888:8888"
     build:
       args:
-        splice_base_image_version: 0.0.1
-
+        splice_base_image_version: 0.0.2
       context: jupyter
-
   mlflow:
     environment:
       DB_HOST: host.docker.internal
@@ -24,18 +21,15 @@ services:
       ZEPPELIN_URL: https://monte-ml.splicemachine.io
       MODE: development
       ENVIRONMENT: aws
-    image: splicemachine/sm_k8_mlflow:0.0.5
+    image: splicemachine/sm_k8_mlflow:0.1.1
     ports:
       - "5001:5001"
       - "5003:5003"
-  
     build:
       args:
-        splice_base_image_version: 0.0.1
+        splice_base_image_version: 0.0.2
         github_PAT: [YOUR GITHUB PERSONAL ACCESS TOKEN]
-
       context: mlflow
-
   bobby:
     privileged: true
     environment:
@@ -51,11 +45,9 @@ services:
       SAGEMAKER_ROLE: arn:aws:iam::[AWS ACCOUNT NUMBER]:role/splice-sagemaker
       MODE: development
       ENVIRONMENT: aws
-    image: splicemachine/sm_k8_bobby:0.0.5
+    image: splicemachine/sm_k8_bobby:0.1.1
     build:
       args:
-        splice_base_image_version: 0.0.1
+        splice_base_image_version: 0.0.2
         github_PAT: [YOUR GITHUB PERSONAL ACCESS TOKEN]
       context: bobby
-
-
