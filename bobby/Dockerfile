@@ -14,7 +14,7 @@ ENV PYSPARK_PYTHON = /usr/local/bin/python3.7
 # ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
 # Install from a release version
-ARG ml_workflow_lib_version='0.0.6-dev'
+ARG ml_workflow_lib_version='0.0.7-dev'
 ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # Docker in Docker Configuration

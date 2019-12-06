@@ -17,6 +17,7 @@ from mlmanager_lib.worker.ledger import JobLedger
 from py4j.java_gateway import java_import
 from pyspark import SparkConf, SparkContext
 from workerpool import Job as ThreadedTask, WorkerPool
+from retrying import retry
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -172,6 +173,8 @@ class Master(object):
         """
         # Since this is running a lot, we will
         # use SQL so that it is more efficient
+        #FIXME: If the database does not exist, SQLAlchemy will keep trying to make a new connection and
+        #FIXME: eventually have a seg fault. We can't try/catch a seg fault.
         return execute_sql(Master.poll_sql_query)
         # SELECT only the `id` + `handler_name` column from the first inserted pending task
 
