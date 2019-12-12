@@ -283,7 +283,7 @@ def get_jobs() -> dict:
         int_offset: int = 0  # no offset on searches
         table_query: text = _get_job_search_query(job_table, order_value, direction_suffix, limit,
                                                   request.form['searchPhrase'])
-    else:  # query is listing
+    else:  # query is listingœ
         int_offset: int = int(request.form['current']) - 1 if request.form.get('current') else 0
         table_query: text = _get_job_list_query(job_table, order_value, direction_suffix, limit,
                                                 int_offset)

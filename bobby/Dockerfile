@@ -10,12 +10,12 @@ ARG github_PAT
 ENV PYSPARK_PYTHON = /usr/local/bin/python3.7
 
 # if you want to install from a branch instead of a version
-# ARG ml_workflow_lib_branch='SOME_BRANCH'
-# ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
+ARG ml_workflow_lib_branch='DBAAS-3134'
+ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
 # Install from a release version
-ARG ml_workflow_lib_version='0.0.7-dev'
-ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
+#ARG ml_workflow_lib_version='0.0.7-dev'
+#ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # Docker in Docker Configuration
 ARG dind_commit='52379fa76dee07ca038624d639d9e14f4fb719ff'
@@ -87,7 +87,7 @@ RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
 
 # Install Python dependencies
 RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE && \
-    pip3.7 install -r $BUILD_HOME/requirements.txt && \
+    pip3.7 install -r $BUILD_HOME/requirements.txt  && \
     pip3.7 install 'pyspark=='$spark_version
 
 # Clean up Build Dependencies and setup src directories

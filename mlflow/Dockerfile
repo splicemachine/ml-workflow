@@ -14,11 +14,11 @@ ARG SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shi
 ARG github_PAT
 
 # If you want to install from a branch instead of a version
-#ARG ml_workflow_lib_branch='DBAAS-2955'
-#ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
+ARG ml_workflow_lib_branch='DBAAS-3134'
+ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
-ARG ml_workflow_lib_version='0.0.7-dev'
-ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
+#ARG ml_workflow_lib_version='0.0.7-dev'
+#ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
@@ -71,8 +71,8 @@ RUN cd $BUILD_HOME && \
 
 # Install Python dependencies
 COPY splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
-RUN pip3.7 install -r $BUILD_HOME/requirements.txt && \
-    pip3.7 install $ML_WORKFLOW_LIB_PACKAGE && \
+RUN pip3.7 install -r $BUILD_HOME/requirements.txt  && \
+    pip3.7 install $ML_WORKFLOW_LIB_PACKAGE &&  \
     pip3.7 install $BUILD_HOME/splice_mlflow_plugin
 
 # Remove Build Directories and Create source directory
