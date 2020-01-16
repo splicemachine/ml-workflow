@@ -6,9 +6,11 @@ import logging
 from copy import copy
 from functools import partial
 from os import environ as env_vars
+from os import system as bash
 
 from azureml.core import Workspace
 from azureml.core.webservice import AciWebservice, Webservice
+from azureml.core.authentication import MsiAuthentication
 
 from mlflow import azureml as mlflow_azureml
 from .base_deployment_handler import BaseDeploymentHandler
@@ -105,13 +107,15 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
         """
         self.update_task_in_db(info='Creating AzureML Workspace')
 
+        msi_auth = MsiAuthentication()
         self.Workspace = Workspace.create(
             name=self.task.parsed_payload['workspace'],
             subscription_id=env_vars['AZURE_SUBSCRIPTION_ID'],  # extracted from az login
             resource_group=self.task.parsed_payload['resource_group'],
             location=self.task.parsed_payload['region'],
             create_resource_group=True,  # create resource group if it doesn't exist
-            exist_ok=True  # get the Workspace if it already exists, otherwise create it
+            exist_ok=True,  # get the Workspace if it already exists, otherwise create it
+            auth=msi_auth # to avoid calling InteactiveLogin
         )
 
     def _build_docker_image(self):
