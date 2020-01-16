@@ -106,7 +106,6 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
         Workspace
         """
         self.update_task_in_db(info='Creating AzureML Workspace')
-        bash('export AZURE_SUBSCRIPTION_ID=$(python3.6 ${SRC_HOME}/scripts/login_azure.py)')
 
         msi_auth = MsiAuthentication()
         self.Workspace = Workspace.create(
