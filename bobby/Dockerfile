@@ -10,16 +10,12 @@ ARG github_PAT
 ENV PYSPARK_PYTHON = /usr/local/bin/python3.7
 
 # if you want to install from a branch instead of a version
-# ARG ml_workflow_lib_branch='SOME_BRANCH'
-# ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
+#ARG ml_workflow_lib_branch='DBAAS-3254'
+#ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
 # Install from a release version
-ARG ml_workflow_lib_version='0.0.7-dev'
+ARG ml_workflow_lib_version='0.0.8-dev'
 ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
-
-# Docker in Docker Configuration
-ARG dind_commit='52379fa76dee07ca038624d639d9e14f4fb719ff'
-ARG DIND_ARTIFACT='https://raw.githubusercontent.com/docker/docker/'$dind_commit'/hack/dind'
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
@@ -81,13 +77,9 @@ RUN cd $BUILD_HOME && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
     sh ./install.sh -q
 
-# Install Dind (Docker-In-Docker)
-RUN wget -O /usr/local/bin/dind "${DIND_ARTIFACT}" && \
-	chmod a+x /usr/local/bin/dind
-
 # Install Python dependencies
-RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE && \
-    pip3.7 install -r $BUILD_HOME/requirements.txt && \
+#RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE && \
+RUN pip3.7 install -r $BUILD_HOME/requirements.txt && \
     pip3.7 install 'pyspark=='$spark_version
 
 # Clean up Build Dependencies and setup src directories
@@ -99,9 +91,9 @@ RUN rm -r $BUILD_HOME/* && \
 COPY src $SRC_HOME
 
 # make the entrypoint executable by all users
-RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh && \
-    chmod a+x $SRC_HOME/scripts/run_dind.sh
+RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh
 
+RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE
 VOLUME /var/lib/docker
 EXPOSE 2375
 

@@ -84,7 +84,6 @@ fi
 
 # Start Main Processes
 echo "Starting up Docker Daemon"
-nohup ${SRC_HOME}/scripts/run_dind.sh &
-
+nohup dockerd &
 echo "Starting Worker"
 python3.7 ${SRC_HOME}/main.py

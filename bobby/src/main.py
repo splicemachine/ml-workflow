@@ -151,7 +151,7 @@ class Master(object):
 
     poll_sql_query: str = \
         f"""
-        SELECT TOP 1 {id_col}, {handler_col} FROM {Job.__table_schema_name__}
+        SELECT TOP 1 {id_col}, {handler_col} FROM {Job.__tablename__}
         WHERE {status_col}='{JobStatuses.pending}'
         ORDER BY "{timestamp_col}"
         """
@@ -199,7 +199,11 @@ class Master(object):
 
 
 if __name__ == '__main__':
+    LOGGER.info('Registering handlers...')
     register_handlers()
+    LOGGER.info('Populating handlers...')
     populate_handlers(Session)
+    LOGGER.info('Dispatching master...')
     dispatcher: Master = Master()  # initialize worker pool
+    LOGGER.info('Polling...')
     dispatcher.poll()
