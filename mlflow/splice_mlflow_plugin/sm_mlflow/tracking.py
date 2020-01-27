@@ -58,7 +58,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         """
         add_schemas_to_tables(self.TABLES)
 
-        super(SqlAlchemyStore, self).__init__()
+        # super(SqlAlchemyStore, self).__init__()
 
         self.db_type: str = 'splicemachinesa'
         self.artifact_root_uri: str = artifact_uri
@@ -67,7 +67,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         expected_tables = {table.__tablename__ for table in self.TABLES}
         inspector = peer_into_splice_db(self.engine)
 
-        if len(expected_tables & set(inspector.get_table_names())) == 0:
+        if len(expected_tables & set(inspector.get_table_names(schema='MLMANAGER'))) == 0:
             SqlAlchemyStore._initialize_tables(self.engine)
 
         self._initialize_tables()
@@ -89,7 +89,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         Then, it creates all tables (that we added)
         that don't require alembic revisions
         """
-        LOGGER.info("Creating initial Alembic MLflow database tables...")
+        # LOGGER.info("Creating initial Alembic MLflow database tables...")
         InitialBase.metadata.create_all(
             self.engine,
             tables=[table.__table__ for table in self.ALEMBIC_TABLES]

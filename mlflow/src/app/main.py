@@ -154,7 +154,7 @@ def initiate_job_ui() -> dict:
     :return: (dict) output from queue submission
     """
     handler: Handler = KnownHandlers.MAPPING.get(request.form['handler_name'].upper())
-    return handler_queue_job(request.form, handler, user=request.form['username'])
+    return handler_queue_job(request.form, handler, user=request.form['user'])
 
 
 @APP.route('/api/rest/initiate', methods=['POST'])
@@ -220,7 +220,7 @@ def get_monthly_aggregated_jobs() -> dict:
         SELECT MONTH(INNER_TABLE.parsed_date) AS month_1, COUNT(*) AS count_1, user_1
         FROM (
             SELECT TIMESTAMP("timestamp") AS parsed_date, "user" as user_1
-            FROM {Job.__table_schema_name__}
+            FROM {Job.__tablename__}
         ) AS INNER_TABLE
         WHERE YEAR(INNER_TABLE.parsed_date) = YEAR(CURRENT_TIMESTAMP)
         GROUP BY 1, 3
