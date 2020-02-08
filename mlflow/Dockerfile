@@ -2,7 +2,7 @@ ARG splice_base_image_version
 FROM splicemachine/sm_k8_base:$splice_base_image_version
 
 # Shiro config
-ARG sm_version=3.0.0.1938
+ARG sm_version=3.0.0.1944
 ARG shiro_core_version=shiro-core-1.2.3
 ARG shiro_web_version=shiro-web-1.2.3
 ARG splice_shiro_version=splice-shiro-$sm_version
@@ -14,10 +14,10 @@ ARG SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shi
 ARG github_PAT
 
 # If you want to install from a branch instead of a version
-#ARG ml_workflow_lib_branch='DBAAS-3254'
+#ARG ml_workflow_lib_branch='DBAAS-3361'
 #ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
-ARG ml_workflow_lib_version='0.0.8-dev'
+ARG ml_workflow_lib_version='0.0.9-dev'
 ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration

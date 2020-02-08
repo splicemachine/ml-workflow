@@ -15,7 +15,7 @@ from mlflow.store.dbmodels.initial_models import Base as InitialBase, SqlMetric 
     SqlExperiment as InitialSqlExperiment  # pre-migration sqlalchemy tables
 from mlflow.store.dbmodels.models import Base, SqlRun, SqlTag
 from mlflow.store.sqlalchemy_store import SqlAlchemyStore
-from mlmanager_lib.database.mlflow_models import SqlArtifact
+from mlmanager_lib.database.mlflow_models import SqlArtifact, Models
 from mlmanager_lib.database.models import ENGINE
 from mlmanager_lib.logger.logging_config import logging
 from sm_mlflow.alembic_support import SpliceMachineImpl
@@ -45,7 +45,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         InitialSqlExperiment, InitialSqlRun, InitialSqlTag, InitialSqlMetric, InitialSqlParam
     )  # alembic migrations will be applied to these initial tables
 
-    NON_ALEMBIC_TABLES: tuple = (SqlArtifact,)
+    NON_ALEMBIC_TABLES: tuple = (SqlArtifact, Models)
     TABLES: tuple = ALEMBIC_TABLES + NON_ALEMBIC_TABLES
 
     def __init__(self, store_uri: str = None, artifact_uri: str = None) -> None:
