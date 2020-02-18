@@ -33,7 +33,7 @@ then
     echo "Error: environment variable MLFLOW_URL is required"
 fi
 
-if [[ "$ENVIRONMENT" == "aws" ]]
+if [[ "$ENVIRONMENT" == "aws" ]] || [[ "$ENVIRONMENT" == "AWS" ]]
 then
     if [[ "$SAGEMAKER_ROLE" == "" ]]
     then
@@ -41,7 +41,7 @@ then
        exit 1
     fi
 
-elif [[ "$ENVIRONMENT" == "azure" ]]
+elif [[ "$ENVIRONMENT" == "azure" ]] || [[ "$ENVIRONMENT" == "AZ" ]] || [[ "$ENVIRONMENT" == "az" ]] || [[ "$ENVIRONMENT" == "AZURE" ]]
 then
     export AZURE_SUBSCRIPTION_ID=$(python3.6 ${SRC_HOME}/scripts/login_azure.py)
 fi
