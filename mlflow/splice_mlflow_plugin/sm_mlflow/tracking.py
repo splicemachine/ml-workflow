@@ -10,11 +10,12 @@ from mlflow.entities.lifecycle_stage import LifecycleStage
 from mlflow.exceptions import MlflowException
 from mlflow.protos.databricks_pb2 import INVALID_STATE
 from mlflow.store.db.utils import _upgrade_db
-from mlflow.store.dbmodels.initial_models import Base as InitialBase, SqlMetric as InitialSqlMetric, \
+from mlflow.store.tracking.dbmodels.initial_models import Base as InitialBase, SqlMetric as InitialSqlMetric, \
     SqlParam as InitialSqlParam, SqlTag as InitialSqlTag, SqlRun as InitialSqlRun, \
     SqlExperiment as InitialSqlExperiment  # pre-migration sqlalchemy tables
-from mlflow.store.dbmodels.models import Base, SqlRun, SqlTag
-from mlflow.store.sqlalchemy_store import SqlAlchemyStore
+from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag
+from mlflow.store.db.base_sql_model import Base
+from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore
 from mlmanager_lib.database.mlflow_models import SqlArtifact, Models
 from mlmanager_lib.database.models import ENGINE
 from mlmanager_lib.logger.logging_config import logging
