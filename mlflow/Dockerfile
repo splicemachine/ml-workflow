@@ -92,6 +92,6 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
-RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE
+RUN pip3.7 install "git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@DBAAS-3456"
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 CMD $SRC_HOME"/scripts/entrypoint.sh"

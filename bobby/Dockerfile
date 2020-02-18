@@ -93,7 +93,7 @@ COPY src $SRC_HOME
 # make the entrypoint executable by all users
 RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh
 
-RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE
+RUN pip3.7 install "git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@DBAAS-3456"
 VOLUME /var/lib/docker
 EXPOSE 2375
 

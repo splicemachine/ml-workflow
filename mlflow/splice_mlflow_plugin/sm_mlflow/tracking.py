@@ -5,6 +5,7 @@ DB
 import posixpath
 import uuid
 
+from mlflow.store.db.utils import _initialize_tables
 from mlflow.entities import RunStatus, SourceType
 from mlflow.entities.lifecycle_stage import LifecycleStage
 from mlflow.exceptions import MlflowException
@@ -69,7 +70,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         inspector = peer_into_splice_db(self.engine)
 
         if len(expected_tables & set(inspector.get_table_names(schema='MLMANAGER'))) == 0:
-            SqlAlchemyStore._initialize_tables(self.engine)
+            _initialize_tables(self.engine)
 
         self._initialize_tables()
 

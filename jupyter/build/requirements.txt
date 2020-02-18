@@ -6,3 +6,4 @@ jupyter
 plotly
 scikit-learn
 pandas
+mleap==0.15.0
