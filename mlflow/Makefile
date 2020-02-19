@@ -1,9 +1,10 @@
-NAME = splicemachine/sm_k8_bobby
+NAME = splicemachine/sm_k8_mlflow
 VERSION = 0.1.10
 SPLICE_BASE_IMAGE_VERSION = 0.0.2
+SPLICE_BUILD=3.0.0.1946
 ML_WORKFLOW_LIB_VERSION=0.0.9-dev
 ODBC_DRIVER_VERSION=2.7.63.0
-SPARK_VERSION=2.4.0
+
 GITHUB_PAT=""
 
 .PHONY: all build clean push realclean
@@ -15,8 +16,8 @@ run:
 
 build:
 	docker build --rm --build-arg splice_base_image_version=${SPLICE_BASE_IMAGE_VERSION} \
-          --build-arg github_PAT=${GITHUB_PAT} --build-arg ml_workflow_lib_version=${ML_WORKFLOW_LIB_VERSION} \
-          --build-arg odbc_driver_version=${ODBC_DRIVER_VERSION} --build-arg spark_version=${SPARK_VERSION} -t $(NAME):$(VERSION) .
+          --build-arg sm_version=${SPLICE_BUILD} --build-arg github_PAT=${GITHUB_PAT} --build-arg ml_workflow_lib_version=${ML_WORKFLOW_LIB_VERSION} \
+          --build-arg odbc_driver_version=${ODBC_DRIVER_VERSION} -t $(NAME):$(VERSION) .
 	docker tag $(NAME):$(VERSION) $(NAME):latest
 
 push:
