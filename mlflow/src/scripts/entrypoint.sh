@@ -41,6 +41,15 @@ then
     export MLFLOW_PORT=5001
 fi
 
+if [[ "$ENVIRONMENT" == "aws" ]] || [[ "$ENVIRONMENT" == "AWS" ]]
+then
+    export ENVIRONMENT="aws"
+
+elif [[ "$ENVIRONMENT" == "azure" ]] || [[ "$ENVIRONMENT" == "AZ" ]] || [[ "$ENVIRONMENT" == "az" ]] || [[ "$ENVIRONMENT" == "AZURE" ]]
+then
+    export ENVIRONMENT="azure"
+fi
+
 if [[ "$GUI_PORT" == "" ]]; then
     export GUI_PORT=5003;
 fi
