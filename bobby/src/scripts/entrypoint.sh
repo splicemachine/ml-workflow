@@ -35,6 +35,7 @@ fi
 
 if [[ "$ENVIRONMENT" == "aws" ]] || [[ "$ENVIRONMENT" == "AWS" ]]
 then
+    export ENVIRONMENT="aws"
     if [[ "$SAGEMAKER_ROLE" == "" ]]
     then
        echo "Error: environment variable SAGEMAKER_ROLE is required"
@@ -43,6 +44,7 @@ then
 
 elif [[ "$ENVIRONMENT" == "azure" ]] || [[ "$ENVIRONMENT" == "AZ" ]] || [[ "$ENVIRONMENT" == "az" ]] || [[ "$ENVIRONMENT" == "AZURE" ]]
 then
+    export ENVIRONMENT="azure"
     export AZURE_SUBSCRIPTION_ID=$(python3.6 ${SRC_HOME}/scripts/login_azure.py)
 fi
 
