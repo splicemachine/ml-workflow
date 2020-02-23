@@ -5,23 +5,20 @@ DB
 import posixpath
 import uuid
 
-from mlflow.store.db.utils import _initialize_tables
-from mlflow.entities import RunStatus, SourceType
-from mlflow.entities.lifecycle_stage import LifecycleStage
+from mlflow.entities import RunStatus, SourceType, LifecycleStage
 from mlflow.exceptions import MlflowException
 from mlflow.protos.databricks_pb2 import INVALID_STATE
-from mlflow.store.db.utils import _upgrade_db
+from mlflow.store.db.utils import _upgrade_db, _get_managed_session_maker, _verify_schema, _initialize_tables
 from mlflow.store.tracking.dbmodels.initial_models import Base as InitialBase, SqlMetric as InitialSqlMetric, \
     SqlParam as InitialSqlParam, SqlTag as InitialSqlTag, SqlRun as InitialSqlRun, \
     SqlExperiment as InitialSqlExperiment  # pre-migration sqlalchemy tables
-from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag
+from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlExperiment
 from mlflow.store.db.base_sql_model import Base
 from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore
-from mlmanager_lib.database.mlflow_models import SqlArtifact, Models
+from mlmanager_lib.database.mlflow_models import SqlArtifact
 from mlmanager_lib.database.models import ENGINE
 from mlmanager_lib.logger.logging_config import logging
 from sm_mlflow.alembic_support import SpliceMachineImpl
-from sm_mlflow.utilities import add_schemas_to_tables
 from sqlalchemy import inspect as peer_into_splice_db
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
@@ -47,7 +44,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         InitialSqlExperiment, InitialSqlRun, InitialSqlTag, InitialSqlMetric, InitialSqlParam
     )  # alembic migrations will be applied to these initial tables
 
-    NON_ALEMBIC_TABLES: tuple = (SqlArtifact, Models)
+    NON_ALEMBIC_TABLES: tuple = (SqlArtifact,)
     TABLES: tuple = ALEMBIC_TABLES + NON_ALEMBIC_TABLES
 
     def __init__(self, store_uri: str = None, artifact_uri: str = None) -> None:
@@ -58,8 +55,6 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         :param artifact_uri: (str) Path/URI to location suitable for large data (such as a blob
                                       store object, DBFS path, or shared NFS file system).
         """
-        add_schemas_to_tables(self.TABLES)
-
         # super(SqlAlchemyStore, self).__init__()
 
         self.db_type: str = 'splicemachinesa'
@@ -68,20 +63,24 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
 
         expected_tables = {table.__tablename__ for table in self.TABLES}
         inspector = peer_into_splice_db(self.engine)
+        print('peered')
 
         if len(expected_tables & set(inspector.get_table_names(schema='MLMANAGER'))) == 0:
             _initialize_tables(self.engine)
-
         self._initialize_tables()
 
         Base.metadata.bind = self.engine
         SessionMaker: sessionmaker = sessionmaker(bind=ENGINE)
-        self.ManagedSessionMaker = self._get_managed_session_maker(SessionMaker)
-        SqlAlchemyStore._verify_schema(ENGINE)
-
+        self.ManagedSessionMaker = _get_managed_session_maker(SessionMaker)
+        _verify_schema(ENGINE)
+        print(len(self.list_experiments()))
         if len(self.list_experiments()) == 0:
             with self.ManagedSessionMaker() as session:
+                print('acquired managed session maker')
                 self._create_default_experiment(session)
+
+        print('created default experiment')
+        print("IN YOUR FACE MLFLOW")
 
     def _initialize_tables(self):
         """
