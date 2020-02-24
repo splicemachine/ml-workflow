@@ -5,9 +5,8 @@ DB
 import posixpath
 import uuid
 
-from mlflow.store.db.utils import _initialize_tables
-from mlflow.entities import RunStatus, SourceType
-from mlflow.entities.lifecycle_stage import LifecycleStage
+from mlflow.store.db.utils import _initialize_tables, _get_managed_session_maker, _verify_schema
+from mlflow.entities import RunStatus, SourceType, LifecycleStage
 from mlflow.exceptions import MlflowException
 from mlflow.protos.databricks_pb2 import INVALID_STATE
 from mlflow.store.db.utils import _upgrade_db
@@ -76,8 +75,8 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
 
         Base.metadata.bind = self.engine
         SessionMaker: sessionmaker = sessionmaker(bind=ENGINE)
-        self.ManagedSessionMaker = self._get_managed_session_maker(SessionMaker)
-        SqlAlchemyStore._verify_schema(ENGINE)
+        self.ManagedSessionMaker = _get_managed_session_maker(SessionMaker)
+        _verify_schema(ENGINE)
 
         if len(self.list_experiments()) == 0:
             with self.ManagedSessionMaker() as session:
@@ -133,7 +132,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                 if experiment.lifecycle_stage != LifecycleStage.ACTIVE:
                     raise MlflowException('Experiment id={} must be active'.format(experiment_id),
                                           INVALID_STATE)
-
+                #FIXME: Should be longer than 8 characters
                 run_id: str = uuid.uuid4().hex[:8]
                 artifact_location: str = posixpath.join(experiment.artifact_location, run_id,
                                                         SqlAlchemyStore.ARTIFACTS_FOLDER_NAME)
@@ -171,3 +170,5 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
 
 if __name__ == "__main__":
     print(SpliceMachineImpl)
+    SpliceMachineTrackingStore(store_uri="splicetracking://", artifact_uri="spliceartifacts://")
+    print('done')
