@@ -23,7 +23,7 @@ class SpliceMachineModelRegistry(SqlAlchemyStore):
     Setup Model Registry Entrypoint
     """
 
-    def __init__(self, db_uri: str):
+    def __init__(self, store_uri: str = None):
         """
         Override the mlflow registry to support
         using splicemachine as a backend storage mechanism

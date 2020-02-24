@@ -1,3 +1,4 @@
 from sm_mlflow.tracking import SpliceMachineTrackingStore
 from sm_mlflow.artifact_repo import SpliceMachineArtifactStore
+from sm_mlflow.model_registry import SpliceMachineModelRegistry
 
