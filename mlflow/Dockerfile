@@ -72,7 +72,7 @@ RUN cd $BUILD_HOME && \
 # Install Python dependencies
 COPY splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
 RUN pip3.7 install -r $BUILD_HOME/requirements.txt && \
-    pip3.7 install $BUILD_HOME/splice_mlflow_plugin
+    pip3.7 install  $BUILD_HOME/splice_mlflow_plugin
 
 # Remove Build Directories and Create source directory
 RUN rm -rf $BUILD_HOME/* && \
@@ -94,4 +94,5 @@ RUN \
 
 RUN pip3.7 install "git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@DBAAS-3456"
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
+
 CMD $SRC_HOME"/scripts/entrypoint.sh"

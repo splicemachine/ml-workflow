@@ -30,6 +30,6 @@ setup(
     entry_points={
         "mlflow.tracking_store": "splicetracking=sm_mlflow:SpliceMachineTrackingStore",
         "mlflow.artifact_repository": "spliceartifacts=sm_mlflow:SpliceMachineArtifactStore",
-        "mlflow.model_registry_store": "spliceregistry=sm_mlflow:SpliceMachineModelRegistry"
+        "mlflow.model_registry_store": "splicetracking=sm_mlflow:SpliceMachineModelRegistry"
     }
 )
