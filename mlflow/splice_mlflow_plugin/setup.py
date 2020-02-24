@@ -17,7 +17,7 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
-VERSION: str = "0.0.1"
+VERSION: str = "0.0.2"
 setup(
     name='sm_mlflow',
     description='MLFlow Plugin for Splice Machine RDBMS. It allows Splice Machine to be used'
@@ -29,6 +29,7 @@ setup(
     packages=find_packages(),
     entry_points={
         "mlflow.tracking_store": "splicetracking=sm_mlflow:SpliceMachineTrackingStore",
-        "mlflow.artifact_repository": "spliceartifacts=sm_mlflow:SpliceMachineArtifactStore"
+        "mlflow.artifact_repository": "spliceartifacts=sm_mlflow:SpliceMachineArtifactStore",
+        "mlflow.model_registry_store": "spliceregistry=sm_mlflow:SpliceMachineModelRegistry"
     }
 )

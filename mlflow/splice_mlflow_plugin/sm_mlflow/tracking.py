@@ -126,8 +126,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                 if experiment.lifecycle_stage != LifecycleStage.ACTIVE:
                     raise MlflowException('Experiment id={} must be active'.format(experiment_id),
                                           INVALID_STATE)
-                #FIXME: Should be longer than 8 characters
-                run_id: str = uuid.uuid4().hex[:8]
+                run_id: str = uuid.uuid4().hex[:12]
                 artifact_location: str = posixpath.join(experiment.artifact_location, run_id,
                                                         SqlAlchemyStore.ARTIFACTS_FOLDER_NAME)
                 tags_dict: dict = {}
