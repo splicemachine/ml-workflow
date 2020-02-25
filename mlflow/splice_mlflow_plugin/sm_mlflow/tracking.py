@@ -9,7 +9,8 @@ from mlflow.entities import RunStatus, SourceType, LifecycleStage, ViewType
 from mlflow.exceptions import MlflowException
 from mlflow.protos.databricks_pb2 import INVALID_STATE
 import mlflow.protos.databricks_pb2 as databricks_pb2
-
+from mlflow.utils.validation import _validate_experiment_id
+from mlflow.utils.file_utils import read_yaml
 from mlflow.store.db.utils import _upgrade_db, _get_managed_session_maker, _verify_schema, _initialize_tables
 from mlflow.store.tracking.dbmodels.initial_models import Base as InitialBase, SqlMetric as InitialSqlMetric, \
     SqlParam as InitialSqlParam, SqlTag as InitialSqlTag, SqlRun as InitialSqlRun, \
@@ -164,31 +165,26 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
 
 
 
-        def _get_experiment(self, experiment_id, view_type=ViewType.ALL):
-            try:
-                self._check_root_dir()
-                self._validate_experiment_id(experiment_id)
-                experiment_dir = self._get_experiment_path(experiment_id, view_type)
-                if experiment_dir is None:
-                    raise MlflowException("Could not find experiment with ID %s" % experiment_id,
-                                          databricks_pb2.RESOURCE_DOES_NOT_EXIST)
-                meta = self.read_yaml(experiment_dir, self.FileStore.META_DATA_FILE_NAME)
-                if experiment_dir.startswith(self.trash_folder):
-                    meta['lifecycle_stage'] = LifecycleStage.DELETED
-                else:
-                    meta['lifecycle_stage'] = LifecycleStage.ACTIVE
-                meta['tags'] = self.get_all_experiment_tags(experiment_id)
-                experiment = self._read_persisted_experiment_dict(meta)
-                if experiment_id != experiment.experiment_id:
-                    logging.warning("Experiment ID mismatch for exp %s. ID recorded as '%s' in meta data. "
-                                    "Experiment will be ignored.",
-                                    experiment_id, experiment.experiment_id, exc_info=True)
-                    return None
-                return experiment
-            except:
-                import traceback
-                traceback.print_exc()
-
+    def _get_experiment(self, experiment_id, view_type=ViewType.ALL):
+        self._check_root_dir()
+        _validate_experiment_id(experiment_id)
+        experiment_dir = self._get_experiment_path(experiment_id, view_type)
+        if experiment_dir is None:
+            raise MlflowException("Could not find experiment with ID %s" % experiment_id,
+                                  databricks_pb2.RESOURCE_DOES_NOT_EXIST)
+        meta = read_yaml(experiment_dir, self.FileStore.META_DATA_FILE_NAME)
+        if experiment_dir.startswith(self.trash_folder):
+            meta['lifecycle_stage'] = LifecycleStage.DELETED
+        else:
+            meta['lifecycle_stage'] = LifecycleStage.ACTIVE
+        meta['tags'] = self.get_all_experiment_tags(experiment_id)
+        experiment = self._read_persisted_experiment_dict(meta)
+        if experiment_id != experiment.experiment_id:
+            logging.warning("Experiment ID mismatch for exp %s. ID recorded as '%s' in meta data. "
+                            "Experiment will be ignored.",
+                            experiment_id, experiment.experiment_id, exc_info=True)
+            return None
+        return experiment
 
     def get_experiment(self, experiment_id):
         """
@@ -197,16 +193,12 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         :param experiment_id: Integer id for the experiment
         :return: A single Experiment object if it exists, otherwise raises an Exception.
         """
-        try:
-            experiment_id = self.FileStore.DEFAULT_EXPERIMENT_ID if experiment_id is None else experiment_id
-            experiment = self._get_experiment(experiment_id)
-            if experiment is None:
-                raise MlflowException("Experiment '%s' does not exist." % experiment_id,
-                                      databricks_pb2.RESOURCE_DOES_NOT_EXIST)
-            return experiment
-        except:
-            import traceback
-            traceback.print_exc()
+        experiment_id = self.FileStore.DEFAULT_EXPERIMENT_ID if experiment_id is None else experiment_id
+        experiment = self._get_experiment(experiment_id)
+        if experiment is None:
+            raise MlflowException("Experiment '%s' does not exist." % experiment_id,
+                                  databricks_pb2.RESOURCE_DOES_NOT_EXIST)
+        return experiment
 
 if __name__ == "__main__":
     print(SpliceMachineImpl)
