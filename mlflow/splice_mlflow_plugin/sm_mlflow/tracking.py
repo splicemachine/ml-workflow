@@ -166,19 +166,19 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
 
 
     def _get_experiment(self, experiment_id, view_type=ViewType.ALL):
-        self._check_root_dir()
+        super(SpliceMachineTrackingStore,self)._check_root_dir()
         _validate_experiment_id(experiment_id)
-        experiment_dir = self._get_experiment_path(experiment_id, view_type)
+        experiment_dir = super(SpliceMachineTrackingStore,self)._get_experiment_path(experiment_id, view_type)
         if experiment_dir is None:
             raise MlflowException("Could not find experiment with ID %s" % experiment_id,
                                   databricks_pb2.RESOURCE_DOES_NOT_EXIST)
-        meta = read_yaml(experiment_dir, self.FileStore.META_DATA_FILE_NAME)
-        if experiment_dir.startswith(self.trash_folder):
+        meta = read_yaml(experiment_dir, super(SpliceMachineTrackingStore,self).FileStore.META_DATA_FILE_NAME)
+        if experiment_dir.startswith(super(SpliceMachineTrackingStore,self).trash_folder):
             meta['lifecycle_stage'] = LifecycleStage.DELETED
         else:
             meta['lifecycle_stage'] = LifecycleStage.ACTIVE
-        meta['tags'] = self.get_all_experiment_tags(experiment_id)
-        experiment = self._read_persisted_experiment_dict(meta)
+        meta['tags'] = super(SpliceMachineTrackingStore,self).get_all_experiment_tags(experiment_id)
+        experiment = super(SpliceMachineTrackingStore,self)._read_persisted_experiment_dict(meta)
         if experiment_id != experiment.experiment_id:
             logging.warning("Experiment ID mismatch for exp %s. ID recorded as '%s' in meta data. "
                             "Experiment will be ignored.",
