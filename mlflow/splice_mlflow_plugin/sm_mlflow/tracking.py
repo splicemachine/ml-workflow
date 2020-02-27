@@ -7,15 +7,18 @@ import uuid
 
 from mlflow.entities import RunStatus, SourceType, LifecycleStage, ViewType
 from mlflow.exceptions import MlflowException
-from mlflow.protos.databricks_pb2 import INVALID_STATE
+from mlflow.protos.databricks_pb2 import INVALID_STATE, INVALID_PARAMETER_VALUE
 from mlflow.protos.databricks_pb2 import RESOURCE_DOES_NOT_EXIST
 from mlflow.store.db.utils import _upgrade_db, _get_managed_session_maker, _verify_schema, _initialize_tables
+from mlflow.store.tracking import SEARCH_MAX_RESULTS_THRESHOLD
 from mlflow.store.tracking.dbmodels.initial_models import Base as InitialBase, SqlMetric as InitialSqlMetric, \
     SqlParam as InitialSqlParam, SqlTag as InitialSqlTag, SqlRun as InitialSqlRun, \
     SqlExperiment as InitialSqlExperiment  # pre-migration sqlalchemy tables
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlExperiment
 from mlflow.store.db.base_sql_model import Base
-from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore
+from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore, _get_sqlalchemy_filter_clauses, \
+    _get_attributes_filtering_clauses, _get_orderby_clauses
+from mlflow.utils.search_utils import SearchUtils
 from mlmanager_lib.database.mlflow_models import SqlArtifact
 from mlmanager_lib.database.models import ENGINE
 from mlmanager_lib.logger.logging_config import logging
@@ -195,6 +198,59 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             import traceback
             traceback.print_exc()
 
+    def _search_runs(self, experiment_ids, filter_string, run_view_type, max_results, order_by,
+                     page_token):
+
+        def compute_next_token(current_size):
+            next_token = None
+            if max_results == current_size:
+                final_offset = offset + max_results
+                next_token = SearchUtils.create_page_token(final_offset)
+
+            return next_token
+
+        if max_results > SEARCH_MAX_RESULTS_THRESHOLD:
+            raise MlflowException("Invalid value for request parameter max_results. It must be at "
+                                  "most {}, but got value {}".format(SEARCH_MAX_RESULTS_THRESHOLD,
+                                                                     max_results),
+                                  INVALID_PARAMETER_VALUE)
+
+        stages = set(LifecycleStage.view_type_to_stages(run_view_type))
+
+        with self.ManagedSessionMaker() as session:
+            # Fetch the appropriate runs and eagerly load their summary metrics, params, and
+            # tags. These run attributes are referenced during the invocation of
+            # ``run.to_mlflow_entity()``, so eager loading helps avoid additional database queries
+            # that are otherwise executed at attribute access time under a lazy loading model.
+            parsed_filters = SearchUtils.parse_search_filter(filter_string)
+            parsed_orderby, sorting_joins = _get_orderby_clauses(order_by, session)
+
+            query = session.query(SqlRun)
+            for j in _get_sqlalchemy_filter_clauses(parsed_filters, session):
+                query = query.join(j)
+            # using an outer join is necessary here because we want to be able to sort
+            # on a column (tag, metric or param) without removing the lines that
+            # do not have a value for this column (which is what inner join would do)
+            for j in sorting_joins:
+                query = query.outerjoin(j)
+
+            offset = SearchUtils.parse_start_offset_from_page_token(page_token)
+            queried_runs = query.distinct() \
+                .options(*self._get_eager_run_query_options()) \
+                .filter(
+                    SqlRun.experiment_id.in_([int(i) for i in experiment_ids]),
+                    SqlRun.lifecycle_stage.in_(stages),
+                    *_get_attributes_filtering_clauses(parsed_filters)) \
+                .order_by(*parsed_orderby) \
+                .offset(offset).limit(max_results).all()
+
+            print(f'QUERY RUNS: {len(queried_runs)}')
+            print('QUERIED RUNS VALUES:', str(queried_runs))
+
+            runs = [run.to_mlflow_entity() for run in queried_runs]
+            next_page_token = compute_next_token(len(runs))
+
+        return runs, next_page_token
 
 if __name__ == "__main__":
     print(SpliceMachineImpl)
