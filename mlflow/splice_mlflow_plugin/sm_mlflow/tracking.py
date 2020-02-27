@@ -14,7 +14,7 @@ from mlflow.store.tracking import SEARCH_MAX_RESULTS_THRESHOLD
 from mlflow.store.tracking.dbmodels.initial_models import Base as InitialBase, SqlMetric as InitialSqlMetric, \
     SqlParam as InitialSqlParam, SqlTag as InitialSqlTag, SqlRun as InitialSqlRun, \
     SqlExperiment as InitialSqlExperiment  # pre-migration sqlalchemy tables
-from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlExperiment
+from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlExperiment, SqlLatestMetric
 from mlflow.store.db.base_sql_model import Base
 from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore, _get_sqlalchemy_filter_clauses, \
     _get_attributes_filtering_clauses, _get_orderby_clauses
@@ -251,6 +251,33 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             next_page_token = compute_next_token(len(runs))
 
         return runs, next_page_token
+        return runs[0]
+
+    @staticmethod
+    def _update_latest_metric_if_necessary(logged_metric, session):
+        def _compare_metrics(metric_a, metric_b):
+            """
+            Override base function to remove locking because Splice Machine doesn't need to lock
+            https://doc.splicemachine.com/developers_fundamentals_transactions.html#Snapshot
+            :return: True if ``metric_a`` is strictly more recent than ``metric_b``, as determined
+                     by ``step``, ``timestamp``, and ``value``. False otherwise.
+            """
+            return (metric_a.step, metric_a.timestamp, metric_a.value) > \
+                   (metric_b.step, metric_b.timestamp, metric_b.value)
+
+        # Fetch the latest metric value corresponding to the specified run_id and metric key
+        latest_metric = session \
+            .query(SqlLatestMetric) \
+            .filter(
+                SqlLatestMetric.run_uuid == logged_metric.run_uuid,
+                SqlLatestMetric.key == logged_metric.key) \
+            .one_or_none()
+        if latest_metric is None or _compare_metrics(logged_metric, latest_metric):
+            session.merge(
+                SqlLatestMetric(
+                    run_uuid=logged_metric.run_uuid, key=logged_metric.key,
+                    value=logged_metric.value, timestamp=logged_metric.timestamp,
+                    step=logged_metric.step, is_nan=logged_metric.is_nan))
 
 if __name__ == "__main__":
     print(SpliceMachineImpl)
