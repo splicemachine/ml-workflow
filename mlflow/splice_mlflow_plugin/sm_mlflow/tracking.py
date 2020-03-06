@@ -20,7 +20,7 @@ from mlflow.store.db.base_sql_model import Base
 from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore, _get_sqlalchemy_filter_clauses, \
     _get_attributes_filtering_clauses#, _get_orderby_clauses
 from mlflow.utils.search_utils import SearchUtils
-from mlmanager_lib.database.mlflow_models import SqlArtifact, Model
+from mlmanager_lib.database.mlflow_models import SqlArtifact, Models
 from mlmanager_lib.database.models import ENGINE
 from mlmanager_lib.logger.logging_config import logging
 from sm_mlflow.alembic_support import SpliceMachineImpl
@@ -115,7 +115,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         InitialSqlExperiment, InitialSqlRun, InitialSqlTag, InitialSqlMetric, InitialSqlParam
     )  # alembic migrations will be applied to these initial tables
 
-    NON_ALEMBIC_TABLES: tuple = (SqlArtifact,)
+    NON_ALEMBIC_TABLES: tuple = (SqlArtifact,Models)
     TABLES: tuple = ALEMBIC_TABLES + NON_ALEMBIC_TABLES
 
     def __init__(self, store_uri: str = None, artifact_uri: str = None) -> None:
@@ -349,14 +349,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                 query = query.outerjoin(j)
 
             offset = SearchUtils.parse_start_offset_from_page_token(page_token)
-            # queried_runs = query.distinct() \
-            #     .options(*self._get_eager_run_query_options()) \
-            #     .filter(
-            #         SqlRun.experiment_id.in_([int(i) for i in experiment_ids]),
-            #         SqlRun.lifecycle_stage.in_(stages),
-            #         *_get_attributes_filtering_clauses(parsed_filters)) \
-            #     .order_by(*parsed_orderby) \
-            #     .offset(offset).limit(max_results)
+
             queried_runs = query.distinct() \
                 .options(*self._get_eager_run_query_options()) \
                 .filter(
@@ -377,18 +370,28 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             if order_by:
                 try: #FIXME: We need a smarter comparison
                     x = re.sub("[.'\[\]]","",str(order_by)).split('`')
-                    reverse = x[-1].strip() != 'ASC'
-                    typ = x[0] # metrics or params
-                    col = x[1] # the metric/param to order by
+                    # Start time is funky
+                    if 'start_time' in x[0]:
+                        col = 'start_time'
+                        default_val = 0
+                        reverse = 'ASC' not in x[0] # If ASC, keep sorted order
+                        runs = sorted(runs, key=lambda i:i.to_dictionary()['info'].get(col,default_val), reverse=reverse)
+                    else:
+                        reverse = x[-1].strip() != 'ASC'
+                        typ = x[0] # metrics or params or tags
+                        col = x[1] # the metric/param to order by
+                        # Fix parsing for mlflow columns
+                        if 'mlflow' in col and typ == 'tags':
+                            col = col[:6] + '.' + col[6:]
 
-                    # Determine if the value is an number or string
-                    for i,j in enumerate(runs):
-                        if(col in j.to_dictionary()['data'][typ]):
-                            ind = i
-                            break
-                    compare_val = runs[ind].to_dictionary()['data'][typ][col]
-                    default_val = 'z' if str(compare_val) == compare_val else 0 # in case a run doesn't have that value
-                    runs = sorted(runs, key=lambda i:i.to_dictionary()['data'][typ].get(col,default_val), reverse=reverse)
+                        # Determine if the value is an number or string
+                        for i,j in enumerate(runs):
+                            if(col in j.to_dictionary()['data'][typ]):
+                                ind = i
+                                break
+                        compare_val = runs[ind].to_dictionary()['data'][typ][col]
+                        default_val = 'z' if str(compare_val) == compare_val else 0 # in case a run doesn't have that value
+                        runs = sorted(runs, key=lambda i:i.to_dictionary()['data'][typ].get(col,default_val), reverse=reverse)
                 except: # If this fails just don't order. We shouldn't throw up
                     import traceback
                     traceback.print_exc()
