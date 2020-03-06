@@ -20,7 +20,7 @@ from mlflow.store.db.base_sql_model import Base
 from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore, _get_sqlalchemy_filter_clauses, \
     _get_attributes_filtering_clauses#, _get_orderby_clauses
 from mlflow.utils.search_utils import SearchUtils
-from mlmanager_lib.database.mlflow_models import SqlArtifact
+from mlmanager_lib.database.mlflow_models import SqlArtifact, Model
 from mlmanager_lib.database.models import ENGINE
 from mlmanager_lib.logger.logging_config import logging
 from sm_mlflow.alembic_support import SpliceMachineImpl
