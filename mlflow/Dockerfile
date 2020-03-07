@@ -17,7 +17,7 @@ ARG github_PAT
 #ARG ml_workflow_lib_branch='DBAAS-3361'
 #ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
-ARG ml_workflow_lib_version='0.0.9-dev'
+ARG ml_workflow_lib_version='0.0.10-dev'
 ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration
@@ -92,7 +92,7 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
-RUN pip3.7 install --upgrade git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@DBAAS-3456
+RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 
 CMD $SRC_HOME"/scripts/entrypoint.sh"

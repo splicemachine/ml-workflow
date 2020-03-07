@@ -383,6 +383,8 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                         # Fix parsing for mlflow columns
                         if 'mlflow' in col and typ == 'tags':
                             col = col[:6] + '.' + col[6:]
+                            if col == 'mlflow.sourcegitcommit': col = 'mlflow.source.git.commit'
+                            elif col == 'mlflow.sourcename': col = 'mlflow.source.name'
 
                         # Determine if the value is an number or string
                         for i,j in enumerate(runs):

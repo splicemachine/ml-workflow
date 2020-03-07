@@ -132,8 +132,8 @@ class BaseDeploymentHandler(BaseHandler):
 
             LOGGER.info(f"Using `Retrieved MLFlow Run: {self.mlflow_run}")
 
-            self.task.mlflow_url: str = f"<a href='{run_url}' target='_blank' onmouseover=" \
-                f"'javascript:event.target.port={env_vars['MLFLOW_PORT']}'>Link to Mlflow Run</a>"
+            self.task.mlflow_url: str = f"<a href='{run_url.replace('-jobtracker','')}/mlflow' target='_blank' onmouseover=" \
+                f">Link to Mlflow Run</a>"
 
             self.model_dir: str = self.mlflow_run.data.tags['splice.model_name']
 
