@@ -93,4 +93,4 @@ nohup java gateway &
 # Start MLFlow Tracking Server logging to mlflow log file
 echo "Starting MLFlow Server on port :${MLFLOW_PORT}"
 mlflow server --host 0.0.0.0 --backend-store-uri "splicetracking://" \
-    --default-artifact-root "spliceartifacts://" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
+    --default-artifact-root "spliceartifacts:////" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}

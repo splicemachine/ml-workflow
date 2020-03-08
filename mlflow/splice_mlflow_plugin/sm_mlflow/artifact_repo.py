@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 from mlflow.entities.file_info import FileInfo
 from mlflow.exceptions import MlflowException, INTERNAL_ERROR
-from mlflow.store.artifact_repo import ArtifactRepository
+from mlflow.store.artifact.artifact_repo import ArtifactRepository
 from mlmanager_lib.database.constants import Extraction
 from mlmanager_lib.database.mlflow_models import Base, SqlArtifact
 from mlmanager_lib.database.models import ENGINE, SessionFactory

@@ -15,13 +15,13 @@ services:
   mlflow:
     environment:
       DB_HOST: host.docker.internal
-      DB_USER: splice
+      DB_USER: mlmanager
       DB_PASSWORD: [DB PASSWORD]
       FRAMEWORK_NAME: amrit-streamtest-6160590510
       ZEPPELIN_URL: https://monte-ml.splicemachine.io
       MODE: development
       ENVIRONMENT: aws
-    image: splicemachine/sm_k8_mlflow:0.1.12
+    image: splicemachine/sm_k8_mlflow:0.1.13
     ports:
       - "5001:5001"
       - "5003:5003"
@@ -34,7 +34,7 @@ services:
     privileged: true
     environment:
       DB_HOST: host.docker.internal
-      DB_USER: splice
+      DB_USER: mlmanager
       DB_PASSWORD: [REPLACE WITH DB PASSWORD]
       FRAMEWORK_NAME: amrit-streamtest
       MLFLOW_URL: "http://mlflow:5001"
@@ -45,7 +45,7 @@ services:
       SAGEMAKER_ROLE: arn:aws:iam::[AWS ACCOUNT NUMBER]:role/splice-sagemaker
       MODE: development
       ENVIRONMENT: aws
-    image: splicemachine/sm_k8_bobby:0.1.12
+    image: splicemachine/sm_k8_bobby:0.1.13
     build:
       args:
         splice_base_image_version: 0.0.2
