@@ -10,11 +10,11 @@ ARG github_PAT
 ENV PYSPARK_PYTHON = /usr/local/bin/python3.7
 
 # if you want to install from a branch instead of a version
-#ARG ml_workflow_lib_branch='DBAAS-3361'
+#ARG ml_workflow_lib_branch='DBAAS-3569'
 #ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
 # Install from a release version
-ARG ml_workflow_lib_version='0.0.10-dev'
+ARG ml_workflow_lib_version='0.0.11-dev'
 ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration
