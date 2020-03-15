@@ -38,16 +38,6 @@ RUN mkdir -p $SPLICE_JAR_DIR && \
     curl -kLs $SPLICEMACHINE_URI | tar -xz && \
     mv $SPLICE_FOLDER_NAME $SPLICE_JAR_DIR && \
     ln -s $SPLICE_JAR_DIR/bin/sqlshell.sh /usr/bin/sqlshell.sh
-#    curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SPLICE_JAR_DIR/db-client.jar && \
-#    curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SPLICE_JAR_DIR/db-client-sources.jar && \
-#    curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-engine/$sm_version/db-engine-$sm_version.jar -o $SPLICE_JAR_DIR/db-engine.jar && \
-#    curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-engine/$sm_version/db-engine-$sm_version-sources.jar -o $SPLICE_JAR_DIR/db-engine-sources.jar && \
-#    curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-build/$sm_version/db-build-$sm_version.jar -o $SPLICE_JAR_DIR/db-build.jar && \
-#    curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-build/$sm_version/db-build-$sm_version-sources.jar -o $SPLICE_JAR_DIR/db-build-sources.jar && \
-#    curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/splice_spark/$sm_version/splice_spark-$sm_version-cdh6.3.0.jar -o $SPLICE_JAR_DIR/splice_spark.jar && \
-#    curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/splice_spark/$sm_version/splice_spark-$sm_version-cdh6.3.0-sources.jar -o $SPLICE_JAR_DIR/splice_spark-sources.jar && \
-#    curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/hbase_sql/$sm_version/hbase_sql-$sm_version-cdh6.3.0.jar -o $SPLICE_JAR_DIR/hbase_sql.jar && \
-#    curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/hbase_sql/$sm_version/hbase_sql-$sm_version-cdh6.3.0-sources.jar -o $SPLICE_JAR_DIR/hbase_sql-sources.jar
 
 # Spark needs the user to be non-root or it throws an error
 RUN /opt/conda/envs/beakerx/bin/pip  install -r $BUILD_HOME/requirements.txt && \
