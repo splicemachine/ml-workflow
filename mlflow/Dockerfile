@@ -14,10 +14,10 @@ ARG SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shi
 ARG github_PAT
 
 # If you want to install from a branch instead of a version
-#ARG ml_workflow_lib_branch='DBAAS-3361'
+#ARG ml_workflow_lib_branch='DBAAS-3569'
 #ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
-ARG ml_workflow_lib_version='0.0.10-dev'
+ARG ml_workflow_lib_version='0.0.11-dev'
 ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration

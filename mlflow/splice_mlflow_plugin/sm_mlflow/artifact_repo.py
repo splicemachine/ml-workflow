@@ -3,8 +3,15 @@ Splice Machine Custom
 Artifact Store that uses
 BLOBS
 """
+import posixpath
+import tempfile
 from contextlib import contextmanager
 
+import os
+from io import BytesIO
+from zipfile import ZipFile
+
+from mlflow.protos.databricks_pb2 import INVALID_PARAMETER_VALUE, RESOURCE_DOES_NOT_EXIST
 from mlflow.entities.file_info import FileInfo
 from mlflow.exceptions import MlflowException, INTERNAL_ERROR
 from mlflow.store.artifact.artifact_repo import ArtifactRepository
@@ -104,5 +111,62 @@ class SpliceMachineArtifactStore(ArtifactRepository):
                 for artifact in sqlalchemy_query.all()
             ]  # We do NOT want to load the BLOB as it would slow down the GUI
 
+    def download_artifacts(self, artifact_path, dst_path=None):
+        """
+        Download an artifact file or directory to a local directory if applicable, and return a
+        local path for it.
+        The caller is responsible for managing the lifecycle of the downloaded artifacts.
+        :param artifact_path: Relative source path to the desired artifacts.
+        :param dst_path: Absolute path of the local filesystem destination directory to which to
+                         download the specified artifacts. This directory must already exist.
+                         If unspecified, the artifacts will either be downloaded to a new
+                         uniquely-named directory on the local filesystem or will be returned
+                         directly in the case of the LocalArtifactRepository.
+        :return: Absolute path of the local filesystem location containing the desired artifacts.
+        """
+        if dst_path is None:
+            dst_path = tempfile.mkdtemp()
+        dst_path = os.path.abspath(dst_path)
+        if not os.path.exists(dst_path):
+            raise MlflowException(
+                message=(
+                    "The destination path for downloaded artifacts does not"
+                    " exist! Destination path: {dst_path}".format(dst_path=dst_path)),
+                error_code=RESOURCE_DOES_NOT_EXIST)
+        elif not os.path.isdir(dst_path):
+            raise MlflowException(
+                message=(
+                    "The destination path for downloaded artifacts must be a directory!"
+                    " Destination path: {dst_path}".format(dst_path=dst_path)),
+                error_code=INVALID_PARAMETER_VALUE)
+
+
+        with self.ManagedSessionMaker() as Session:
+            columns: tuple = ('binary', 'file_extension', 'name')
+            sqlalchemy_query = Session.query(
+                SqlArtifact).options(load_only(*columns)).filter_by(
+                run_uuid=self.run_uuid).filter_by(name=artifact_path)
+
+        object = sqlalchemy_query.one()
+
+        if object.file_extension == 'sparkmodel':
+            # raise MlflowException('We do not support downloading Spark Models')
+            os.system('touch /tmp/README.txt')
+            os.system('echo "We do not support downloading serialized Spark models. Only single file objects (or zip files) are supported." >> /tmp/README.txt')
+            return '/tmp/README.txt'
+        elif object.file_extension == 'zip':
+            zip_file = ZipFile(BytesIO(object))
+            zip_file.extractall(f'{dst_path}/{object.name}')
+            os.system(f'zip -r \'{dst_path}/{object.name}.zip\' \'{dst_path}/{object.name}\'')
+            os.system(f'rm -rf \'{dst_path}/{object.name}\'')
+        else:
+            with open(f'{dst_path}/{object.name}.{object.file_extension}','wb') as downloaded_file:
+                downloaded_file.write(object.binary)
+
+        return f'{dst_path}/{object.name}.{object.file_extension}'
+
+
     def _download_file(self, remote_file_path, local_path):
-        print(remote_file_path, local_path)
+        # We implement this in download_artifacts
+        pass
+
