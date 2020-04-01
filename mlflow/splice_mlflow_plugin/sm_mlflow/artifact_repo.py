@@ -148,19 +148,7 @@ class SpliceMachineArtifactStore(ArtifactRepository):
                 run_uuid=self.run_uuid).filter_by(name=artifact_path)
 
         object = sqlalchemy_query.one()
-
-        if object.file_extension == 'sparkmodel':
-            # raise MlflowException('We do not support downloading Spark Models')
-            os.system('touch /tmp/README.txt')
-            os.system('echo "We do not support downloading serialized Spark models. Only single file objects (or zip files) are supported." >> /tmp/README.txt')
-            return '/tmp/README.txt'
-        elif object.file_extension == 'zip':
-            zip_file = ZipFile(BytesIO(object))
-            zip_file.extractall(f'{dst_path}/{object.name}')
-            os.system(f'zip -r \'{dst_path}/{object.name}.zip\' \'{dst_path}/{object.name}\'')
-            os.system(f'rm -rf \'{dst_path}/{object.name}\'')
-        else:
-            with open(f'{dst_path}/{object.name}.{object.file_extension}','wb') as downloaded_file:
+        with open(f'{dst_path}/{object.name}.{object.file_extension}','wb') as downloaded_file:
                 downloaded_file.write(object.binary)
 
         return f'{dst_path}/{object.name}.{object.file_extension}'
