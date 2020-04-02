@@ -52,6 +52,12 @@ RUN chmod -R 777 $SRC_HOME
 RUN apt-get -y install openjdk-8-jdk
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar:$SPLICE_JAR_DIR/$SPLICE_FOLDER_NAME/*
 
+RUN pip install sparkmonitor-s==0.0.11
+
 WORKDIR $SRC_HOME
 
-
+#RUN jupyter nbextension install --py sparkmonitor --user --symlink && \
+#    jupyter nbextension enable sparkmonitor --user --py && \
+#    jupyter serverextension enable --py --user sparkmonitor && \
+#    echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" >>  \
+#    $(ipython profile locate default)/ipython_kernel_config.py
