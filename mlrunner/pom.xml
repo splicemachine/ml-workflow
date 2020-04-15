@@ -34,7 +34,6 @@
             <groupId>ai.h2o</groupId>
             <artifactId>h2o-genmodel</artifactId>
             <version>3.28.1.2</version>
-<!--            <scope>provided</scope>-->
         </dependency>
 
         <dependency>
