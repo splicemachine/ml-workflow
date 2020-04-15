@@ -1,0 +1,243 @@
+package com.splicemachine.mlrunner;
+
+import ml.combust.mleap.core.types.StructField;
+import ml.combust.mleap.core.types.StructType;
+import ml.combust.mleap.core.types.DataType;
+import ml.combust.mleap.runtime.frame.DefaultLeapFrame;
+import ml.combust.mleap.runtime.frame.Row;
+import ml.combust.mleap.runtime.frame.Transformer;
+import ml.combust.mleap.runtime.javadsl.LeapFrameBuilder;
+import ml.combust.mleap.tensor.Tensor;
+import scala.collection.Iterator;
+import scala.collection.JavaConverters;
+import scala.collection.Seq;
+
+import java.io.IOException;
+import java.sql.*;
+import java.util.Collections;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.*;
+import java.util.regex.Pattern;
+
+import hex.genmodel.easy.exception.PredictException;
+
+/**
+ * Scalar function for making predictions via mleap
+ */
+public class MLeapRunner extends AbstractRunner {
+    private static LeapFrameBuilder frameBuilder = new LeapFrameBuilder();
+    Transformer model;
+    static Class[] parameterTypes = { String.class };
+
+    public MLeapRunner(final Object model) {
+        this.model = (Transformer) model;
+    }
+
+    private static HashMap<String, DataType> typeConversions = new HashMap<String, DataType>() {
+        {
+            put("FLOAT", frameBuilder.createFloat());
+            put("BIGINT", frameBuilder.createLong());
+            put("INT", frameBuilder.createInt());
+            put("INTEGER", frameBuilder.createInt());
+            put("SMALLINT", frameBuilder.createShort());
+            put("TINYINT", frameBuilder.createByte());
+            put("BOOLEAN", frameBuilder.createBoolean());
+            put("CHAR", frameBuilder.createString());
+            put("VARCHAR", frameBuilder.createString());
+            put("DATE", frameBuilder.createString());
+            put("TIME", frameBuilder.createString());
+            put("TIMESTAMP", frameBuilder.createString());
+            put("DECIMAL", frameBuilder.createDouble());
+            put("NUMERIC", frameBuilder.createDouble());
+            put("DOUBLE", frameBuilder.createDouble());
+            put("REAL", frameBuilder.createDouble());
+        }
+
+    };
+    private static HashMap<String, Method> converters = new HashMap<String, Method>() {
+        {
+            try {
+                put("DOUBLE", MLeapRunner.class.getMethod("toDouble", parameterTypes));
+                put("FLOAT", MLeapRunner.class.getMethod("toFloat", parameterTypes));
+                put("BIGINT", MLeapRunner.class.getMethod("toLong", parameterTypes));
+                put("INT", MLeapRunner.class.getMethod("toInt", parameterTypes));
+                put("INTEGER", MLeapRunner.class.getMethod("toInt", parameterTypes));
+                put("SMALLINT", MLeapRunner.class.getMethod("toShort", parameterTypes));
+                put("TINYINT", MLeapRunner.class.getMethod("toByte", parameterTypes));
+                put("BOOLEAN", MLeapRunner.class.getMethod("toBool", parameterTypes));
+                put("CHAR", MLeapRunner.class.getMethod("toStr", parameterTypes));
+                put("VARCHAR", MLeapRunner.class.getMethod("toStr", parameterTypes));
+                put("DATE", MLeapRunner.class.getMethod("toStr", parameterTypes));
+                put("TIME", MLeapRunner.class.getMethod("toStr", parameterTypes));
+                put("TIMESTAMP", MLeapRunner.class.getMethod("toStr", parameterTypes));
+                put("DECIMAL", MLeapRunner.class.getMethod("toDouble", parameterTypes));
+                put("NUMERIC", MLeapRunner.class.getMethod("toDouble", parameterTypes));
+                put("REAL", MLeapRunner.class.getMethod("toDouble", parameterTypes));
+            } catch (final NoSuchMethodException e) {
+                e.printStackTrace();
+            }
+        }
+    };
+
+    public static Double toDouble(final String d) {
+        return Double.valueOf(d);
+    }
+
+    public static Float toFloat(final String d) {
+        return Float.valueOf(d);
+    }
+
+    public static Long toLong(final String d) {
+        return Long.valueOf(d);
+    }
+
+    public static Integer toInt(final String d) {
+        return Integer.valueOf(d);
+    }
+
+    public static Short toShort(final String d) {
+        return Short.valueOf(d);
+    }
+
+    public static Byte toByte(final String d) {
+        return Byte.valueOf(d);
+    }
+
+    public static Boolean toBool(final String d) {
+        return Boolean.valueOf(d);
+    }
+
+    public static String toStr(final String d) {
+        return d;
+    }
+
+    private static <E> Seq<E> createScalaSequence(final ArrayList<E> javaList) {
+        return JavaConverters.collectionAsScalaIterableConverter(javaList).asScala().toSeq();
+    }
+
+    /**
+     * Function to create a LeapFrame given the features in String format and the
+     * schema of the dataset in String format Function will properly convert values
+     * to String/Float/Double etc based on the provided schema
+     *
+     * @param rawData: A comma separated list of strings
+     * @param schema:  A String of SQL Column List format containing comma separated
+     *                 column name and datatype. Ex 'A INTEGER, B FLOAT'
+     * @return DefaultLeapFrame reconstructed from the strings
+     */
+
+    private DefaultLeapFrame parseDataToFrame(final String rawData, final String schema)
+            throws InvocationTargetException, IllegalAccessException {
+        // Schema parsing setup
+        final Pattern p = Pattern.compile("[^A-Za-z]");
+        final String[] schemaStrings = schema.split(",");
+        final StructField[] structFields = new StructField[schemaStrings.length];
+        // Raw data parse setup
+        final String[] splits = rawData.split(",");
+        final Object[] features = new Object[splits.length];
+
+        // Parsing data and creating LeapFrame
+        for (int i = 0; i < schemaStrings.length; i++) {
+            // get the name and type of the column
+            final String schStr = schemaStrings[i].trim();
+            final String col = schStr.trim().split(" ")[0];
+            String dataType = schStr.substring(col.length());
+            dataType = p.matcher(dataType).replaceAll("");
+            // Create the StructField and properly convert the raw value
+            structFields[i] = frameBuilder.createField(col, typeConversions.get(dataType));
+            features[i] = converters.get(dataType).invoke(null, splits[i]);
+            // TODO: The following 2 lines seem to work perfectly (not casting the value and
+            // not selecting the correct datatype)
+            // TODO: It may be faster to not do proper casting, but that seems wrong....
+            // structFields[i] = frameBuilder.createField(col.toLowerCase(),
+            // frameBuilder.createString());
+            // features[i] = splits[i];
+        }
+        // Create our LeapFrame
+        final StructType schemaStruct = frameBuilder.createSchema(Arrays.asList(structFields));
+        final Row featureSet = frameBuilder.createRowFromIterable(Arrays.asList(features));
+        final DefaultLeapFrame frame = frameBuilder.createFrame(schemaStruct, Arrays.asList(featureSet));
+        return frame;
+    }
+
+    @Override
+    public String predictClassification(final String rawData, final String schema) throws InvocationTargetException,
+            IllegalAccessException, SQLException, IOException, ClassNotFoundException {
+        final DefaultLeapFrame frame = parseDataToFrame(rawData, schema);
+        // Define out desired output column(s)
+        final ArrayList<String> outputCols = new ArrayList<String>(Collections.singletonList("probability"));
+        // Run the model
+        final DefaultLeapFrame output = this.model.transform(frame).get();
+        final Tensor probs = output.select(createScalaSequence(outputCols)).get().dataset().iterator().next()
+                .getTensor(0);
+        final Iterator tensorIterator = probs.rawValuesIterator();
+        final StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < probs.size(); i++) {
+            builder.append(i).append("=").append(tensorIterator.next().toString()).append(";");
+        }
+        final String res = builder.toString();
+        return res.substring(0, res.length() - 1);
+    }
+
+    @Override
+    public Double predictRegression(final String rawData, final String schema) throws InvocationTargetException,
+            IllegalAccessException, SQLException, IOException, ClassNotFoundException {
+        final DefaultLeapFrame frame = parseDataToFrame(rawData, schema);
+        // Define out desired output column(s)
+        final ArrayList<String> outputCols = new ArrayList<String>(Collections.singletonList("prediction"));
+        // Run the model
+        final DefaultLeapFrame output = this.model.transform(frame).get();
+        final Double pred = output.select(createScalaSequence(outputCols)).get().collect().last().getDouble(0);
+        return pred;
+    }
+
+    @Override
+    public String predictClusterProbabilities(final String rawData, final String schema)
+            throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
+            ClassNotFoundException {
+        final DefaultLeapFrame frame = parseDataToFrame(rawData, schema);
+        // Run the model
+        final DefaultLeapFrame output = this.model.transform(frame).get();
+
+        // Define out desired output columns
+        final ArrayList<String> outputCols = new ArrayList<String>(Collections.singletonList("probability"));
+        final Tensor probs = output.select(MLeapRunner.createScalaSequence(outputCols)).get().dataset().iterator().next()
+                .getTensor(0);
+        final Iterator tensorIterator = probs.rawValuesIterator();
+        final StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < probs.size(); i++) {
+            builder.append(i).append("=").append(tensorIterator.next().toString()).append(";");
+        }
+        final String res = builder.toString();
+        return res.substring(0, res.length() - 1);
+    }
+
+    public int predictCluster(final String rawData, final String schema) throws InvocationTargetException,
+            IllegalAccessException, SQLException, IOException, ClassNotFoundException {
+        final DefaultLeapFrame frame = parseDataToFrame(rawData, schema);
+        // Run the model
+        final DefaultLeapFrame output = this.model.transform(frame).get();
+        final ArrayList<String> outputCols = new ArrayList<String>(Collections.singletonList("prediction"));
+        // Run the model
+        final int pred = output.select(MLeapRunner.createScalaSequence(outputCols)).get().collect().last().getInt(0);
+        return pred;
+    }
+
+    @Override
+    public double[] predictKeyValue(final String rawData, final String schema) throws PredictException {
+        return null;
+    }
+
+    // public static void main(final String[] args) throws InvocationTargetException, IllegalAccessException, SQLException,
+    //         IOException, ClassNotFoundException {
+    //     final String vals = "0, -1.3598071336738, -0.0727811733098497, 2.53634673796914, 1.37815522427443, -0.338320769942518, 0.462387777762292, 0.239598554061257, 0.0986979012610507, 0.363786969611213, 0.0907941719789316, -0.551599533260813, -0.617800855762348, -0.991389847235408, -0.311169353699879, 1.46817697209427, -0.470400525259478, 0.207971241929242, 0.0257905801985591, 0.403992960255733, 0.251412098239705, -0.018306777944153, 0.277837575558899, -0.110473910188767, 0.0669280749146731, 0.128539358273528, -0.189114843888824, 0.133558376740387, -0.0210530534538215, 149.62";
+    //     final String sch = "TIME_OFFSET INTEGER,V1 DOUBLE,V2 DOUBLE,V3 DOUBLE,V4 DOUBLE,V5 DOUBLE,V6 DOUBLE,V7 DOUBLE,V8 DOUBLE,V9 DOUBLE,V10 DOUBLE,V11 DOUBLE,V12 DOUBLE,V13 DOUBLE,V14 DOUBLE,V15 DOUBLE,V16 DOUBLE,V17 DOUBLE,V18 DOUBLE,V19 DOUBLE,V20 DOUBLE,V21 DOUBLE,V22 DOUBLE,V23 DOUBLE,V24 DOUBLE,V25 DOUBLE,V26 DOUBLE,V27 DOUBLE,V28 DOUBLE,AMOUNT DOUBLE";
+    //     final String pth = "jar:file:///Users/benepstein/Desktop/model.zip";
+    //     final String p = MLeapRunner.predictClassification(vals, sch);
+    //     System.out.println(p);
+    // }
+}
+
+
