@@ -1,11 +1,8 @@
 channels:
 - defaults
 dependencies:
-- pyspark==2.4.0
 - python==3.7.3
-- scikit-learn==0.22.2
-- keras==2.3.1
-- tensorflow==2.2
 - pip:
+  - scikit-learn==0.22.2
   - mlflow==1.6.0
 name: mlflow-env
