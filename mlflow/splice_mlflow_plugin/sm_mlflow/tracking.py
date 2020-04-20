@@ -18,7 +18,7 @@ from mlflow.store.tracking.dbmodels.initial_models import Base as InitialBase, S
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlExperiment, SqlLatestMetric, SqlParam
 from mlflow.store.db.base_sql_model import Base
 from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore, _get_sqlalchemy_filter_clauses, \
-    _get_attributes_filtering_clauses#, _get_orderby_clauses
+    _get_attributes_filtering_clauses  # , _get_orderby_clauses
 from mlflow.utils.search_utils import SearchUtils
 from mlmanager_lib.database.mlflow_models import SqlArtifact, Models
 from mlmanager_lib.database.models import ENGINE
@@ -91,7 +91,7 @@ def _get_orderby_clauses_test(order_by, session):
             # avoid ambiguity
             if SearchUtils.is_metric(key_type, '='):
                 clauses.append(sql.case([
-                    (subquery.c.is_nan==True,1),
+                    (subquery.c.is_nan == True, 1),
                     (order_value.is_(None), 1)
                 ], else_=0).cast(Integer).label('clause_%s' % clause_id))
             else:  # other entities do not have an 'is_nan' field
@@ -108,14 +108,12 @@ def _get_orderby_clauses_test(order_by, session):
     return clauses, ordering_joins
 
 
-
-
 class SpliceMachineTrackingStore(SqlAlchemyStore):
     ALEMBIC_TABLES: tuple = (
         InitialSqlExperiment, InitialSqlRun, InitialSqlTag, InitialSqlMetric, InitialSqlParam
     )  # alembic migrations will be applied to these initial tables
 
-    NON_ALEMBIC_TABLES: tuple = (SqlArtifact,Models)
+    NON_ALEMBIC_TABLES: tuple = (SqlArtifact, Models)
     TABLES: tuple = ALEMBIC_TABLES + NON_ALEMBIC_TABLES
 
     def __init__(self, store_uri: str = None, artifact_uri: str = None) -> None:
@@ -135,7 +133,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         expected_tables = {table.__tablename__ for table in self.TABLES}
         inspector = peer_into_splice_db(self.engine)
 
-        if len(expected_tables & set(inspector.get_table_names(schema='MLMANAGER'))) == 0:
+        if len(expected_tables & set(inspector.get_table_names())) == 0:
             _initialize_tables(self.engine)
         self._initialize_tables()
 
@@ -246,8 +244,8 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             .query(SqlExperiment) \
             .options(*query_options) \
             .filter(
-                SqlExperiment.experiment_id == int(experiment_id),
-                SqlExperiment.lifecycle_stage.in_(stages)) \
+            SqlExperiment.experiment_id == int(experiment_id),
+            SqlExperiment.lifecycle_stage.in_(stages)) \
             .one_or_none()
 
         if experiment is None:
@@ -277,19 +275,18 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         :return: (str) the fixed SQL
         """
         reg = 'CASE(.*)END'
-        result = re.search(reg,sql)
+        result = re.search(reg, sql)
         CASE_SQL = result.group(1)
 
-        indexes = [m.start() for m in re.finditer('THEN', CASE_SQL)] + [re.search('ELSE',CASE_SQL).start()]
+        indexes = [m.start() for m in re.finditer('THEN', CASE_SQL)] + [re.search('ELSE', CASE_SQL).start()]
         needs_cast = True
         for i in indexes:
             # Check for all "THEN ?" or "ELSE ?"
-            if CASE_SQL[i+5] != '?':
+            if CASE_SQL[i + 5] != '?':
                 needs_cast = False
                 break
         if needs_cast:
             new_CASE_SQL = CASE_SQL.replace('ELSE ?', 'ELSE CAST(? as INT)')
-
 
         # Replace IS <> with = <>
         # We rerun the search every time because after each replacement, the length of the string has changed
@@ -297,7 +294,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         x = re.search(is_clause, new_CASE_SQL)
         while x:
             ind = x.start()
-            new_CASE_SQL = new_CASE_SQL[:ind] + '=' + new_CASE_SQL[ind+2:] # skip IS
+            new_CASE_SQL = new_CASE_SQL[:ind] + '=' + new_CASE_SQL[ind + 2:]  # skip IS
             x = re.search(is_clause, new_CASE_SQL)
 
         # Replace IS NOT <> with = <>
@@ -306,10 +303,10 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         x = re.search(is_not_clause, new_CASE_SQL)
         while x:
             ind = x.start()
-            new_CASE_SQL = new_CASE_SQL[:ind] + '!=' + new_CASE_SQL[ind+6:] # skip IS NOT
+            new_CASE_SQL = new_CASE_SQL[:ind] + '!=' + new_CASE_SQL[ind + 6:]  # skip IS NOT
             x = re.search(is_clause, new_CASE_SQL)
 
-        fixed_sql = sql.replace(CASE_SQL,new_CASE_SQL)
+        fixed_sql = sql.replace(CASE_SQL, new_CASE_SQL)
         return fixed_sql
 
     def _search_runs(self, experiment_ids, filter_string, run_view_type, max_results, order_by,
@@ -353,11 +350,10 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             queried_runs = query.distinct() \
                 .options(*self._get_eager_run_query_options()) \
                 .filter(
-                    SqlRun.experiment_id.in_([int(i) for i in experiment_ids]),
-                    SqlRun.lifecycle_stage.in_(stages),
-                    *_get_attributes_filtering_clauses(parsed_filters)) \
+                SqlRun.experiment_id.in_([int(i) for i in experiment_ids]),
+                SqlRun.lifecycle_stage.in_(stages),
+                *_get_attributes_filtering_clauses(parsed_filters)) \
                 .offset(offset).limit(max_results).all()
-
 
             # Splice Machine has 2 limitations here:
             # 1. We don't support ? in all CASE statement returns: ERROR 42X87:
@@ -368,37 +364,42 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
 
             # Try to order them
             if order_by:
-                try: #FIXME: We need a smarter comparison
-                    x = re.sub("[.'\[\]]","",str(order_by)).split('`')
+                try:  # FIXME: We need a smarter comparison
+                    x = re.sub("[.'\[\]]", "", str(order_by)).split('`')
                     # Start time is funky
                     if 'start_time' in x[0]:
                         col = 'start_time'
                         default_val = 0
-                        reverse = 'ASC' not in x[0] # If ASC, keep sorted order
-                        runs = sorted(runs, key=lambda i:i.to_dictionary()['info'].get(col,default_val), reverse=reverse)
+                        reverse = 'ASC' not in x[0]  # If ASC, keep sorted order
+                        runs = sorted(runs, key=lambda i: i.to_dictionary()['info'].get(col, default_val),
+                                      reverse=reverse)
                     else:
                         reverse = x[-1].strip() != 'ASC'
-                        typ = x[0] # metrics or params or tags
-                        col = x[1] # the metric/param to order by
+                        typ = x[0]  # metrics or params or tags
+                        col = x[1]  # the metric/param to order by
                         # Fix parsing for mlflow columns
                         if 'mlflow' in col and typ == 'tags':
                             col = col[:6] + '.' + col[6:]
-                            if col == 'mlflow.sourcegitcommit': col = 'mlflow.source.git.commit'
-                            elif col == 'mlflow.sourcename': col = 'mlflow.source.name'
+                            if col == 'mlflow.sourcegitcommit':
+                                col = 'mlflow.source.git.commit'
+                            elif col == 'mlflow.sourcename':
+                                col = 'mlflow.source.name'
 
                         # Determine if the value is an number or string
-                        for i,j in enumerate(runs):
-                            if(col in j.to_dictionary()['data'][typ]):
+                        for i, j in enumerate(runs):
+                            if (col in j.to_dictionary()['data'][typ]):
                                 ind = i
                                 break
                         compare_val = runs[ind].to_dictionary()['data'][typ][col]
-                        default_val = 'z' if str(compare_val) == compare_val else 0 # in case a run doesn't have that value
-                        runs = sorted(runs, key=lambda i:i.to_dictionary()['data'][typ].get(col,default_val), reverse=reverse)
-                except: # If this fails just don't order. We shouldn't throw up
+                        default_val = 'z' if str(
+                            compare_val) == compare_val else 0  # in case a run doesn't have that value
+                        runs = sorted(runs, key=lambda i: i.to_dictionary()['data'][typ].get(col, default_val),
+                                      reverse=reverse)
+                except:  # If this fails just don't order. We shouldn't throw up
                     import traceback
                     traceback.print_exc()
                     raise Exception(str(x))
-                    #pass
+                    # pass
             next_page_token = compute_next_token(len(runs))
 
         return runs, next_page_token
@@ -419,8 +420,8 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         latest_metric = session \
             .query(SqlLatestMetric) \
             .filter(
-                SqlLatestMetric.run_uuid == logged_metric.run_uuid,
-                SqlLatestMetric.key == logged_metric.key) \
+            SqlLatestMetric.run_uuid == logged_metric.run_uuid,
+            SqlLatestMetric.key == logged_metric.key) \
             .one_or_none()
         if latest_metric is None or _compare_metrics(logged_metric, latest_metric):
             session.merge(
@@ -428,8 +429,6 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                     run_uuid=logged_metric.run_uuid, key=logged_metric.key,
                     value=logged_metric.value, timestamp=logged_metric.timestamp,
                     step=logged_metric.step, is_nan=logged_metric.is_nan))
-
-
 
 
 if __name__ == "__main__":

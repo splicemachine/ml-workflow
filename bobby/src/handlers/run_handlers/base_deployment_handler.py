@@ -10,7 +10,7 @@ from mlflow.tracking import MlflowClient
 from mlmanager_lib.database.mlflow_models import SqlArtifact
 from mlmanager_lib.database.constants import FileExtensions
 from ..base_handler import BaseHandler
-from . import Deserializers
+from .deserializers import Deserializers
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -45,7 +45,8 @@ class BaseDeploymentHandler(BaseHandler):
         self.deserializers: dict = {
             FileExtensions.spark: fix_params(Deserializers.spark, self.spark_context._jvm),
             FileExtensions.keras: Deserializers.keras,
-            FileExtensions.h2o: Deserializers.h2o
+            FileExtensions.h2o: Deserializers.h2o,
+            FileExtensions.sklearn: Deserializers.sklearn
         }
 
     def retrieve_run_from_mlflow(self) -> None:

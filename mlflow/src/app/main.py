@@ -269,7 +269,7 @@ def get_jobs() -> dict:
     SQL is more efficient
     :return: (dict) JSON response rendered in front end
     """
-    job_table: str = "MLMANAGER.JOBS"
+    job_table: str = "JOBS"
 
     # Parse Table Order Information
     order_arg: str = list(filter(lambda key: key.startswith('sort'), request.form))[0]

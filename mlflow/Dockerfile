@@ -94,5 +94,5 @@ RUN \
 
 RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
-RUN pip3.7 install --upgrade git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$DBAAS-3809
+RUN pip3.7 install  --upgrade git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@DBAAS-3809
 CMD $SRC_HOME"/scripts/entrypoint.sh"
