@@ -69,13 +69,10 @@ class Deserializers:
         :param download_path: local path on disk
         :param conda_env: conda environment
         """
-        with NamedTemporaryFile() as tmp:
-            tmp.write(artifact_stream)
-            tmp.seek(0)
-            hfile = h5_file(BytesIO(tmp.name), 'r')
-            model: KerasModel = load_keras_model(hfile)
+        hfile = h5_file(BytesIO(artifact_stream), 'r')
+        model: KerasModel = load_keras_model(hfile)
 
-            mlflow_keras.save_model(model, download_path,
+        mlflow_keras.save_model(model, download_path,
                                     conda_env=conda_env)
 
     @staticmethod
