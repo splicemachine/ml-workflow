@@ -97,5 +97,5 @@ RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh
 
 VOLUME /var/lib/docker
 EXPOSE 2375
-RUN pip3.7 install    --upgrade git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@DBAAS-3809 keras tensorflow scikit-learn h2o
+RUN pip3.7 install  --upgrade git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@DBAAS-3809
 CMD $SRC_HOME"/scripts/entrypoint.sh"
