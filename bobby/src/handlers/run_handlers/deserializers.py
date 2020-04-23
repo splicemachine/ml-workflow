@@ -5,7 +5,9 @@ from pyspark.ml import PipelineModel
 from tensorflow.keras.models import load_model as load_keras_model, Model as KerasModel
 from h5py import File as h5_file
 from mlflow import spark as mlflow_spark, h2o as mlflow_h2o, keras as mlflow_keras, sklearn as mlflow_sklearn
-from h2o import init as h2o_init, load_model as load_h2o_model, shutdown as h2o_shutdown
+import h2o
+from pysparkling import *
+from h2o import load_model as load_h2o_model
 from io import BytesIO
 
 __author__: str = "Splice Machine, Inc."
@@ -36,9 +38,7 @@ class Deserializers:
         binary_input_stream = jvm.java.io.ByteArrayInputStream(artifact_stream)
         object_input_stream = jvm.java.io.ObjectInputStream(binary_input_stream)
 
-        deserialized_pipeline: PipelineModel = PipelineModel._from_java(
-            object_input_stream
-        )
+        deserialized_pipeline: PipelineModel = PipelineModel._from_java(object_input_stream.readObject())
         mlflow_spark.save_model(deserialized_pipeline, download_path,
                                 conda_env=conda_env)
 
@@ -50,7 +50,6 @@ class Deserializers:
         :param download_path: local path on disk
         :param conda_env: conda environment
         """
-        h2o_init(nthreads=1)
 
         with NamedTemporaryFile() as tmp:
             tmp.write(artifact_stream)
@@ -59,7 +58,6 @@ class Deserializers:
 
         mlflow_h2o.save_model(model, download_path,
                               conda_env=conda_env)
-        h2o_shutdown()
 
     @staticmethod
     def keras(artifact_stream: bytearray, download_path: str, conda_env: str):
@@ -83,6 +81,6 @@ class Deserializers:
         :param download_path: local path on disk
         :param conda_env: conda environment
         """
-        sklearn_model: load_pickle_string = load_pickle_string(artifact_stream)
+        sklearn_model = load_pickle_string(artifact_stream)
         mlflow_sklearn.save_model(sklearn_model, download_path,
                                   conda_env=conda_env)

@@ -3,6 +3,7 @@ Definition of Base Run Handler
 """
 import logging
 from abc import abstractmethod
+import os
 from os import environ as env_vars
 from subprocess import check_call as run_shell_command
 from functools import partial as fix_params
@@ -38,7 +39,7 @@ class BaseDeploymentHandler(BaseHandler):
         :param task_id: (int) id of the task to execute
         """
         BaseHandler.__init__(self, task_id, spark_context=spark_context)
-        self.downloaded_model_path: str = DOWNLOAD_PATH
+        self.downloaded_model_path: str = DOWNLOAD_PATH + str(task_id) # So when we temporarily download the model we don't overwrite other models
         self.mlflow_run: object = None
         self.artifact: bytearray or None = None
 
@@ -92,11 +93,14 @@ class BaseDeploymentHandler(BaseHandler):
         self.update_task_in_db(info="Decoding Model Artifact Binary Stream for Deployment")
 
         try:
-            self.deserializers[self.artifact.file_extension](self.artifact.binary, f'{DOWNLOAD_PATH}/',
+            if os.path.exists(self.downloaded_model_path):
+                run_shell_command(('rm', '-Rf', self.downloaded_model_path))
+            self.deserializers[self.artifact.file_extension](self.artifact.binary, f'{self.downloaded_model_path}/',
                                                              conda_env=GET_CONDA_FILE(self.artifact.file_extension))
         except KeyError as e:
             LOGGER.exception("Unable to find the specified file extension handler")
             raise Exception(f"Unable to find the specified fix extension {self.artifact.file_extension}")
+
 
     def _cleanup(self) -> None:
         """

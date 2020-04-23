@@ -14,7 +14,7 @@ ENV PYSPARK_PYTHON = /usr/local/bin/python3.7
 #ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
 
 # Install from a release version
-ARG ml_workflow_lib_version='0.0.12-dev'
+ARG ml_workflow_lib_version='0.0.13-dev'
 ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
 
 # ODBC Driver Configuration
@@ -89,7 +89,6 @@ RUN rm -r $BUILD_HOME/* && \
     mkdir -p $WORKER_HOME
 
 COPY src $SRC_HOME
-
 RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE
 
 # make the entrypoint executable by all users
@@ -97,5 +96,4 @@ RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh
 
 VOLUME /var/lib/docker
 EXPOSE 2375
-RUN pip3.7 install  --upgrade git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@DBAAS-3809
 CMD $SRC_HOME"/scripts/entrypoint.sh"

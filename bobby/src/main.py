@@ -17,6 +17,7 @@ from mlmanager_lib.worker.ledger import JobLedger
 from py4j.java_gateway import java_import
 from pyspark import SparkConf, SparkContext
 from workerpool import Job as ThreadedTask, WorkerPool
+from pysparkling import *
 from retrying import retry
 
 __author__: str = "Splice Machine, Inc."
@@ -70,10 +71,15 @@ def create_spark() -> SparkContext:
     spark_context: SparkContext = SparkContext(conf=spark_config)
     java_import(spark_context._jvm, 'java.io.{ByteArrayInputStream, ObjectInputStream}')
     # we need these to deserialize byte stream.
-    return spark_context
+
+    # Create pysparkling context for H2O model serialization/deserialization
+    conf = H2OConf().setInternalClusterMode()
+    hc = H2OContext.getOrCreate(conf)
+
+    return spark_context, hc
 
 
-SPARK_CONTEXT: SparkContext = create_spark()  # Global Spark Context
+SPARK_CONTEXT, HC = create_spark()  # Global Spark Context
 
 
 def register_handlers() -> None:
@@ -100,7 +106,7 @@ class Runner(ThreadedTask):
     scaled across a pool via threading
     """
 
-    def __init__(self, spark_context: SparkContext, task_id: int, handler_name: str) -> None:
+    def __init__(self, spark_context: SparkContext, hc: H2OContext, task_id: int, handler_name: str) -> None:
         """
         :param task_id: (int) the job id to process.
             Unfortunately, one of the limitations
@@ -113,6 +119,7 @@ class Runner(ThreadedTask):
         """
         super().__init__()
         self.spark_context: SparkContext = spark_context
+        self.hc: H2OContext = hc
         self.task_id: id = task_id
         self.handler_name = handler_name
 
@@ -191,7 +198,7 @@ class Master(object):
                     job_id, handler_name = job_data[0]  # unpack arguments
                     LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
                     self.ledger.record(job_id)
-                    self.worker_pool.put(Runner(SPARK_CONTEXT, job_id, handler_name))
+                    self.worker_pool.put(Runner(SPARK_CONTEXT, HC, job_id, handler_name))
                     # dispatch to a thread
                 wait(POLL_INTERVAL)
             except Exception:
