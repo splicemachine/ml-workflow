@@ -87,7 +87,7 @@ class BaseDeploymentHandler(BaseHandler):
     def _deserialize_artifact_stream(self) -> None:
         """
         Take the BLOB Retrieved from the database,
-        convert it into a modell,
+        convert it into a model,
         and then serialize it to the disk for deployment
         """
         self.update_task_in_db(info="Decoding Model Artifact Binary Stream for Deployment")
