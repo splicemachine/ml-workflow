@@ -83,7 +83,7 @@ RUN rm -r $BUILD_HOME/* && \
 COPY bobby/src $SRC_HOME
 
 COPY mlmanager_lib /tmp/mlmanager_lib
-RUN pip3.7 install -e /tmp/mlmanager_lib/.
+RUN pip3.7 install /tmp/mlmanager_lib/.
 
 # make the entrypoint executable by all users
 RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh
