@@ -26,5 +26,6 @@ setup(
     version=VERSION,
     url='https://splicemachine.com',
     packages=find_packages(),
+    package_data={"mlmanager-lib":['logging.json']},
     include_package_data=True
 )

@@ -82,8 +82,8 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
-COPY mlmanager-lib /tmp/mlmanager-lib
-RUN pip3.7 install /tmp/mlmanager-lib/.
+COPY mlmanager_lib /tmp/mlmanager_lib
+RUN pip3.7 install -e /tmp/mlmanager_lib/.
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 
