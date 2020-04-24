@@ -28,8 +28,8 @@ services:
     build:
       args:
         splice_base_image_version: 0.0.2
-        github_PAT: [YOUR GITHUB PERSONAL ACCESS TOKEN]
-      context: mlflow
+      context: ./
+      dockerfile: ./mlflow/Dockerfile
   bobby:
     privileged: true
     environment:
@@ -49,5 +49,5 @@ services:
     build:
       args:
         splice_base_image_version: 0.0.2
-        github_PAT: [YOUR GITHUB PERSONAL ACCESS TOKEN]
-      context: bobby
+      context: ./
+      dockerfile: ./mlflow/Dockerfile
