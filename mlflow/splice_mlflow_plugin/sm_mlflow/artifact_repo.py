@@ -140,7 +140,6 @@ class SpliceMachineArtifactStore(ArtifactRepository):
                     " Destination path: {dst_path}".format(dst_path=dst_path)),
                 error_code=INVALID_PARAMETER_VALUE)
 
-
         with self.ManagedSessionMaker() as Session:
             columns: tuple = ('binary', 'file_extension', 'name')
             sqlalchemy_query = Session.query(
@@ -148,13 +147,11 @@ class SpliceMachineArtifactStore(ArtifactRepository):
                 run_uuid=self.run_uuid).filter_by(name=artifact_path)
 
         object = sqlalchemy_query.one()
-        with open(f'{dst_path}/{object.name}.{object.file_extension}','wb') as downloaded_file:
-                downloaded_file.write(object.binary)
+        with open(f'{dst_path}/{object.name}.{object.file_extension}', 'wb') as downloaded_file:
+            downloaded_file.write(object.binary)
 
         return f'{dst_path}/{object.name}.{object.file_extension}'
-
 
     def _download_file(self, remote_file_path, local_path):
         # We implement this in download_artifacts
         pass
-

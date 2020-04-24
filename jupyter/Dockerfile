@@ -53,6 +53,8 @@ RUN apt-get -y install openjdk-8-jdk
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar:$SPLICE_JAR_DIR/$SPLICE_FOLDER_NAME/*
 
 RUN pip install sparkmonitor-s==0.0.11
+RUN pip install --upgrade pip
+RUN pip install tensorflow==2.2.0rc3
 
 WORKDIR $SRC_HOME
 

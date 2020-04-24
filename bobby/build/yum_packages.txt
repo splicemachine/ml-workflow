@@ -5,7 +5,7 @@ openssl
 openssl-devel
 unzip
 wget
-gcc
+gcc=6.3.1
 gcc-c++
 unixODBC
 unixODBC-devel
