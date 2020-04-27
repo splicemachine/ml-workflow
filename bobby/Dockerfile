@@ -9,14 +9,6 @@ ARG github_PAT
 # so the pyspark drivers use python3.7 instead of python2
 ENV PYSPARK_PYTHON = /usr/local/bin/python3.7
 
-# if you want to install from a branch instead of a version
-#ARG ml_workflow_lib_branch='DBAAS-3569'
-#ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
-
-# Install from a release version
-ARG ml_workflow_lib_version='0.0.13-dev'
-ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
-
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
@@ -34,7 +26,7 @@ ENV LC_ALL en_US.utf-8
 ENV LANG en_US.utf-8
 
 # Add the list of necessary environment packages for development.
-COPY build $BUILD_HOME
+COPY bobby/build $BUILD_HOME
 
 # Install lzma python dependency for python 3.7.3
 RUN yum install -y xz-devel
@@ -88,8 +80,10 @@ RUN rm -r $BUILD_HOME/* && \
     mkdir -p $SRC_HOME && \
     mkdir -p $WORKER_HOME
 
-COPY src $SRC_HOME
-RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE
+COPY bobby/src $SRC_HOME
+
+COPY mlmanager_lib /tmp/mlmanager_lib
+RUN pip3.7 install /tmp/mlmanager_lib/.
 
 # make the entrypoint executable by all users
 RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh

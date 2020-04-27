@@ -10,16 +10,6 @@ ARG SHIRO_CORE_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_core_
 ARG SHIRO_WEB_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_web_version.jar
 ARG SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shiro-2.7.0.1915.jar
 
-# ml-workflow-lib Configuration
-ARG github_PAT
-
-# If you want to install from a branch instead of a version
-#ARG ml_workflow_lib_branch='DBAAS-3569'
-#ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_branch"
-
-ARG ml_workflow_lib_version='0.0.13-dev'
-ARG ML_WORKFLOW_LIB_PACKAGE="git+https://$github_PAT:@github.com/splicemachine/ml-workflow-lib.git@$ml_workflow_lib_version"
-
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
@@ -32,7 +22,7 @@ ENV BUILD_HOME=/tmp
 ENV LC_ALL en_US.utf-8
 ENV LANG en_US.utf-8
 
-COPY build $BUILD_HOME
+COPY mlflow/build $BUILD_HOME
 
 # Install lzma python dependency python 3.7.3
 RUN yum install -y xz-devel
@@ -70,7 +60,7 @@ RUN cd $BUILD_HOME && \
     sh ./install.sh -q
 
 # Install Python dependencies
-COPY splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
+COPY mlflow/splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
 RUN pip3.7 install -r $BUILD_HOME/requirements.txt && \
     pip3.7 install   $BUILD_HOME/splice_mlflow_plugin
 
@@ -78,8 +68,8 @@ RUN pip3.7 install -r $BUILD_HOME/requirements.txt && \
 RUN rm -rf $BUILD_HOME/* && \
     mkdir -p $SRC_HOME/lib
 
-COPY src $SRC_HOME
-COPY src/lib $SRC_HOME/lib
+COPY mlflow/src $SRC_HOME
+COPY mlflow/src/lib $SRC_HOME/lib
 
 # Copy Shiro (and dependencies) for authentication
 RUN \
@@ -92,7 +82,9 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
-RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE
+COPY mlmanager_lib /tmp/mlmanager_lib
+RUN pip3.7 install /tmp/mlmanager_lib/.
+
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 
 CMD $SRC_HOME"/scripts/entrypoint.sh"
