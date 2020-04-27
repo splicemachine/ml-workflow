@@ -82,6 +82,22 @@ class KnownHandlers(Definition):
             modifiable=True,
             url='/deploy/deploy_azure'
         )
+    elif CloudEnvironments.get_current_name() == CloudEnvironments.gcp:
+        MAPPING[HandlerNames.deploy_csp] = Handler(  # We don't currently support GCP deployment
+            required_payload_args=None,
+            optional_payload_args=None,
+            name=HandlerNames.deploy_csp,
+            modifiable=False,
+            url='/'
+        )
+    elif CloudEnvironments.get_current_name() == CloudEnvironments.openstack:
+        MAPPING[HandlerNames.deploy_csp] = Handler(  # We don't currently support OpenStack deployment
+            required_payload_args=None,
+            optional_payload_args=None,
+            name=HandlerNames.deploy_csp,
+            modifiable=False,
+            url='/'
+        )
 
     @staticmethod
     def get_class(handler_name: str) -> object:

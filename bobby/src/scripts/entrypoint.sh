@@ -46,8 +46,14 @@ elif [[ "$ENVIRONMENT" == "azure" ]] || [[ "$ENVIRONMENT" == "AZ" ]] || [[ "$ENV
 then
     export ENVIRONMENT="azure"
     export AZURE_SUBSCRIPTION_ID=$(python3.6 ${SRC_HOME}/scripts/login_azure.py)
-fi
+elif [[ "$ENVIRONMENT" == "openstack" ]] || [[ "$ENVIRONMENT" == "Openstack" ]] || [[ "$ENVIRONMENT" == "OPENSTACK" ]] || [[ "$ENVIRONMENT" == "OpenStack" ]]
+then
+    export ENVIRONMENT="openstack"
+elif [[ "$ENVIRONMENT" == "gcp" ]] || [[ "$ENVIRONMENT" == "GCP" ]]
+then
+    export ENVIRONMENT="gcp"
 
+fi
 
 # Test Optional Environment Variables
 if [[ "$DB_PORT" == "" ]]

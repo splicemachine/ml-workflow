@@ -79,7 +79,8 @@ def create_global_jinja_variables():
     return dict(
         cloud_environment_name=CLOUD_ENVIRONMENT.name,
         known_handlers=KnownHandlers,
-        handler_names=HandlerNames
+        handler_names=HandlerNames,
+        can_deploy=CLOUD_ENVIRONMENT.can_deploy
     )
 
 
@@ -406,7 +407,8 @@ def deploy_csp() -> Response:
     # 1) deploy_aws.html, 2) deploy_azure.html, 3) deploy_gcp.html
     # they need to match the names given to the CloudEnvironments
     # given in ml-workflow-lib/mlmanager_lib/database/models.py:KnownHandlers
-    return show_html(f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html')
+    show = f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html' if CLOUD_ENVIRONMENT.can_deploy else 'index.html'
+    return show_html(show)
 
 
 @APP.route('/tracker', methods=['GET'])

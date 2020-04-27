@@ -30,7 +30,7 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.warn(f"Using Logging Level {logging.getLevelName(LOGGER.getEffectiveLevel())}")
+LOGGER.warning(f"Using Logging Level {logging.getLevelName(LOGGER.getEffectiveLevel())}")
 
 # Jobs
 POLL_INTERVAL: int = 5  # check for new jobs every 2 seconds
@@ -206,11 +206,16 @@ class Master(object):
 
 
 if __name__ == '__main__':
-    LOGGER.info('Registering handlers...')
-    register_handlers()
-    LOGGER.info('Populating handlers...')
-    populate_handlers(Session)
-    LOGGER.info('Dispatching master...')
-    dispatcher: Master = Master()  # initialize worker pool
-    LOGGER.info('Polling...')
-    dispatcher.poll()
+    if CloudEnvironments.get_current().can_deploy:
+        LOGGER.info('Registering handlers...')
+        register_handlers()
+        LOGGER.info('Populating handlers...')
+        populate_handlers(Session)
+        LOGGER.info('Dispatching master...')
+        dispatcher: Master = Master()  # initialize worker pool
+        LOGGER.info('Polling...')
+        dispatcher.poll()
+    else:
+        LOGGER.info(f'Cloud service {CloudEnvironments.get_current().name} does not support endpoint deployment. Sitting idly.')
+        while True: # Sit idly. Nothing to do
+            continue
