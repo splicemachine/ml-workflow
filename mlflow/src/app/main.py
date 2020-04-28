@@ -1,7 +1,7 @@
 from collections import defaultdict
 from json import dumps as serialize_json
 from time import time as timestamp
-
+import requests
 from flask import Flask, request, Response, jsonify as create_json, render_template as show_html, \
     redirect, url_for
 from flask_executor import Executor
@@ -201,7 +201,7 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
 
     Session.add(job)
     Session.commit()
-
+    requests.post('http://bobby:2375/job')
     return dict(job_status=APIStatuses.pending,
                 timestamp=timestamp())  # turned into JSON and returned
 
