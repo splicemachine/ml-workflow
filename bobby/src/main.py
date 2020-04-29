@@ -195,18 +195,13 @@ def get_new_pending_jobs() -> str:
         return f"500: Encountered Fatal Error while locating and executing jobs. {format_exc()}"
 
 def main():
-    if CloudEnvironments.get_current().can_deploy:
-        LOGGER.info('Registering handlers...')
-        register_handlers()
-        LOGGER.info('Populating handlers...')
-        populate_handlers(Session)
-        LOGGER.info('Dispatching master...') # Done by the App
-        LOGGER.info('Waiting for new jobs...')
-        get_new_pending_jobs()
+    LOGGER.info('Registering handlers...')
+    register_handlers()
+    LOGGER.info('Populating handlers...')
+    populate_handlers(Session)
+    LOGGER.info('Dispatching master...') # Done by the App
+    LOGGER.info('Waiting for new jobs...')
+    get_new_pending_jobs()
         # APP.run(host='0.0.0.0', port=2375)
-    else:
-        LOGGER.info(f'Cloud service {CloudEnvironments.get_current().name} does not support endpoint deployment. Sitting idly.')
-        while True: # Sit idly. Nothing to do
-            continue
 
 main()
