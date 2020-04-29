@@ -48,6 +48,13 @@ then
 elif [[ "$ENVIRONMENT" == "azure" ]] || [[ "$ENVIRONMENT" == "AZ" ]] || [[ "$ENVIRONMENT" == "az" ]] || [[ "$ENVIRONMENT" == "AZURE" ]]
 then
     export ENVIRONMENT="azure"
+elif [[ "$ENVIRONMENT" == "openstack" ]] || [[ "$ENVIRONMENT" == "Openstack" ]] || [[ "$ENVIRONMENT" == "OPENSTACK" ]] || [[ "$ENVIRONMENT" == "OpenStack" ]]
+then
+    export ENVIRONMENT="openstack"
+elif [[ "$ENVIRONMENT" == "gcp" ]] || [[ "$ENVIRONMENT" == "GCP" ]]
+then
+    export ENVIRONMENT="gcp"
+
 fi
 
 if [[ "$GUI_PORT" == "" ]]; then
@@ -84,8 +91,13 @@ then
 fi
 
 # Start Job Tracker GUI
-echo "Starting Job Tracking UI on port :${GUI_PORT}"
-nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
+if [[ "$ENVIRONMENT" == "openstack" ]] || [[ "$ENVIRONMENT" == "gcp" ]]
+then
+echo "No endpoint deployment supported in $ENVIRONMENT. Not running Job Tracker UI"
+else
+    echo "Starting Job Tracking UI on port :${GUI_PORT}"
+    nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
+fi
 
 echo "Starting Java Gateway Server for py4j"
 nohup java gateway &
