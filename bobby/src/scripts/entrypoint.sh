@@ -20,8 +20,6 @@ then
    exit 1
 fi
 
-
-
 if [[ "$FRAMEWORK_NAME" == "" ]]
 then
     echo "Error: environment variable FRAMEWORK_NAME is required"
@@ -61,6 +59,11 @@ then
     export DB_PORT=1527
 fi
 
+if [[ "$API_PORT" == "" ]]
+then
+    export API_PORT=2375
+fi
+
 if [[ "$MLFLOW_PORT" == "" ]]
 then
     export MLFLOW_PORT=5001
@@ -93,5 +96,5 @@ fi
 # Start Main Processes
 echo "Starting up Docker Daemon"
 nohup dockerd &
-echo "Starting Worker"
-python3.7 ${SRC_HOME}/main.py
+echo "Starting Worker. Listening on port ${API_PORT}"
+nohup gunicorn --bind 0.0.0.0:${API_PORT} --chdir ${SRC_HOME} main:APP

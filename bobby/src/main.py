@@ -20,6 +20,7 @@ from pyspark import SparkConf, SparkContext
 from workerpool import Job as ThreadedTask, WorkerPool
 from pysparkling import *
 from retrying import retry
+from traceback import format_exc
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -50,6 +51,17 @@ RUN_HANDLERS: tuple = KnownHandlers.get_modifiable()
 # Initializes workerpool on construction of object
 WORKER_POOL: WorkerPool = WorkerPool(size=30)
 LEDGER: JobLedger = JobLedger(LEDGER_MAX_SIZE)
+
+ID_COL: str = "id"  # column name for id in Jobs
+TIMESTAMP_COL: str = "timestamp"
+STATUS_COL: str = "status"
+HANDLER_COL: str = "handler_name"
+POLL_SQL_QUERY: str = \
+    f"""
+    SELECT {ID_COL}, {HANDLER_COL} FROM {Job.__tablename__}
+    WHERE {STATUS_COL}='{JobStatuses.pending}'
+    ORDER BY "{TIMESTAMP_COL}"
+    """
 
 def create_spark() -> SparkContext:
     """
@@ -149,19 +161,6 @@ class Runner(ThreadedTask):
             LOGGER.exception(
                 f"Uncaught Exception Encountered while processing task #{self.task_id}")
 
-
-
-id_col: str = "id"  # column name for id in Jobs
-timestamp_col: str = "timestamp"
-status_col: str = "status"
-handler_col: str = "handler_name"
-poll_sql_query: str = \
-    f"""
-    SELECT {id_col}, {handler_col} FROM {Job.__tablename__}
-    WHERE {status_col}='{JobStatuses.pending}'
-    ORDER BY "{timestamp_col}"
-    """
-
 def _get_pending_task_ids_handler() -> list:
     """
     Returns the earliest task id and handler in the
@@ -172,11 +171,16 @@ def _get_pending_task_ids_handler() -> list:
     # use SQL so that it is more efficient
     #FIXME: If the database does not exist, SQLAlchemy will keep trying to make a new connection and
     #FIXME: eventually have a seg fault. We can't try/catch a seg fault.
-    return execute_sql(poll_sql_query)
+    return execute_sql(POLL_SQL_QUERY)
     # SELECT only the `id` + `handler_name` column from the first inserted pending task
 
 @APP.route('/job', methods=['POST'])
-def poll() -> None:
+def get_new_pending_jobs() -> str:
+    """
+    Gets the currently pending jobs for Bobby to handle. This gets called both on Bobby startup (to populate the
+    queue of jobs and on the api POST request /job for every new job submitted on the job-tracker/API code to mlflow.
+    :return: str return code 200 or 500
+    """
     try:
         job_datas = _get_pending_task_ids_handler()
         for job_data in job_datas:
@@ -185,32 +189,12 @@ def poll() -> None:
                 LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
                 LEDGER.record(job_id)
                 WORKER_POOL.put(Runner(SPARK_CONTEXT, HC, job_id, handler_name))
+        return "200: OK"
     except Exception:
-        import traceback
-        traceback.print_exc()
         LOGGER.exception("Error: Encountered Fatal Error while locating and executing jobs")
+        return f"500: Encountered Fatal Error while locating and executing jobs. {format_exc()}"
 
-# def poll(self) -> None:
-#     """
-#     Wait for new Jobs and dispatch
-#     them to the queue where they will be
-#     serviced by free workers
-#     """
-#     while True:
-#         try:
-#             job_data: list = Master._get_first_pending_task_id_handler()
-#             if job_data and job_data[0][0] not in self.ledger:
-#                 job_id, handler_name = job_data[0]  # unpack arguments
-#                 LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
-#                 self.ledger.record(job_id)
-#                 self.worker_pool.put(Runner(SPARK_CONTEXT, HC, job_id, handler_name))
-#                 # dispatch to a thread
-#             wait(POLL_INTERVAL)
-#         except Exception:
-#             LOGGER.exception("Error: Encountered Fatal Error while locating and executing jobs")
-
-
-if __name__ == '__main__':
+def main():
     if CloudEnvironments.get_current().can_deploy:
         LOGGER.info('Registering handlers...')
         register_handlers()
@@ -218,9 +202,11 @@ if __name__ == '__main__':
         populate_handlers(Session)
         LOGGER.info('Dispatching master...') # Done by the App
         LOGGER.info('Waiting for new jobs...')
-        poll()
-        APP.run(host='0.0.0.0', port=2375)
+        get_new_pending_jobs()
+        # APP.run(host='0.0.0.0', port=2375)
     else:
         LOGGER.info(f'Cloud service {CloudEnvironments.get_current().name} does not support endpoint deployment. Sitting idly.')
         while True: # Sit idly. Nothing to do
             continue
+
+main()
