@@ -163,7 +163,7 @@ class Runner(ThreadedTask):
 
 def _get_pending_task_ids_handler() -> list:
     """
-    Returns the earliest task id and handler in the
+    Returns all task ids and handlers in the
     database with the status 'PENDING'
     from the database
     """
