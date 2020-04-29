@@ -167,12 +167,8 @@ def _get_pending_task_ids_handler() -> list:
     database with the status 'PENDING'
     from the database
     """
-    # Since this is running a lot, we will
-    # use SQL so that it is more efficient
-    #FIXME: If the database does not exist, SQLAlchemy will keep trying to make a new connection and
-    #FIXME: eventually have a seg fault. We can't try/catch a seg fault.
     return execute_sql(POLL_SQL_QUERY)
-    # SELECT only the `id` + `handler_name` column from the first inserted pending task
+
 
 @APP.route('/job', methods=['POST'])
 def get_new_pending_jobs() -> str:
