@@ -6,7 +6,7 @@ for new jobs and dispatches them to Workers for execution
 from os import environ as env_vars
 from time import sleep as wait
 
-from flask import Flask
+from flask import Flask, jsonify as create_json, has_request_context
 from handlers.modifier_handlers import EnableServiceHandler, DisableServiceHandler
 from handlers.run_handlers import SageMakerDeploymentHandler, AzureDeploymentHandler
 from mlmanager_lib import CloudEnvironments, CloudEnvironment
@@ -15,6 +15,8 @@ from mlmanager_lib.database.handlers import KnownHandlers, HandlerNames, populat
 from mlmanager_lib.database.models import Job, SessionFactory, execute_sql
 from mlmanager_lib.logger.logging_config import logging
 from mlmanager_lib.worker.ledger import JobLedger
+from mlmanager_lib.rest.responses import HTTP
+from mlmanager_lib.rest.constants import APIStatuses
 from py4j.java_gateway import java_import
 from pyspark import SparkConf, SparkContext
 from workerpool import Job as ThreadedTask, WorkerPool
@@ -185,10 +187,13 @@ def get_new_pending_jobs() -> str:
                 LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
                 LEDGER.record(job_id)
                 WORKER_POOL.put(Runner(SPARK_CONTEXT, HC, job_id, handler_name))
-        return "200: OK"
+        message: str = f"OK"
+        return HTTP.responses['success'](create_json(status=APIStatuses.success, message=message)) if has_request_context() else None
     except Exception:
         LOGGER.exception("Error: Encountered Fatal Error while locating and executing jobs")
-        return f"500: Encountered Fatal Error while locating and executing jobs. {format_exc()}"
+        message = f"500: Encountered Fatal Error while locating and executing jobs.\n{format_exc()}"
+        return HTTP.responses['unexpected'](create_json(status=APIStatuses.error, message=message)) if has_request_context() else None
+
 
 def main():
     LOGGER.info('Registering handlers...')
