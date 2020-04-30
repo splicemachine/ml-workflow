@@ -190,7 +190,7 @@ def get_new_pending_jobs() -> None:
         LOGGER.exception("Error: Encountered Fatal Error while locating and executing jobs")
         raise Exception()
 
-@APP.route('\job', methods=['POST'])
+@APP.route('/job', methods=['POST'])
 def get_new_jobs() -> HTTP:
     """
     Calls the function to get the new pending jobs via the API endpoint /job
