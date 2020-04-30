@@ -172,8 +172,7 @@ def _get_pending_task_ids_handler() -> list:
     return execute_sql(POLL_SQL_QUERY)
 
 
-@APP.route('/job', methods=['POST'])
-def get_new_pending_jobs() -> str:
+def get_new_pending_jobs() -> None:
     """
     Gets the currently pending jobs for Bobby to handle. This gets called both on Bobby startup (to populate the
     queue of jobs and on the api POST request /job for every new job submitted on the job-tracker/API code to mlflow.
@@ -187,12 +186,22 @@ def get_new_pending_jobs() -> str:
                 LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
                 LEDGER.record(job_id)
                 WORKER_POOL.put(Runner(SPARK_CONTEXT, HC, job_id, handler_name))
-        message: str = f"OK"
-        return HTTP.responses['success'](create_json(status=APIStatuses.success, message=message)) if has_request_context() else None
     except Exception:
         LOGGER.exception("Error: Encountered Fatal Error while locating and executing jobs")
-        message = f"500: Encountered Fatal Error while locating and executing jobs.\n{format_exc()}"
-        return HTTP.responses['unexpected'](create_json(status=APIStatuses.error, message=message)) if has_request_context() else None
+        raise Exception()
+
+@APP.route('\job', methods=['POST'])
+def get_new_jobs() -> HTTP:
+    """
+    Calls the function to get the new pending jobs via the API endpoint /job
+    :return: HTTP response 200 or 500
+    """
+    try:
+        get_new_pending_jobs()
+        message: str = f"OK"
+        return HTTP.responses['success'](create_json(status=APIStatuses.success, message=message))
+    except:
+        return HTTP.responses['unexpected'](create_json(status=APIStatuses.error, message=message))
 
 
 def main():
