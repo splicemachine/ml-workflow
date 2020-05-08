@@ -25,6 +25,8 @@ public class MLRunner implements DatasetProvider, VTICosting {
 
     // For VTI Implementation
     private final String modelCategory,  modelID, rawData, schema;
+    private final String predictCall;
+    private final String predictArgs;
     //Provide external context which can be carried with the operation
     protected OperationContext operationContext;
     private static final Logger LOG = Logger.get(MLRunner.class);
@@ -45,6 +47,9 @@ public class MLRunner implements DatasetProvider, VTICosting {
                 model =  modelAndLibrary[0];
                 runner = new MLeapRunner(model);
                 break;
+            case "sklearn":
+                model = modelAndLibrary[0];
+                runner = new SKRunner(model);
             default:
                 // TODO: Review database standards for exceptions
                 throw new UnsupportedLibraryExcetion(
@@ -88,7 +93,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
 
     public static double [] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException {
         AbstractRunner runner = getRunner(modelID);
-        return runner.predictKeyValue(rawData, schema);
+        return runner.predictKeyValue(rawData, schema, null, null);
     }
 
     public static Double splitResult(final String str, final int index) {
@@ -122,7 +127,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         try {
 
             AbstractRunner runner = getRunner(this.modelID);
-            double [] preds = runner.predictKeyValue(this.rawData, this.schema);
+            double [] preds = runner.predictKeyValue(this.rawData, this.schema, this.predictCall, this.predictArgs);
 
             ExecRow valueRow = new ValueRow(preds.length);
 
@@ -138,9 +143,6 @@ public class MLRunner implements DatasetProvider, VTICosting {
         } catch (SQLException e) {
             LOG.error("Unexpected SQLException: " , e);
         }
-//        catch (UnsupportedLibraryExcetion unsupportedLibraryExcetion) {
-//            LOG.error("Unexpected UnsupportedLibraryExcetion: " , unsupportedLibraryExcetion);
-//        }
         catch (ClassNotFoundException e) {
             LOG.error("Unexpected ClassNotFoundException: " , e);
         }
@@ -167,6 +169,9 @@ public class MLRunner implements DatasetProvider, VTICosting {
     public static DatasetProvider getMLRunner(final String modelCategory, final String modelID, final String rawData, final String schema) {
         return new MLRunner(modelCategory, modelID, rawData, schema);
     }
+    public static DatasetProvider getMLRunner(final String modelCategory, final String modelID, final String rawData, final String schema, final String predictCall, final String predictArgs) {
+        return new MLRunner(modelCategory, modelID, rawData, schema, predictCall, predictArgs);
+    }
 
     /**
      * MLRunner VTI implementation used for models that return row based values (classification with probabilities, unsupervised models)
@@ -180,6 +185,16 @@ public class MLRunner implements DatasetProvider, VTICosting {
         this.modelID = modelID;
         this.rawData = rawData;
         this.schema = schema;
+        this.predictCall = null;
+        this.predictArgs = null;
+    }
+    public MLRunner(final String modelCategory, final String modelID, final String rawData, final String schema, final String predictCall, final String predictArgs){
+        this.modelCategory = modelCategory;
+        this.modelID = modelID;
+        this.rawData = rawData;
+        this.schema = schema;
+        this.predictCall = predictCall;
+        this.predictArgs = predictArgs;
     }
 
     @Override
