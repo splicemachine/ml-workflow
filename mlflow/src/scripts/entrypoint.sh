@@ -2,6 +2,9 @@
 
 MLFLOW_LOG_FILE='/var/log/mlflow-server.log'
 
+export _MLFLOW_SERVER_FILE_STORE='splicetracking://'
+export _MLFLOW_SERVER_ARTIFACT_ROOT='spliceartifacts:////'
+
 foundNoArgumentExit () {
     echo "Error: environment variable $1 is required"
     exit 1;
@@ -96,7 +99,7 @@ then
 echo "No endpoint deployment supported in $ENVIRONMENT. Not running Job Tracker UI"
 else
     echo "Starting Job Tracking UI on port :${GUI_PORT}"
-    nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
+    nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} director:APP &
 fi
 
 echo "Starting Java Gateway Server for py4j"
@@ -104,5 +107,5 @@ nohup java gateway &
 
 # Start MLFlow Tracking Server logging to mlflow log file
 echo "Starting MLFlow Server on port :${MLFLOW_PORT}"
-mlflow server --host 0.0.0.0 --backend-store-uri "splicetracking://" \
-    --default-artifact-root "spliceartifacts:////" -p ${MLFLOW_PORT} 2>&1 | tee ${MLFLOW_LOG_FILE}
+nohup gunicorn --bind 0.0.0.0:${MLFLOW_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} \
+  mlflow_app:APP 2>&1 | tee ${MLFLOW_LOG_FILE}

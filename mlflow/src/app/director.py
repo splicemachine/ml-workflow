@@ -2,20 +2,21 @@ from os import environ as env_vars
 from collections import defaultdict
 from json import dumps as serialize_json
 from time import time as timestamp
-import requests
-from requests.exceptions import ConnectionError
-from flask import Flask, request, Response, jsonify as create_json, render_template as show_html, \
-    redirect, url_for
+from functools import partial as fix_params
+
+from flask import Flask, jsonify as create_json
 from flask_executor import Executor
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from mlmanager_lib import CloudEnvironment, CloudEnvironments
-from mlmanager_lib.database.handlers import KnownHandlers, HandlerNames
+import requests
+from requests.exceptions import ConnectionError
+from sqlalchemy import text
+
+from mlmanager_lib import CloudEnvironments
 from mlmanager_lib.database.models import SessionFactory, Job, Handler
 from mlmanager_lib.logger.logging_config import logging
-from mlmanager_lib.rest.authentication import Authentication, User
 from mlmanager_lib.rest.constants import APIStatuses, TrackerTableMapping
 from mlmanager_lib.rest.responses import HTTP
-from sqlalchemy import text
+from .utilities.utils import *
 
 # TODO: add basic auth for internal API endpoints
 
@@ -66,84 +67,6 @@ def remove_session(response: Response) -> Response:
     global Session
     SessionFactory.remove()
     return response
-
-
-@APP.context_processor
-def create_global_jinja_variables():
-    """
-    Create a dictionary of global Jinja2
-    variables that can be accessed in any
-    template
-
-    :return: (dict) Dictionary of key/values
-        mapping global variables to the corresponding
-        Jinja Variables
-    """
-    return dict(
-        cloud_environment_name=CLOUD_ENVIRONMENT.name,
-        known_handlers=KnownHandlers,
-        handler_names=HandlerNames,
-        can_deploy=CLOUD_ENVIRONMENT.can_deploy
-    )
-
-
-# Login Configuration
-@LOGIN_MANAGER.user_loader
-def user_loader(username: str) -> User:
-    """
-    Return a user from the Session
-    
-    :param username: (str) user to form object from
-    :return: (User) constructed user object
-    """
-    return User(username)
-
-
-@LOGIN_MANAGER.unauthorized_handler
-def unauthorized_user():
-    """
-    Return redirect to login
-    if user is unauthorized
-    :return: (redirect) redirect in browser to /login
-    """
-    if current_user.is_authenticated:
-        return redirect('/')
-    return redirect(url_for('login'))
-
-
-# Login Routes
-@APP.route('/login', methods=['GET', 'POST'])
-def login() -> Response:
-    """
-    Show Login HTML to users if GET,
-    otherwise validate credentials against DB
-    :return:
-    """
-    if request.method == 'GET':
-        if current_user.is_authenticated:
-            return redirect('/')
-        return show_html('login.html')
-
-    username: str = request.form['user']
-    # check against Zeppelin (Apache Shiro into DB)
-    if Authentication.validate_auth(username, request.form['pw']):
-        user: User = User(username)
-        login_user(user)
-        return redirect(request.args.get("next") or url_for('home'))
-
-    return show_html('login.html', unauthorized=True)
-
-
-@APP.route("/logout")
-@login_required
-def logout() -> redirect:
-    """
-    Logout the current logged in
-    user
-    :returns: (redirect) redirect to login
-    """
-    logout_user()
-    return redirect(url_for('login'))
 
 
 # Api Routes
@@ -439,6 +362,12 @@ def home() -> Response:
     """
     return show_html('index.html')
 
+
+CREATE_GLOBAL_JINJA_VARIABLES = APP.context_processor()(fix_params(create_global_jinja_variables, CLOUD_ENVIRONMENT))
+LOGIN = APP.route('/login', methods=['GET', 'POST'])(login)
+LOGOUT = APP.route('/logout')(logout)
+USER_LOADER = LoginManager.user_loader(user_loader)
+UNAUTHORIZED_USER = LoginManager.unauthorized_handler(unauthorized_user)
 
 if __name__ == '__main__':
     APP.run(host='0.0.0.0', port=5000)
