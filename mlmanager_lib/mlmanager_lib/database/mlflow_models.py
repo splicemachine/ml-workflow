@@ -42,7 +42,7 @@ class SqlArtifact(Base):
     # in Python 2, this object passed to this must be of type
     # bytearray as the bytes object is an alias for str. However,
     # in Python 3, the bytes object can be passed in (byte stream)
-    binary: Column = Column(LargeBinary, nullable=False)
+    binary: Column = Column(LargeBinary(length=int(2e9)), nullable=False)
     run: relationship = relationship(SqlRun, backref=backref('artifacts', cascade='all'))
     file_extension: Column = Column(String(10), nullable=False)
 
@@ -57,7 +57,7 @@ class Models(Base):
     """
     __tablename__: str = "models"
     run_uuid: Column = Column(String(32), ForeignKey(SqlRun.run_uuid), primary_key=True)
-    model: Column = Column(LargeBinary, nullable=False)
+    model: Column = Column(LargeBinary(length=int(2e9)), nullable=False)
     library: Column = Column(String(32), nullable=False)
     version: Column = Column(String(32), nullable=False)
     run: relationship = relationship(SqlRun, backref=backref('models', cascade='all'))
