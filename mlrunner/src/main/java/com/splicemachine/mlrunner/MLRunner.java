@@ -1,4 +1,5 @@
 package com.splicemachine.mlrunner;
+import java.nio.ByteBuffer;
 import java.sql.*;
 
 import com.splicemachine.db.iapi.error.StandardException;
@@ -19,6 +20,10 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import io.airlift.log.Logger;
+import jep.JepException;
+import jep.MainInterpreter;
+import sun.applet.Main;
+//import jep;
 
 
 public class MLRunner implements DatasetProvider, VTICosting {
@@ -32,24 +37,22 @@ public class MLRunner implements DatasetProvider, VTICosting {
     private static final Logger LOG = Logger.get(MLRunner.class);
 
     public static AbstractRunner getRunner(final String modelID)
-            throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException {
+            throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException, JepException {
         // Get the model blob and the library
         final Object[] modelAndLibrary = AbstractRunner.getModelBlob(modelID);
         final String lib = (String) modelAndLibrary[1];
         AbstractRunner runner = null;
-        Object model;
+        Blob model = (Blob) modelAndLibrary[0];
         switch (lib.toLowerCase()) {
             case "h2omojo":
-                model = modelAndLibrary[0];
                 runner = new H2ORunner(model);
                 break;
             case "mleap":
-                model =  modelAndLibrary[0];
                 runner = new MLeapRunner(model);
                 break;
             case "sklearn":
-                model = modelAndLibrary[0];
                 runner = new SKRunner(model);
+                break;
             default:
                 // TODO: Review database standards for exceptions
                 throw new UnsupportedLibraryExcetion(
@@ -60,8 +63,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
 
     public static String predictClassification(final String modelID, final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
-            UnsupportedLibraryExcetion, ClassNotFoundException, PredictException 
-    {
+            UnsupportedLibraryExcetion, ClassNotFoundException, PredictException, JepException {
 
             AbstractRunner runner = getRunner(modelID);
             return runner.predictClassification(rawData, schema);
@@ -69,29 +71,26 @@ public class MLRunner implements DatasetProvider, VTICosting {
 
     public static Double predictRegression(final String modelID, final String rawData, final String schema)
             throws ClassNotFoundException, UnsupportedLibraryExcetion, SQLException, IOException,
-            InvocationTargetException, IllegalAccessException, PredictException
-    {
+            InvocationTargetException, IllegalAccessException, PredictException, JepException {
         //TODO: Add defensive code in case the model returns nothing (ie if a stringindexer skips the row)
         AbstractRunner runner = getRunner(modelID);
         return runner.predictRegression(rawData, schema);
     }
 
     public static String predictClusterProbabilities(final String modelID, final String rawData, final String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException,
-            UnsupportedLibraryExcetion 
-    {
+            UnsupportedLibraryExcetion, JepException {
         AbstractRunner runner = getRunner(modelID);
         return runner.predictClusterProbabilities(rawData, schema);
     }
 
     public static int predictCluster(final String modelID, final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
-            ClassNotFoundException, UnsupportedLibraryExcetion, PredictException 
-    {
+            ClassNotFoundException, UnsupportedLibraryExcetion, PredictException, JepException {
         AbstractRunner runner = getRunner(modelID);
         return runner.predictCluster(rawData, schema);
     }
 
-    public static double [] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException {
+    public static double [] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException, JepException {
         AbstractRunner runner = getRunner(modelID);
         return runner.predictKeyValue(rawData, schema, null, null);
     }

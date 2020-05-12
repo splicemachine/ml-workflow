@@ -1,5 +1,6 @@
 package com.splicemachine.mlrunner;
 
+import hex.genmodel.easy.EasyPredictModelWrapper;
 import ml.combust.mleap.core.types.StructField;
 import ml.combust.mleap.core.types.StructType;
 import ml.combust.mleap.core.types.DataType;
@@ -13,6 +14,8 @@ import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.sql.*;
 import java.util.Collections;
 
@@ -31,8 +34,10 @@ public class MLeapRunner extends AbstractRunner {
     Transformer model;
     static Class[] parameterTypes = { String.class };
 
-    public MLeapRunner(final Object model) {
-        this.model = (Transformer) model;
+    public MLeapRunner(final Blob modelBlob) throws IOException, ClassNotFoundException, SQLException {
+        final InputStream bis = modelBlob.getBinaryStream();
+        final ObjectInputStream ois = new ObjectInputStream(bis);
+        this.model = (Transformer) ois.readObject();
     }
 
     private static HashMap<String, DataType> typeConversions = new HashMap<String, DataType>() {

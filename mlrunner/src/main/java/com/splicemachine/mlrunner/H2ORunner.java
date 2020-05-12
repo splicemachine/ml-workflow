@@ -1,4 +1,9 @@
 package com.splicemachine.mlrunner;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.sql.Blob;
+import java.sql.SQLException;
 import java.util.*;
 
 import hex.genmodel.algos.deeplearning.DeeplearningMojoModel;
@@ -11,8 +16,10 @@ import hex.genmodel.easy.prediction.*;
 public class H2ORunner extends AbstractRunner {
     EasyPredictModelWrapper model;
 
-    public H2ORunner(final Object model) {
-        this.model = (EasyPredictModelWrapper) model;
+    public H2ORunner(final Blob modelBlob) throws SQLException, IOException, ClassNotFoundException {
+        final InputStream bis = modelBlob.getBinaryStream();
+        final ObjectInputStream ois = new ObjectInputStream(bis);
+        this.model = (EasyPredictModelWrapper) ois.readObject();
     }
 
     private RowData parseDataToFrame(final String rawData, final String schema) {
