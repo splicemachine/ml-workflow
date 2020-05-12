@@ -9,4 +9,4 @@ splice_mlmanager/*
 docker-compose.yml
 .ipynb_checkpoints
 .venv
-target/
+mlrunner/target
