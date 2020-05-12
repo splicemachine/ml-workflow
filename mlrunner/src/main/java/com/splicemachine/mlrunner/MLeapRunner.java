@@ -1,5 +1,6 @@
 package com.splicemachine.mlrunner;
 
+import hex.genmodel.easy.EasyPredictModelWrapper;
 import ml.combust.mleap.core.types.StructField;
 import ml.combust.mleap.core.types.StructType;
 import ml.combust.mleap.core.types.DataType;
@@ -13,6 +14,8 @@ import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.sql.*;
 import java.util.Collections;
 
@@ -31,8 +34,10 @@ public class MLeapRunner extends AbstractRunner {
     Transformer model;
     static Class[] parameterTypes = { String.class };
 
-    public MLeapRunner(final Object model) {
-        this.model = (Transformer) model;
+    public MLeapRunner(final Blob modelBlob) throws IOException, ClassNotFoundException, SQLException {
+        final InputStream bis = modelBlob.getBinaryStream();
+        final ObjectInputStream ois = new ObjectInputStream(bis);
+        this.model = (Transformer) ois.readObject();
     }
 
     private static HashMap<String, DataType> typeConversions = new HashMap<String, DataType>() {
@@ -226,18 +231,9 @@ public class MLeapRunner extends AbstractRunner {
     }
 
     @Override
-    public double[] predictKeyValue(final String rawData, final String schema) throws PredictException {
+    public double[] predictKeyValue(final String rawData, final String schema, final String predictCall, final String predictArgs) throws PredictException {
         return null;
     }
-
-    // public static void main(final String[] args) throws InvocationTargetException, IllegalAccessException, SQLException,
-    //         IOException, ClassNotFoundException {
-    //     final String vals = "0, -1.3598071336738, -0.0727811733098497, 2.53634673796914, 1.37815522427443, -0.338320769942518, 0.462387777762292, 0.239598554061257, 0.0986979012610507, 0.363786969611213, 0.0907941719789316, -0.551599533260813, -0.617800855762348, -0.991389847235408, -0.311169353699879, 1.46817697209427, -0.470400525259478, 0.207971241929242, 0.0257905801985591, 0.403992960255733, 0.251412098239705, -0.018306777944153, 0.277837575558899, -0.110473910188767, 0.0669280749146731, 0.128539358273528, -0.189114843888824, 0.133558376740387, -0.0210530534538215, 149.62";
-    //     final String sch = "TIME_OFFSET INTEGER,V1 DOUBLE,V2 DOUBLE,V3 DOUBLE,V4 DOUBLE,V5 DOUBLE,V6 DOUBLE,V7 DOUBLE,V8 DOUBLE,V9 DOUBLE,V10 DOUBLE,V11 DOUBLE,V12 DOUBLE,V13 DOUBLE,V14 DOUBLE,V15 DOUBLE,V16 DOUBLE,V17 DOUBLE,V18 DOUBLE,V19 DOUBLE,V20 DOUBLE,V21 DOUBLE,V22 DOUBLE,V23 DOUBLE,V24 DOUBLE,V25 DOUBLE,V26 DOUBLE,V27 DOUBLE,V28 DOUBLE,AMOUNT DOUBLE";
-    //     final String pth = "jar:file:///Users/benepstein/Desktop/model.zip";
-    //     final String p = MLeapRunner.predictClassification(vals, sch);
-    //     System.out.println(p);
-    // }
 }
 
 
