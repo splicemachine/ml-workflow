@@ -20,8 +20,6 @@ then
    exit 1
 fi
 
-
-
 if [[ "$FRAMEWORK_NAME" == "" ]]
 then
     echo "Error: environment variable FRAMEWORK_NAME is required"
@@ -46,13 +44,24 @@ elif [[ "$ENVIRONMENT" == "azure" ]] || [[ "$ENVIRONMENT" == "AZ" ]] || [[ "$ENV
 then
     export ENVIRONMENT="azure"
     export AZURE_SUBSCRIPTION_ID=$(python3.6 ${SRC_HOME}/scripts/login_azure.py)
-fi
+elif [[ "$ENVIRONMENT" == "openstack" ]] || [[ "$ENVIRONMENT" == "Openstack" ]] || [[ "$ENVIRONMENT" == "OPENSTACK" ]] || [[ "$ENVIRONMENT" == "OpenStack" ]]
+then
+    export ENVIRONMENT="openstack"
+elif [[ "$ENVIRONMENT" == "gcp" ]] || [[ "$ENVIRONMENT" == "GCP" ]]
+then
+    export ENVIRONMENT="gcp"
 
+fi
 
 # Test Optional Environment Variables
 if [[ "$DB_PORT" == "" ]]
 then
     export DB_PORT=1527
+fi
+
+if [[ "$API_PORT" == "" ]]
+then
+    export API_PORT=2375
 fi
 
 if [[ "$MLFLOW_PORT" == "" ]]
@@ -87,5 +96,5 @@ fi
 # Start Main Processes
 echo "Starting up Docker Daemon"
 nohup dockerd &
-echo "Starting Worker"
-python3.7 ${SRC_HOME}/main.py
+echo "Starting Worker. Listening on port ${API_PORT}"
+nohup gunicorn --bind 0.0.0.0:${API_PORT} --chdir ${SRC_HOME} main:APP

@@ -1,7 +1,9 @@
+from os import environ as env_vars
 from collections import defaultdict
 from json import dumps as serialize_json
 from time import time as timestamp
-
+import requests
+from requests.exceptions import ConnectionError
 from flask import Flask, request, Response, jsonify as create_json, render_template as show_html, \
     redirect, url_for
 from flask_executor import Executor
@@ -39,6 +41,7 @@ CLOUD_ENVIRONMENT: CloudEnvironment = CloudEnvironments.get_current()
 Session = None  # db session-- created with every request
 
 LOGGER = logging.getLogger(__name__)
+BOBBY_URI = env_vars.get('BOBBY_URL', 'http://bobby')
 
 
 # Flask App Configuration
@@ -79,7 +82,8 @@ def create_global_jinja_variables():
     return dict(
         cloud_environment_name=CLOUD_ENVIRONMENT.name,
         known_handlers=KnownHandlers,
-        handler_names=HandlerNames
+        handler_names=HandlerNames,
+        can_deploy=CLOUD_ENVIRONMENT.can_deploy
     )
 
 
@@ -200,7 +204,12 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
 
     Session.add(job)
     Session.commit()
-
+    try:
+        # Tell bobby there's a new job to process
+        requests.post(f"{BOBBY_URI}:2375/job")
+    except ConnectionError:
+        LOGGER.warning('Bobby was not reachable by MLFlow. Ensure Bobby is running. \nThe job has'
+                       'been added to the database and will be processed when Bobby is running again.')
     return dict(job_status=APIStatuses.pending,
                 timestamp=timestamp())  # turned into JSON and returned
 
@@ -406,7 +415,8 @@ def deploy_csp() -> Response:
     # 1) deploy_aws.html, 2) deploy_azure.html, 3) deploy_gcp.html
     # they need to match the names given to the CloudEnvironments
     # given in ml-workflow-lib/mlmanager_lib/database/models.py:KnownHandlers
-    return show_html(f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html')
+    show = f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html' if CLOUD_ENVIRONMENT.can_deploy else 'index.html'
+    return show_html(show)
 
 
 @APP.route('/tracker', methods=['GET'])

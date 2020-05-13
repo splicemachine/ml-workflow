@@ -31,16 +31,18 @@ class CloudEnvironment:
     (e.g. AWS, Azure, GCP, Heroku etc.)
     """
 
-    def __init__(self, name: str, fullname: str, handler_mapping: dict) -> None:
+    def __init__(self, name: str, fullname: str, handler_mapping: dict, can_deploy = False) -> None:
         """
         :param name: (str) the short abbreviation for the environment
         :param fullname: (str) the full name of the environment
         :param handler_mapping: (dict) mapping for pages to the handler name
             when the page form is submitted
+        :param can_deploy: (bool) whether deployment to that service is available
         """
         self.name: str = name
         self.fullname: str = fullname
         self.handler_mapping: dict = handler_mapping
+        self.can_deploy = can_deploy
 
     def __eq__(self, name: object) -> bool:
         """
@@ -68,7 +70,8 @@ class CloudEnvironments(Definition):
         handler_mapping={
             'deploy': 'DEPLOY_AWS'
             # deploy attribute is generalized to HandlerNames.deploy_csp handler
-        }
+        },
+        can_deploy=True
     )
 
     azure: CloudEnvironment = CloudEnvironment(
@@ -77,6 +80,25 @@ class CloudEnvironments(Definition):
         handler_mapping={
             'deploy': 'DEPLOY_AZURE'
         },
+        can_deploy=True
+    )
+
+    gcp: CloudEnvironment = CloudEnvironment(
+        name="GCP",
+        fullname="Google Cloud",
+        handler_mapping={
+            'deploy': 'NONE'
+        },
+        can_deploy=False
+    )
+
+    openstack: CloudEnvironment = CloudEnvironment(
+        name="OpenStack",
+        fullname="OpenStack",
+        handler_mapping={
+            'deploy': 'NONE'
+        },
+        can_deploy=False
     )
 
     @staticmethod
@@ -87,7 +109,9 @@ class CloudEnvironments(Definition):
         """
         return (
             CloudEnvironments.aws,
-            CloudEnvironments.azure
+            CloudEnvironments.azure,
+            CloudEnvironments.gcp,
+            CloudEnvironments.openstack
         )
 
     @staticmethod

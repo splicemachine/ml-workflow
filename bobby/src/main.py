@@ -6,6 +6,7 @@ for new jobs and dispatches them to Workers for execution
 from os import environ as env_vars
 from time import sleep as wait
 
+from flask import Flask, jsonify as create_json, has_request_context
 from handlers.modifier_handlers import EnableServiceHandler, DisableServiceHandler
 from handlers.run_handlers import SageMakerDeploymentHandler, AzureDeploymentHandler
 from mlmanager_lib import CloudEnvironments, CloudEnvironment
@@ -14,11 +15,14 @@ from mlmanager_lib.database.handlers import KnownHandlers, HandlerNames, populat
 from mlmanager_lib.database.models import Job, SessionFactory, execute_sql
 from mlmanager_lib.logger.logging_config import logging
 from mlmanager_lib.worker.ledger import JobLedger
+from mlmanager_lib.rest.responses import HTTP
+from mlmanager_lib.rest.constants import APIStatuses
 from py4j.java_gateway import java_import
 from pyspark import SparkConf, SparkContext
 from workerpool import Job as ThreadedTask, WorkerPool
 from pysparkling import *
 from retrying import retry
+from traceback import format_exc
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -29,8 +33,9 @@ __version__: str = "2.0"
 __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
+APP: Flask = Flask(__name__)
 LOGGER = logging.getLogger(__name__)
-LOGGER.warn(f"Using Logging Level {logging.getLevelName(LOGGER.getEffectiveLevel())}")
+LOGGER.warning(f"Using Logging Level {logging.getLevelName(LOGGER.getEffectiveLevel())}")
 
 # Jobs
 POLL_INTERVAL: int = 5  # check for new jobs every 2 seconds
@@ -45,6 +50,20 @@ Session = SessionFactory()
 # We only need spark context for modifiable handlers
 RUN_HANDLERS: tuple = KnownHandlers.get_modifiable()
 
+# Initializes workerpool on construction of object
+WORKER_POOL: WorkerPool = WorkerPool(size=30)
+LEDGER: JobLedger = JobLedger(LEDGER_MAX_SIZE)
+
+ID_COL: str = "id"  # column name for id in Jobs
+TIMESTAMP_COL: str = "timestamp"
+STATUS_COL: str = "status"
+HANDLER_COL: str = "handler_name"
+POLL_SQL_QUERY: str = \
+    f"""
+    SELECT {ID_COL}, {HANDLER_COL} FROM {Job.__tablename__}
+    WHERE {STATUS_COL}='{JobStatuses.pending}'
+    ORDER BY "{TIMESTAMP_COL}"
+    """
 
 def create_spark() -> SparkContext:
     """
@@ -144,73 +163,55 @@ class Runner(ThreadedTask):
             LOGGER.exception(
                 f"Uncaught Exception Encountered while processing task #{self.task_id}")
 
-
-class Master(object):
+def _get_pending_task_ids_handler() -> list:
     """
-    Master which checks for active
-    jobs and dispatches them to workers
+    Returns all task ids and handlers in the
+    database with the status 'PENDING'
+    from the database
     """
-
-    id_col: str = "id"  # column name for id in Jobs
-    timestamp_col: str = "timestamp"
-    status_col: str = "status"
-    handler_col: str = "handler_name"
-
-    poll_sql_query: str = \
-        f"""
-        SELECT TOP 1 {id_col}, {handler_col} FROM {Job.__tablename__}
-        WHERE {status_col}='{JobStatuses.pending}'
-        ORDER BY "{timestamp_col}"
-        """
-
-    def __init__(self) -> None:
-        """
-        Initializes workerpool on construction of
-        object
-        """
-        self.worker_pool: WorkerPool = WorkerPool(size=30)
-        self.ledger: JobLedger = JobLedger(LEDGER_MAX_SIZE)
-
-    @staticmethod
-    def _get_first_pending_task_id_handler() -> list:
-        """
-        Returns the earliest task id and handler in the
-        database with the status 'PENDING'
-        from the database
-        """
-        # Since this is running a lot, we will
-        # use SQL so that it is more efficient
-        #FIXME: If the database does not exist, SQLAlchemy will keep trying to make a new connection and
-        #FIXME: eventually have a seg fault. We can't try/catch a seg fault.
-        return execute_sql(Master.poll_sql_query)
-        # SELECT only the `id` + `handler_name` column from the first inserted pending task
-
-    def poll(self) -> None:
-        """
-        Wait for new Jobs and dispatch
-        them to the queue where they will be
-        serviced by free workers
-        """
-        while True:
-            try:
-                job_data: list = Master._get_first_pending_task_id_handler()
-                if job_data and job_data[0][0] not in self.ledger:
-                    job_id, handler_name = job_data[0]  # unpack arguments
-                    LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
-                    self.ledger.record(job_id)
-                    self.worker_pool.put(Runner(SPARK_CONTEXT, HC, job_id, handler_name))
-                    # dispatch to a thread
-                wait(POLL_INTERVAL)
-            except Exception:
-                LOGGER.exception("Error: Encountered Fatal Error while locating and executing jobs")
+    return execute_sql(POLL_SQL_QUERY)
 
 
-if __name__ == '__main__':
+def get_new_pending_jobs() -> None:
+    """
+    Gets the currently pending jobs for Bobby to handle. This gets called both on Bobby startup (to populate the
+    queue of jobs and on the api POST request /job for every new job submitted on the job-tracker/API code to mlflow.
+    :return: str return code 200 or 500
+    """
+    try:
+        job_datas = _get_pending_task_ids_handler()
+        for job_data in job_datas:
+            if job_data[0] not in LEDGER:
+                job_id, handler_name = job_data
+                LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
+                LEDGER.record(job_id)
+                WORKER_POOL.put(Runner(SPARK_CONTEXT, HC, job_id, handler_name))
+    except Exception:
+        LOGGER.exception("Error: Encountered Fatal Error while locating and executing jobs")
+        raise Exception()
+
+@APP.route('/job', methods=['POST'])
+def get_new_jobs() -> HTTP:
+    """
+    Calls the function to get the new pending jobs via the API endpoint /job
+    :return: HTTP response 200 or 500
+    """
+    try:
+        get_new_pending_jobs()
+        message: str = f"OK"
+        return HTTP.responses['success'](create_json(status=APIStatuses.success, message=message))
+    except:
+        return HTTP.responses['unexpected'](create_json(status=APIStatuses.error, message=message))
+
+
+def main():
     LOGGER.info('Registering handlers...')
     register_handlers()
     LOGGER.info('Populating handlers...')
     populate_handlers(Session)
-    LOGGER.info('Dispatching master...')
-    dispatcher: Master = Master()  # initialize worker pool
-    LOGGER.info('Polling...')
-    dispatcher.poll()
+    LOGGER.info('Dispatching master...') # Done by the App
+    LOGGER.info('Waiting for new jobs...')
+    get_new_pending_jobs()
+        # APP.run(host='0.0.0.0', port=2375)
+
+main()
