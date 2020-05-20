@@ -9,7 +9,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 
 import hex.genmodel.easy.exception.PredictException;
-import jep.Jep;
 import jep.*;
 import jep.SharedInterpreter;
 import jep.JepException;
@@ -27,8 +26,6 @@ public class SKRunner extends AbstractRunner {
         final byte[] allBytes = new byte[fileSize];
         is.read(allBytes);
         this.model = allocateDirect(fileSize).put(allBytes);
-
-        //DirectNDArray<ByteBuffer> javaModel = new DirectNDArray<>(this.model, true);
     }
 
     @Override
@@ -87,7 +84,7 @@ public class SKRunner extends AbstractRunner {
     }
 
     @Override
-    public double[] predictKeyValue(String rawData, String schema, String predictCall, String predictArgs) throws PredictException, JepException {
+    public double[] predictKeyValue(String rawData, String schema, String predictCall, String predictArgs, double threshold) throws PredictException, JepException {
         try (SharedInterpreter interp = new SharedInterpreter())
         {
             DirectNDArray<ByteBuffer> javaModel = new DirectNDArray<>(this.model, true);

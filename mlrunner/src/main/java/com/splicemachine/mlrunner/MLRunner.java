@@ -1,5 +1,4 @@
 package com.splicemachine.mlrunner;
-import java.nio.ByteBuffer;
 import java.sql.*;
 
 import com.splicemachine.db.iapi.error.StandardException;
@@ -21,9 +20,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import io.airlift.log.Logger;
 import jep.JepException;
-import jep.MainInterpreter;
-import sun.applet.Main;
-//import jep;
+
 
 
 public class MLRunner implements DatasetProvider, VTICosting {
@@ -32,6 +29,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     private final String modelCategory,  modelID, rawData, schema;
     private final String predictCall;
     private final String predictArgs;
+    private final double threshold;
     //Provide external context which can be carried with the operation
     protected OperationContext operationContext;
     private static final Logger LOG = Logger.get(MLRunner.class);
@@ -92,7 +90,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
 
     public static double [] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException, JepException {
         AbstractRunner runner = getRunner(modelID);
-        return runner.predictKeyValue(rawData, schema, null, null);
+        return runner.predictKeyValue(rawData, schema, null, null, -1);
     }
 
     public static Double splitResult(final String str, final int index) {
@@ -126,7 +124,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         try {
 
             AbstractRunner runner = getRunner(this.modelID);
-            double [] preds = runner.predictKeyValue(this.rawData, this.schema, this.predictCall, this.predictArgs);
+            double [] preds = runner.predictKeyValue(this.rawData, this.schema, this.predictCall, this.predictArgs, this.threshold);
 
             ExecRow valueRow = new ValueRow(preds.length);
 
@@ -186,14 +184,27 @@ public class MLRunner implements DatasetProvider, VTICosting {
         this.schema = schema;
         this.predictCall = null;
         this.predictArgs = null;
+        this.threshold = -1;
     }
-    public MLRunner(final String modelCategory, final String modelID, final String rawData, final String schema, final String predictCall, final String predictArgs){
+    public MLRunner(final String modelCategory, final String modelID, final String rawData, final String schema,
+                    final String predictCall, final String predictArgs){
         this.modelCategory = modelCategory;
         this.modelID = modelID;
         this.rawData = rawData;
         this.schema = schema;
         this.predictCall = predictCall;
         this.predictArgs = predictArgs;
+        this.threshold = -1;
+    }
+    public MLRunner(final String modelCategory, final String modelID, final String rawData, final String schema,
+                    final String predictCall, final String predictArgs, final double threshold){
+        this.modelCategory = modelCategory;
+        this.modelID = modelID;
+        this.rawData = rawData;
+        this.schema = schema;
+        this.predictCall = predictCall;
+        this.predictArgs = predictArgs;
+        this.threshold = threshold;
     }
 
     @Override
