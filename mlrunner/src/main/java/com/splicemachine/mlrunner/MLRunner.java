@@ -190,6 +190,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         this.predictArgs = null;
         this.threshold = -1;
     }
+    // For sklearn
     public MLRunner(final String modelCategory, final String modelID, final String rawData, final String schema,
                     final String predictCall, final String predictArgs){
         this.modelCategory = modelCategory;
@@ -200,15 +201,16 @@ public class MLRunner implements DatasetProvider, VTICosting {
         this.predictArgs = predictArgs;
         this.threshold = -1;
     }
+    // For Keras
     public MLRunner(final String modelCategory, final String modelID, final String rawData, final String schema,
-                    final String predictCall, final String predictArgs, final double threshold){
+                    final String threshold){
         this.modelCategory = modelCategory;
         this.modelID = modelID;
         this.rawData = rawData;
         this.schema = schema;
-        this.predictCall = predictCall;
-        this.predictArgs = predictArgs;
-        this.threshold = threshold;
+        this.predictCall = null;
+        this.predictArgs = null;
+        this.threshold = Double.valueOf(threshold);
     }
 
     @Override
