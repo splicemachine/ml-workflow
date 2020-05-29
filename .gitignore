@@ -11,3 +11,4 @@ docker-compose.yml
 .venv
 mlrunner/target/
 mlrunner/.idea/
+mlrunner/*.iml

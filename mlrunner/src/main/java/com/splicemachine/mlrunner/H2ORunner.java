@@ -113,7 +113,7 @@ public class H2ORunner extends AbstractRunner {
     }
 
     @Override
-    public double[] predictKeyValue(final String rawData, final String schema, final String predictCall, final String predictArgs) throws PredictException {
+    public double[] predictKeyValue(final String rawData, final String schema, final String predictCall, final String predictArgs, double threshold) throws PredictException {
         final RowData row = parseDataToFrame(rawData, schema);
         double [] result;
         AbstractPrediction p = null;
