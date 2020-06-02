@@ -2,7 +2,7 @@
 
 {% block css %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/jquery.bootgrid.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='splice_static/css/jquery.bootgrid.css') }}"/>
 {% endblock %}
 
 {% block content %}
@@ -137,7 +137,7 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/widgets.js') }}"></script>
+<script src="{{ url_for('static', filename='splice_static/js/widgets.js') }}"></script>
 <script>
     refreshAccess(false);
 </script>

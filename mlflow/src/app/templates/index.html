@@ -89,9 +89,9 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/Chart.bundle.js') }}"></script>
-<script src="{{ url_for('static', filename='js/chart_config.js') }}"></script>
-<script src="{{ url_for('static', filename='js/widgets.js') }}"></script>
+<script src="{{ url_for('static', filename='splice_static/js/Chart.bundle.js') }}"></script>
+<script src="{{ url_for('static', filename='splice_static/js/chart_config.js') }}"></script>
+<script src="{{ url_for('static', filename='splice_static/js/widgets.js') }}"></script>
 <script>
     refreshHome(false);
 

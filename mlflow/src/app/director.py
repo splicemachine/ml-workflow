@@ -16,7 +16,7 @@ from mlmanager_lib.database.models import SessionFactory, Job, Handler
 from mlmanager_lib.logger.logging_config import logging
 from mlmanager_lib.rest.constants import APIStatuses, TrackerTableMapping
 from mlmanager_lib.rest.responses import HTTP
-from .utilities.utils import *
+from utilities.utils import *
 
 # TODO: add basic auth for internal API endpoints
 
@@ -363,11 +363,11 @@ def home() -> Response:
     return show_html('index.html')
 
 
-CREATE_GLOBAL_JINJA_VARIABLES = APP.context_processor()(fix_params(create_global_jinja_variables, CLOUD_ENVIRONMENT))
+CREATE_GLOBAL_JINJA_VARIABLES = APP.context_processor(fix_params(create_global_jinja_variables, CLOUD_ENVIRONMENT))
 LOGIN = APP.route('/login', methods=['GET', 'POST'])(login)
 LOGOUT = APP.route('/logout')(logout)
-USER_LOADER = LoginManager.user_loader(user_loader)
-UNAUTHORIZED_USER = LoginManager.unauthorized_handler(unauthorized_user)
+USER_LOADER = LOGIN_MANAGER.user_loader(user_loader)
+UNAUTHORIZED_USER = LOGIN_MANAGER.unauthorized_handler(unauthorized_user)
 
 if __name__ == '__main__':
     APP.run(host='0.0.0.0', port=5000)

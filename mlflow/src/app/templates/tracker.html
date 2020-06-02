@@ -2,7 +2,7 @@
 
 {% block css %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/jquery.bootgrid.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static/splice_static', filename='css/jquery.bootgrid.css') }}"/>
 {% endblock %}
 
 {% block content %}
@@ -82,10 +82,10 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/FileSaver.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/tableExport.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/jquery.bootgrid.js') }}"></script>
-<script src="{{ url_for('static', filename='js/export_functions.js') }}"></script>
+<script src="{{ url_for('static', filename='splice_static/js/FileSaver.min.js') }}"></script>
+<script src="{{ url_for('static', filename='splice_static/js/tableExport.min.js') }}"></script>
+<script src="{{ url_for('static', filename='splice_static/js/jquery.bootgrid.js') }}"></script>
+<script src="{{ url_for('static', filename='splice_static/js/export_functions.js') }}"></script>
 <script>
     $("#grid-data").bootgrid(
     {

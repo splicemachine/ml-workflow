@@ -2,12 +2,17 @@
 Shared utilities between mlflow and director applications
 """
 
-from flask import Response, render_template as show_html, request, redirect, url_for
+from flask import Response, render_template as show_html,  request, \
+    redirect, url_for
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 
 from mlmanager_lib.database.handlers import KnownHandlers, HandlerNames
 from mlmanager_lib import CloudEnvironment
 from mlmanager_lib.rest.authentication import Authentication, User
+
+
+
+LOGIN_HTML = retrieve_login_html()
 
 
 def create_global_jinja_variables(cloud_environment: CloudEnvironment):
@@ -44,9 +49,9 @@ def login() -> Response:
     if Authentication.validate_auth(username, request.form['pw']):
         user: User = User(username)
         login_user(user)
-        return redirect(request.args.get("next") or url_for('home'))
+        return redirect(request.args.get("next") or redirect('/'))
 
-    return show_html('login.html', unauthorized=True)
+    return show_html(LOGIN_HTML, unauthorized=True)
 
 
 @login_required

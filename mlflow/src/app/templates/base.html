@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <title>MLManager Director</title>
     {% block css %} <!-- so other pages can inject their own custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/font-awesome.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/droid_sans.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base_stylesheet.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='splice_static/fonts/font-awesome.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='splice_static/css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='splice_static/fonts/droid_sans.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='splice_static/css/base_stylesheet.css') }}">
     {% endblock %}
 </head>
 <body>
@@ -15,7 +15,7 @@
     <i class="fa fa-bars close-aside hidden-sm hidden-md hidden-lg"
        data-close="show-side-navigation1"></i>
     <div class="heading">
-        <img src=" /static/img/splice_logo.png" alt="">
+        <img src=" /static/splice_static/img/splice_logo.png" alt="">
         <div class="info">
             <h3></h3>
         </div>
@@ -83,10 +83,10 @@
 
 
     {% block scripts %}
-    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/jquery-latest.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='splice_static/js/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='splice_static/js/index.js') }}"></script>
+    <script src="{{ url_for('static', filename='splice_static/js/jquery-latest.js') }}"></script>
+    <script src="{{ url_for('static', filename='splice_static/js/bootstrap.min.js') }}"></script>
     {% endblock %}
 
 </body>

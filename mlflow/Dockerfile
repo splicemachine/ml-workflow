@@ -85,6 +85,12 @@ RUN \
 COPY mlmanager_lib /tmp/mlmanager_lib
 RUN pip3.7 install /tmp/mlmanager_lib/.
 
+# Move HTML Templates and CSS to MLFlow Source
+RUN MLFLOW_PACKAGE=$(python3.7 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')/mlflow && \
+    mkdir -p $MLFLOW_PACKAGE/server/templates && \
+    cp $SRC_HOME/app/templates/*.html $MLFLOW_PACKAGE/server/templates && \
+    cp -r $SRC_HOME/app/static/* $MLFLOW_PACKAGE/server/js/build
+
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 
 CMD $SRC_HOME"/scripts/entrypoint.sh"
