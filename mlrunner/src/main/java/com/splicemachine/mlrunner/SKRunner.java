@@ -39,11 +39,11 @@ public class SKRunner extends AbstractRunner {
         {
             DirectNDArray<ByteBuffer> javaModel = new DirectNDArray<>(this.model, true);
             interp.eval("import pickle");
-            interp.eval("from fastnumbers import fast_float");
+            interp.eval("import re");
             interp.set("X", rawData);
             interp.set("jmodel", javaModel);
-            interp.eval("X = [fast_float(x) for x in X.split(',')]");
-
+            interp.eval("pat = re.compile('^((?!-0?(\\.0+)?(e|$))-?(0|[1-9]\\d*)?(\\.\\d+)?(?<=\\d)(e-?(0|[1-9]\\d*))?|0x[0-9a-f]+)$')");
+            interp.eval("X = [float(x) if pat.match(x) else x for x in X.split(',')]");
             interp.eval("model = pickle.loads(jmodel)");
             interp.eval("pred = model.predict([X])");
             double result = (double) interp.getValue("pred[0]");
@@ -67,10 +67,11 @@ public class SKRunner extends AbstractRunner {
         {
             DirectNDArray<ByteBuffer> javaModel = new DirectNDArray<>(this.model, true);
             interp.eval("import pickle");
-            interp.eval("from fastnumbers import fast_float");
+            interp.eval("import re");
             interp.set("X", rawData);
             interp.set("jmodel", javaModel);
-            interp.eval("X = [fast_float(x) for x in X.split(',')]");
+            interp.eval("pat = re.compile('^((?!-0?(\\.0+)?(e|$))-?(0|[1-9]\\d*)?(\\.\\d+)?(?<=\\d)(e-?(0|[1-9]\\d*))?|0x[0-9a-f]+)$')");
+            interp.eval("X = [float(x) if pat.match(x) else x for x in X.split(',')]");
             interp.eval("model = pickle.loads(jmodel)");
             interp.eval("pred = model.predict([X])");
             long l = (long) interp.getValue("pred[0]");
@@ -89,10 +90,11 @@ public class SKRunner extends AbstractRunner {
         {
             DirectNDArray<ByteBuffer> javaModel = new DirectNDArray<>(this.model, true);
             interp.eval("import pickle");
-            interp.eval("from fastnumbers import fast_float");
+            interp.eval("import re");
             interp.set("X", rawData);
             interp.set("jmodel", javaModel);
-            interp.eval("X = [fast_float(x) for x in X.split(',')]");
+            interp.eval("pat = re.compile('^((?!-0?(\\.0+)?(e|$))-?(0|[1-9]\\d*)?(\\.\\d+)?(?<=\\d)(e-?(0|[1-9]\\d*))?|0x[0-9a-f]+)$')");
+            interp.eval("X = [float(x) if pat.match(x) else x for x in X.split(',')]");
             interp.eval("model = pickle.loads(jmodel)");
             double[] result;
             if(predictCall.equals("predict")){
