@@ -6,6 +6,8 @@ from mlflow.store.tracking.dbmodels.models import SqlRun
 from .models import ENGINE, Base
 from sqlalchemy import Column, String, Integer, LargeBinary, PrimaryKeyConstraint, ForeignKey, DateTime, Table
 from sqlalchemy.orm import relationship, backref
+from sqlalchemy import MetaData
+from sqlalchemy.ext.automap import automap_base
 from datetime import datetime
 import pytz
 
@@ -68,9 +70,16 @@ class Models(Base):
     )
 
 # Reflection for sys tables
-triggers: Table = Table('sys.systriggers', Base.metadata)#, autoload=True, autoload_with=ENGINE)
-users: Table = Table('sys.sysusers', Base.metadata)#, autoload=True, autoload_with=ENGINE)
-tables: Table = Table('sys.systables', Base.metadata)#, autoload=True, autoload_with=ENGINE)
+m = MetaData(schema='SYS')
+a_base = automap_base(metadata=m)
+a_base.prepare(ENGINE, reflect=True)
+Triggers = a_base.classes.systriggers
+Users = a_base.classes.sysusers
+Tables = a_base.classes.systables
+
+# triggers: Table = Table('sys.systriggers', Base.metadata)#, autoload=True, autoload_with=ENGINE)
+# users: Table = Table('sys.sysusers', Base.metadata)#, autoload=True, autoload_with=ENGINE)
+# tables: Table = Table('sys.systables', Base.metadata)#, autoload=True, autoload_with=ENGINE)
 
 class ModelMetadata(Base):
     """
@@ -79,17 +88,17 @@ class ModelMetadata(Base):
     __tablename__: str = "model_metadata"
     run_uuid: Column = Column(String(32), ForeignKey(SqlRun.run_uuid), primary_key=True)
     status: Column = Column(String(50), nullable=False)
-    deployed_to: Column = Column(String(250), ForeignKey(tables.tableid), nullable=False) #FIXME: foreign key sys.systables
-    trigger_id: Column = Column(String(250), ForeignKey(triggers.triggerid), nullable=False) #FIXME: foreign key sys.systriggers
-    trigger_id_2: Column = Column(String(250), ForeignKey(triggers.triggerid), nullable=True) #FIXME: foreign key sys.systriggers
+    deployed_to: Column = Column(String(250), ForeignKey(Tables.tableid), nullable=False) #FIXME: foreign key sys.systables
+    trigger_id: Column = Column(String(250), ForeignKey(Triggers.triggerid), nullable=False) #FIXME: foreign key sys.systriggers
+    trigger_id_2: Column = Column(String(250), ForeignKey(Triggers.triggerid), nullable=True) #FIXME: foreign key sys.systriggers
     db_env: Column = Column(String(100), nullable=True) # Dev, QA, Prod etc
-    deployed_by: Column = Column(String(250), ForeignKey(users.username), nullable=False) #FIXME: foreign key sys.sysusers
+    deployed_by: Column = Column(String(250), ForeignKey(Users.username), nullable=False) #FIXME: foreign key sys.sysusers
     deployed_date: Column = Column(DateTime, default=datetime.now(tz=pytz.utc), nullable=False)
 
     run: relationship = relationship(SqlRun, backref=backref('model_metadata', cascade='all'))
-    deploy_endpoint: relationship = relationship(tables, backref=backref('model_metadata', cascade='all'))
-    trigger_1: relationship = relationship(triggers, backref=backref('model_metadata', cascade='all'))
-    trigger_2: relationship = relationship(triggers, backref=backref('model_metadata', cascade='all'))
-    deploy_user: relationship = relationship(users, backref=backref('model_metadata', cascade='all'))
+    deploy_endpoint: relationship = relationship(Tables, backref=backref('model_metadata', cascade='all'))
+    trigger_1: relationship = relationship(Triggers, backref=backref('model_metadata', cascade='all'))
+    trigger_2: relationship = relationship(Triggers, backref=backref('model_metadata', cascade='all'))
+    deploy_user: relationship = relationship(Users, backref=backref('model_metadata', cascade='all'))
 
 
