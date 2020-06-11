@@ -167,7 +167,8 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         LOGGER.info("Creating Non-Alembic database tables...")
         Base.metadata.create_all(
             self.engine,
-            tables=[table.__table__ for table in self.NON_ALEMBIC_TABLES]
+            tables=[table.__table__ for table in self.NON_ALEMBIC_TABLES],
+            checkfirst=True
         )
 
     def _get_artifact_location(self, experiment_id: int) -> str:

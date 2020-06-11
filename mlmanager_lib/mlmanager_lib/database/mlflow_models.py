@@ -96,9 +96,9 @@ class ModelMetadata(Base):
     deployed_date: Column = Column(DateTime, default=datetime.now(tz=pytz.utc), nullable=False)
 
     run: relationship = relationship(SqlRun, backref=backref('model_metadata', cascade='all'))
-    deploy_endpoint: relationship = relationship(Tables, backref=backref('model_metadata', cascade='all'))
-    trigger_1: relationship = relationship(Triggers, backref=backref('model_metadata', cascade='all'))
-    trigger_2: relationship = relationship(Triggers, backref=backref('model_metadata', cascade='all'))
-    deploy_user: relationship = relationship(Users, backref=backref('model_metadata', cascade='all'))
+    deploy_endpoint: relationship = relationship(Tables, backref=backref('model_metadata', cascade_backefs=False))
+    trigger_1: relationship = relationship(Triggers, backref=backref('model_metadata', cascade_backefs=False))
+    trigger_2: relationship = relationship(Triggers, backref=backref('model_metadata', cascade_backefs=False))
+    deploy_user: relationship = relationship(Users, backref=backref('model_metadata', cascade_backefs=False))
 
 
