@@ -18,7 +18,6 @@ services:
       DB_USER: mlmanager
       DB_PASSWORD: [DB PASSWORD]
       FRAMEWORK_NAME: amrit-streamtest-6160590510
-      ZEPPELIN_URL: https://monte-ml.splicemachine.io
       MODE: development
       ENVIRONMENT: aws
     image: splicemachine/sm_k8_mlflow:0.1.20
