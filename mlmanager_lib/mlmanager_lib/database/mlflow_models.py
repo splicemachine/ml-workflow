@@ -4,10 +4,9 @@ that are not specified in their source code
 """
 from mlflow.store.tracking.dbmodels.models import SqlRun
 from .models import ENGINE, Base
-from sqlalchemy import Column, String, Integer, LargeBinary, PrimaryKeyConstraint, ForeignKey, DateTime, Table
+from sqlalchemy import Column, String, Integer, LargeBinary, PrimaryKeyConstraint, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy import MetaData
-from sqlalchemy.ext.automap import automap_base
+from typing import Dict
 from datetime import datetime
 import pytz
 
@@ -55,6 +54,8 @@ class SqlArtifact(Base):
     )
 
 
+## We haven't fully implemented reflection in our sqlalchemy driver so we can manually reflect the system tables we
+## need to reference
 class Models(Base):
     """
     Table for storing deployed models into the DB
@@ -69,17 +70,67 @@ class Models(Base):
         PrimaryKeyConstraint('run_uuid', name='models_pk'),
     )
 
-# Reflection for sys tables
-m = MetaData(schema='SYS')
-a_base = automap_base(metadata=m)
-a_base.prepare(ENGINE, reflect=True)
-Triggers = a_base.classes.systriggers
-Users = a_base.classes.sysusers
-Tables = a_base.classes.systables
+class SysTables(Base):
+    """
+    System Table for managing tables
+    """
+    __tablename__: str = "systables"
+    __table_args__: Dict[str,str] = {"schema": "sys"}
+    TABLEID: Column = Column(String(1), nullable=False, primary_key=True)
+    TABLENAME: Column = Column(String(100), nullable=False)
+    TABLETYPE: Column = Column(String(1), nullable=False)
+    SCHEMAID: Column = Column(String(1), nullable=False)
+    LOCKGRANULARITY: Column = Column(String(100), nullable=False)
+    VERSION: Column = Column(String(100), nullable=True)
+    COLSEQUENCE: Column = Column(String(100), nullable=False)
+    DELIMITED: Column = Column(Integer, nullable=True)
+    ESCAPED: Column = Column(String(100), nullable=True)
+    LINES: Column = Column(String(100), nullable=True)
+    STORED: Column = Column(String(100), nullable=True)
+    LOCATION: Column = Column(String(100), nullable=True)
+    COMPRESSION: Column = Column(String(100), nullable=True)
+    IS_PINNED: Column = Column(Boolean, nullable=False)
+    PURGE_DELETED_ROWS: Column = Column(Boolean, nullable=False)
 
-# triggers: Table = Table('sys.systriggers', Base.metadata)#, autoload=True, autoload_with=ENGINE)
-# users: Table = Table('sys.sysusers', Base.metadata)#, autoload=True, autoload_with=ENGINE)
-# tables: Table = Table('sys.systables', Base.metadata)#, autoload=True, autoload_with=ENGINE)
+
+class SysUsers(Base):
+
+    """
+    System Table for managing users
+    """
+    __tablename__: str = "sysusers"
+    __table_args__: Dict[str,str] = {"schema": "sys"}
+    USERNAME: Column = Column(String(100), nullable=False)
+    HASHINGSCHEME: Column = Column(String(5000), nullable=False, primary_key=True)
+    PASSWORD: Column = Column(String(5000), nullable=False)
+    LASTMODIFIED: Column = Column(DateTime, nullable=False)
+
+
+class SysTriggers(Base):
+    """
+    System Table for managing triggers
+    """
+    __tablename__: str = "systriggers"
+    __table_args__: Dict[str,str] = {"schema": "sys"}
+    TRIGGERID: Column = Column(String(1), primary_key=True, nullable=True)
+    TRIGGERNAME: Column = Column(String(1000), nullable=True)
+    SCHEMAID: Column = Column(String(1), nullable=True)
+    CREATIONTIMESTAMP: Column = Column(DateTime, nullable=True)
+    EVENT: Column = Column(String(1), nullable=True)
+    FIRINGTIME: Column = Column(String(1), nullable=True)
+    TYPE: Column = Column(String(1), nullable=True)
+    STATE: Column = Column(String(1), nullable=True)
+    TABLEID: Column = Column(String(1), nullable=True)
+    WHENSTMTID: Column = Column(String(1), nullable=False)
+    ACTIONSTMTID: Column = Column(String(1), nullable=False)
+    REFERENCEDCOLUMNS: Column = Column(String(5000), nullable=False)
+    TRIGGERDEFINITION: Column = Column(String(5000), nullable=False)
+    REFERENCINGOLD: Column = Column(Boolean, nullable=False)
+    REFERENCINGNEW: Column = Column(Boolean, nullable=False)
+    OLDREFERENCINGNAME: Column = Column(String(100), nullable=False)
+    NEWREFERENCINGNAME: Column = Column(String(100), nullable=False)
+    WHENCLAUSETEXT: Column = Column(String(5000), nullable=False)
+
 
 class ModelMetadata(Base):
     """
@@ -88,17 +139,13 @@ class ModelMetadata(Base):
     __tablename__: str = "model_metadata"
     run_uuid: Column = Column(String(32), ForeignKey(SqlRun.run_uuid), primary_key=True)
     status: Column = Column(String(50), nullable=False)
-    deployed_to: Column = Column(String(250), ForeignKey(Tables.tableid), nullable=False) #FIXME: foreign key sys.systables
-    trigger_id: Column = Column(String(250), ForeignKey(Triggers.triggerid), nullable=False) #FIXME: foreign key sys.systriggers
-    trigger_id_2: Column = Column(String(250), ForeignKey(Triggers.triggerid), nullable=True) #FIXME: foreign key sys.systriggers
+    deployed_to: Column = Column(String(250), nullable=False)
+    trigger_id: Column = Column(String(250), nullable=False)
+    trigger_id_2: Column = Column(String(250), nullable=True) # Some models have 2 triggers
     db_env: Column = Column(String(100), nullable=True) # Dev, QA, Prod etc
-    deployed_by: Column = Column(String(250), ForeignKey(Users.username), nullable=False) #FIXME: foreign key sys.sysusers
+    deployed_by: Column = Column(String(250), nullable=False)
     deployed_date: Column = Column(DateTime, default=datetime.now(tz=pytz.utc), nullable=False)
 
     run: relationship = relationship(SqlRun, backref=backref('model_metadata', cascade='all'))
-    deploy_endpoint: relationship = relationship(Tables, backref=backref('model_metadata', cascade_backefs=False))
-    trigger_1: relationship = relationship(Triggers, backref=backref('model_metadata', cascade_backefs=False))
-    trigger_2: relationship = relationship(Triggers, backref=backref('model_metadata', cascade_backefs=False))
-    deploy_user: relationship = relationship(Users, backref=backref('model_metadata', cascade_backefs=False))
 
 

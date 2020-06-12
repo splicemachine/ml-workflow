@@ -20,7 +20,7 @@ from mlflow.store.db.base_sql_model import Base
 from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore, _get_sqlalchemy_filter_clauses, \
     _get_attributes_filtering_clauses  # , _get_orderby_clauses
 from mlflow.utils.search_utils import SearchUtils
-from mlmanager_lib.database.mlflow_models import SqlArtifact, Models, ModelMetadata
+from mlmanager_lib.database.mlflow_models import SqlArtifact, Models, ModelMetadata, SysTriggers, SysTables, SysUsers
 from mlmanager_lib.database.models import ENGINE
 from mlmanager_lib.logger.logging_config import logging
 from sm_mlflow.alembic_support import SpliceMachineImpl
@@ -113,7 +113,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         InitialSqlExperiment, InitialSqlRun, InitialSqlTag, InitialSqlMetric, InitialSqlParam
     )  # alembic migrations will be applied to these initial tables
 
-    NON_ALEMBIC_TABLES: tuple = (SqlArtifact, Models, ModelMetadata)
+    NON_ALEMBIC_TABLES: tuple = (SqlArtifact, Models, ModelMetadata, SysTriggers, SysTables, SysUsers)
     TABLES: tuple = ALEMBIC_TABLES + NON_ALEMBIC_TABLES
 
     def __init__(self, store_uri: str = None, artifact_uri: str = None) -> None:
@@ -426,12 +426,31 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             SqlLatestMetric.run_uuid == logged_metric.run_uuid,
             SqlLatestMetric.key == logged_metric.key) \
             .one_or_none()
+
+        if latest_metric is not None:
+            step = str(latest_metric.step)
+            value = str(latest_metric.value)
+            ts = str(latest_metric.timestamp)
+
+            step1 = str(logged_metric.step)
+            value1 = str(logged_metric.value)
+            ts1 = str(logged_metric.timestamp)
+
+            print(step, step1)
+            print(value, value1)
+            print(ts, ts1)
+
+
         if latest_metric is None or _compare_metrics(logged_metric, latest_metric):
+            print('Im here!')
+
             session.merge(
                 SqlLatestMetric(
                     run_uuid=logged_metric.run_uuid, key=logged_metric.key,
                     value=logged_metric.value, timestamp=logged_metric.timestamp,
                     step=logged_metric.step, is_nan=logged_metric.is_nan))
+            session.commit()
+
 
 
 if __name__ == "__main__":
