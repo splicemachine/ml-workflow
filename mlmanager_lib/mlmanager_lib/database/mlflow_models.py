@@ -138,12 +138,13 @@ class ModelMetadata(Base):
     """
     __tablename__: str = "model_metadata"
     run_uuid: Column = Column(String(32), ForeignKey(SqlRun.run_uuid), primary_key=True)
-    status: Column = Column(String(50), nullable=False)
-    deployed_to: Column = Column(String(250), nullable=False)
+    status: Column = Column(String(50), nullable=False) # Deployed, Deleted
+    tableid: Column = Column(String(250), nullable=False, primary_key=True) # TableID of the deployed table
+    trigger_type: Column(String(250), nullable=False) # What causes prediction? INSERT/UPSERT/UPDATE/DELETE
     trigger_id: Column = Column(String(250), nullable=False)
     trigger_id_2: Column = Column(String(250), nullable=True) # Some models have 2 triggers
     db_env: Column = Column(String(100), nullable=True) # Dev, QA, Prod etc
-    deployed_by: Column = Column(String(250), nullable=False)
+    deployed_by: Column = Column(String(250), nullable=False) # Current user
     deployed_date: Column = Column(DateTime, default=datetime.now(tz=pytz.utc), nullable=False)
 
     run: relationship = relationship(SqlRun, backref=backref('model_metadata', cascade='all'))

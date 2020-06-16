@@ -427,23 +427,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             SqlLatestMetric.key == logged_metric.key) \
             .one_or_none()
 
-        if latest_metric is not None:
-            step = str(latest_metric.step)
-            value = str(latest_metric.value)
-            ts = str(latest_metric.timestamp)
-
-            step1 = str(logged_metric.step)
-            value1 = str(logged_metric.value)
-            ts1 = str(logged_metric.timestamp)
-
-            print(step, step1)
-            print(value, value1)
-            print(ts, ts1)
-
-
         if latest_metric is None or _compare_metrics(logged_metric, latest_metric):
-            print('Im here!')
-
             session.merge(
                 SqlLatestMetric(
                     run_uuid=logged_metric.run_uuid, key=logged_metric.key,
