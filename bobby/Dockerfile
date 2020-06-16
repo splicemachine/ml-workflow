@@ -29,6 +29,7 @@ ENV LANG en_US.utf-8
 COPY bobby/build $BUILD_HOME
 
 # Install lzma python dependency for python 3.7.3
+RUN yum update -y
 RUN yum install -y xz-devel
 
 # Install python 3.7.3

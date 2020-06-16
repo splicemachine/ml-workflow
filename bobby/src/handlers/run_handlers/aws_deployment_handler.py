@@ -44,16 +44,15 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
         Manually assume the service account role before deployment
         """
         self.update_task_in_db(info='Assuming ServiceAccount Role')
-        try:
-            bash('$SRC_HOME/scripts/assume_service_account_role.sh')
-            env_vars['AWS_ACCESS_KEY_ID'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.AccessKeyId"').read().rstrip("\n")
-            env_vars['AWS_SECRET_ACCESS_KEY'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.SecretAccessKey"').read().rstrip("\n")
-            env_vars['AWS_SESSION_TOKEN'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.SessionToken"').read().rstrip("\n")
-            sleep(1)
-            bash('rm /tmp/irp-cred.txt')
-        except Exception as e:
-            LOGGER.exception("Failed to assume ServiceAccount role identity")
-            raise e
+        x = bash('$SRC_HOME/scripts/assume_service_account_role.sh')
+        if x != 0:
+            raise Exception('Failed to assume Sagemaker role. Confirm Bobby has been correctly configured in AWS to '
+                            'assume the proper role for Sagemaker deployment.')
+        env_vars['AWS_ACCESS_KEY_ID'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.AccessKeyId"').read().rstrip("\n")
+        env_vars['AWS_SECRET_ACCESS_KEY'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.SecretAccessKey"').read().rstrip("\n")
+        env_vars['AWS_SESSION_TOKEN'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.SessionToken"').read().rstrip("\n")
+        sleep(1)
+        bash('rm /tmp/irp-cred.txt')
 
     def _deploy_model_to_sagemaker(self) -> None:
         """
