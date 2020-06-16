@@ -1,6 +1,5 @@
 package com.splicemachine.mlrunner;
 
-import hex.genmodel.easy.EasyPredictModelWrapper;
 import ml.combust.mleap.core.types.StructField;
 import ml.combust.mleap.core.types.StructType;
 import ml.combust.mleap.core.types.DataType;
@@ -153,12 +152,6 @@ public class MLeapRunner extends AbstractRunner {
             // Create the StructField and properly convert the raw value
             structFields[i] = frameBuilder.createField(col, typeConversions.get(dataType));
             features[i] = converters.get(dataType).invoke(null, splits[i]);
-            // TODO: The following 2 lines seem to work perfectly (not casting the value and
-            // not selecting the correct datatype)
-            // TODO: It may be faster to not do proper casting, but that seems wrong....
-            // structFields[i] = frameBuilder.createField(col.toLowerCase(),
-            // frameBuilder.createString());
-            // features[i] = splits[i];
         }
         // Create our LeapFrame
         final StructType schemaStruct = frameBuilder.createSchema(Arrays.asList(structFields));
@@ -225,13 +218,13 @@ public class MLeapRunner extends AbstractRunner {
         // Run the model
         final DefaultLeapFrame output = this.model.transform(frame).get();
         final ArrayList<String> outputCols = new ArrayList<String>(Collections.singletonList("prediction"));
-        // Run the model
+        // Get the prediction
         final int pred = output.select(MLeapRunner.createScalaSequence(outputCols)).get().collect().last().getInt(0);
         return pred;
     }
 
     @Override
-    public double[] predictKeyValue(final String rawData, final String schema, final String predictCall, final String predictArgs) throws PredictException {
+    public double[] predictKeyValue(final String rawData, final String schema, final String predictCall, final String predictArgs, double threshold) throws PredictException {
         return null;
     }
 }

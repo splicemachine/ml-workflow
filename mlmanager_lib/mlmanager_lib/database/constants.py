@@ -34,7 +34,7 @@ class Database:
     """
     database_name: str = "splicedb"
     database_schema: str = "MLMANAGER"
-    db_port: str = env_vars.get('SPLICEDB_HREGION_SERVICE_PORT') or '1527'
+    db_port: str = env_vars.get('SPLICEDB_HREGION_SERVICE_PORT_JDBC') or '1527'
     connection_string: str = f"splicemachinesa://{env_vars['DB_USER']}:{env_vars['DB_PASSWORD']}@" \
                              f"{env_vars['DB_HOST']}:{db_port}/{database_name}"
 

@@ -15,8 +15,8 @@ it is recommended that this module is installed inside either one of these conta
 (mlflow, bobby) and tested there. 
 
 ```
-git clone https://github.com/splicemachine/ml-workflow-lib.git
-cd ml-workflow-lib
+git clone https://github.com/splicemachine/ml-workflow.git
+cd ml-workflow/mlmanager_lib
 pip3 install .
 ```
 
