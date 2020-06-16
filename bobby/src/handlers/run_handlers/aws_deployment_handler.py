@@ -4,6 +4,9 @@ pertaining to AWS Model Deployment
 """
 import logging
 from os import environ as env_vars
+from os import system as bash
+from os import popen as bash_open
+from time import sleep
 
 from mlflow import sagemaker
 from .base_deployment_handler import BaseDeploymentHandler
@@ -36,6 +39,21 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
         """
         BaseDeploymentHandler.__init__(self, task_id, spark_context)
 
+    def _assume_service_account_role(self) -> None:
+        """
+        Manually assume the service account role before deployment
+        """
+        self.update_task_in_db(info='Assuming ServiceAccount Role')
+        x = bash('$SRC_HOME/scripts/assume_service_account_role.sh')
+        if x != 0:
+            raise Exception('Failed to assume Sagemaker role. Confirm Bobby has been correctly configured in AWS to '
+                            'assume the proper role for Sagemaker deployment.')
+        env_vars['AWS_ACCESS_KEY_ID'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.AccessKeyId"').read().rstrip("\n")
+        env_vars['AWS_SECRET_ACCESS_KEY'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.SecretAccessKey"').read().rstrip("\n")
+        env_vars['AWS_SESSION_TOKEN'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.SessionToken"').read().rstrip("\n")
+        sleep(1)
+        bash('rm /tmp/irp-cred.txt')
+
     def _deploy_model_to_sagemaker(self) -> None:
         """
         Deploy a model to sagemaker using a specified iam role, app name, model path and region
@@ -65,6 +83,7 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
         env_vars['AWS_DEFAULT_REGION']: str = self.task.parsed_payload['sagemaker_region']
 
         steps: tuple = (
+            self._assume_service_account_role,
             self._retrieve_model_binary_stream_from_db,  # Retrieve Model BLOB
             self._deserialize_artifact_stream,  # Deserialize it to the Disk
             self._deploy_model_to_sagemaker,  # Deploy model to SageMaker
