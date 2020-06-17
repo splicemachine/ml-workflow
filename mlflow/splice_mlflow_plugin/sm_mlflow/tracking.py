@@ -20,7 +20,7 @@ from mlflow.store.db.base_sql_model import Base
 from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore, _get_sqlalchemy_filter_clauses, \
     _get_attributes_filtering_clauses  # , _get_orderby_clauses
 from mlflow.utils.search_utils import SearchUtils
-from mlmanager_lib.database.mlflow_models import SqlArtifact, Models, ModelMetadata, SysTriggers, SysTables, SysUsers
+from mlmanager_lib.database.mlflow_models import SqlArtifact, Models, ModelMetadata, SysTriggers, SysTables, SysUsers, live_model_status_view
 from mlmanager_lib.database.models import ENGINE
 from mlmanager_lib.logger.logging_config import logging
 from sm_mlflow.alembic_support import SpliceMachineImpl
@@ -170,6 +170,9 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             tables=[table.__table__ for table in self.NON_ALEMBIC_TABLES],
             checkfirst=True
         )
+        # Splice doesn't have a CREATE OR REPLACE VIEW syntax
+        ENGINE.execute('drop view if exists mlmanager.live_model_status')
+        ENGINE.execute(live_model_status_view)
 
     def _get_artifact_location(self, experiment_id: int) -> str:
         """

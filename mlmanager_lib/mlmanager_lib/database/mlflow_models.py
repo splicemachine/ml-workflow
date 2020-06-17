@@ -2,10 +2,12 @@
 SQLAlchemy Tables for MLFlow
 that are not specified in their source code
 """
+from sqlalchemy_views import CreateView
 from mlflow.store.tracking.dbmodels.models import SqlRun
 from .models import ENGINE, Base
-from sqlalchemy import Column, String, Integer, LargeBinary, PrimaryKeyConstraint, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, String, Integer, LargeBinary, PrimaryKeyConstraint, ForeignKey, DateTime, Boolean, Table
 from sqlalchemy.orm import relationship, backref
+from sqlalchemy.sql import text
 from typing import Dict
 from datetime import datetime
 import pytz
@@ -138,15 +140,29 @@ class ModelMetadata(Base):
     """
     __tablename__: str = "model_metadata"
     run_uuid: Column = Column(String(32), ForeignKey(SqlRun.run_uuid), primary_key=True)
-    status: Column = Column(String(50), nullable=False) # Deployed, Deleted
+    action: Column = Column(String(50), nullable=False) # Deployed, Deleted
     tableid: Column = Column(String(250), nullable=False, primary_key=True) # TableID of the deployed table
-    trigger_type: Column(String(250), nullable=False) # What causes prediction? INSERT/UPSERT/UPDATE/DELETE
-    trigger_id: Column = Column(String(250), nullable=False)
-    trigger_id_2: Column = Column(String(250), nullable=True) # Some models have 2 triggers
+    trigger_type: Column = Column(String(250), nullable=False) # What causes prediction? INSERT/UPSERT/UPDATE/DELETE
+    triggerid: Column = Column(String(250), nullable=False)
+    triggerid_2: Column = Column(String(250), nullable=True) # Some models have 2 triggers
     db_env: Column = Column(String(100), nullable=True) # Dev, QA, Prod etc
-    deployed_by: Column = Column(String(250), nullable=False) # Current user
-    deployed_date: Column = Column(DateTime, default=datetime.now(tz=pytz.utc), nullable=False)
+    db_user: Column = Column(String(250), nullable=False) # Current user
+    action_date: Column = Column(DateTime, default=datetime.now(tz=pytz.utc), nullable=False)
 
     run: relationship = relationship(SqlRun, backref=backref('model_metadata', cascade='all'))
 
 
+live_model_status = Table('live_model_status', Base.metadata)
+definition = text("""
+select mm.RUN_UUID, mm.action,
+CASE when ((sta.tableid is null or st.triggerid is NULL or (mm.TRIGGERID_2 is not NULL and st2.triggerid is NULL)) and mm.ACTION='DEPLOYED')
+then 'Table or Trigger Missing' else mm.ACTION
+end as deployment_status,
+mm.TABLEID, mm.TRIGGER_TYPE, mm.TRIGGERID, mm.TRIGGERID_2, mm.DB_ENV, mm.db_user, mm.action_date
+
+from mlmanager.model_metadata mm
+left outer join sys.systables sta using (tableid)
+left outer join sys.systriggers st on (mm.triggerid=st.triggerid)
+left outer join sys.systriggers st2 on (mm.triggerid_2=st2.triggerid)
+""")
+live_model_status_view = CreateView(live_model_status, definition)
