@@ -436,8 +436,6 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                     run_uuid=logged_metric.run_uuid, key=logged_metric.key,
                     value=logged_metric.value, timestamp=logged_metric.timestamp,
                     step=logged_metric.step, is_nan=logged_metric.is_nan))
-            session.commit()
-
 
 
 if __name__ == "__main__":
