@@ -55,6 +55,24 @@ class Database:
 
     datetime_format: str = "%Y-%m-%d %H:%M:%S"  # YYYY-MM-DD HOUR:MIN:SEC (splice can parse this)
 
+class ModelStatuses(Definition):
+    """
+    Class containing names
+    for In Database Model Deployments
+    """
+    deployed: str = 'DEPLOYED'
+    deleted: str = 'DELETED'
+    @staticmethod
+    def get_valid() -> tuple:
+        """
+        Return a tuple of the valid statuses
+        for Models in Database
+        :return: (tuple) valid statuses
+        """
+        return (
+            ModelStatuses.deployed, ModelStatuses.deleted
+        )
+
 
 class JobStatuses(Definition):
     """

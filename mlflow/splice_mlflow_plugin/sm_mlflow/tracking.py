@@ -20,11 +20,11 @@ from mlflow.store.db.base_sql_model import Base
 from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore, _get_sqlalchemy_filter_clauses, \
     _get_attributes_filtering_clauses  # , _get_orderby_clauses
 from mlflow.utils.search_utils import SearchUtils
-from mlmanager_lib.database.mlflow_models import SqlArtifact, Models
+from mlmanager_lib.database.mlflow_models import SqlArtifact, Models, ModelMetadata, SysTriggers, SysTables, SysUsers, live_model_status_view
 from mlmanager_lib.database.models import ENGINE
 from mlmanager_lib.logger.logging_config import logging
 from sm_mlflow.alembic_support import SpliceMachineImpl
-from sqlalchemy import inspect as peer_into_splice_db
+from sqlalchemy import inspect as peer_into_splice_db, Table
 import sqlalchemy.sql.expression as sql
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
@@ -113,7 +113,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         InitialSqlExperiment, InitialSqlRun, InitialSqlTag, InitialSqlMetric, InitialSqlParam
     )  # alembic migrations will be applied to these initial tables
 
-    NON_ALEMBIC_TABLES: tuple = (SqlArtifact, Models)
+    NON_ALEMBIC_TABLES: tuple = (SqlArtifact, Models, ModelMetadata, SysTriggers, SysTables, SysUsers)
     TABLES: tuple = ALEMBIC_TABLES + NON_ALEMBIC_TABLES
 
     def __init__(self, store_uri: str = None, artifact_uri: str = None) -> None:
@@ -145,6 +145,8 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             with self.ManagedSessionMaker() as session:
                 self._create_default_experiment(session)
 
+
+
     def _initialize_tables(self):
         """
         This function creates MLFlow tables
@@ -165,8 +167,12 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         LOGGER.info("Creating Non-Alembic database tables...")
         Base.metadata.create_all(
             self.engine,
-            tables=[table.__table__ for table in self.NON_ALEMBIC_TABLES]
+            tables=[table.__table__ for table in self.NON_ALEMBIC_TABLES],
+            checkfirst=True
         )
+        # Splice doesn't have a CREATE OR REPLACE VIEW syntax
+        ENGINE.execute('drop view if exists mlmanager.live_model_status')
+        ENGINE.execute(live_model_status_view)
 
     def _get_artifact_location(self, experiment_id: int) -> str:
         """
@@ -423,6 +429,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             SqlLatestMetric.run_uuid == logged_metric.run_uuid,
             SqlLatestMetric.key == logged_metric.key) \
             .one_or_none()
+
         if latest_metric is None or _compare_metrics(logged_metric, latest_metric):
             session.merge(
                 SqlLatestMetric(
