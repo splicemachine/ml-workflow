@@ -106,7 +106,7 @@ public class SKRunner extends AbstractRunner {
                     interp.eval("preds = model.predict([X], return_cov=True)");
                     interp.eval("preds = [preds[0][0], preds[1][0][0]]");
                 }
-                ArrayList<Double> r = (ArrayList<Double>)interp.getValue("preds");
+                ArrayList<Number> r = (ArrayList<Number>)interp.getValue("preds");
                 result = new double[] {r.get(0).doubleValue(), r.get(1).doubleValue()};
 
             }
