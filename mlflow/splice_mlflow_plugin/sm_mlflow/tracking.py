@@ -171,8 +171,10 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             checkfirst=True
         )
         # Splice doesn't have a CREATE OR REPLACE VIEW syntax
-        ENGINE.execute('drop view if exists mlmanager.live_model_status')
-        ENGINE.execute(live_model_status_view)
+        inspector = peer_into_splice_db(self.engine)
+        if 'live_model_status' not in inspector.get_view_names():
+            with ENGINE.begin() as cnx:
+                cnx.execute(live_model_status_view)
 
     def _get_artifact_location(self, experiment_id: int) -> str:
         """
