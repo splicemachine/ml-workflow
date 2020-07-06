@@ -8,6 +8,7 @@ import tempfile
 from contextlib import contextmanager
 
 import os
+from os.path import splitext
 from io import BytesIO
 from zipfile import ZipFile
 
@@ -147,7 +148,11 @@ class SpliceMachineArtifactStore(ArtifactRepository):
                 run_uuid=self.run_uuid).filter_by(name=artifact_path)
 
         object = sqlalchemy_query.one()
-        with open(f'{dst_path}/{object.name}.{object.file_extension}', 'wb') as downloaded_file:
+        # If the user included the file extension in the file name don't append the extension
+        full_file_name = f'{dst_path}/{object.name}' if splitext(object.name)[1] or not object.file_extension \
+            else f'{dst_path}/{object.name}.{object.file_extension}'
+
+        with open(full_file_name, 'wb') as downloaded_file:
             downloaded_file.write(object.binary)
 
         return f'{dst_path}/{object.name}.{object.file_extension}'
