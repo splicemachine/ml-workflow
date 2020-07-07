@@ -95,11 +95,12 @@ class SpliceMachineArtifactStore(ArtifactRepository):
         in the MLFlow GUI.
         :return:
         """
+
         with self.ManagedSessionMaker() as Session:
             # if we render the file as a directory, it prevents
             # users from expanding (which they won't be able to do
             # since objects are stored as BLOBs)
-            columns: tuple = ('name', 'size')
+            columns: tuple = ('name', 'size', 'file_extension')
             sqlalchemy_query = Session.query(
                 SqlArtifact).options(load_only(*columns)).filter_by(
                 run_uuid=self.run_uuid)
@@ -125,6 +126,13 @@ class SpliceMachineArtifactStore(ArtifactRepository):
                          directly in the case of the LocalArtifactRepository.
         :return: Absolute path of the local filesystem location containing the desired artifacts.
         """
+
+        def get_artifact_name(name, ext):
+            """
+            Format the file name for whether or not it has the file extension. Add it if not
+            """
+            return name if splitext(name)[1].lstrip('.') == ext else f'{name}.{ext}'
+
         if dst_path is None:
             dst_path = tempfile.mkdtemp()
         dst_path = os.path.abspath(dst_path)
@@ -149,13 +157,12 @@ class SpliceMachineArtifactStore(ArtifactRepository):
 
         object = sqlalchemy_query.one()
         # If the user included the file extension in the file name don't append the extension
-        full_file_name = f'{dst_path}/{object.name}' if splitext(object.name)[1] or not object.file_extension \
-            else f'{dst_path}/{object.name}.{object.file_extension}'
+        full_file_path_name = f'{dst_path}/' + get_artifact_name(object.name, object.file_extension)
 
-        with open(full_file_name, 'wb') as downloaded_file:
+        with open(full_file_path_name, 'wb') as downloaded_file:
             downloaded_file.write(object.binary)
 
-        return f'{dst_path}/{object.name}.{object.file_extension}'
+        return full_file_path_name
 
     def _download_file(self, remote_file_path, local_path):
         # We implement this in download_artifacts
