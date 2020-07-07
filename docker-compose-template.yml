@@ -20,7 +20,7 @@ services:
       FRAMEWORK_NAME: amrit-streamtest-6160590510
       MODE: development
       ENVIRONMENT: aws
-    image: splicemachine/sm_k8_mlflow:0.1.23_be001
+    image: splicemachine/sm_k8_mlflow:0.1.23
     ports:
       - "5001:5001"
       - "5003:5003"
@@ -44,7 +44,7 @@ services:
       SAGEMAKER_ROLE: arn:aws:iam::[AWS ACCOUNT NUMBER]:role/splice-sagemaker
       MODE: development
       ENVIRONMENT: aws
-    image: splicemachine/sm_k8_bobby:0.1.23_be001
+    image: splicemachine/sm_k8_bobby:0.1.23
     build:
       args:
         splice_base_image_version: 0.0.2

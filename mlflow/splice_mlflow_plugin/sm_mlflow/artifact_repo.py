@@ -100,7 +100,7 @@ class SpliceMachineArtifactStore(ArtifactRepository):
             # if we render the file as a directory, it prevents
             # users from expanding (which they won't be able to do
             # since objects are stored as BLOBs)
-            columns: tuple = ('name', 'size', 'file_extension')
+            columns: tuple = ('name', 'size')
             sqlalchemy_query = Session.query(
                 SqlArtifact).options(load_only(*columns)).filter_by(
                 run_uuid=self.run_uuid)
