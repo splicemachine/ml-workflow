@@ -8,6 +8,7 @@ import tempfile
 from contextlib import contextmanager
 
 import os
+from os.path import splitext
 from io import BytesIO
 from zipfile import ZipFile
 
@@ -94,6 +95,7 @@ class SpliceMachineArtifactStore(ArtifactRepository):
         in the MLFlow GUI.
         :return:
         """
+
         with self.ManagedSessionMaker() as Session:
             # if we render the file as a directory, it prevents
             # users from expanding (which they won't be able to do
@@ -124,6 +126,13 @@ class SpliceMachineArtifactStore(ArtifactRepository):
                          directly in the case of the LocalArtifactRepository.
         :return: Absolute path of the local filesystem location containing the desired artifacts.
         """
+
+        def get_artifact_name(name, ext):
+            """
+            Format the file name for whether or not it has the file extension. Add it if not
+            """
+            return name if splitext(name)[1].lstrip('.') == ext else f'{name}.{ext}'
+
         if dst_path is None:
             dst_path = tempfile.mkdtemp()
         dst_path = os.path.abspath(dst_path)
@@ -147,10 +156,13 @@ class SpliceMachineArtifactStore(ArtifactRepository):
                 run_uuid=self.run_uuid).filter_by(name=artifact_path)
 
         object = sqlalchemy_query.one()
-        with open(f'{dst_path}/{object.name}.{object.file_extension}', 'wb') as downloaded_file:
+        # If the user included the file extension in the file name don't append the extension
+        full_file_path_name = f'{dst_path}/' + get_artifact_name(object.name, object.file_extension)
+
+        with open(full_file_path_name, 'wb') as downloaded_file:
             downloaded_file.write(object.binary)
 
-        return f'{dst_path}/{object.name}.{object.file_extension}'
+        return full_file_path_name
 
     def _download_file(self, remote_file_path, local_path):
         # We implement this in download_artifacts
