@@ -12,13 +12,13 @@
   },
   "handlers": {
     "console": {
-      "level": "INFO",
+      "level": "WARN",
       "class": "logging.StreamHandler",
       "formatter": "`MODE`",
       "stream": "ext://sys.stdout"
     },
     "file": {
-      "level": "DEBUG",
+      "level": "WARN",
       "class": "logging.handlers.RotatingFileHandler",
       "formatter": "`MODE`",
       "filename": "/var/log/`TASK_NAME`.log",
@@ -28,7 +28,7 @@
   },
   "loggers": {
     "": {
-      "level": "DEBUG",
+      "level": "WARN",
       "handlers": [
         "console",
         "file"

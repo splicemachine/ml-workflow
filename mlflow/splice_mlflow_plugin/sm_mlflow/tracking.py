@@ -18,7 +18,7 @@ from mlflow.store.tracking.dbmodels.initial_models import Base as InitialBase, S
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlExperiment, SqlLatestMetric, SqlParam
 from mlflow.store.db.base_sql_model import Base
 from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore, _get_sqlalchemy_filter_clauses, \
-    _get_attributes_filtering_clauses  # , _get_orderby_clauses
+    _get_attributes_filtering_clauses, _get_orderby_clauses
 from mlflow.utils.search_utils import SearchUtils
 from mlmanager_lib.database.mlflow_models import SqlArtifact, Models, ModelMetadata, SysTriggers, SysTables, SysUsers, live_model_status_view
 from mlmanager_lib.database.models import ENGINE
@@ -27,7 +27,7 @@ from sm_mlflow.alembic_support import SpliceMachineImpl
 from sqlalchemy import inspect as peer_into_splice_db, Table
 import sqlalchemy.sql.expression as sql
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, load_only
 from sqlalchemy.sql.sqltypes import Integer
 import re
 
@@ -320,6 +320,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
     def _search_runs(self, experiment_ids, filter_string, run_view_type, max_results, order_by,
                      page_token):
 
+        max_results = 50
         def compute_next_token(current_size):
             next_token = None
             if max_results == current_size:
@@ -342,7 +343,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             # ``run.to_mlflow_entity()``, so eager loading helps avoid additional database queries
             # that are otherwise executed at attribute access time under a lazy loading model.
             parsed_filters = SearchUtils.parse_search_filter(filter_string)
-            parsed_orderby, sorting_joins = _get_orderby_clauses_test(order_by, session)
+            parsed_orderby, sorting_joins = _get_orderby_clauses(order_by, session)
 
             query = session.query(SqlRun)
             for j in _get_sqlalchemy_filter_clauses(parsed_filters, session):
@@ -354,60 +355,25 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                 query = query.outerjoin(j)
 
             offset = SearchUtils.parse_start_offset_from_page_token(page_token)
-
             queried_runs = query.distinct() \
                 .options(*self._get_eager_run_query_options()) \
                 .filter(
-                SqlRun.experiment_id.in_([int(i) for i in experiment_ids]),
-                SqlRun.lifecycle_stage.in_(stages),
-                *_get_attributes_filtering_clauses(parsed_filters)) \
-                .offset(offset).limit(max_results).all()
+                    SqlRun.experiment_id.in_([int(i) for i in experiment_ids]),
+                    SqlRun.lifecycle_stage.in_(stages),
+                    *_get_attributes_filtering_clauses(parsed_filters)) \
+                .order_by(*parsed_orderby) \
+                .offset(offset).limit(max_results)
 
-            # Splice Machine has 2 limitations here:
-            # 1. We don't support ? in all CASE statement returns: ERROR 42X87:
-            #    At least one result expression (THEN or ELSE) of the 'conditional' expression must not be a '?
-            # 2. We don't support IS as a boolean operator (CASE WHEN x IS 5)
+            query_bind = queried_runs.statement.compile(compile_kwargs={
+                'literal_binds': True
+            })
 
-            runs = [run.to_mlflow_entity() for run in queried_runs]
+            sqlrun_cols = [i.name for i in list(SqlRun.__table__.columns)]
+            queried_runs = session.execute(f'select {", ".join(sqlrun_cols)} from ('+str(query_bind) + ')')
+            # queried_runs = session.execute(f'select run_uuid from ('+str(query_bind) + ')')
 
-            # Try to order them
-            if order_by:
-                try:  # FIXME: We need a smarter comparison
-                    x = re.sub("[.'\[\]]", "", str(order_by)).split('`')
-                    # Start time is funky
-                    if 'start_time' in x[0]:
-                        col = 'start_time'
-                        default_val = 0
-                        reverse = 'ASC' not in x[0]  # If ASC, keep sorted order
-                        runs = sorted(runs, key=lambda i: i.to_dictionary()['info'].get(col, default_val),
-                                      reverse=reverse)
-                    else:
-                        reverse = x[-1].strip() != 'ASC'
-                        typ = x[0]  # metrics or params or tags
-                        col = x[1]  # the metric/param to order by
-                        # Fix parsing for mlflow columns
-                        if 'mlflow' in col and typ == 'tags':
-                            col = col[:6] + '.' + col[6:]
-                            if col == 'mlflow.sourcegitcommit':
-                                col = 'mlflow.source.git.commit'
-                            elif col == 'mlflow.sourcename':
-                                col = 'mlflow.source.name'
+            runs = [session.merge(SqlRun(**dict(zip(sqlrun_cols, val)))).to_mlflow_entity() for val in queried_runs.fetchall()]
 
-                        # Determine if the value is an number or string
-                        for i, j in enumerate(runs):
-                            if (col in j.to_dictionary()['data'][typ]):
-                                ind = i
-                                break
-                        compare_val = runs[ind].to_dictionary()['data'][typ][col]
-                        default_val = 'z' if str(
-                            compare_val) == compare_val else 0  # in case a run doesn't have that value
-                        runs = sorted(runs, key=lambda i: i.to_dictionary()['data'][typ].get(col, default_val),
-                                      reverse=reverse)
-                except:  # If this fails just don't order. We shouldn't throw up
-                    import traceback
-                    traceback.print_exc()
-                    raise Exception(str(x))
-                    # pass
             next_page_token = compute_next_token(len(runs))
 
         return runs, next_page_token

@@ -1,25 +1,27 @@
-version: "3"
+version: '3'
 services:
   jupyter:
     user: root
     volumes:
       - "./notebooks:/home/joyvan/work"
     environment:
-      GRANT_SUDO: "yes"
+      GRANT_SUDO: 'yes'
+
     ports:
       - "8888:8888"
     build:
       args:
         splice_base_image_version: 0.0.2
       context: jupyter
+    image: ml-workflow_jupyter:0.0.15
+
   mlflow:
     environment:
-      DB_HOST: host.docker.internal
-      DB_USER: mlmanager
-      DB_PASSWORD: [DB PASSWORD]
-      FRAMEWORK_NAME: amrit-streamtest-6160590510
-      MODE: development
+      FRAMEWORK_NAME: streamtest-6160590510
+      MODE: production
       ENVIRONMENT: aws
+      TASK_NAME: dev
+      COMPONENT: mlmanager
     image: splicemachine/sm_k8_mlflow:0.1.23
     ports:
       - "5001:5001"
@@ -29,24 +31,22 @@ services:
         splice_base_image_version: 0.0.2
       context: ./
       dockerfile: ./mlflow/Dockerfile
+    env_file:
+      - local.env
+
   bobby:
     privileged: true
     environment:
-      DB_HOST: host.docker.internal
-      DB_USER: mlmanager
-      DB_PASSWORD: [REPLACE WITH DB PASSWORD]
-      FRAMEWORK_NAME: amrit-streamtest
+      FRAMEWORK_NAME: streamtest
       MLFLOW_URL: "http://mlflow:5001"
-      AZURE_USERNAME: [REPLACE WITH AZURE USERNAME]
-      AZURE_PASSWORD: [REPLACE WITH AZURE PASSWORD]
-      AWS_ACCESS_KEY_ID: [REPLACE WITH AWS ACCESS KEY]
-      AWS_SECRET_ACCESS_KEY: [REPLACE WITH AWS SECRET KEY]
-      SAGEMAKER_ROLE: arn:aws:iam::[AWS ACCOUNT NUMBER]:role/splice-sagemaker
-      MODE: development
+      MODE: production
       ENVIRONMENT: aws
     image: splicemachine/sm_k8_bobby:0.1.23
     build:
       args:
         splice_base_image_version: 0.0.2
       context: ./
-      dockerfile: ./mlflow/Dockerfile
+      dockerfile: ./bobby/Dockerfile
+    env_file:
+      - local.env
+
