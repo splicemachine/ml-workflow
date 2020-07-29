@@ -1,10 +1,22 @@
-import logging
+"""
+Module containing the base class for all handlers
+(Handlers don't need to worry about creating
+DB Sessions, checking for handler status, catching
+exception etc.). That behavior is uniform. Each individual
+handler MUST implement the *abstract method*
+`def _handle(self)` to carry out their own handle.
+This function will be called in the `def handle(self)`
+function.
+"""
 from abc import abstractmethod
 from traceback import format_exc
 
-from mlmanager_lib.database.models import Handler, Job, SessionFactory
 from pyspark import SparkContext
 from sqlalchemy.orm import load_only
+
+from shared.logger.logging_config import logger
+from shared.models.splice_models import Handler, Job
+from shared.services.database import SQLAlchemyClient
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -14,19 +26,6 @@ __license__: str = "Proprietary"
 __version__: str = "2.0"
 __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
-
-LOGGER = logging.getLogger(__name__)
-
-"""
-Module containing the base class for all handlers
-(Handlers don't need to worry about creating
-DB Sessions, checking for handler status, catching
-exception etc.). That behavior is uniform. Each individual
-handler MUST implement the *abstract method* 
-`def _handle(self)` to carry out their own handle.
-This function will be called in the `def handle(self)`
-function.
-"""
 
 
 class BaseHandler(object):
@@ -44,19 +43,19 @@ class BaseHandler(object):
         :param task_id: (int) the job id of the pending
             task to handle
         """
-
         self.task_id: int = task_id
         self.task: Job or None = None  # assigned later
         self.spark_context: SparkContext = spark_context
-        self.Session = SessionFactory()
+        self.Session = SQLAlchemyClient.SessionFactory
 
     def is_handler_enabled(self) -> None:
         """
         Set the handler specified
         in handler_name as an instance variable
         """
-        return self.Session.query(Handler).options(load_only("enabled")).filter(
-            Handler.name == self.task.handler_name).first().enabled
+        return self.Session.query(Handler) \
+            .options(load_only("enabled")) \
+            .filter(Handler.name == self.task.handler_name).first().enabled
 
     def retrieve_task(self) -> None:
         """
@@ -116,7 +115,7 @@ class BaseHandler(object):
 
     def fail_task_in_db(self, failure_message: str) -> None:
         """
-        Fail the current task in the database under
+        Fail the current task in the database.py under
         a local session context
 
         :param failure_message: (str) the message to updatr
@@ -142,11 +141,11 @@ class BaseHandler(object):
         statuses/detailed info on error/success
         """
         try:
-            LOGGER.info("Checking Handler Availability")
+            logger.info("Checking Handler Availability")
             self.retrieve_task()
             if self.is_handler_enabled():
-                LOGGER.info("Handler is available")
-                LOGGER.info("Retrieved task: " + str(self.task.__dict__))
+                logger.info("Handler is available")
+                logger.info("Retrieved task: " + str(self.task.__dict__))
 
                 self.update_task_in_db(status='RUNNING', info='A Service Worker has found your Job')
                 self._handle()
@@ -156,11 +155,10 @@ class BaseHandler(object):
             else:
                 self.fail_task_in_db(f"Error: Target '{self.task.handler_name}' is disabled")
 
-            self.Session.commit()  # commit transaction to database
+            self.Session.commit()  # commit transaction to database.py
 
         except Exception:
-            LOGGER.exception(
-                f"Encountered an unexpected error while processing Task #{self.task_id}")
+            logger.exception("Encountered an unexpected error while processing Task #{self.task_id}")
             self.Session.rollback()
             self.fail_task_in_db(f"Error: <br>{self._format_html_exception(format_exc())}")
 

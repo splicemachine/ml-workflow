@@ -3,15 +3,19 @@ Constructs for Authentication
 """
 import logging
 from functools import wraps
-
-from flask import request, Response
-from flask_login import UserMixin
-from retrying import retry
-from os import environ as env_vars, system as bash, popen as bash_popen
-from py4j.java_gateway import java_import, JavaGateway
-from py4j.protocol import Py4JJavaError, Py4JNetworkError
-from .responses import HTTP
+from os import environ as env_vars
+from os import popen as bash_popen
+from os import system as bash
 from time import sleep as delay
+from typing import Optional
+
+from flask import Response, request
+from py4j.java_gateway import JavaGateway, java_import
+from py4j.protocol import Py4JJavaError, Py4JNetworkError
+from retrying import retry
+
+from flask_login import UserMixin
+from shared.api.responses import HTTP
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -91,7 +95,7 @@ class Authentication:
             :param kwargs: (dict) keyword arguments for route
             :return: (Response) flask response or 401 response
             """
-            auth: object = request.authorization
+            auth = request.authorization
             if not auth or not auth.username or not auth.password or not \
                     Authentication.validate_auth(auth.username, auth.password):
                 return Response('Access Denied. Basic Auth Credentials Denied.',
@@ -102,7 +106,7 @@ class Authentication:
         return wrapper
 
     @staticmethod
-    def validate_auth(username: str, password: str) -> str:
+    def validate_auth(username: str, password: str) -> Optional[str]:
         """
         This function uses the Shiro 
         authentication API and retrieves whether

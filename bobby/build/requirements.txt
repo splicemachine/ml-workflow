@@ -1,7 +1,7 @@
 splicemachinesa==0.1.4.dev0
 cachetools==3.1.1
 workerpool==0.9.4
-mlflow==1.6.0
+mlflow==1.8.0
 pyyaml==5.1.1
 awscli==1.16.177
 boto3==1.9.168
@@ -17,3 +17,4 @@ tensorflow==2.2.0rc3
 tensorboard==2.2.0
 tensorflow-estimator==2.2.0
 scikit-learn==0.22.2
+loguru==0.5.1

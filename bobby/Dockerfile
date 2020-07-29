@@ -25,7 +25,7 @@ ENV WORKER_HOME=/opt/worker
 ENV LC_ALL en_US.utf-8
 ENV LANG en_US.utf-8
 
-# Add the list of necessary environment packages for development.
+# Add the list of necessary environments packages for development.
 COPY bobby/build $BUILD_HOME
 
 # Install lzma python dependency for python 3.7.3
@@ -81,10 +81,12 @@ RUN rm -r $BUILD_HOME/* && \
     mkdir -p $SRC_HOME && \
     mkdir -p $WORKER_HOME
 
-COPY bobby/src $SRC_HOME
 
-COPY mlmanager_lib /tmp/mlmanager_lib
-RUN pip3.7 install /tmp/mlmanager_lib/.
+COPY shared /tmp/shared
+RUN pip3.7 install /tmp/shared && \
+    rm -rf /tmp/shared
+
+COPY bobby/src $SRC_HOME
 
 # make the entrypoint executable by all users
 RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh

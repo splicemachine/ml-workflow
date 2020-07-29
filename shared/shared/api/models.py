@@ -1,7 +1,7 @@
 """
 Definitions for Flask API
 """
-from .. import Definition
+from enum import Enum
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -13,7 +13,7 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
 
-class APIStatuses(Definition):
+class APIStatuses(Enum):
     """
     Class containing valid
     HTTP Response statuses from Flask
@@ -23,19 +23,8 @@ class APIStatuses(Definition):
     pending: str = "submitted"
     error: str = "error"
 
-    @staticmethod
-    def get_valid() -> tuple:
-        """
-        Get valid API status messages
-        :return: (tuple) valid status msgs
-        """
-        return (
-            APIStatuses.success, APIStatuses.failure,
-            APIStatuses.pending, APIStatuses.error
-        )
 
-
-class TrackerTableMapping(Definition):
+class TrackerTableMapping(Enum):
     """
     Valid Tracker Table Mappings
     to Database columns
@@ -94,12 +83,3 @@ class TrackerTableMapping(Definition):
         payload,
         info
     ]
-
-    @staticmethod
-    def get_valid() -> tuple:
-        """
-        Get a list of valid Tracker
-        Table columns
-        :return: (tuple) valid tracker table columns
-        """
-        return tuple(TrackerTableMapping.DB_MAPPING.keys())

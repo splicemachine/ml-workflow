@@ -4,13 +4,14 @@ HTTP Utilities for Flask APIs
 from functools import partial, wraps
 from traceback import format_exc as get_exception
 
-from flask import jsonify as create_json, Response, make_response, render_template as show_html
+from flask import Response
+from flask import jsonify as create_json
+from flask import make_response
+from flask import render_template as show_html
 from werkzeug.wrappers.response import Response as WerkzeugResponse
 
-from .constants import APIStatuses
-from ..logger.logging_config import logging
-
-LOGGER = logging.getLogger(__name__)
+from shared.api.models import APIStatuses
+from shared.logger.logging_config import logger
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -43,7 +44,7 @@ class HTTP:
     """
     Utilities to assist with HTTP Responses/Codes
     """
-    codes: dict = {  # rather than implementing this as a definition, (see constants.py)
+    codes: dict = {  # rather than implementing this as a definition, (see models.py)
         # we implement this as an iterable so that we can create response functions
         'success': 200,
         'malformed': 400,
@@ -87,15 +88,15 @@ class HTTP:
             :param kwargs: (dict) keyword arguments for this function
             :return: (Response) Jinja2 Template Response
             """
-            LOGGER.debug(f"Endpoint {func.__name__} received data")
+            logger.debug(f"Endpoint {func.__name__} received data")
             try:
                 func(*args, **kwargs)
-                LOGGER.debug("Endpoint completed with no errors")
+                logger.debug("Endpoint completed with no errors")
                 return show_html(HTTP.home_jinja_template, **{  # god bless Python3
                     HTTP.home_status_jinja_variable: HTTP.html_statuses['success'],
                 })
             except Exception:
-                LOGGER.exception("An unexpected error occurred while processing the request")
+                logger.exception("An unexpected error occurred while processing the request")
                 return show_html(HTTP.home_jinja_template, **{
                     HTTP.home_status_jinja_variable: HTTP.html_statuses['failure'],
                     HTTP.home_traceback_jinja_variable: f'<pre>{get_exception(limit=100)}</pre>'
@@ -129,25 +130,25 @@ class HTTP:
             :param kwargs: (dict) keyword arguments for function
             :return: (Response) HTTP Response for User
             """
-            LOGGER.debug(f"Endpoint {func.__name__} received data")
+            logger.debug(f"Endpoint {func.__name__} received data")
             try:
                 success_response: dict = func(*args, **kwargs)
                 if isinstance(success_response, Response) or isinstance(success_response,
                                                                         WerkzeugResponse):
-                    return success_response # pass through HTTP Redirects
-                LOGGER.debug("Endpoint completed handle with no errors")
+                    return success_response  # pass through HTTP Redirects
+                logger.debug("Endpoint completed handle with no errors")
                 return HTTP.responses['success'](
                     create_json(status=APIStatuses.success, **success_response)
                 )
 
             except KeyError as e:  # key errors are caused by missing JSON data 99% of the time
                 msg: str = f"The JSON payload received is malformed-- '{e}' is missing/unknown"
-                LOGGER.exception(msg)
+                logger.exception(msg)
                 return HTTP.responses['malformed'](
                     create_json(status=APIStatuses.failure, msg=msg))
 
             except Exception:
-                LOGGER.exception("An unexpected error occurred while processing the request")
+                logger.exception("An unexpected error occurred while processing the request")
                 return HTTP.responses['unexpected'](
                     create_json(status=APIStatuses.error, msg=get_exception(limit=100))
                 )

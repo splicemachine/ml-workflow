@@ -4,7 +4,7 @@ an internal Python package containing
 utilities and shared libraries across
 the MLManager components
 """
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -19,13 +19,13 @@ __status__: str = "Quality Assurance (QA)"
 VERSION: str = "0.0.2"
 
 setup(
-    name='mlmanager_lib',
+    name='shared',
     description='Internal Python Package containing shared libraries and utility functions for '
                 'the MLManager stack',
     author='Splice Machine',
     version=VERSION,
     url='https://splicemachine.com',
     packages=find_packages(),
-    package_data={"mlmanager-lib":['logging.json']},
+    package_data={"shared":['logging.json']},
     include_package_data=True
 )

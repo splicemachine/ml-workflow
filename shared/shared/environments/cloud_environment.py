@@ -1,40 +1,16 @@
-from abc import abstractmethod
 from os import environ as env_vars
-
-_author__: str = "Splice Machine, Inc."
-__copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
-__credits__: list = ["Amrit Baveja"]
-
-__license__: str = "Proprietary"
-__version__: str = "2.0"
-__maintainer__: str = "Amrit Baveja"
-__email__: str = "abaveja@splicemachine.com"
-
-
-# Definition for Constant Classes
-
-class Definition:
-    """
-    Base class for other classes
-    defining valid terms
-    """
-
-    @staticmethod
-    @abstractmethod
-    def get_valid() -> tuple:
-        pass
 
 
 class CloudEnvironment:
     """
-    Class representing an environment
+    Class representing an environments
     (e.g. AWS, Azure, GCP, Heroku etc.)
     """
 
-    def __init__(self, name: str, fullname: str, handler_mapping: dict, can_deploy = False) -> None:
+    def __init__(self, name: str, fullname: str, handler_mapping: dict, can_deploy: bool = False) -> None:
         """
-        :param name: (str) the short abbreviation for the environment
-        :param fullname: (str) the full name of the environment
+        :param name: (str) the short abbreviation for the environments
+        :param fullname: (str) the full name of the environments
         :param handler_mapping: (dict) mapping for pages to the handler name
             when the page form is submitted
         :param can_deploy: (bool) whether deployment to that service is available
@@ -46,12 +22,12 @@ class CloudEnvironment:
 
     def __eq__(self, name: object) -> bool:
         """
-        Check if an environment is equal to a
+        Check if an environments is equal to a
         string
 
         :param name: (str) string to check against
         :return: (bool) whether or not the specified string
-        is equal to the name or full name of this cloud environment
+        is equal to the name or full name of this cloud environments
         """
         if isinstance(name, str):
             return name.lower() in [self.name.lower(), self.fullname.lower()]
@@ -59,7 +35,7 @@ class CloudEnvironment:
         return super().__eq__(name)
 
 
-class CloudEnvironments(Definition):
+class CloudEnvironments:
     """
     Class containing valid environments
     """
@@ -105,7 +81,7 @@ class CloudEnvironments(Definition):
     def get_valid() -> tuple:
         """
         Get valid environments
-        :return: (tuple)) valid environment names
+        :return: (tuple)) valid environments names
         """
         return (
             CloudEnvironments.aws,
@@ -118,8 +94,8 @@ class CloudEnvironments(Definition):
     def get_current_name() -> str:
         """
         Return a string representation of the current
-        environment
-        :return: (str) string of current environment
+        environments
+        :return: (str) string of current environments
         """
         return env_vars['ENVIRONMENT']
 
@@ -127,7 +103,6 @@ class CloudEnvironments(Definition):
     def get_current() -> CloudEnvironment:
         """
         Get the current Cloud Environment
-        :return: (CloudEnvironment) The current cloud environment
+        :return: (CloudEnvironment) The current cloud environments
         """
         return CloudEnvironments.__dict__[env_vars['ENVIRONMENT']]
-

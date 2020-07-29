@@ -1,0 +1,30 @@
+{
+  "development": {
+    "console": {
+      "format": "<level>{level: <8}</level> ({thread}) <green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> - <cyan>{name}</cyan>:<cyan>{function}:{line}</cyan> - <level>{message}</level>",
+      "level": "DEBUG",
+      "diagnose": true,
+      "backtrace": true,
+      "enqueue": true
+    }
+  },
+  "production": {
+    "console": {
+      "format": "{time} {level: <5} [INSERT_TASK_NAME] [INSERT_FRAMEWORK_NAME] [hbase] [{thread}] [{name}]: {message}",
+      "level": "INFO",
+      "diagnose": false,
+      "backtrace": false,
+      "enqueue": true
+    },
+    "logfile": {
+      "path": "log/app.log",
+      "level": "INFO",
+      "rotation": "500MB",
+      "retention": "1 months",
+      "format": "{time} {level: <5} [INSERT_TASK_NAME] [INSERT_FRAMEWORK_NAME] [hbase] [{thread}] [{name}]: {message}",
+      "diagnose": false,
+      "backtrace": false,
+      "enqueue": true
+    }
+  }
+}

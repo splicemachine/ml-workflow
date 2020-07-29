@@ -5,7 +5,7 @@ Handlers that modify other handlers.
 import logging
 from abc import abstractmethod
 
-from mlmanager_lib.database.models import Handler
+from shared.models.splice_models import Handler
 
 from ..base_handler import BaseHandler
 
@@ -38,12 +38,12 @@ class BaseModifierHandler(BaseHandler):
 
     def _get_handler_by_name(self, handler_name: str) -> Handler:
         """
-        Retrieve a Handler object from the database
+        Retrieve a Handler object from the database.py
         by its name
 
         :param handler_name: (str) the name of the
             handler to retrieve
-        :return: (Handler) retrieved handler object (Python) from the database
+        :return: (Handler) retrieved handler object (Python) from the database.py
         """
         return self.Session.query(Handler).filter_by(name=handler_name).first()
 
@@ -60,7 +60,7 @@ class BaseModifierHandler(BaseHandler):
         Run modifications
         """
         LOGGER.debug(f"Running Modifier Handler: {self.action}")
-        self.task.target_service: str = self.task.parsed_payload['service']
+        self.task.target_service = self.task.parsed_payload['service']
         self.target_handler_object: Handler = self._get_handler_by_name(
             self.task.target_service
         )

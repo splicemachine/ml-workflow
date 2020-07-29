@@ -1,14 +1,19 @@
-from .models import Handler
-from .. import Definition, CloudEnvironments
+from typing import Callable
+
+from shared.environments.cloud_environment import CloudEnvironments
+from shared.models.splice_models import Handler
 
 
-class HandlerNames(Definition):
+class HandlerNames:
     """
     Class containing valid Handler Names
     """
     enable_service: str = 'ENABLE_SERVICE'
     disable_service: str = 'DISABLE_SERVICE'
+    deploy_k8s: str = 'DEPLOY_KUBERNETES'
+    deploy_database: str = 'DEPLOY_DATABASE'
     deploy_csp: str = CloudEnvironments.get_current().handler_mapping['deploy']
+
     # through getting get_current().handler_mapping['<common key across cloud environments>'] we
     # can add new functionality that changes depending on the CSP. What are doing here
     # is generalizing the specific functionality of each deployment handler (DEPLOY_AZURE,
@@ -17,40 +22,52 @@ class HandlerNames(Definition):
     # defines the 'retrain' key in their handler mapping, we could generalize it similar to how
     # we do here.
 
-    @staticmethod
-    def get_valid() -> tuple:
-        """
-        Get valid handler names
-        :return: (tuple) valid handler names
-        """
-        return (
-            HandlerNames.enable_service,
-            HandlerNames.disable_service,
-            HandlerNames.deploy_csp
-        )
 
-
-class KnownHandlers(Definition):
+class KnownHandlers:
     """
     Class containing handler
     definitions
     """
-    # R SERVICES
+    # Service Togglers
     MAPPING: dict = {
         HandlerNames.enable_service: Handler(
             required_payload_args=('service',),
             optional_payload_args=dict(),
-            name= HandlerNames.enable_service,
+            name=HandlerNames.enable_service,
             url='/access',
             modifiable=False,
         ),
-
         HandlerNames.disable_service: Handler(
             required_payload_args=('service',),
             optional_payload_args=dict(),
             name=HandlerNames.disable_service,
             url='/access',
             modifiable=False
+        ),
+        HandlerNames.deploy_database: Handler(
+            required_payload_args=(),
+            optional_payload_args=dict(),
+            name=HandlerNames.deploy_database,
+            url='/deploy/database.py'
+        ),
+        HandlerNames.deploy_k8s: Handler(
+            required_payload_args=('run_id', 'service_port', 'app_name'),
+            optional_payload_args=dict(
+                base_replicas=1,
+                max_replicas=1,
+                target_cpu_utilization=50,
+                use_nginx=True,
+                gunicorn_workers=1,  # strongly recommended on spark models to prevent OOM
+                cpu_request="0.5",
+                cpu_limit="1",
+                memory_request="512Mi",
+                memory_limit="1Gi",
+                expose_external=False,
+                external_path='/model',
+                sparkui=False
+            ),
+            name=HandlerNames.deploy_k8s,
+            url='/deploy/kubernetes'
         )
     }
 
@@ -100,7 +117,7 @@ class KnownHandlers(Definition):
         )
 
     @staticmethod
-    def get_class(handler_name: str) -> object:
+    def get_class(handler_name: str) -> Callable:
         """
         Get the associated handler class of a
         given handler object
@@ -161,7 +178,7 @@ def populate_handlers(Session) -> None:
     argument, if they don't exist already
 
     :param Session: (Session) current
-        database-object namespace for thread
+        database.py-object namespace for thread
     """
     db_handler_names: list = [db_handler.name for db_handler in Session.query(Handler).all()]
 

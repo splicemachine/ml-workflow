@@ -2,13 +2,12 @@
 Contains handler and functions
 pertaining to AWS Model Deployment
 """
-import logging
-from os import environ as env_vars
-from os import system as bash
-from os import popen as bash_open
+from os import environ as env_vars, popen as bash_open, system as bash
 from time import sleep
 
 from mlflow import sagemaker
+from shared.logger.logging_config import logger
+
 from .base_deployment_handler import BaseDeploymentHandler
 
 __author__: str = "Splice Machine, Inc."
@@ -19,8 +18,6 @@ __license__: str = "Proprietary"
 __version__: str = "2.0"
 __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
-
-LOGGER = logging.getLogger(__name__)
 
 
 class SageMakerDeploymentHandler(BaseDeploymentHandler):
@@ -44,13 +41,19 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
         Manually assume the service account role before deployment
         """
         self.update_task_in_db(info='Assuming ServiceAccount Role')
-        x = bash('$SRC_HOME/scripts/assume_service_account_role.sh')
-        if x != 0:
+        assume_role_exit_code = bash('$SRC_HOME/scripts/assume_service_account_role.sh')
+
+        if assume_role_exit_code != 0:
+            logger.error(f"Failed to assume Sagemaker role. Assume script exited with code {assume_role_exit_code} ")
             raise Exception('Failed to assume Sagemaker role. Confirm Bobby has been correctly configured in AWS to '
                             'assume the proper role for Sagemaker deployment.')
-        env_vars['AWS_ACCESS_KEY_ID'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.AccessKeyId"').read().rstrip("\n")
-        env_vars['AWS_SECRET_ACCESS_KEY'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.SecretAccessKey"').read().rstrip("\n")
-        env_vars['AWS_SESSION_TOKEN'] = bash_open('cat /tmp/irp-cred.txt | jq -r ".Credentials.SessionToken"').read().rstrip("\n")
+
+        env_vars['AWS_ACCESS_KEY_ID'] = bash_open(
+            'cat /tmp/irp-cred.txt | jq -r ".Credentials.AccessKeyId"').read().rstrip("\n")
+        env_vars['AWS_SECRET_ACCESS_KEY'] = bash_open(
+            'cat /tmp/irp-cred.txt | jq -r ".Credentials.SecretAccessKey"').read().rstrip("\n")
+        env_vars['AWS_SESSION_TOKEN'] = bash_open(
+            'cat /tmp/irp-cred.txt | jq -r ".Credentials.SessionToken"').read().rstrip("\n")
         sleep(1)
         bash('rm /tmp/irp-cred.txt')
 

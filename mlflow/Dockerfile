@@ -34,6 +34,7 @@ RUN yum update -y && \
     yum -y --enablerepo=extras install epel-release && \
     yum install -y gcc openssl-devel bzip2-devel libffi-devel && \
     yum install -y make
+
 RUN cd /tmp && \
   wget https://www.python.org/ftp/python/3.7.3/Python-3.7.3.tgz && \
   tar xzf Python-3.7.3.tgz && \
@@ -60,16 +61,13 @@ RUN cd $BUILD_HOME && \
     sh ./install.sh -q
 
 # Install Python dependencies
-COPY mlflow/splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
-RUN pip3.7 install -r $BUILD_HOME/requirements.txt && \
-    pip3.7 install   $BUILD_HOME/splice_mlflow_plugin
+RUN pip3.7 install -r $BUILD_HOME/requirements.txt
+
 
 # Remove Build Directories and Create source directory
 RUN rm -rf $BUILD_HOME/* && \
     mkdir -p $SRC_HOME/lib
 
-COPY mlflow/src $SRC_HOME
-COPY mlflow/src/lib $SRC_HOME/lib
 
 # Copy Shiro (and dependencies) for authentication
 RUN \
@@ -82,8 +80,15 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
-COPY mlmanager_lib /tmp/mlmanager_lib
-RUN pip3.7 install /tmp/mlmanager_lib/.
+COPY shared /tmp/shared
+RUN pip3.7 install /tmp/shared && \
+    rm -rf /tmp/shared
+
+COPY mlflow/src $SRC_HOME
+
+# Install Shared Lib
+COPY mlflow/splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
+RUN pip3.7 install   $BUILD_HOME/splice_mlflow_plugin
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 

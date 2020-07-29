@@ -3,16 +3,13 @@ Contains handler and functions
 pertaining to Azure Model Deployment
 """
 import logging
-from copy import copy
-from functools import partial
 from os import environ as env_vars
-from os import system as bash
 
 from azureml.core import Workspace
-from azureml.core.webservice import AciWebservice, Webservice
 from azureml.core.authentication import MsiAuthentication
-
+from azureml.core.webservice import AciWebservice, Webservice
 from mlflow import azureml as mlflow_azureml
+
 from .base_deployment_handler import BaseDeploymentHandler
 
 __author__: str = "Splice Machine, Inc."
@@ -46,59 +43,6 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
         self.Workspace: Workspace or None = None
         self.azure_image: object = None
         self.azure_model: object = None
-
-    @staticmethod
-    def _generate_dockerfile(initial_function, output_path: str, mlflow_path: str = None) -> None:
-        """
-        Unfortunately, MLFlow AzureML doesn't really support
-        Spark (ironically enough, since the maker of MLFlow,
-        Databricks, also made spark). Thus, we have to monkey
-        patch the MLFlow code in order for this deployment
-        to work.
-
-        This function must match the signature of
-        mlflow.azureml._create_dockerfile. It will need
-        to be updated if this function is moved/updated
-        in a future release.
-
-        :param initial_function: (callable) the initial mlflow
-            create dockerfile function
-        :param output_path: (str) the local path to save
-            the Dockerfile to
-        :param mlflow_path: (str) a local version of the MLFlow
-            source. If not specified, will download from Pypi.
-        """
-        jre: str = 'default-jre'
-        commands: list = [f'RUN apt-get update && apt-get install -y {jre}']
-
-        initial_function(output_path, mlflow_path)  # write the initial Dockerfile
-
-        with open(output_path, 'r+') as Dockerfile:
-            content: str = Dockerfile.read()
-            Dockerfile.seek(0)
-            prepend_commands: str = "\n".join(commands)
-            updated_dockerfile: str = f'{prepend_commands}\n{content}'
-
-            LOGGER.info(f"Dockerfile Content:\n{updated_dockerfile}")
-
-            Dockerfile.write(updated_dockerfile)
-
-    def _add_spark_setup_to_dockerfile(self) -> None:
-        """
-        Monkey patch the AzureML Dockerfile
-        to install a Java Runtime Environment
-        or container will die.
-        """
-        self.update_task_in_db(info="Adjusting Dockerfile for Spark Support")
-        # we need to create a copy so the function
-        # won't be overwritten when we change its value.
-        # functions are passed by reference.
-        mlflow_create_dockerfile_function = copy(mlflow_azureml._create_dockerfile)
-
-        # "freeze" the first argument of the function (the initial function) to be
-        # the original copy, so we can sort of do a super() on the function
-        mlflow_azureml._create_dockerfile = partial(AzureDeploymentHandler._generate_dockerfile,
-                                                    mlflow_create_dockerfile_function)
 
     def _get_or_create_azureml_workspace(self):
         """
@@ -168,7 +112,6 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
             self._retrieve_model_binary_stream_from_db,
             self._deserialize_artifact_stream,
             self._get_or_create_azureml_workspace,
-            self._add_spark_setup_to_dockerfile,
             self._build_docker_image,
             self._deploy_model_to_azure,
         )

@@ -2,16 +2,18 @@
 Definition of Base Run Handler
 """
 import logging
-from abc import abstractmethod
 import os
+from abc import abstractmethod
+from functools import partial as fix_params
 from os import environ as env_vars
 from subprocess import check_call as run_shell_command
-from functools import partial as fix_params
+
 from mlflow.tracking import MlflowClient
-from mlmanager_lib.database.mlflow_models import SqlArtifact
-from mlmanager_lib.database.constants import FileExtensions
+
+from shared.models.mlflow_models import SqlArtifact
+from shared.models.enums import FileExtensions
 from ..base_handler import BaseHandler
-from .deserializers import Deserializers
+from .utils.deserializers import Deserializers
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -39,15 +41,16 @@ class BaseDeploymentHandler(BaseHandler):
         :param task_id: (int) id of the task to execute
         """
         BaseHandler.__init__(self, task_id, spark_context=spark_context)
-        self.downloaded_model_path: str = DOWNLOAD_PATH + str(task_id) # So when we temporarily download the model we don't overwrite other models
+        self.downloaded_model_path: str = DOWNLOAD_PATH + str(
+            task_id)  # So when we temporarily download the model we don't overwrite other models
         self.mlflow_run: object = None
         self.artifact: bytearray or None = None
 
         self.deserializers: dict = {
-            FileExtensions.spark: fix_params(Deserializers.spark, self.spark_context._jvm),
-            FileExtensions.keras: Deserializers.keras,
-            FileExtensions.h2o: Deserializers.h2o,
-            FileExtensions.sklearn: Deserializers.sklearn
+            FileExtensions.spark.value: fix_params(Deserializers.spark, self.spark_context._jvm),
+            FileExtensions.keras.value: Deserializers.keras,
+            FileExtensions.h2o.value: Deserializers.h2o,
+            FileExtensions.sklearn.value: Deserializers.sklearn
         }
 
     def retrieve_run_from_mlflow(self) -> None:
@@ -79,14 +82,14 @@ class BaseDeploymentHandler(BaseHandler):
             LOGGER.info(self.artifact)
         except IndexError:
             LOGGER.exception(
-                f"No artifact could be found in database with path {self.model_dir} and run_id "
+                f"No artifact could be found in database.py with path {self.model_dir} and run_id "
                 f"{run_id}"
             )
             raise Exception("Model with the specified Run ID and Name could not be found!")
 
     def _deserialize_artifact_stream(self) -> None:
         """
-        Take the BLOB Retrieved from the database,
+        Take the BLOB Retrieved from the database.py,
         convert it into a model,
         and then serialize it to the disk for deployment
         """
@@ -100,7 +103,6 @@ class BaseDeploymentHandler(BaseHandler):
         except KeyError as e:
             LOGGER.exception("Unable to find the specified file extension handler")
             raise Exception(f"Unable to find the specified fix extension {self.artifact.file_extension}")
-
 
     def _cleanup(self) -> None:
         """

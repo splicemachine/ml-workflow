@@ -1,14 +1,15 @@
-from tempfile import NamedTemporaryFile
-from pickle import loads as load_pickle_string
-
-from pyspark.ml import PipelineModel
-from tensorflow.keras.models import load_model as load_keras_model, Model as KerasModel
-from h5py import File as h5_file
-from mlflow import spark as mlflow_spark, h2o as mlflow_h2o, keras as mlflow_keras, sklearn as mlflow_sklearn
-import h2o
-from pysparkling import *
-from h2o import load_model as load_h2o_model
 from io import BytesIO
+from pickle import loads as load_pickle_string
+from tempfile import NamedTemporaryFile
+
+from h2o import load_model as load_h2o_model
+from h5py import File as h5_file
+from pyspark.ml import PipelineModel
+from tensorflow.keras.models import (Model as KerasModel,
+                                     load_model as load_keras_model)
+
+from mlflow import (h2o as mlflow_h2o, keras as mlflow_keras,
+                    sklearn as mlflow_sklearn, spark as mlflow_spark)
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -32,7 +33,7 @@ class Deserializers:
         Deserialize a spark artifact
         :param artifact_stream: artifact stream byte array
         :param download_path: local path on disk
-        :param conda_env: conda environment
+        :param conda_env: conda environments
         :param jvm: py4j jvm
 =        """
         binary_input_stream = jvm.java.io.ByteArrayInputStream(artifact_stream)
@@ -48,7 +49,7 @@ class Deserializers:
         Deserialize a h2o artifact
         :param artifact_stream: artifact stream byte array
         :param download_path: local path on disk
-        :param conda_env: conda environment
+        :param conda_env: conda environments
         """
 
         with NamedTemporaryFile() as tmp:
@@ -65,13 +66,13 @@ class Deserializers:
         Deserialize a keras artifact
         :param artifact_stream: artifact stream byte array
         :param download_path: local path on disk
-        :param conda_env: conda environment
+        :param conda_env: conda environments
         """
         hfile = h5_file(BytesIO(artifact_stream), 'r')
         model: KerasModel = load_keras_model(hfile)
 
         mlflow_keras.save_model(model, download_path,
-                                    conda_env=conda_env)
+                                conda_env=conda_env)
 
     @staticmethod
     def sklearn(artifact_stream: bytearray, download_path: str, conda_env: str):
@@ -79,7 +80,7 @@ class Deserializers:
         Deserialize a sklearn artifact
         :param artifact_stream: artifact stream byte array
         :param download_path: local path on disk
-        :param conda_env: conda environment
+        :param conda_env: conda environments
         """
         sklearn_model = load_pickle_string(artifact_stream)
         mlflow_sklearn.save_model(sklearn_model, download_path,

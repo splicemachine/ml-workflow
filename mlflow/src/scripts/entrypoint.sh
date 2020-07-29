@@ -7,7 +7,7 @@ foundNoArgumentExit () {
     exit 1;
 }
 
-# check environment vars
+# check environments vars
 if [[ "$DB_HOST" == "" ]]
 then
    foundNoArgumentExit "DB_HOST"
@@ -90,14 +90,9 @@ then
     export MODE="development"
 fi
 
-# Start Job Tracker GUI
-if [[ "$ENVIRONMENT" == "openstack" ]] || [[ "$ENVIRONMENT" == "gcp" ]]
-then
-echo "No endpoint deployment supported in $ENVIRONMENT. Not running Job Tracker UI"
-else
-    echo "Starting Job Tracking UI on port :${GUI_PORT}"
-    nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
-fi
+
+echo "Starting Job Tracking UI on port :${GUI_PORT}"
+nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
 
 echo "Starting Java Gateway Server for py4j"
 nohup java gateway &

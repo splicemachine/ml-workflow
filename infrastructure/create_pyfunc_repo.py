@@ -1,11 +1,12 @@
-import sys
+import base64
+import json
+import logging
 import os
+import sys
+from subprocess import Popen
+
 import boto3
 import docker
-import json
-import base64
-import logging
-from subprocess import Popen
 
 # define vars and functions
 REPO_NAME = 'mlflow-pyfunc'

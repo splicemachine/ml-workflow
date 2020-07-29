@@ -1,23 +1,23 @@
-from os import environ as env_vars
 from collections import defaultdict
 from json import dumps as serialize_json
+from os import environ as env_vars
 from time import time as timestamp
+
 import requests
-from requests.exceptions import ConnectionError
-from flask import Flask, request, Response, jsonify as create_json, render_template as show_html, \
-    redirect, url_for
-from flask_executor import Executor
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from mlmanager_lib import CloudEnvironment, CloudEnvironments
-from mlmanager_lib.database.handlers import KnownHandlers, HandlerNames
-from mlmanager_lib.database.models import SessionFactory, Job, Handler
-from mlmanager_lib.logger.logging_config import logging
-from mlmanager_lib.rest.authentication import Authentication, User
-from mlmanager_lib.rest.constants import APIStatuses, TrackerTableMapping
-from mlmanager_lib.rest.responses import HTTP
+from flask import (Flask, Response, jsonify as create_json, redirect,
+                   render_template as show_html, request, url_for)
 from sqlalchemy import text
 
-# TODO: add basic auth for internal API endpoints
+from flask_executor import Executor
+from flask_login import (LoginManager, current_user, login_required,  login_user, logout_user)
+from shared.api.models import APIStatuses, TrackerTableMapping
+from shared.api.responses import HTTP
+from shared.environments.cloud_environment import (CloudEnvironment, CloudEnvironments)
+from shared.logger.logging_config import logger
+from shared.models.splice_models import Handler, Job
+from shared.services.authentication import Authentication, User
+from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from shared.services.handlers import HandlerNames, KnownHandlers
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -29,18 +29,16 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
-APP: Flask = Flask(__name__)
-APP.config['EXECUTOR_PROPAGATE_EXCEPTIONS']: bool = True
-APP.config['SECRET_KEY']: str = "B1gd@t@4U!"  # cookie encryption
+APP: Flask = Flask("director")
+APP.config['EXECUTOR_PROPAGATE_EXCEPTIONS'] = True
+APP.config['SECRET_KEY'] = "B1gd@t@4U!"  # cookie encryption
 
-EXECUTOR: Executor = Executor(APP)  # asynchronous parallel processing
 LOGIN_MANAGER: LoginManager = LoginManager(APP)  # session-based user authentication
-
 CLOUD_ENVIRONMENT: CloudEnvironment = CloudEnvironments.get_current()
 
 Session = None  # db session-- created with every request
 
-LOGGER = logging.getLogger(__name__)
+EXECUTOR: Executor = Executor(APP)  # asynchronous parallel processin
 BOBBY_URI = env_vars.get('BOBBY_URL', 'http://bobby')
 
 
@@ -51,7 +49,7 @@ def create_session() -> None:
     Create a Session-Local SQLAlchemy Session
     """
     global Session
-    Session = SessionFactory()
+    Session = SQLAlchemyClient.SessionFactory()
 
 
 @APP.after_request
@@ -64,7 +62,7 @@ def remove_session(response: Response) -> Response:
     :return: (Response) response object passed in
     """
     global Session
-    SessionFactory.remove()
+    SQLAlchemyClient.SessionFactory.remove()
     return response
 
 
@@ -125,7 +123,6 @@ def login() -> Response:
         return show_html('login.html')
 
     username: str = request.form['user']
-    # check against Zeppelin (Apache Shiro into DB)
     if Authentication.validate_auth(username, request.form['pw']):
         user: User = User(username)
         login_user(user)
@@ -161,7 +158,7 @@ def initiate_job_ui() -> dict:
     return handler_queue_job(request.form, handler, user=request.form['user'])
 
 
-@APP.route('/api/rest/initiate', methods=['POST'])
+@APP.route('/api/api/initiate', methods=['POST'])
 @HTTP.generate_json_response
 @Authentication.basic_auth_required
 def initiate_job_rest() -> dict:
@@ -173,7 +170,7 @@ def initiate_job_rest() -> dict:
     handler: Handler = KnownHandlers.MAPPING.get(request.json['handler_name'].upper())
     if not handler:
         message: str = f"Handler {handler} is an unknown service"
-        LOGGER.error(message)
+        logger.error(message)
         return HTTP.responses['malformed'](create_json(status=APIStatuses.failure, message=message))
 
     return handler_queue_job(request.json, handler, user=request.authorization.username)
@@ -208,7 +205,7 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
         # Tell bobby there's a new job to process
         requests.post(f"{BOBBY_URI}:2375/job")
     except ConnectionError:
-        LOGGER.warning('Bobby was not reachable by MLFlow. Ensure Bobby is running. \nThe job has'
+        logger.warning('Bobby was not reachable by MLFlow. Ensure Bobby is running. \nThe job has'
                        'been added to the database and will be processed when Bobby is running again.')
     return dict(job_status=APIStatuses.pending,
                 timestamp=timestamp())  # turned into JSON and returned
@@ -225,15 +222,7 @@ def get_monthly_aggregated_jobs() -> dict:
     :return: (dict) response for the javascript to render
     """
 
-    results: list = list(Session.execute(str(f"""
-        SELECT MONTH(INNER_TABLE.parsed_date) AS month_1, COUNT(*) AS count_1, user_1
-        FROM (
-            SELECT TIMESTAMP("timestamp") AS parsed_date, "user" as user_1
-            FROM {Job.__tablename__}
-        ) AS INNER_TABLE
-        WHERE YEAR(INNER_TABLE.parsed_date) = YEAR(CURRENT_TIMESTAMP)
-        GROUP BY 1, 3
-    """)))
+    results: list = list(Session.execute(str(DatabaseSQL.get_monthly_aggregated_jobs)))
 
     data: defaultdict = defaultdict(lambda: [0] * 12)  # initialize a dictionary
     # that for every new key, creates an array of 12 zeros: one for every month of the year
@@ -253,7 +242,7 @@ def get_monthly_aggregated_jobs() -> dict:
 def get_handler_data() -> dict:
     """
     Get a count of the enabled handlers
-    currently in the database
+    currently in the database.py
     :return: (dict) response containing
         number of enabled handlers
     """
@@ -299,7 +288,6 @@ def get_jobs() -> dict:
 
     total_query: text = f"""SELECT COUNT(*) FROM {job_table}"""  # how many pages to make in js
 
-    # submit to threading and gather results-- we can execute these in || for faster execution
     futures: list = [
         EXECUTOR.submit(lambda: [_preformat_job_row(row) for row in Session.execute(table_query)]),
         EXECUTOR.submit(lambda: list(Session.execute(total_query))[0][0])
@@ -342,8 +330,8 @@ def _get_job_search_query(job_table: str, order_col: str, direction: str, limit:
     limit_clause: str = f'FETCH FIRST {limit} ROWS ONLY' if limit > 0 else ''
 
     filter_clause: str = f" LIKE '%{search_term}%' OR "
-    filter_expression: str = filter_clause.join(
-        TrackerTableMapping.searchable_columns) + filter_clause[:-4]  # cut off OR on last column
+    filter_expression: str = filter_clause.join(TrackerTableMapping.searchable_columns) + filter_clause[:-4]  # cut off
+    # OR on last column
 
     return text(
         f"""
@@ -414,7 +402,7 @@ def deploy_csp() -> Response:
     # templates for deployment in app/templates  should be formatted like
     # 1) deploy_aws.html, 2) deploy_azure.html, 3) deploy_gcp.html
     # they need to match the names given to the CloudEnvironments
-    # given in ml-workflow-lib/mlmanager_lib/database/models.py:KnownHandlers
+    # given in ml-workflow-lib/shared/database.py/splice_models.py:KnownHandlers
     show = f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html' if CLOUD_ENVIRONMENT.can_deploy else 'index.html'
     return show_html(show)
 

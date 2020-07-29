@@ -2,34 +2,37 @@
 Custom MLFlow Tracking Store for Splice Machine
 DB
 """
-import posixpath
+import re
 import uuid
 
-from mlflow.entities import RunStatus, SourceType, LifecycleStage, ViewType
-from mlflow.entities.run import Run
-from mlflow.exceptions import MlflowException
-from mlflow.protos.databricks_pb2 import INVALID_STATE, INVALID_PARAMETER_VALUE
-from mlflow.protos.databricks_pb2 import RESOURCE_DOES_NOT_EXIST
-from mlflow.store.db.utils import _upgrade_db, _get_managed_session_maker, _verify_schema, _initialize_tables
-from mlflow.store.tracking import SEARCH_MAX_RESULTS_THRESHOLD
-from mlflow.store.tracking.dbmodels.initial_models import Base as InitialBase, SqlMetric as InitialSqlMetric, \
-    SqlParam as InitialSqlParam, SqlTag as InitialSqlTag, SqlRun as InitialSqlRun, \
-    SqlExperiment as InitialSqlExperiment  # pre-migration sqlalchemy tables
-from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlExperiment, SqlLatestMetric, SqlParam
-from mlflow.store.db.base_sql_model import Base
-from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore, _get_sqlalchemy_filter_clauses, \
-    _get_attributes_filtering_clauses  # , _get_orderby_clauses
-from mlflow.utils.search_utils import SearchUtils
-from mlmanager_lib.database.mlflow_models import SqlArtifact, Models, ModelMetadata, SysTriggers, SysTables, SysUsers, live_model_status_view
-from mlmanager_lib.database.models import ENGINE
-from mlmanager_lib.logger.logging_config import logging
-from sm_mlflow.alembic_support import SpliceMachineImpl
-from sqlalchemy import inspect as peer_into_splice_db, Table
-import sqlalchemy.sql.expression as sql
+import posixpath
+from sqlalchemy import inspect as peer_into_splice_db
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.sql.sqltypes import Integer
-import re
+
+from mlflow.entities import LifecycleStage, RunStatus, SourceType, ViewType
+from mlflow.exceptions import MlflowException
+from mlflow.protos.databricks_pb2 import (INVALID_PARAMETER_VALUE,
+                                          INVALID_STATE,
+                                          RESOURCE_DOES_NOT_EXIST)
+from mlflow.store.db.base_sql_model import Base
+from mlflow.store.db.utils import (_get_managed_session_maker, _initialize_tables, _upgrade_db, _verify_schema)
+from mlflow.store.tracking import SEARCH_MAX_RESULTS_THRESHOLD
+from mlflow.store.tracking.dbmodels.initial_models import (
+    Base as InitialBase, SqlExperiment as InitialSqlExperiment,
+    SqlMetric as InitialSqlMetric, SqlParam as InitialSqlParam,
+    SqlRun as InitialSqlRun, SqlTag as InitialSqlTag)
+from mlflow.store.tracking.dbmodels.models import (SqlExperiment,
+                                                   SqlLatestMetric, SqlRun, SqlTag)
+from mlflow.store.tracking.sqlalchemy_store import (
+    SqlAlchemyStore, _get_attributes_filtering_clauses,
+    _get_sqlalchemy_filter_clauses)
+from mlflow.utils.search_utils import SearchUtils
+from shared.logger.logging_config import logger
+from shared.models.mlflow_models import SqlArtifact, SysTables, SysTriggers, SysUsers, Models, ModelMetadata, \
+    live_model_status_view
+from shared.services.database import SQLAlchemyClient
+from sm_mlflow.alembic_support import SpliceMachineImpl
+from sm_mlflow.db_utils import get_orderby_clauses_test
 
 # ^ we need this in our global namespace so that alembic will be able to find our dialect during
 # DB migrations
@@ -44,108 +47,50 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
-LOGGER = logging.getLogger(__name__)
-
-
-def _get_orderby_clauses_test(order_by, session):
-    """Sorts a set of runs based on their natural ordering and an overriding set of order_bys.
-    Runs are naturally ordered first by start time descending, then by run id for tie-breaking.
-    """
-
-    clauses = []
-    ordering_joins = []
-    clause_id = 0
-    # contrary to filters, it is not easily feasible to separately handle sorting
-    # on attributes and on joined tables as we must keep all clauses in the same order
-    if order_by:
-        for order_by_clause in order_by:
-            clause_id += 1
-            (key_type, key, ascending) = SearchUtils.parse_order_by(order_by_clause)
-            if SearchUtils.is_attribute(key_type, '='):
-                order_value = getattr(SqlRun, SqlRun.get_attribute_name(key))
-            else:
-                if SearchUtils.is_metric(key_type, '='):  # any valid comparator
-                    entity = SqlLatestMetric
-                elif SearchUtils.is_tag(key_type, '='):
-                    entity = SqlTag
-                elif SearchUtils.is_param(key_type, '='):
-                    entity = SqlParam
-                else:
-                    raise MlflowException("Invalid identifier type '%s'" % key_type,
-                                          error_code=INVALID_PARAMETER_VALUE)
-
-                # build a subquery first because we will join it in the main request so that the
-                # metric we want to sort on is available when we apply the sorting clause
-                subquery = session \
-                    .query(entity) \
-                    .filter(entity.key == key) \
-                    .subquery()
-
-                ordering_joins.append(subquery)
-                order_value = subquery.c.value
-
-            # sqlite does not support NULLS LAST expression, so we sort first by
-            # presence of the field (and is_nan for metrics), then by actual value
-            # As the subqueries are created independently and used later in the
-            # same main query, the CASE WHEN columns need to have unique names to
-            # avoid ambiguity
-            if SearchUtils.is_metric(key_type, '='):
-                clauses.append(sql.case([
-                    (subquery.c.is_nan == True, 1),
-                    (order_value.is_(None), 1)
-                ], else_=0).cast(Integer).label('clause_%s' % clause_id))
-            else:  # other entities do not have an 'is_nan' field
-                clauses.append(sql.case([(order_value.is_(None), 1)], else_=0).cast(Integer)
-                               .label('clause_%s' % clause_id))
-
-            if ascending:
-                clauses.append(order_value)
-            else:
-                clauses.append(order_value.desc())
-
-    clauses.append(SqlRun.start_time.desc())
-    clauses.append(SqlRun.run_uuid)
-    return clauses, ordering_joins
-
 
 class SpliceMachineTrackingStore(SqlAlchemyStore):
-    ALEMBIC_TABLES: tuple = (
+    MLFLOW_PROVIDED_TABLES: tuple = (
         InitialSqlExperiment, InitialSqlRun, InitialSqlTag, InitialSqlMetric, InitialSqlParam
     )  # alembic migrations will be applied to these initial tables
 
-    NON_ALEMBIC_TABLES: tuple = (SqlArtifact, Models, ModelMetadata, SysTriggers, SysTables, SysUsers)
-    TABLES: tuple = ALEMBIC_TABLES + NON_ALEMBIC_TABLES
+    MLFLOW_CUSTOM_TABLES: tuple = (
+        SqlArtifact, SysUsers, SysTriggers, SysTables, ModelMetadata, Models
+    )
+
+    TABLES: tuple = MLFLOW_PROVIDED_TABLES + MLFLOW_CUSTOM_TABLES
 
     def __init__(self, store_uri: str = None, artifact_uri: str = None) -> None:
         """
-        Create a database backed store.
+        Create a database.py backed store.
 
-        :param store_uri: (str) The SQLAlchemy database URI string to connect to the database.
+        :param store_uri: (str) The SQLAlchemy database.py URI string to connect to the database.py.
         :param artifact_uri: (str) Path/URI to location suitable for large data (such as a blob
-                                      store object, DBFS path, or shared NFS file system).
+                                      store object, DBFS path, or structures NFS file system).
         """
-        # super(SqlAlchemyStore, self).__init__()
+        try:
+            self.db_type: str = 'splicemachinesa'
+            self.artifact_root_uri: str = artifact_uri
+            self.engine = SQLAlchemyClient.engine
+            self.inspector = peer_into_splice_db(self.engine)
 
-        self.db_type: str = 'splicemachinesa'
-        self.artifact_root_uri: str = artifact_uri
-        self.engine = ENGINE
+            expected_tables = {table.__tablename__ for table in self.TABLES}
 
-        expected_tables = {table.__tablename__ for table in self.TABLES}
-        inspector = peer_into_splice_db(self.engine)
+            logger.info("Initializing DB...")
+            if len(expected_tables & set(self.inspector.get_table_names())) == 0:
+                _initialize_tables(SQLAlchemyClient.engine)
+            self._initialize_tables()
+            logger.info("Finished Initialization...")
 
-        if len(expected_tables & set(inspector.get_table_names())) == 0:
-            _initialize_tables(self.engine)
-        self._initialize_tables()
+            Base.metadata.bind = self.engine
+            self.ManagedSessionMaker = _get_managed_session_maker(SQLAlchemyClient.SessionMaker)
+            _verify_schema(SQLAlchemyClient.engine)
 
-        Base.metadata.bind = self.engine
-        SessionMaker: sessionmaker = sessionmaker(bind=ENGINE)
-        self.ManagedSessionMaker = _get_managed_session_maker(SessionMaker)
-        _verify_schema(ENGINE)
-        if len(self.list_experiments()) == 0:
-            with self.ManagedSessionMaker() as session:
-                self._create_default_experiment(session)
-
-
+            if len(self.list_experiments()) == 0:
+                with self.ManagedSessionMaker() as session:
+                    self._create_default_experiment(session)
+        except Exception:
+            logger.exception("Failed to initialize Tracking Store:")
+            raise
 
     def _initialize_tables(self):
         """
@@ -155,26 +100,25 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         Then, it creates all tables (that we added)
         that don't require alembic revisions
         """
-        # LOGGER.info("Creating initial Alembic MLflow database tables...")
         InitialBase.metadata.create_all(
             self.engine,
-            tables=[table.__table__ for table in self.ALEMBIC_TABLES]
+            tables=[table.__table__ for table in self.MLFLOW_PROVIDED_TABLES]
         )  # create older versions of alembic tables to apply upgrades
 
-        engine_url = str(self.engine.url)
-        _upgrade_db(engine_url)  # apply alembic revisions serially
+        _upgrade_db(self.engine)  # apply alembic revisions serially
 
-        LOGGER.info("Creating Non-Alembic database tables...")
+        logger.info("Creating Non-Alembic tables...")
         Base.metadata.create_all(
             self.engine,
-            tables=[table.__table__ for table in self.NON_ALEMBIC_TABLES],
+            tables=[table.__table__ for table in self.MLFLOW_CUSTOM_TABLES],
             checkfirst=True
         )
-        # Splice doesn't have a CREATE OR REPLACE VIEW syntax
-        inspector = peer_into_splice_db(self.engine)
-        if 'live_model_status' not in inspector.get_view_names():
-            with ENGINE.begin() as cnx:
-                cnx.execute(live_model_status_view)
+        logger.info("Creating Non-Alembic Views")
+
+        if 'live_model_status' not in self.inspector.get_view_names():
+            logger.warning("Could not locate Live Model Status View... Creating")
+            with SQLAlchemyClient.engine.begin() as transaction:
+                transaction.execute(live_model_status_view)
 
     def _get_artifact_location(self, experiment_id: int) -> str:
         """
@@ -225,13 +169,13 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                                      source_version=tags_dict.get('version', ''),
                                      lifecycle_stage=LifecycleStage.ACTIVE)
 
-                LOGGER.info(f"Creating Run: {run}")
-                run.tags: list = [SqlTag(key=key, value=value) for key, value in tags_dict.items()]
+                logger.info(f"Creating Run: {run}")
+                run.tags = [SqlTag(key=key, value=value) for key, value in tags_dict.items()]
                 self._save_to_db(objs=run, session=session)
 
                 return run.to_mlflow_entity()
             except IntegrityError:  # Hash Collision (very low probability)
-                LOGGER.exception(
+                logger.exception(
                     f"Violated PK Constraint for Run ID: Hash Collision. Regenerating ID..."
                 )
                 session.rollback()
@@ -268,54 +212,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                 return self._get_experiment(
                     session, experiment_id, ViewType.ALL, eager=True).to_mlflow_entity()
         except:
-            import traceback
-            traceback.print_exc()
-
-    def fix_CASE_clause(self, sql: str) -> str:
-        """
-        Splice Machine has 2 limitations here:
-        1. We don't support ? in all CASE statement returns: ERROR 42X87:
-            At least one result expression (THEN or ELSE) of the 'conditional' expression must not be a '?
-        2. We don't support IS as a boolean operator (CASE WHEN x IS 5)
-        Fix for 1. Add a cast to the ELSE
-        Fix for 2. Check for IS or IS NOT
-        :param sql: (str) the SQL
-        :return: (str) the fixed SQL
-        """
-        reg = 'CASE(.*)END'
-        result = re.search(reg, sql)
-        CASE_SQL = result.group(1)
-
-        indexes = [m.start() for m in re.finditer('THEN', CASE_SQL)] + [re.search('ELSE', CASE_SQL).start()]
-        needs_cast = True
-        for i in indexes:
-            # Check for all "THEN ?" or "ELSE ?"
-            if CASE_SQL[i + 5] != '?':
-                needs_cast = False
-                break
-        if needs_cast:
-            new_CASE_SQL = CASE_SQL.replace('ELSE ?', 'ELSE CAST(? as INT)')
-
-        # Replace IS <> with = <>
-        # We rerun the search every time because after each replacement, the length of the string has changed
-        is_clause = 'IS [^NULL]'
-        x = re.search(is_clause, new_CASE_SQL)
-        while x:
-            ind = x.start()
-            new_CASE_SQL = new_CASE_SQL[:ind] + '=' + new_CASE_SQL[ind + 2:]  # skip IS
-            x = re.search(is_clause, new_CASE_SQL)
-
-        # Replace IS NOT <> with = <>
-        # We rerun the search every time because after each replacement, the length of the string has changed
-        is_not_clause = 'IS NOT [^NULL]'
-        x = re.search(is_not_clause, new_CASE_SQL)
-        while x:
-            ind = x.start()
-            new_CASE_SQL = new_CASE_SQL[:ind] + '!=' + new_CASE_SQL[ind + 6:]  # skip IS NOT
-            x = re.search(is_clause, new_CASE_SQL)
-
-        fixed_sql = sql.replace(CASE_SQL, new_CASE_SQL)
-        return fixed_sql
+            logger.exception(f"Unable to retrieve experiment #{experiment_id}")
 
     def _search_runs(self, experiment_ids, filter_string, run_view_type, max_results, order_by,
                      page_token):
@@ -339,10 +236,10 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         with self.ManagedSessionMaker() as session:
             # Fetch the appropriate runs and eagerly load their summary metrics, params, and
             # tags. These run attributes are referenced during the invocation of
-            # ``run.to_mlflow_entity()``, so eager loading helps avoid additional database queries
+            # ``run.to_mlflow_entity()``, so eager loading helps avoid additional database.py queries
             # that are otherwise executed at attribute access time under a lazy loading model.
             parsed_filters = SearchUtils.parse_search_filter(filter_string)
-            parsed_orderby, sorting_joins = _get_orderby_clauses_test(order_by, session)
+            parsed_orderby, sorting_joins = get_orderby_clauses_test(order_by, session)
 
             query = session.query(SqlRun)
             for j in _get_sqlalchemy_filter_clauses(parsed_filters, session):

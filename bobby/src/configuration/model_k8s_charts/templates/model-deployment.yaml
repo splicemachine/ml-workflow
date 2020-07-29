@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.appName }}-{{ .Release.Revision }}-deployment
+  labels:
+    identifier: {{ .Values.appName }}-{{ .Release.Revision }}
+spec:
+  replicas: {{ .Values.base_replicas }}
+  selector:
+    matchLabels:
+      identifier: {{ .Values.appName }}-{{ .Release.Revision }}
+  template:
+    metadata:
+      labels:
+        identifier: {{ .Values.appName }}-{{ .Release.Revision }}
+    spec:
+      containers:
+        - name: {{ .Values.appName }}-{{ .Release.Revision }}
+          env:
+            - name: GUNICORN_CMD_ARGS
+              value: -w {{ GUNICORN_WORKERS }}
+            {{ if and .Values.disable_nginx eq .Values.disable_nginx "true" }}
+            - name: DISABLE_NGINX
+              value: "true"
+            {{ end }}
+          imagePullPolicy: Never
+          image: mlflow-pyfunc-servable
+          ports:
+            - containerPort: 8080
+              name: {{ .Values.appName }}-{{ .Release.Revision }}-port
+            {{ if and .Values.sparkUI .Values.sparkUIPort }}
+            - containerPort: 4040
+              name: {{ .Values.appName }}-{{ .Release.Revision }}-spark-port
+            {{ end }}
+          resources:
+            requests:
+              memory: {{ .Values.memoryRequest }}
+              cpu: {{ .Values.cpuRequest }}
+            limits:
+              memory: {{ .Values.memoryLimit }} # choose carefully to avoid OOM, esp with Spark
+              cpu: {{ .Values.cpuLimit }}
+      serviceAccountName: {{ .Values.appName }}-{{ .Release.Revision }}-serviceaccount
+
+

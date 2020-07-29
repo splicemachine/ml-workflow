@@ -2,19 +2,19 @@
 This module contains SQLAlchemy Models
 used for the Queue
 """
-
-import logging
-import pyodbc
 from datetime import datetime
 from json import loads as parse_dict
-from os import environ as env_vars
+from typing import Optional
 
-from sqlalchemy import create_engine, Column, ForeignKey, String, Integer, Boolean, CheckConstraint
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session, relationship, sessionmaker
 from retrying import retry
+from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey,
+                        Integer, String)
+from sqlalchemy.orm import relationship
 
-from .constants import Database, JobStatuses
+from shared.environments.container_environment import RoleConfig
+from shared.logger.logging_config import logger
+from shared.models.enums import JobStatuses
+from shared.services.database import DatabaseSQL, SQLAlchemyClient
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -26,33 +26,15 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
-Base = declarative_base()
-
-# Logging
-LOGGER = logging.getLogger()
-
-ENGINE = create_engine(Database.connection_string, **Database.engine_options)
-
 
 def format_timestamp() -> str:
     """
     Get a string representation
     of the current timestamp
-    which can be parsed by the database
+    which can be parsed by the database.py
     :return:
     """
-    return datetime.now().strftime(Database.datetime_format)
-
-
-@retry(wait_fixed=30000, stop_max_attempt_number=10)
-def create_all() -> None:
-    """
-    Funcion that create's all of the tables in a retry loop in case the database doesn't exist
-    Tries to create the necessary tables, retrying every 30 seconds, max 10 times
-    Will gracefully fail after that if no DB exists
-    :return: None
-    """
-    Base.metadata.create_all(checkfirst=True)
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 ############################
@@ -60,7 +42,7 @@ def create_all() -> None:
 ############################
 
 # noinspection PyTypeChecker
-class Handler(Base):
+class Handler(SQLAlchemyClient.SpliceBase):
     """
     A Service e.g. Deployment, Start/Stop Service etc.
     """
@@ -87,9 +69,9 @@ class Handler(Base):
             as values in the dictionary)
         """
         super().__init__(*args, **kwargs)
-        # these attributes are used for the API, not persisted in the database
-        self.required_payload_args: tuple = required_payload_args
-        self.optional_payload_args: dict = optional_payload_args
+        # these attributes are used for the API, not persisted in the database.py
+        self.required_payload_args: Optional[tuple] = required_payload_args
+        self.optional_payload_args: Optional[dict] = optional_payload_args
         self.handler_class: object = None
 
     def __repr__(self) -> None:
@@ -123,7 +105,7 @@ class Handler(Base):
 
 
 # noinspection PyTypeChecker
-class Job(Base):
+class Job(SQLAlchemyClient.SpliceBase):
     """
     A Job, e.g. Deploy this model, stop this service etc.
     """
@@ -134,7 +116,7 @@ class Job(Base):
     SHORT_VARCHAR_SIZE: int = 100
     LONG_VARCHAR_SIZE: int = 5000
 
-    # TBA (To-Be-Assigned later) when JSON is parsed by worker
+    # TBA (To-Be-Assigned later) when JSON is parsed by structures
     parsed_payload: dict or None = None
 
     # Columns Definition
@@ -146,8 +128,6 @@ class Job(Base):
     info: Column = Column(String(LONG_VARCHAR_SIZE), default='Waiting for an available Worker...')
     payload: Column = Column(String(LONG_VARCHAR_SIZE), nullable=False)
     user: Column = Column(String(SHORT_VARCHAR_SIZE), nullable=False)
-
-    # Displayed in GUI, created & parsed by Workers to save time
 
     mlflow_url: Column = Column(String(LONG_VARCHAR_SIZE), default="N/A")
     # mlflow_url is only applicable to deployment jobs (and maybe retraining in the future)
@@ -217,27 +197,22 @@ class Job(Base):
         self.parsed_payload = parse_dict(self.payload)
 
 
-Base.metadata.bind = ENGINE
-
-# Don't create tables in a threaded environment (MLFlow Container)
-# to avoid write-write conflicts. So we create them only in Bobby
-if Database.am_i_creator:
+@retry(wait_fixed=30000, stop_max_attempt_number=10)
+def create_bobby_tables() -> None:
+    """
+    Function that create's all of the tables in a retry loop in case the database.py doesn't exist
+    Tries to create the necessary tables, retrying every 30 seconds, max 10 times
+    Will gracefully fail after that if no DB exists
+    :return: None
+    """
     try:
-        create_all()
-    except Exception:
-        LOGGER.exception("Error connecting to the database. Tried 10 times for total of 300 seconds.")
-        raise ConnectionError('Error connecting to the database. Tried 10 times for total of 300 seconds.')
+        if RoleConfig.has_role('creator'):
+            logger.warning("Creating Splice Tables inside Splice DB...")
+            SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
+            logger.info("Created Tables")
+    except Exception as e:
+        logger.exception("Encountered Exception while creating tables:")
+        raise
 
-SessionFactory = scoped_session(sessionmaker(bind=ENGINE, expire_on_commit=False))
 
-
-def execute_sql(sql: str) -> list:
-    """
-    Directly Execute SQL on the
-    SQLAlchemy ENGINE without
-    using the ORM (more performant)
-
-    :param sql: (str) the SQL to execute
-    :return: (list) returned result set
-    """
-    return list(ENGINE.execute(sql))
+create_bobby_tables()
