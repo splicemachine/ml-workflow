@@ -22,6 +22,13 @@ class HandlerNames:
     # defines the 'retrain' key in their handler mapping, we could generalize it similar to how
     # we do here.
 
+    @staticmethod
+    def get_run_handlers():
+        """
+        Get handlers that can run operations
+        """
+        return HandlerNames.deploy_k8s, HandlerNames.deploy_database, HandlerNames.deploy_csp
+
 
 class KnownHandlers:
     """
@@ -45,26 +52,36 @@ class KnownHandlers:
             modifiable=False
         ),
         HandlerNames.deploy_database: Handler(
-            required_payload_args=(),
-            optional_payload_args=dict(),
+            required_payload_args=('db_schema', 'db_table', 'run_id'),
+            optional_payload_args=dict(
+                df=None,
+                create_model_table=False,
+                model_cols=None,
+                classes=None,
+                sklearn_args=None,
+                pred_threshold=None,
+                replace=False
+            ),
             name=HandlerNames.deploy_database,
             url='/deploy/database.py'
         ),
         HandlerNames.deploy_k8s: Handler(
-            required_payload_args=('run_id', 'service_port', 'app_name'),
+            required_payload_args=('run_id',),
             optional_payload_args=dict(
+                service_port=80,
                 base_replicas=1,
+                autoscaling_enabled=False,
                 max_replicas=1,
                 target_cpu_utilization=50,
-                use_nginx=True,
+                disable_nginx=False,
                 gunicorn_workers=1,  # strongly recommended on spark models to prevent OOM
+                resource_requests_enabled=True,
+                resource_limits_enabled=True,
                 cpu_request="0.5",
                 cpu_limit="1",
                 memory_request="512Mi",
-                memory_limit="1Gi",
+                memory_limit="2048Mi",
                 expose_external=False,
-                external_path='/model',
-                sparkui=False
             ),
             name=HandlerNames.deploy_k8s,
             url='/deploy/kubernetes'

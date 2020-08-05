@@ -123,7 +123,7 @@ class Authentication:
         realm.setServerName(env_vars['DB_HOST'])
         realm.setServerPort("1527")
         realm.setDatabaseName("splicedb")
-        # when shrio authentication fails, it throws an error
+        # when shiro authentication fails, it throws an error
         try:
             LOGGER.debug('Attempting login')
             realm.initialize(username, password)

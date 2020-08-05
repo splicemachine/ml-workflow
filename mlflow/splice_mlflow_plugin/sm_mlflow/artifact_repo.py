@@ -36,7 +36,7 @@ class SpliceMachineArtifactStore(ArtifactRepository):
     def __init__(self, artifact_uri: str) -> None:
         super().__init__(artifact_uri)
 
-        _match = re.compile("^.*?:\/\/(?P<experiment>.*?)\/(<?P<runid>.*?)\/\w+$").match(artifact_uri)
+        _match = re.compile("^.*?:\/\/(?P<experiment>.*?)\/(?P<runid>.*?)\/\w+$").match(artifact_uri)
 
         if not _match:
             raise MlflowException("The Artifact Path Specified is Invalid")

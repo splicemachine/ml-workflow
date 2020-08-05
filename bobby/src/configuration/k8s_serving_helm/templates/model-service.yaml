@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-{{ .Values.model.runId }}
+  namespace: {{ .Values.model.namespace }}
+  labels:
+    identifier: model-{{ .Values.model.runId }}
+  ownerReferences:
+    - apiVersion: v1
+      controller: true
+      kind: Pod
+      name: {{ .Values.k8s.ownerPod }}
+      uid: {{ .Values.k8s.ownerUID }}
+spec:
+  selector:
+    identifier: model-{{ .Values.model.runId }}
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: {{ .Values.serving.exposePort }}
+      name: {{ .Values.model.runId }}

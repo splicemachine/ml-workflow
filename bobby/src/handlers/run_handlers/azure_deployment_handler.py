@@ -59,7 +59,7 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
             location=self.task.parsed_payload['region'],
             create_resource_group=True,  # create resource group if it doesn't exist
             exist_ok=True,  # get the Workspace if it already exists, otherwise create it
-            auth=msi_auth # to avoid calling InteactiveLogin
+            auth=msi_auth  # to avoid calling InteactiveLogin
         )
 
     def _build_docker_image(self):

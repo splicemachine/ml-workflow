@@ -5,11 +5,13 @@ from tempfile import NamedTemporaryFile
 from h2o import load_model as load_h2o_model
 from h5py import File as h5_file
 from pyspark.ml import PipelineModel
-from tensorflow.keras.models import (Model as KerasModel,
-                                     load_model as load_keras_model)
+from tensorflow.keras.models import Model as KerasModel
+from tensorflow.keras.models import load_model as load_keras_model
 
-from mlflow import (h2o as mlflow_h2o, keras as mlflow_keras,
-                    sklearn as mlflow_sklearn, spark as mlflow_spark)
+from mlflow import h2o as mlflow_h2o
+from mlflow import keras as mlflow_keras
+from mlflow import sklearn as mlflow_sklearn
+from mlflow import spark as mlflow_spark
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -35,7 +37,7 @@ class Deserializers:
         :param download_path: local path on disk
         :param conda_env: conda environments
         :param jvm: py4j jvm
-=        """
+        """
         binary_input_stream = jvm.java.io.ByteArrayInputStream(artifact_stream)
         object_input_stream = jvm.java.io.ObjectInputStream(binary_input_stream)
 

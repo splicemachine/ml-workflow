@@ -2,7 +2,9 @@
 Contains handler and functions
 pertaining to AWS Model Deployment
 """
-from os import environ as env_vars, popen as bash_open, system as bash
+from os import environ as env_vars
+from os import popen as bash_open
+from os import system as bash
 from time import sleep
 
 from mlflow import sagemaker

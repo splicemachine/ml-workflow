@@ -4,7 +4,8 @@ returned Subscription ID
 """
 from json import loads as parse_json
 from os import environ as env_vars
-from subprocess import SubprocessError, check_output as capture_shell_cmd
+from subprocess import SubprocessError
+from subprocess import check_output as capture_shell_cmd
 
 from shared.logger.logging_config import logger
 

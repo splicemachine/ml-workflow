@@ -2,7 +2,6 @@ import base64
 import json
 import logging
 import os
-import sys
 from subprocess import Popen
 
 import boto3
@@ -15,6 +14,7 @@ ACCESS_KEY = os.environ['AWS_ACCESS_KEY_ID']
 SECRET_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
 LOGGER = logging.getLogger(__name__)
 
+
 def _repository_exists(client, repo_name):
     """
     Checks if a repository exists
@@ -22,12 +22,13 @@ def _repository_exists(client, repo_name):
     :param repo_name: str The name of the repository to check
     """
     response = client.describe_repositories()
-    #will either return a list of dicts or empty dict
-    for repository in response.get('repositories',{}):
-        #if empty dict is returned, loop skipped and False returned
+    # will either return a list of dicts or empty dict
+    for repository in response.get('repositories', {}):
+        # if empty dict is returned, loop skipped and False returned
         if repository.get('repositoryName') == repo_name:
             return True
     return False
+
 
 def _image_tag_exists(client, repo_name, image_tag):
     """
@@ -37,12 +38,13 @@ def _image_tag_exists(client, repo_name, image_tag):
     :param image_tag: str The image tag to check
     """
     images = client.list_images(repositoryName=repo_name)
-    #return empty dictionary if key not found
-    for i in images.get('imageIds',{}):
-        #if empty dict is returned, loop skipped and False returned
+    # return empty dictionary if key not found
+    for i in images.get('imageIds', {}):
+        # if empty dict is returned, loop skipped and False returned
         if i.get('imageTag') == image_tag:
             return True
     return False
+
 
 def _get_uri(client, repo_name):
     """
@@ -52,7 +54,7 @@ def _get_uri(client, repo_name):
     """
     response = client.describe_repositories()
     for repository in response.get('repositories', {}):
-        #if empty dict is returned, loop skipped and None returned
+        # if empty dict is returned, loop skipped and None returned
         if repository.get('repositoryName') == repo_name:
             return repository.get('repositoryUri')
 
@@ -71,10 +73,11 @@ def ecr_docker_login(client, docker_client):
     auth_config = {'username': username, 'password': password}
     return auth_config
 
+
 def main():
-    #start the docker deamon
+    # start the docker deamon
     Popen(['dockerd'])
- 
+
     full_image = 'splicemachine/{}:{}'.format(REPO_NAME, IMAGE_TAG)
 
     # read config file
@@ -102,13 +105,15 @@ def main():
         LOGGER.info('Checking if image exists...')
         if not _image_tag_exists(client, REPO_NAME, IMAGE_TAG):
             LOGGER.info(
-                'No image exists... Pulling image from dockerhub and Pushing image to ECR: {}:{}'.format(REPO_NAME, IMAGE_TAG))
+                'No image exists... Pulling image from dockerhub and Pushing image to ECR: {}:{}'.format(REPO_NAME,
+                                                                                                         IMAGE_TAG))
             # get the docker image
             docker_client.pull(full_image)
             # get uri from ECR and tag docker image
             uri = _get_uri(client, REPO_NAME)
             if not uri:
-                LOGGER.error('URI not found for ECR image... Either ECR image does not exist in region or no URI associated with image')
+                LOGGER.error(
+                    'URI not found for ECR image... Either ECR image does not exist in region or no URI associated with image')
                 return 1
             # tag the image
             docker_client.tag(full_image, uri, tag=IMAGE_TAG)

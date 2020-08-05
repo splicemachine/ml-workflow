@@ -59,11 +59,11 @@ class SqlArtifact(SQLAlchemyClient.MlflowBase):
     )
 
 
-class Models(SQLAlchemyClient.MlflowBase):
+class DatabaseModels(SQLAlchemyClient.MlflowBase):
     """
     Table for storing deployed models into the DB
     """
-    __tablename__: str = "models"
+    __tablename__: str = "db_models"
     run_uuid: Column = Column(String(32), ForeignKey(SqlRun.run_uuid), primary_key=True)
     model: Column = Column(LargeBinary(length=int(2e9)), nullable=False)
     library: Column = Column(String(32), nullable=False)

@@ -1,0 +1,23 @@
+{{ if eq .Values.autoscaling.enabled "true" }}
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: model-{{ .Values.model.runId }}
+  namespace: {{ .Values.model.namespace }}
+  labels:
+    identifier: model-{{ .Values.model.runId }}
+  ownerReferences:
+    - apiVersion: v1
+      controller: true
+      kind: Pod
+      name: {{ .Values.k8s.ownerPod }}
+      uid: {{ .Values.k8s.ownerUID }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: model-{{ .Values.model.runId }}-deployment
+  minReplicas: {{ .Values.baseReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  targetCPUUtilizationPercentage: {{ .Values.autoscaling.targetCPULoad }}
+{{ end }}

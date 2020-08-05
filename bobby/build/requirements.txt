@@ -1,5 +1,4 @@
 splicemachinesa==0.1.4.dev0
-cachetools==3.1.1
 workerpool==0.9.4
 mlflow==1.8.0
 pyyaml==5.1.1
@@ -14,6 +13,7 @@ azure-cli-core==2.0.80
 h5py==2.10.0
 h2o-pysparkling-2.4==3.28.1.2-1
 tensorflow==2.2.0rc3
+kubernetes==11.0.0
 tensorboard==2.2.0
 tensorflow-estimator==2.2.0
 scikit-learn==0.22.2

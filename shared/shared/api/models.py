@@ -1,8 +1,6 @@
 """
 Definitions for Flask API
 """
-from enum import Enum
-
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
 __credits__: list = ["Amrit Baveja"]
@@ -13,7 +11,7 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
 
-class APIStatuses(Enum):
+class APIStatuses:
     """
     Class containing valid
     HTTP Response statuses from Flask
@@ -24,7 +22,7 @@ class APIStatuses(Enum):
     error: str = "error"
 
 
-class TrackerTableMapping(Enum):
+class TrackerTableMapping:
     """
     Valid Tracker Table Mappings
     to Database columns

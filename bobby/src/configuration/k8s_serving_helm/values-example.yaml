@@ -1,0 +1,30 @@
+baseReplicas: 2
+k8s:
+  namespace: test
+  ownerUID: 49e94e7d-4b02-41f5-8da0-8d75fcf7bd56
+  ownerPod: splicedb-bobby
+model:
+  runId: 19aun3qks
+  name: model
+db:
+  user: splice
+  password: admin
+  host: localhost
+  kafkaUrl: splicedb-kafka:9092
+versions:
+  retriever: 0.0.1
+  server: 0.0.1
+serving:
+  gunicornWorkers: 1
+  disableNginx: "false"
+  exposePort: 8030
+resourceRequests:
+  enabled: "true"
+  memory: 1Gi
+  cpu: 500m
+resourceLimits:
+  enabled: "false"
+autoscaling:
+  enabled: "true"
+  maxReplicas: 3
+  targetCPULoad: 50

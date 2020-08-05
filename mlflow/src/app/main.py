@@ -4,15 +4,20 @@ from os import environ as env_vars
 from time import time as timestamp
 
 import requests
-from flask import (Flask, Response, jsonify as create_json, redirect,
-                   render_template as show_html, request, url_for)
+from flask import Flask, Response
+from flask import jsonify as create_json
+from flask import redirect
+from flask import render_template as show_html
+from flask import request, url_for
 from sqlalchemy import text
 
 from flask_executor import Executor
-from flask_login import (LoginManager, current_user, login_required,  login_user, logout_user)
+from flask_login import (LoginManager, current_user, login_required,
+                         login_user, logout_user)
 from shared.api.models import APIStatuses, TrackerTableMapping
 from shared.api.responses import HTTP
-from shared.environments.cloud_environment import (CloudEnvironment, CloudEnvironments)
+from shared.environments.cloud_environment import (CloudEnvironment,
+                                                   CloudEnvironments)
 from shared.logger.logging_config import logger
 from shared.models.splice_models import Handler, Job
 from shared.services.authentication import Authentication, User
@@ -38,7 +43,7 @@ CLOUD_ENVIRONMENT: CloudEnvironment = CloudEnvironments.get_current()
 
 Session = None  # db session-- created with every request
 
-EXECUTOR: Executor = Executor(APP)  # asynchronous parallel processin
+EXECUTOR: Executor = Executor(APP)  # asynchronous parallel processing
 BOBBY_URI = env_vars.get('BOBBY_URL', 'http://bobby')
 
 

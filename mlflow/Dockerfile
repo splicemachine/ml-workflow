@@ -24,30 +24,6 @@ ENV LANG en_US.utf-8
 
 COPY mlflow/build $BUILD_HOME
 
-# Install lzma python dependency python 3.7.3
-RUN yum install -y xz-devel
-
-# Install python 3.7.3
-RUN yum update -y && \
-    yum install yum-utils -y && \
-    yum groupinstall development -y && \
-    yum -y --enablerepo=extras install epel-release && \
-    yum install -y gcc openssl-devel bzip2-devel libffi-devel && \
-    yum install -y make
-
-RUN cd /tmp && \
-  wget https://www.python.org/ftp/python/3.7.3/Python-3.7.3.tgz && \
-  tar xzf Python-3.7.3.tgz && \
-  cd Python-3.7.3  && \
-  ./configure --enable-optimizations && \
-  make altinstall && \
-  ln -sfn /usr/local/bin/python3.7 /usr/bin/python3 && \
-  ln -sfn /usr/local/bin/pip3.7 /usr/bin/pip3 && \
-  rm -rf /tmp/Python-3.7.3 && \
-  rm /tmp/rm -rf Python-3.7.3.tgz && \
-  yum remove -y  make gcc openssl-devel bzip2-devel && \
-  rm -rf /var/cache/yum && yum clean all
-
 # Install development packages.
 RUN yum clean all && \
     rm -rf /var/cache/yum && \
@@ -61,13 +37,17 @@ RUN cd $BUILD_HOME && \
     sh ./install.sh -q
 
 # Install Python dependencies
-RUN pip3.7 install -r $BUILD_HOME/requirements.txt
-
+COPY mlflow/splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
+RUN pip3 install -r $BUILD_HOME/requirements.txt && \
+    pip3 install  $BUILD_HOME/splice_mlflow_plugin
 
 # Remove Build Directories and Create source directory
 RUN rm -rf $BUILD_HOME/* && \
     mkdir -p $SRC_HOME/lib
 
+# Copy Source into Container
+COPY mlflow/src $SRC_HOME
+COPY mlflow/src/lib $SRC_HOME/lib
 
 # Copy Shiro (and dependencies) for authentication
 RUN \
@@ -81,14 +61,7 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
 COPY shared /tmp/shared
-RUN pip3.7 install /tmp/shared && \
-    rm -rf /tmp/shared
-
-COPY mlflow/src $SRC_HOME
-
-# Install Shared Lib
-COPY mlflow/splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
-RUN pip3.7 install   $BUILD_HOME/splice_mlflow_plugin
+RUN pip3 install /tmp/shared/.
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 

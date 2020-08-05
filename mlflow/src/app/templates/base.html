@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <title>MLManager Director</title>
     {% block css %} <!-- so other pages can inject their own custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/font-awesome.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/droid_sans.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base_stylesheet.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='fonts/font-awesome.min.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='fonts/droid_sans.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/base_stylesheet.css') }}">
     {% endblock %}
 </head>
 <body>
@@ -21,34 +21,36 @@
         </div>
     </div>
     {% block sidebar %}
-    <ul class="categories">
+        <ul class="categories">
 
-        <li><i class="fa fa-home fa-fw" aria-hidden="true"></i>
-            <a href="/"> <b>Home</b></a>
-        </li>
-        <li><i class="fa fa-globe fa-fw"></i>
-            <a href="/tracker"> Job Tracker</a>
-        </li>
-        <li>
-            <i class="fa fa-play fa-fw"></i><a href="#"> Initiate Jobs</a>
-            <ul class="side-nav-dropdown">
-                <li><a href="{{ known_handlers.get_url(handler_names.deploy_csp) }}">
-                    Deploy Model to {{ cloud_environment_name }}</a>
-                </li>
-            </ul>
-        </li>
-        <li><i class="fa fa-users fa-fw"></i>
-            <!-- It doesn't matter which handler_name is passed into
-            known handlers get_url (can be enable/disable service) since both
-            handlers originate from that endpoint -->
-            <a href="{{ known_handlers.get_url(handler_names.enable_service) }}">
-                Manage Access
-            </a>
-        </li>
-        <li>
-            <i class="fa fa-question-circle fa-fw"></i><a href="/contact"> Contact Us</a>
-        </li>
-    </ul>
+            <li><i class="fa fa-home fa-fw" aria-hidden="true"></i>
+                <a href="/"> <b>Home</b></a>
+            </li>
+            <li><i class="fa fa-globe fa-fw"></i>
+                <a href="/tracker"> Job Tracker</a>
+            </li>
+            <li>
+                <i class="fa fa-play fa-fw"></i><a href="#"> Initiate Jobs</a>
+                {% for handler in handler_names.get_run_handlers() %}
+                    <ul class="side-nav-dropdown">
+                        <li><a href="{{ known_handlers.get_url(handler) }}">
+                            Deploy Model to {{ handler.split('_')[-1].title() }}</a>
+                        </li>
+                    </ul>
+                {% endfor %}
+            </li>
+            <li><i class="fa fa-users fa-fw"></i>
+                <!-- It doesn't matter which handler_name is passed into
+                known handlers get_url (can be enable/disable service) since both
+                handlers originate from that endpoint -->
+                <a href="{{ known_handlers.get_url(handler_names.enable_service) }}">
+                    Manage Access
+                </a>
+            </li>
+            <li>
+                <i class="fa fa-question-circle fa-fw"></i><a href="/contact"> Contact Us</a>
+            </li>
+        </ul>
     {% endblock %}
 
 </aside>
@@ -62,17 +64,18 @@
                 </button>
             </div>
             {% block logout %}
-            <a class="navbar-brand" href="#">
-                <button class="button-outline" id="logout-btn">
-                    <a class="button-link" href="/logout">Logout, {{ current_user.id }}
-                    </a>
-                </button>
-            </a>
+                <a class="navbar-brand" href="#">
+                    <button class="button-outline" id="logout-btn">
+                        <a class="button-link" href="/logout">Logout, {{ current_user.id }}
+                        </a>
+                    </button>
+                </a>
             {% endblock %}
             <div class="collapse navbar-collapse navbar-right" id="bs-example-navbar-collapse-1">
                 <ul class="nav navbar-nav">
-                    <li><a href="#"><i data-show="show-side-navigation1"
-                                       class="fa fa-bars show-side-btn"></i><span>&nbsp;</span></a>
+                    <li><a href="#">
+                        <i data-show="show-side-navigation1" class="fa fa-bars show-side-btn"></i>
+                        <span>&nbsp;</span></a>
                     </li>
                 </ul>
             </div>
@@ -83,11 +86,11 @@
 
 
     {% block scripts %}
-    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/jquery-latest.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/jquery-latest.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
     {% endblock %}
-
+</section>
 </body>
 </html>

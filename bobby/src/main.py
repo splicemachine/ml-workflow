@@ -9,20 +9,22 @@ from flask import Flask
 from py4j.java_gateway import java_import
 from pyspark import SparkConf, SparkContext
 from pysparkling import *
-from workerpool import Job as ThreadedTask, WorkerPool
-
-from shared.api.responses import HTTP
-from shared.environments.cloud_environment import (CloudEnvironment, CloudEnvironments)
-from shared.logger.logging_config import logger
-from shared.services.database import DatabaseSQL, SQLAlchemyClient
-from shared.services.handlers import (HandlerNames, KnownHandlers, populate_handlers)
-from shared.structures.ledger import JobLedger
+from workerpool import Job as ThreadedTask
+from workerpool import WorkerPool
 
 from handlers.modifier_handlers import (DisableServiceHandler,
                                         EnableServiceHandler)
 from handlers.run_handlers import (AzureDeploymentHandler,
                                    KubernetesDeploymentHandler,
                                    SageMakerDeploymentHandler)
+from shared.api.responses import HTTP
+from shared.environments.cloud_environment import (CloudEnvironment,
+                                                   CloudEnvironments)
+from shared.logger.logging_config import logger
+from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from shared.services.handlers import (HandlerNames, KnownHandlers,
+                                      populate_handlers)
+from shared.structures.ledger import JobLedger
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -164,6 +166,7 @@ def get_new_jobs():
     :return: HTTP response 200 or 500
     """
     check_db_for_jobs()
+    return dict(data="Checked DB for Jobs")
 
 
 def main():

@@ -2,7 +2,6 @@ from os import environ as env_vars
 
 from mlflow.store.db.base_sql_model import Base as MLFlowBase
 from sqlalchemy import create_engine
-from sqlalchemy import inspect as peer_into_db
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 
@@ -141,7 +140,7 @@ class DatabaseSQL:
 
     retrieve_jobs: str = \
         """
-        SELECT id, "timestamp" FROM JOBS
+        SELECT id, handler_name FROM JOBS
         WHERE status='PENDING'
         ORDER BY "timestamp"
         """

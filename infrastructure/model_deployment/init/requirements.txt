@@ -1,0 +1,6 @@
+pypandoc==1.5
+pyspark==2.4.0
+mlflow==1.8.0
+h2o==3.28.1.2
+tensorflow==2.2.0
+git+https://github.com/splicemachine/pysplice
