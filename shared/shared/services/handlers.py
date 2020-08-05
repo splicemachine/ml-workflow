@@ -45,10 +45,19 @@ class KnownHandlers:
             modifiable=False
         ),
         HandlerNames.deploy_database: Handler(
-            required_payload_args=(),
-            optional_payload_args=dict(),
+            required_payload_args=('db_schema', 'db_table', 'run_id'),
+            optional_payload_args=dict(
+                df_schema_json=None,
+                table_reference=None,
+                create_model_table=False,
+                model_cols=None,
+                classes=None,
+                sklearn_args=None,
+                keras_pred_threshold=None,
+                replace=False,
+            ),
             name=HandlerNames.deploy_database,
-            url='/deploy/database.py'
+            url='/deploy/database'
         ),
         HandlerNames.deploy_k8s: Handler(
             required_payload_args=('run_id', 'service_port', 'app_name'),
