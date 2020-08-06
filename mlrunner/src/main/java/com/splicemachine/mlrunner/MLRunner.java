@@ -1,4 +1,5 @@
 package com.splicemachine.mlrunner;
+
 import java.sql.*;
 
 import com.splicemachine.db.iapi.error.StandardException;
@@ -15,9 +16,12 @@ import com.splicemachine.derby.stream.iapi.OperationContext;
 import com.splicemachine.derby.vti.iapi.DatasetProvider;
 import hex.genmodel.easy.exception.PredictException;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+
 import io.airlift.log.Logger;
 import jep.JepException;
 import org.deeplearning4j.nn.modelimport.keras.exceptions.InvalidKerasConfigurationException;
@@ -27,38 +31,48 @@ import org.deeplearning4j.nn.modelimport.keras.exceptions.UnsupportedKerasConfig
 public class MLRunner implements DatasetProvider, VTICosting {
 
     // For VTI Implementation
-    private final String modelCategory,  modelID, rawData, schema;
+    private final String modelCategory, modelID, rawData, schema;
     private final String predictCall;
     private final String predictArgs;
     private final double threshold;
+
+    private static final ConcurrentHashMap<String, AbstractRunner> runnerCache = new ConcurrentHashMap<>();
     //Provide external context which can be carried with the operation
     protected OperationContext operationContext;
     private static final Logger LOG = Logger.get(MLRunner.class);
 
     public static AbstractRunner getRunner(final String modelID)
             throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
-        // Get the model blob and the library
-        final Object[] modelAndLibrary = AbstractRunner.getModelBlob(modelID);
-        final String lib = (String) modelAndLibrary[1];
         AbstractRunner runner = null;
-        Blob model = (Blob) modelAndLibrary[0];
-        switch (lib.toLowerCase()) {
-            case "h2omojo":
-                runner = new H2ORunner(model);
-                break;
-            case "mleap":
-                runner = new MLeapRunner(model);
-                break;
-            case "sklearn":
-                runner = new SKRunner(model);
-                break;
-            case "keras":
-                runner = new KerasRunner(model);
-                break;
-            default:
-                // TODO: Review database standards for exceptions
-                throw new UnsupportedLibraryExcetion(
-                        "Model library of type " + lib + " is not currently supported for in DB deployment!");
+        // Check if the runner is in cache
+        if (runnerCache.containsKey(modelID)) {
+            runner = runnerCache.get(modelID);
+        }
+        else {
+            // Get the model blob and the library
+            final Object[] modelAndLibrary = AbstractRunner.getModelBlob(modelID);
+            final String lib = ((String) modelAndLibrary[1]).toLowerCase();
+            Blob model = (Blob) modelAndLibrary[0];
+            switch (lib) {
+                case "h2omojo":
+                    runner = new H2ORunner(model);
+                    break;
+                case "mleap":
+                    runner = new MLeapRunner(model);
+                    break;
+                case "sklearn":
+                    runner = new SKRunner(model);
+                    break;
+                case "keras":
+                    runner = new KerasRunner(model);
+                    break;
+                default:
+                    // TODO: Review database standards for exceptions
+                    throw new UnsupportedLibraryExcetion(
+                            "Model library of type " + lib + " is not currently supported for in DB deployment!");
+            }
+            // Add runner to cache
+            runnerCache.put(modelID, runner);
         }
         return runner;
     }
@@ -67,8 +81,8 @@ public class MLRunner implements DatasetProvider, VTICosting {
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
             UnsupportedLibraryExcetion, ClassNotFoundException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
 
-            AbstractRunner runner = getRunner(modelID);
-            return runner.predictClassification(rawData, schema);
+        AbstractRunner runner = getRunner(modelID);
+        return runner.predictClassification(rawData, schema);
     }
 
     public static Double predictRegression(final String modelID, final String rawData, final String schema)
@@ -92,7 +106,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         return runner.predictCluster(rawData, schema);
     }
 
-    public static double [] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+    public static double[] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
         AbstractRunner runner = getRunner(modelID);
         return runner.predictKeyValue(rawData, schema, null, null, -1);
     }
@@ -122,35 +136,32 @@ public class MLRunner implements DatasetProvider, VTICosting {
         if (spliceOperation != null)
             operationContext = dataSetProcessor.createOperationContext(spliceOperation);
         else // this call works even if activation is null
-            operationContext = dataSetProcessor.createOperationContext((Activation)null);
+            operationContext = dataSetProcessor.createOperationContext((Activation) null);
         ArrayList<ExecRow> items = new ArrayList<ExecRow>();
 
         try {
 
             AbstractRunner runner = getRunner(this.modelID);
-            double [] preds = runner.predictKeyValue(this.rawData, this.schema, this.predictCall, this.predictArgs, this.threshold);
+            double[] preds = runner.predictKeyValue(this.rawData, this.schema, this.predictCall, this.predictArgs, this.threshold);
 
             ExecRow valueRow = new ValueRow(preds.length);
 
             //Loop through the properties and create an array
             for (int i = 0; i < preds.length; i++) {
-                valueRow.setColumn(i+1, new SQLDouble(preds[i]));
+                valueRow.setColumn(i + 1, new SQLDouble(preds[i]));
             }
             items.add(valueRow);
             operationContext.pushScopeForOp("Parse prediction");
         } catch (PredictException e) {
-            LOG.error("Unexpected PredictException: " , e);
+            LOG.error("Unexpected PredictException: ", e);
             e.printStackTrace();
         } catch (SQLException e) {
-            LOG.error("Unexpected SQLException: " , e);
-        }
-        catch (ClassNotFoundException e) {
-            LOG.error("Unexpected ClassNotFoundException: " , e);
-        }
-        catch (Exception e){
-            LOG.error("Unexpected Exception: " , e);
-        }
-        finally {
+            LOG.error("Unexpected SQLException: ", e);
+        } catch (ClassNotFoundException e) {
+            LOG.error("Unexpected ClassNotFoundException: ", e);
+        } catch (Exception e) {
+            LOG.error("Unexpected Exception: ", e);
+        } finally {
             operationContext.popScope();
         }
         return dataSetProcessor.createDataSet(items.iterator());
@@ -170,18 +181,20 @@ public class MLRunner implements DatasetProvider, VTICosting {
     public static DatasetProvider getMLRunner(final String modelCategory, final String modelID, final String rawData, final String schema) {
         return new MLRunner(modelCategory, modelID, rawData, schema);
     }
+
     public static DatasetProvider getMLRunner(final String modelCategory, final String modelID, final String rawData, final String schema, final String predictCall, final String predictArgs) {
         return new MLRunner(modelCategory, modelID, rawData, schema, predictCall, predictArgs);
     }
 
     /**
      * MLRunner VTI implementation used for models that return row based values (classification with probabilities, unsupervised models)
+     *
      * @param modelCategory The category of the model (classification/unsupervized etc) based on the PySplice defined categories
      * @param modelID
      * @param rawData
      * @param schema
      */
-    public MLRunner(final String modelCategory, final String modelID, final String rawData, final String schema){
+    public MLRunner(final String modelCategory, final String modelID, final String rawData, final String schema) {
         this.modelCategory = modelCategory;
         this.modelID = modelID;
         this.rawData = rawData;
@@ -190,9 +203,10 @@ public class MLRunner implements DatasetProvider, VTICosting {
         this.predictArgs = null;
         this.threshold = -1;
     }
+
     // For sklearn
     public MLRunner(final String modelCategory, final String modelID, final String rawData, final String schema,
-                    final String predictCall, final String predictArgs){
+                    final String predictCall, final String predictArgs) {
         this.modelCategory = modelCategory;
         this.modelID = modelID;
         this.rawData = rawData;
@@ -201,9 +215,10 @@ public class MLRunner implements DatasetProvider, VTICosting {
         this.predictArgs = predictArgs;
         this.threshold = -1;
     }
+
     // For Keras
     public MLRunner(final String modelCategory, final String modelID, final String rawData, final String schema,
-                    final String threshold){
+                    final String threshold) {
         this.modelCategory = modelCategory;
         this.modelID = modelID;
         this.rawData = rawData;
