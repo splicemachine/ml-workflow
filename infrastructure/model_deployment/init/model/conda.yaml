@@ -1,9 +1,0 @@
-channels:
-- defaults
-dependencies:
-- python=3.7.4
-- pyspark=2.4.0
-- pip
-- pip:
-  - mlflow
-name: mlflow-env
