@@ -63,7 +63,7 @@ class KnownHandlers:
                 replace=False
             ),
             name=HandlerNames.deploy_database,
-            url='/deploy/database.py'
+            url='/deploy/database'
         ),
         HandlerNames.deploy_k8s: Handler(
             required_payload_args=('run_id',),

@@ -34,8 +34,6 @@ spec:
               value: {{ .Values.db.password }}
             - name: DB_HOST
               value: {{ .Values.db.host }}
-            - name: KAFKA_URL
-              value: {{ .Values.db.kafkaUrl }}
             - name: RUN_ID
               value: {{ .Values.model.runId }}
             - name: MODEL_NAME

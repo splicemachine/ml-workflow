@@ -4,7 +4,7 @@ from os import environ as env_vars
 from time import time as timestamp
 
 import requests
-from flask import Flask, Response
+from flask import Flask, Response, make_response
 from flask import jsonify as create_json
 from flask import redirect
 from flask import render_template as show_html
@@ -408,8 +408,20 @@ def deploy_csp() -> Response:
     # 1) deploy_aws.html, 2) deploy_azure.html, 3) deploy_gcp.html
     # they need to match the names given to the CloudEnvironments
     # given in ml-workflow-lib/shared/database.py/splice_models.py:KnownHandlers
-    show = f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html' if CLOUD_ENVIRONMENT.can_deploy else 'index.html'
-    return show_html(show)
+    if CLOUD_ENVIRONMENT.can_deploy:
+        return show_html(f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html')
+    return make_response("<h1>Deployment on this CSP is disabled</h1>", HTTP.codes['forbidden'])
+
+
+@APP.route(KnownHandlers.get_url(HandlerNames.deploy_k8s))
+@login_required
+def deploy_k8s() -> Response:
+    """
+    Return HTML containing Kubernetes
+    Deployment form
+    :return: (Response)
+    """
+    return show_html('deploy_kubernetes.html')
 
 
 @APP.route('/tracker', methods=['GET'])

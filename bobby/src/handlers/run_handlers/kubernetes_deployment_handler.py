@@ -40,7 +40,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
                     'ownerUID': env_vars['POD_UID']},
             'model': {'runId': payload['run_id'], 'name': self.model_dir, 'namespace': env_vars['NAMESPACE']},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'],
-                   'host': env_vars['DB_HOST'], 'kafkaUrl': 'splicedb-kafka:9092'},
+                   'host': env_vars['DB_HOST']},
             'versions': {'retriever': env_vars['RETRIEVER_IMAGE_TAG'], 'server': env_vars['SERVER_IMAGE_TAG']},
             'serving': {'gunicornWorkers': payload['gunicorn_workers'], 'disableNginx': payload['disable_nginx'],
                         'exposePort': payload['service_port']},

@@ -46,7 +46,7 @@ class SqlArtifact(SQLAlchemyClient.MlflowBase):
 
     run_uuid: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
     name: Column = Column(String(500), nullable=False)
-    size: Column = Column(Integer, nullable=False)
+    size: Column = Column(Integer, nullable=True)
     # in Python 2, this object passed to this must be of type
     # bytearray as the bytes object is an alias for str. However,
     # in Python 3, the bytes object can be passed in (byte stream)
@@ -54,23 +54,13 @@ class SqlArtifact(SQLAlchemyClient.MlflowBase):
     run: relationship = relationship(SqlRun, backref=backref('artifacts', cascade='all'))
     file_extension: Column = Column(String(10), nullable=False)
 
+    # Database Deployment
+    database_binary: Column = Column(LargeBinary(length=int(2e9)), nullable=True)
+    library: Column = Column(String(32), nullable=True)
+    version: Column = Column(String(32), nullable=False)
+
     __table_args__: tuple = (
         PrimaryKeyConstraint('run_uuid', 'name', name='artifact_pk'),
-    )
-
-
-class DatabaseModels(SQLAlchemyClient.MlflowBase):
-    """
-    Table for storing deployed models into the DB
-    """
-    __tablename__: str = "db_models"
-    run_uuid: Column = Column(String(32), ForeignKey(SqlRun.run_uuid), primary_key=True)
-    model: Column = Column(LargeBinary(length=int(2e9)), nullable=False)
-    library: Column = Column(String(32), nullable=False)
-    version: Column = Column(String(32), nullable=False)
-    run: relationship = relationship(SqlRun, backref=backref('models', cascade='all'))
-    __table_args__: tuple = (
-        PrimaryKeyConstraint('run_uuid', name='models_pk'),
     )
 
 
@@ -138,11 +128,11 @@ class SysTriggers(SQLAlchemyClient.MlflowBase):
     WHENCLAUSETEXT: Column = Column(String(5000), nullable=False)
 
 
-class ModelMetadata(SQLAlchemyClient.MlflowBase):
+class DatabaseDeployedMetadata(SQLAlchemyClient.MlflowBase):
     """
     Table for storing metadata information about the deployed models.
     """
-    __tablename__: str = "model_metadata"
+    __tablename__: str = "database_deployed_metadata"
     run_uuid: Column = Column(String(32), ForeignKey(SqlRun.run_uuid), primary_key=True)
     action: Column = Column(String(50), nullable=False)  # Deployed, Deleted
     tableid: Column = Column(String(250), nullable=False, primary_key=True)  # TableID of the deployed table
