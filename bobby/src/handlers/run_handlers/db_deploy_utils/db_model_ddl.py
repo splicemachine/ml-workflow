@@ -9,7 +9,8 @@ from shared.models.enums import FileExtensions
 from shared.models.model_types import SparkModelType, KerasModelType, SklearnModelType, H2OModelType, DeploymentModelType
 from shared.logger.logging_config import logger
 from enum import Enum
-from shared.models.
+# FIXME: Can we use SQLAlchemyClient.execute() here?
+from shared.services.database import SQLAlchemyClient
 
 from .preparation.spark_utils import SparkUtils
 from .preparation.keras_utils import KerasUtils
