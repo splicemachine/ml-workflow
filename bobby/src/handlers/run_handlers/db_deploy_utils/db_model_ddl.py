@@ -6,10 +6,10 @@ from typing import List, Dict, Optional, Tuple
 from collections import namedtuple
 
 from shared.models.enums import FileExtensions
-from shared.models.model_types import SparkModelType, KerasModelType, SklearnModelType, H2OModelType, DeploymentModelType
+from shared.models.model_types import DeploymentModelType
+from sqlalchemy import inspect as peer_into_splice_db
 from shared.logger.logging_config import logger
-from enum import Enum
-# FIXME: Can we use SQLAlchemyClient.execute() here?
+from sqlalchemy.orm import Session
 from shared.services.database import SQLAlchemyClient
 
 from .preparation.spark_utils import SparkUtils
@@ -21,7 +21,7 @@ class DatabaseModelDDL:
     Create tables and triggers for DB deployment
     """
     def __init__(self,
-                 session,
+                 session: Session,
                  model_type: DeploymentModelType,
                  run_id: str,
                  schema_name: str,
@@ -31,8 +31,7 @@ class DatabaseModelDDL:
                  schema_str: str,
                  primary_key: List[Tuple[str,str]],
                  classes: List[str],
-                 sklearn_args: Optional[Dict[str,str]] = None,
-                 keras_pred_threshold: Optional[float] = None):
+                 library_specific_args: Optional[Dict[str,str]] = None):
         """
         Initialize the class
 
@@ -46,20 +45,19 @@ class DatabaseModelDDL:
         :param schema_str: (str) the structure of the schema of the table as a string (col_name TYPE,)
         :param primary_key: (List[Tuple[str,str]]) column name, SQL datatype for the primary key(s) of the table
         :param classes: (List[str]) the label columns of the model prediction
-        :param sklearn_args: (Dict[str,str]) Any custom scikit-learn prediction arguments [Default None]
-        :param keras_pred_threshold: (float) the optional keras prediction threshold for predictions [Default None]
+        :param library_specific_args: (Dict[str,str]) All library specific function arguments (sklearn_args, keras_pred_threshold etc)
         """
-        self.model_type: DeploymentModelType = model_type
+        self.session = session
+        self.model_type = model_type
         self.run_id = run_id
         self.schema_name = schema_name
         self.table_name = table_name
-        self.model_columns: List[str] = model_columns # The model_cols parameter
-        self.schema_types: Dict[str,str] = schema_types # The mapping of model column to data type
-        self.schema_str: str = schema_str
+        self.model_columns = model_columns # The model_cols parameter
+        self.schema_types = schema_types # The mapping of model column to data type
+        self.schema_str = schema_str
         self.primary_key = primary_key
-        self.classes: List[str] = classes
-        self.sklearn_args: Dict[str,str] = sklearn_args
-        self.keras_pred_threshold: float = keras_pred_threshold # The optional keras prediction threshold for predictions
+        self.classes = classes
+        self.library_specific_args = library_specific_args
 
         self.prediction_data = {
             DeploymentModelType.MULTI_PRED_INT: {
@@ -85,8 +83,10 @@ class DatabaseModelDDL:
         Creates the table that holds the columns of the feature vector as well as a unique MOMENT_ID
         """
         schema_table_name = f'{self.table_name}.{self.schema_name}'
-        if splice_context.tableExists(schema_table_name): #FIXME: Check if table exists without NSDS
-            raise Exception( #FIXME: Not sure how we're doing errors
+
+        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
+        if self.table_name in set(inspector.get_table_names(schema=self.schema_name)):
+            raise Exception(
                 f'The table {self.schema_table_name} already exists. To deploy to an existing table, do not pass in a dataframe '
                 f'and/or set create_model_table parameter=False')
 
@@ -110,67 +110,70 @@ class DatabaseModelDDL:
 
         SQL_TABLE += f'\tPRIMARY KEY({pk_cols.rstrip(",")})\n)'
 
-        ##TODO: Execute SQL_TABLE DDL
+        logger.info(SQL_TABLE)
         self.session.execute(SQL_TABLE)
 
 
-def alter_model_table(self):
-    """
-    Alters the provided table for deployment. Adds columns for storing model results as well as metadata such as
-    current user, eval time, run_id, and the prediction label columns
-    """
+    def alter_model_table(self):
+        """
+        Alters the provided table for deployment. Adds columns for storing model results as well as metadata such as
+        current user, eval time, run_id, and the prediction label columns
+        """
 
-    # Table needs to exist
-    schema_table_name = f'{self.table_name}.{self.schema_name}'
-    if not splice_context.tableExists(schema_table_name): #FIXME: Check if table exists without NSDS
-        raise Exception( #FIXME: Not sure how we're handling errors
-            f'The table {schema_table_name} does not exist. To create a new table for deployment, pass in a dataframe and '
-            f'The set create_model_table=True')
+        # Table needs to exist
+        schema_table_name = f'{self.table_name}.{self.schema_name}'
+        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
+        if not self.table_name in set(inspector.get_table_names(schema=self.schema_name)):
+            raise Exception(
+                f'The table {schema_table_name} does not exist. To create a new table for deployment, pass in a dataframe and '
+                f'The set create_model_table=True')
 
-    # Currently we only support deploying 1 model to a table
-    table_cols = []#TODO: Get column names of table
-    reserved_fields = set(['CUR_USER', 'EVAL_TIME', 'RUN_ID', 'PREDICTION'] + self.classes)
-    for col in table_cols:
-        if col in reserved_fields:
-            raise Exception( #FIXME: Not sure how we're handling errors
-                f'The table {schema_table_name} looks like it already has values associated with '
-                f'a deployed model. Only 1 model can be deployed to a table currently.'
-                f'The table cannot have the following fields: {reserved_fields}')
+        # Currently we only support deploying 1 model to a table
+        table_cols = [col['name'] for col in inspector.get_columns(self.table_name,schema=self.schema_name)]
+        reserved_fields = set(['CUR_USER', 'EVAL_TIME', 'RUN_ID', 'PREDICTION'] + self.classes)
+        for col in table_cols:
+            if col in reserved_fields:
+                raise Exception(
+                    f'The table {schema_table_name} looks like it already has values associated with '
+                    f'a deployed model. Only 1 model can be deployed to a table currently.'
+                    f'The table cannot have the following fields: {reserved_fields}')
 
-    # Splice cannot currently add multiple columns in an alter statement so we need to make a bunch and execute all of them
-    SQL_ALTER_TABLE = []
-    alter_table_syntax = f'ALTER TABLE {schema_table_name} ADD COLUMN'
-    SQL_ALTER_TABLE.append(f'{alter_table_syntax} CUR_USER VARCHAR(50) DEFAULT CURRENT_USER')
-    SQL_ALTER_TABLE.append(f'{alter_table_syntax} EVAL_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
-    SQL_ALTER_TABLE.append(f'{alter_table_syntax} RUN_ID VARCHAR(50) DEFAULT \'{self.run_id}\'')
+        # Splice cannot currently add multiple columns in an alter statement so we need to make a bunch and execute all of them
+        SQL_ALTER_TABLE = []
+        alter_table_syntax = f'ALTER TABLE {schema_table_name} ADD COLUMN'
+        SQL_ALTER_TABLE.append(f'{alter_table_syntax} CUR_USER VARCHAR(50) DEFAULT CURRENT_USER')
+        SQL_ALTER_TABLE.append(f'{alter_table_syntax} EVAL_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
+        SQL_ALTER_TABLE.append(f'{alter_table_syntax} RUN_ID VARCHAR(50) DEFAULT \'{self.run_id}\'')
 
-    # Add the correct prediction type
-    for col in self.prediction_data[self.model_type]['column_vals']:
-        SQL_ALTER_TABLE += f'{alter_table_syntax} {col}'
+        # Add the correct prediction type
+        for col in self.prediction_data[self.model_type]['column_vals']:
+            SQL_ALTER_TABLE += f'{alter_table_syntax} {col}'
 
-    for sql in SQL_ALTER_TABLE:
-        self.session.execute(sql) #FIXME: execute with sqlalchemy
+        for sql in SQL_ALTER_TABLE:
+            logger.info(sql)
+            self.session.execute(sql)
 
 
     def create_vti_prediction_trigger(self):
         prediction_call = "new com.splicemachine.mlrunner.MLRunner('key_value', '{run_id}', {raw_data}, '{schema_str}'"
 
-        if self.model_type == SklearnModelType.MULTI_PRED_DOUBLE:
-            if not self.sklearn_args:  # This must be a .transform call
+        if self.model_type == DeploymentModelType.MULTI_PRED_DOUBLE:
+            if not self.library_specific_args.get('predict_call') and not self.library_specific_args.get('predict_args'):  # This must be a .transform call
                 predict_call, predict_args = 'transform', None
             else:
-                predict_call = self.sklearn_args.get('predict_call','predict')
-                predict_args = self.sklearn_args.get('predict_args')
+                predict_call = self.library_specific_args.get('predict_call','predict')
+                predict_args = self.library_specific_args.get('predict_args')
 
             prediction_call += f", '{predict_call}', '{predict_args}'"
 
-        elif self.model_type == KerasModelType.MULTI_PRED_DOUBLE and len(self.classes) == 2 and self.keras_pred_threshold:
-            prediction_call += f", '{self.keras_pred_threshold}'"
+        elif self.model_type == DeploymentModelType.MULTI_PRED_DOUBLE and \
+                len(self.classes) == 2 and self.library_specific_args.get('pred_threshold'):
+            prediction_call += f", '{self.library_specific_args.get('pred_threshold')}'"
 
         prediction_call += ')' # Close the prediction call
 
         schema_table_name = f'{self.table_name}.{self.schema_name}'
-        SQL_PRED_TRIGGER = f'CREATE TRIGGER {self.schema}.runModel_{self.table_name}_{self.run_id}\n \tAFTER INSERT\n ' \
+        SQL_PRED_TRIGGER = f'CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}\n \tAFTER INSERT\n ' \
                            f'\tON {schema_table_name}\n \tREFERENCING NEW AS NEWROW\n \tFOR EACH ROW\n \t\tUPDATE ' \
                            f'{schema_table_name} SET ('
 
@@ -209,7 +212,7 @@ def alter_model_table(self):
         # Remove last AND
         SQL_PRED_TRIGGER = SQL_PRED_TRIGGER[:-3]
 
-        # TODO: sqlalchemy execute the SQL_PRED_TRIGGER DDL
+        logger.info(SQL_PRED_TRIGGER)
         self.session.execute(SQL_PRED_TRIGGER)
 
     def create_prediction_trigger(self):
@@ -235,5 +238,30 @@ def alter_model_table(self):
         SQL_PRED_TRIGGER = SQL_PRED_TRIGGER[:-5].lstrip('||') + ',\n\'' + \
                            self.schema_str.replace('\t', '').replace('\n','').rstrip(',') + '\');END'
 
-        #TODO: Execute SQL_PRED_TRIGGER DDL
+        logger.info(SQL_PRED_TRIGGER)
         self.session.execute(SQL_PRED_TRIGGER)
+
+    def create_parsing_trigger(self):
+        """
+        Creates the secondary trigger that parses the results of the first trigger and updates the prediction
+        row populating the relevant columns.
+        TO be removed when we move to VTI only
+        """
+
+        schema_table_name = f'{self.table_name}.{self.schema_name}'
+        SQL_PARSE_TRIGGER = f'CREATE TRIGGER {self.schema_name}.PARSERESULT_{self.table_name}_{self.run_id}' \
+                            f'\n \tBEFORE INSERT\n \tON {schema_table_name}\n \tREFERENCING NEW AS NEWROW\n' \
+                            f' \tFOR EACH ROW\n \t\tBEGIN ATOMIC\n\t set '
+        set_prediction_case_str = 'NEWROW.PREDICTION=\n\t\tCASE\n'
+        for i, c in enumerate(self.classes):
+            SQL_PARSE_TRIGGER += f'NEWROW."{c}"=MLMANAGER.PARSEPROBS(NEWROW.prediction,{i}),'
+            set_prediction_case_str += f'\t\tWHEN MLMANAGER.GETPREDICTION(NEWROW.prediction)={i} then \'{c}\'\n'
+
+        set_prediction_case_str += '\t\tEND;'
+        if self.model_type == DeploymentModelType.MULTI_PRED_DOUBLE:  # These models don't have an actual prediction
+            SQL_PARSE_TRIGGER = SQL_PARSE_TRIGGER[:-1] + 'END'
+        else:
+            SQL_PARSE_TRIGGER += set_prediction_case_str + 'END'
+
+        logger.info(SQL_PARSE_TRIGGER.replace('\n', ' ').replace('\t', ' '))
+        self.session.execute(SQL_PARSE_TRIGGER.replace('\n', ' ').replace('\t', ' '))
