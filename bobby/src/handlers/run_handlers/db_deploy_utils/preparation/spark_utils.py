@@ -50,9 +50,9 @@ class SparkUtils:
         :return: the model type
         """
         return {
-            'pyspark.ml.classification': lambda sm: SparkModelType.CLASSIFICATION,
-            'pyspark.ml.regression': lambda sm: SparkModelType.REGRESSION,
-            'pyspark.ml.clustering': lambda sm: SparkModelType.CLUSTERING_WITH_PROB if
-            'probabilityCol' in model.explainParams() else SparkModelType.CLUSTERING_WO_PROB
+            'pyspark.ml.classification': lambda sm: SparkModelType.MULTI_PRED_INT,
+            'pyspark.ml.regression': lambda sm: SparkModelType.SINGLE_PRED_DOUBLE,
+            'pyspark.ml.clustering': lambda sm: SparkModelType.MULTI_PRED_INT if
+            'probabilityCol' in model.explainParams() else SparkModelType.SINGLE_PRED_INT
         }[model.__module__](model)
 

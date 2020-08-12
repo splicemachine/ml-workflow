@@ -6,7 +6,7 @@ from typing import List, Dict
 from collections import namedtuple
 
 from shared.models.enums import FileExtensions
-from shared.models.model_types import SparkModelType, KerasModelType, SklearnModelType, H2OModelType
+from shared.models.model_types import SparkModelType, KerasModelType, SklearnModelType, H2OModelType, DeploymentModelType
 from shared.logger.logging_config import logger
 from enum import Enum
 
@@ -19,7 +19,7 @@ class DatabaseModelDDL:
     Create tables and triggers for DB deployment
     """
     def __init__(self):
-        self.model_type: Enum = None
+        self.model_type: DeploymentModelType = None
         self.run_id = None
         self.schema_name = None
         self.table_name = None
@@ -32,55 +32,19 @@ class DatabaseModelDDL:
         self.keras_pred_threshold: float = None # The optional keras prediction threshold for predictions
 
         self.prediction_data = {
-            SparkModelType.CLASSIFICATION: {
+            DeploymentModelType.MULTI_PRED_INT: {
                 'prediction_call':'MLMANAGER.PREDICT_CLASSIFICATION',
                 'column_vals': ['PREDICTION VARCHAR(5000)'] + [f'"{i}" DOUBLE' for i in self.classes]
             },
-            H2OModelType.CLASSIFICATION: {
-                'predict_call':'MLMANAGER.PREDICT_CLASSIFICATION',
-                'column_vals': ['PREDICTION VARCHAR(5000)'] + [f'"{i}" DOUBLE' for i in self.classes]
-            },
-            SparkModelType.CLUSTERING_WITH_PROB: {
-                'prediction_call':'MLMANAGER.PREDICT_CLUSTER_PROBABILITIES',
-                'column_vals': ['PREDICTION VARCHAR(5000)'] + [f'"{i}" DOUBLE' for i in self.classes]
-            },
-            SparkModelType.REGRESSION: {
+            DeploymentModelType.SINGLE_PRED_DOUBLE: {
                 'prediction_call':'MLMANAGER.PREDICT_REGRESSION',
                 'column_vals': ['PREDICTION DOUBLE']
             },
-            H2OModelType.REGRESSION: {
-                'prediction_call':'MLMANAGER.PREDICT_REGRESSION',
-                'column_vals': ['PREDICTION DOUBLE']
-            },
-            SklearnModelType.REGRESSION: {
-                'prediction_call':'MLMANAGER.PREDICT_REGRESSION',
-                'column_vals': ['PREDICTION DOUBLE']
-            },
-            KerasModelType.REGRESSION: {
-                'prediction_call':'MLMANAGER.PREDICT_REGRESSION',
-                'column_vals': ['PREDICTION DOUBLE']
-            },
-            SparkModelType.CLUSTERING_WO_PROB: {
+            DeploymentModelType.SINGLE_PRED_INT: {
                 'prediction_call':'MLMANAGER.PREDICT_CLUSTER',
                 'column_vals': ['PREDICTION INT']
             },
-            H2OModelType.SINGULAR: {
-                'prediction_call':'MLMANAGER.PREDICT_CLUSTER',
-                'column_vals': ['PREDICTION INT']
-            },
-            SklearnModelType.POINT_PREDICTION_CLF: {
-                'prediction_call':'MLMANAGER.PREDICT_CLUSTER',
-                'column_vals': ['PREDICTION INT']
-            },
-            H2OModelType.KEY_VALUE: {
-                'prediction_call':'MLMANAGER.PREDICT_KEY_VALUE',
-                'column_vals': [f'"{i}" DOUBLE' for i in self.classes]
-            },
-            SklearnModelType.KEY_VALUE: {
-                'prediction_call':'MLMANAGER.PREDICT_KEY_VALUE',
-                'column_vals': [f'"{i}" DOUBLE' for i in self.classes]
-            },
-            KerasModelType.KEY_VALUE: {
+            DeploymentModelType.MULTI_PRED_DOUBLE: {
                 'prediction_call':'MLMANAGER.PREDICT_KEY_VALUE',
                 'column_vals': [f'"{i}" DOUBLE' for i in self.classes]
             }
@@ -160,7 +124,7 @@ def alter_model_table(self):
     def create_vti_prediction_trigger(self):
         prediction_call = "new com.splicemachine.mlrunner.MLRunner('key_value', '{run_id}', {raw_data}, '{schema_str}'"
 
-        if self.model_type == SklearnModelType.KEY_VALUE:
+        if self.model_type == SklearnModelType.MULTI_PRED_DOUBLE:
             if not self.sklearn_args:  # This must be a .transform call
                 predict_call, predict_args = 'transform', None
             else:
@@ -169,7 +133,7 @@ def alter_model_table(self):
 
             prediction_call += f", '{predict_call}', '{predict_args}'"
 
-        elif self.model_type == KerasModelType.KEY_VALUE and len(self.classes) == 2 and self.keras_pred_threshold:
+        elif self.model_type == KerasModelType.MULTI_PRED_DOUBLE and len(self.classes) == 2 and self.keras_pred_threshold:
             prediction_call += f", '{self.keras_pred_threshold}'"
 
         prediction_call += ')' # Close the prediction call

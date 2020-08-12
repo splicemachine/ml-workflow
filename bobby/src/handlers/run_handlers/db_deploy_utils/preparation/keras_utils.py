@@ -20,8 +20,8 @@ class KerasUtils:
         :param pred_threshold: (float) the prediction threshold if one is passed
         :return: (KerasModelType)
         """
-        return KerasModelType.KEY_VALUE if model.layers[-1].output_shape[
-                                               -1] > 1 or pred_threshold else KerasModelType.REGRESSION
+        return KerasModelType.MULTI_PRED_DOUBLE if model.layers[-1].output_shape[
+                                               -1] > 1 or pred_threshold else KerasModelType.SINGLE_PRED_DOUBLE
 
     @staticmethod
     def validate_keras_model(model: KerasModel, specified_classes: Optional[List[str]] = None):
