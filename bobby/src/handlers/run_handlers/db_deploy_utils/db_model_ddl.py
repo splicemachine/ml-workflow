@@ -2,13 +2,14 @@
 Class to prepare database models for deployment
 to Splice Machine
 """
-from typing import List, Dict
+from typing import List, Dict, Optional, Tuple
 from collections import namedtuple
 
 from shared.models.enums import FileExtensions
 from shared.models.model_types import SparkModelType, KerasModelType, SklearnModelType, H2OModelType, DeploymentModelType
 from shared.logger.logging_config import logger
 from enum import Enum
+from shared.models.
 
 from .preparation.spark_utils import SparkUtils
 from .preparation.keras_utils import KerasUtils
@@ -18,18 +19,46 @@ class DatabaseModelDDL:
     """
     Create tables and triggers for DB deployment
     """
-    def __init__(self):
-        self.model_type: DeploymentModelType = None
-        self.run_id = None
-        self.schema_name = None
-        self.table_name = None
-        self.model_columns: List[str] = [] # The model_cols parameter
-        self.schema_types: Dict[str,str] = {} # The mapping of model column to data type
-        self.schema_str: str = '' # Schema_types represented as a string (col_name TYPE,) may not be necessary because of schema_types
-        self.primary_key = None
-        self.classes: List[str] = []
-        self.sklearn_args: Dict[str,str] = None
-        self.keras_pred_threshold: float = None # The optional keras prediction threshold for predictions
+    def __init__(self,
+                 session,
+                 model_type: DeploymentModelType,
+                 run_id: str,
+                 schema_name: str,
+                 table_name: str,
+                 model_columns: List[str],
+                 schema_types: Dict[str, str],
+                 schema_str: str,
+                 primary_key: List[Tuple[str,str]],
+                 classes: List[str],
+                 sklearn_args: Optional[Dict[str,str]] = None,
+                 keras_pred_threshold: Optional[float] = None):
+        """
+        Initialize the class
+
+        :param session: The sqlalchemy session
+        :param model_type: (DeploymentModelType) the model type
+        :param run_id: (str) the run id
+        :param schema_name: (str) the schema name to deploy the model table to
+        :param table_name: (str) the table name to deploy the model table to
+        :param model_columns: (List[str]) the columns in the feature vector passed into the model/pipeline
+        :param schema_types: (Dict[str, str]) a mapping of model column to data type
+        :param schema_str: (str) the structure of the schema of the table as a string (col_name TYPE,)
+        :param primary_key: (List[Tuple[str,str]]) column name, SQL datatype for the primary key(s) of the table
+        :param classes: (List[str]) the label columns of the model prediction
+        :param sklearn_args: (Dict[str,str]) Any custom scikit-learn prediction arguments [Default None]
+        :param keras_pred_threshold: (float) the optional keras prediction threshold for predictions [Default None]
+        """
+        self.model_type: DeploymentModelType = model_type
+        self.run_id = run_id
+        self.schema_name = schema_name
+        self.table_name = table_name
+        self.model_columns: List[str] = model_columns # The model_cols parameter
+        self.schema_types: Dict[str,str] = schema_types # The mapping of model column to data type
+        self.schema_str: str = schema_str
+        self.primary_key = primary_key
+        self.classes: List[str] = classes
+        self.sklearn_args: Dict[str,str] = sklearn_args
+        self.keras_pred_threshold: float = keras_pred_threshold # The optional keras prediction threshold for predictions
 
         self.prediction_data = {
             DeploymentModelType.MULTI_PRED_INT: {
@@ -81,6 +110,7 @@ class DatabaseModelDDL:
         SQL_TABLE += f'\tPRIMARY KEY({pk_cols.rstrip(",")})\n)'
 
         ##TODO: Execute SQL_TABLE DDL
+        self.session.execute(SQL_TABLE)
 
 
 def alter_model_table(self):
@@ -118,7 +148,7 @@ def alter_model_table(self):
         SQL_ALTER_TABLE += f'{alter_table_syntax} {col}'
 
     for sql in SQL_ALTER_TABLE:
-        splice_context.execute(sql) #FIXME: execute with sqlalchemy
+        self.session.execute(sql) #FIXME: execute with sqlalchemy
 
 
     def create_vti_prediction_trigger(self):
@@ -179,6 +209,7 @@ def alter_model_table(self):
         SQL_PRED_TRIGGER = SQL_PRED_TRIGGER[:-3]
 
         # TODO: sqlalchemy execute the SQL_PRED_TRIGGER DDL
+        self.session.execute(SQL_PRED_TRIGGER)
 
     def create_prediction_trigger(self):
         # The database function call is dependent on the model type
@@ -204,3 +235,4 @@ def alter_model_table(self):
                            self.schema_str.replace('\t', '').replace('\n','').rstrip(',') + '\');END'
 
         #TODO: Execute SQL_PRED_TRIGGER DDL
+        self.session.execute(SQL_PRED_TRIGGER)

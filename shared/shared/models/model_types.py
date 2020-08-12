@@ -69,5 +69,14 @@ class ModelTypeMapper:
 model_mapping = {
     H2OModelType.SINGLE_PRED_DOUBLE: DeploymentModelType.SINGLE_PRED_DOUBLE,
     H2OModelType.SINGLE_PRED_INT: DeploymentModelType.SINGLE_PRED_INT,
-    H2OModelType.MULTI_PRED_INT: DeploymentModelType.
+    H2OModelType.MULTI_PRED_INT: DeploymentModelType.MULTI_PRED_INT,
+    H2OModelType.MULTI_PRED_DOUBLE: DeploymentModelType.MULTI_PRED_DOUBLE,
+    SklearnModelType.SINGLE_PRED_DOUBLE: DeploymentModelType.SINGLE_PRED_DOUBLE,
+    SklearnModelType.SINGLE_PRED_INT: DeploymentModelType.SINGLE_PRED_INT,
+    SklearnModelType.MULTI_PRED_DOUBLE: DeploymentModelType.MULTI_PRED_DOUBLE,
+    SparkModelType.SINGLE_PRED_DOUBLE: DeploymentModelType.SINGLE_PRED_DOUBLE,
+    SparkModelType.SINGLE_PRED_INT: DeploymentModelType.SINGLE_PRED_INT,
+    SparkModelType.MULTI_PRED_INT: DeploymentModelType.MULTI_PRED_INT,
+    KerasModelType.SINGLE_PRED_DOUBLE: DeploymentModelType.SINGLE_PRED_DOUBLE,
+    KerasModelType.MULTI_PRED_DOUBLE: DeploymentModelType.MULTI_PRED_DOUBLE
 }
