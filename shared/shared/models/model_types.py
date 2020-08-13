@@ -3,6 +3,33 @@ Model Types for database deployment
 """
 
 
+class Representations:
+    """
+    Model Representations
+    """
+    # ~ GENERAL REPRESENTATIONS ~
+    LIBRARY = 'library'
+    BYTES = 'serialized'
+
+    # ~ LIBRARY SPECIFIC REPRESENTATIONS ~ #
+    # H2O
+    RAW_MOJO = 'raw_mojo'
+    JAVA_MOJO = 'java_mojo'
+
+    # Spark
+    MLEAP = 'mleap'
+
+
+class Metadata:
+    """
+    Model Metadata Values
+    """
+    CLASSES = 'classes'
+    FILE_EXT = 'file_ext'
+    TYPE = 'type'
+    GENERIC_TYPE = 'generic_type'
+
+
 class H2OModelType:  # see https://bit.ly/3gJ69gc
     """
     Model types for H2O Model deployment
@@ -10,17 +37,19 @@ class H2OModelType:  # see https://bit.ly/3gJ69gc
     """
     SINGLE_PRED_DOUBLE = 0  # (REGRESSION) Models that return a single Double value (Regression, HGLMRegression)
     SINGLE_PRED_INT = 1  # (SINGULAR) Models that return a single Int value (Clustering)
-    MULTI_PRED_INT = 2  # (CLASSIFICATION) Models that only return N classes with probability values associated (Binomial, Multinomial, Ordinal)
-    MULTI_PRED_DOUBLE = 3  # (KEY_VALUE) Models whose output labels are known (AutoEncoder, TargetEncoder, DimReduction, WordEmbedding,
-    # AnomalyDetection)
+    MULTI_PRED_INT = 2  # (CLASSIFICATION) Models that only return N classes with probability values associated
+    # (Binomial, Multinomial, Ordinal)
+    MULTI_PRED_DOUBLE = 3  # (KEY_VALUE) Models whose output labels are known
+    # (AutoEncoder, TargetEncoder, DimReduction, WordEmbedding, AnomalyDetection)
+
 
 class SparkModelType:
     """
     Spark Model types for MLeap Deployment to DB
     """
-    SINGLE_PRED_DOUBLE = 0 # REGRESSION
-    SINGLE_PRED_INT = 1 # CLUSTERING_WO_PROB
-    MULTI_PRED_INT = 2 # CLUSTERING_WITH_PROB, CLASSIFICATION
+    SINGLE_PRED_DOUBLE = 0  # REGRESSION
+    SINGLE_PRED_INT = 1  # CLUSTERING_WO_PROB
+    MULTI_PRED_INT = 2  # CLUSTERING_WITH_PROB, CLASSIFICATION
 
     @staticmethod
     def get_class_supporting_types() -> set:
@@ -36,17 +65,17 @@ class SklearnModelType:
     Model Types for Scikit-learn models
     Sklearn isn't as well defined in their model categories, so we are going to classify them by their return values
     """
-    SINGLE_PRED_DOUBLE = 0 # REGRESSION
-    SINGLE_PRED_INT = 1 # POINT_PREDICTION_CLF
-    MULTI_PRED_DOUBLE = 2 # KEY_VALUE
+    SINGLE_PRED_DOUBLE = 0  # REGRESSION
+    SINGLE_PRED_INT = 1  # POINT_PREDICTION_CLF
+    MULTI_PRED_DOUBLE = 2  # KEY_VALUE
 
 
 class KerasModelType:
     """
     Model Types for Keras models
     """
-    SINGLE_PRED_DOUBLE = 0 # REGRESSION
-    MULTI_PRED_DOUBLE = 1 # KEY_VALUE
+    SINGLE_PRED_DOUBLE = 0  # REGRESSION
+    MULTI_PRED_DOUBLE = 1  # KEY_VALUE
 
 
 class DeploymentModelType:
@@ -58,13 +87,16 @@ class DeploymentModelType:
     MULTI_PRED_INT = 2
     MULTI_PRED_DOUBLE = 3
 
+
 class ModelTypeMapper:
     """
     Class for mapping class model type to deployment model type
     """
+
     @staticmethod
     def get_model_type(model_type) -> DeploymentModelType:
         return model_mapping[model_type]
+
 
 model_mapping = {
     H2OModelType.SINGLE_PRED_DOUBLE: DeploymentModelType.SINGLE_PRED_DOUBLE,

@@ -3,8 +3,8 @@ Database Deployment Utility Functions
 """
 from tempfile import TemporaryDirectory
 
-from mleap.pyspark.spark_support import SimpleSparkSerializer
 from shared.models.enums import FileExtensions
+from shared.models.model_types import Representations, Metadata
 from importlib import import_module
 from io import BytesIO
 from yaml import safe_load
@@ -12,6 +12,7 @@ from yaml import safe_load
 import mlflow
 
 from py4j.java_gateway import java_import
+from bobby.src.handlers.run_handlers.db_deploy_utils.entities.db_model import Model
 
 
 class DatabaseModelConverter:
@@ -20,49 +21,52 @@ class DatabaseModelConverter:
     database readable object
     """
 
-    def __init__(self, file_ext: str, java_jvm, df_schema=None):
+    def __init__(self, file_ext: str, java_jvm=None, df_schema=None):
         """
         :param file_ext: the model file extension
-        :param java_jvm: Py4J Java Gateway
+        :param java_jvm: Py4J Java Gateway for serializing objects to byte streams
         :param df_schema: serialized JSON dataframe schema
         """
         self.java_jvm = java_jvm
         self.df_schema = df_schema
 
-        self.serializer = {
-            FileExtensions.h2o: self._serialize_h2o,
-            FileExtensions.spark: self._serialize_spark,
-            FileExtensions.sklearn: self._serialize_sklearn,
-            FileExtensions.keras: self._serialize_keras
+        self.representation_generator = {
+            FileExtensions.h2o: self._create_alternate_h2o,
+            FileExtensions.spark: self._create_alternate_spark,
+            FileExtensions.sklearn: self._create_alternate_sklearn,
+            FileExtensions.keras: self._create_alternate_keras
         }[file_ext]
 
-        self.raw_model = None
+        self.model: Model = Model()
+        self.model.add_metadata(Metadata.FILE_EXT, file_ext)
 
-    def retrieve_model(self, path: str):
+    def create_raw_representations(self, *, from_dir: str):
         """
         Read the raw machine learning
         model from the MLModel zipped in the database
-        :param path: local path to MLmodel
+        :param from_dir: local path to MLmodel
         :return: raw model
         """
         # Load the model from MLModel
-        loader_module = safe_load(open(f'{path}/MLmodel').read())['flavors']['python_function']['loader_module']
-        mlflow_module = loader_module.split('.')[1]  # mlflow.spark --> spark
-        import_module(loader_module)
+        with open(f'{from_dir}/MLmodel') as ml_model:
+            loader_module = safe_load(ml_model.read())['flavors']['python_function']['loader_module']
 
-        model_obj = getattr(mlflow, mlflow_module).load_model(path)
-        self.raw_model = model_obj
+        mlflow_module = loader_module.split('.')[1]  # mlflow.spark --> spark
+        import_module(loader_module)  # import the specified mlflow retriever module
+
+        model_obj = getattr(mlflow, mlflow_module).load_model(from_dir)
+
+        self.model.add_representation(name=Representations.LIBRARY, representation=model_obj)
         return model_obj
 
-    def convert_to_bytes(self, path: str = None):
+    def create_alternate_representations(self):
         """
-        Convert an MLModel to a database artifact stream
-        :param path: [Optional] path to local MLmodel if model has not been retrieved
-        :return: serialized artifact stream
+        Create alternate representations of the machine learning
+        model, including serialized and library specific ones
         """
-        if not self.raw_model:
-            self.retrieve_model(path)
-        return self.serializer(self.raw_model)
+        if not self.model.get_representation(name='library'):
+            raise Exception("Raw model must be retrieved before alternate representations can be generated")
+        self.representation_generator()
 
     def _load_into_java_bytearray(self, obj) -> bytearray:
         """
@@ -70,6 +74,9 @@ class DatabaseModelConverter:
         :param obj: the object to write
         :return: the java bytearray
         """
+        if not self.java_jvm:
+            raise Exception("Model Serialization requires a JVM, but none was specified in the constructor")
+
         byte_output_stream = self.java_jvm.java.io.ByteArrayOutputStream()
         object_output_stream = self.java_jvm.java.io.ObjectOutputStream(byte_output_stream)
         object_output_stream.write(obj)
@@ -77,7 +84,7 @@ class DatabaseModelConverter:
         object_output_stream.close()
         return byte_output_stream.toByteArray()
 
-    def _serialize_h2o(self, model):
+    def _create_alternate_h2o(self, model):
         """
         Serialize H2O model to bytearray
         :param model: model to serialize
@@ -87,22 +94,26 @@ class DatabaseModelConverter:
         java_import(self.java_jvm, "hex.genmodel.easy.EasyPredictModelWrapper")
         java_import(self.java_jvm, "hex.genmodel.MojoModel")
         with TemporaryDirectory() as tmpdir:
-            model_path = model.download_mojo(f'/{tmpdir}/h2o_model.zip')
+            model_path = self.model.get_representation('library').download_mojo(f'/{tmpdir}/h2o_model.zip')
             raw_mojo = self.java_jvm.MojoModel.load(model_path)
             java_mojo_config = self.java_jvm.EasyPredictModelWrapper.Config().setModel(raw_mojo)
             java_mojo = self.java_jvm.EasyPredictModelWrapper(java_mojo_config)
-            return java_mojo, raw_mojo
 
-    def _serialize_sklearn(self, model):
+            # Register H2O Model Representations
+            self.model.add_representation(Representations.JAVA_MOJO, java_mojo)
+            self.model.add_representation(Representations.RAW_MOJO, raw_mojo)
+            self.model.add_representation(Representations.BYTES, self._load_into_java_bytearray(java_mojo))
+
+    def _create_alternate_sklearn(self, model):
         """
         Serialize a Scikit model to a bytearray
         :param model: model to serialize
         :return: bytearray
         """
         from cloudpickle import dumps as save_cloudpickle
-        return save_cloudpickle(model)
+        self.model.add_representation(Representations.BYTES, save_cloudpickle(model))
 
-    def _serialize_keras(self, model):
+    def _create_alternate_keras(self, model):
         """
         Serialize a Keras model to a bytearray
         :param model: model to serialize
@@ -112,22 +123,12 @@ class DatabaseModelConverter:
         h5_buffer = BytesIO()
         save_model(model=model, filepath=h5_buffer)
         h5_buffer.seek(0)
-        return h5_buffer.read()
+        self.model.add_representation(Representations.BYTES, h5_buffer.read())
 
-    def _convert_spark_to_mleap(self, model):
-        """
-        Convert a Spark Model to the Mleap format
-        for fast prediction in the database
-        :param model: PipelineModel or SparkModel
-        :return: MLeap model
-        """
-        SimpleSparkSerializer()
-        with TemporaryDirectory() as tmpdir:
-            model.serialize_
-
-    def _serialize_spark(self, model):
+    def _create_alternate_spark(self, model):
         """
         Serialize a Spark model to a bytearray
         :param model: model to serialize
         :return: bytearray
         """
+        pass

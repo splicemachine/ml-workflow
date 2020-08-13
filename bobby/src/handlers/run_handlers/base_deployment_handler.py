@@ -24,7 +24,6 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
 DOWNLOAD_PATH: str = f'{env_vars["WORKER_HOME"]}/pmml'
-GET_CONDA_FILE = lambda file_ext: f'{env_vars["SRC_HOME"]}/configuration/conda_envs/{file_ext}.yaml'
 
 
 class BaseDeploymentHandler(BaseHandler):
@@ -142,6 +141,7 @@ class BaseDeploymentHandler(BaseHandler):
             self.Session.commit()
             self.execute()
         except Exception as e:
+            self.Session.rollback()  # uncaught exception might not have been managed
             raise e
 
         finally:

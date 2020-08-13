@@ -101,7 +101,10 @@ class SQLAlchemyClient:
         """
         Directly Execute SQL on the
         SQLAlchemy ENGINE without
-        using the ORM (more performant)
+        using the ORM (more performant).
+
+        *WARNING: Is NOT Thread Safe-- Use SessionFactory for thread-safe
+        SQLAlchemy Sessions*
 
         :param sql: (str) the SQL to execute
         :return: (list) returned result set
@@ -144,6 +147,7 @@ class DatabaseSQL:
         WHERE status='PENDING'
         ORDER BY "timestamp"
         """
+
     get_monthly_aggregated_jobs = \
         """
         SELECT MONTH(INNER_TABLE.parsed_date) AS month_1, COUNT(*) AS count_1, user_1
@@ -154,6 +158,7 @@ class DatabaseSQL:
         WHERE YEAR(INNER_TABLE.parsed_date) = YEAR(CURRENT_TIMESTAMP)
         GROUP BY 1, 3
         """
+
 
 
 SQLAlchemyClient.create()
