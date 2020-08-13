@@ -58,7 +58,7 @@ class ScikitUtils:
         :return: model type
         """
         if lib_specific_args:
-            return SklearnModelType.KEY_VALUE
+            return SklearnModelType.MULTI_PRED_DOUBLE
 
         steps = model.steps if isinstance(model, SKPipeline) else [model]
 
@@ -67,11 +67,11 @@ class ScikitUtils:
                 continue
             if hasattr(model, 'predict'):
                 if isinstance(step, (ClassifierModel, ClusteringModel)):
-                    return SklearnModelType.POINT_PREDICTION_CLF
+                    return SklearnModelType.SINGLE_PRED_INT
                 elif isinstance(step, RegressionModel):
-                    return SklearnModelType.REGRESSION
+                    return SklearnModelType.SINGLE_PRED_DOUBLE
                 raise Exception(f"Unknown model type {type(model)}")
             elif hasattr(model, 'transform'):
-                return SklearnModelType.KEY_VALUE
+                return SklearnModelType.MULTI_PRED_DOUBLE
         else:
             raise Exception("Couldn't locate a model that can be predicted/transformed")

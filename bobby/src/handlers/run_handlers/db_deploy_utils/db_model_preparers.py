@@ -73,7 +73,7 @@ class DatabaseModelMetadataPreparer:
         self.model_type = KerasUtils.get_keras_model_type(
             model=self.raw_model, pred_threshold=pred_threshold)
 
-        if self.model_type == KerasModelType.KEY_VALUE:
+        if self.model_type == KerasModelType.MULTI_PRED_DOUBLE:
             output_shape = self.raw_model.layers[-1].output_shape
             if not self.classes:
                 self.classes = ['prediction'] + [f'C{i}' for i in range(len(output_shape[-1]))]
@@ -93,13 +93,13 @@ class DatabaseModelMetadataPreparer:
         self.model_type = ScikitUtils.get_model_type(model=self.raw_model, lib_specific_args=sklearn_args)
 
         if self.classes:
-            if self.model_type == SklearnModelType.KEY_VALUE:
+            if self.model_type == SklearnModelType.MULTI_PRED_DOUBLE:
                 self.classes = [cls.replace(' ', '_') for cls in self.classes]
             else:
                 logger.warning("Prediction classes were specified, but model is not classification... Ignoring classes")
                 self.classes = None
         else:
-            if self.model_type == SklearnModelType.KEY_VALUE:
+            if self.model_type == SklearnModelType.MULTI_PRED_DOUBLE:
                 model_params = self.raw_model.get_params()
                 if sklearn_args.get('predict_call') == 'transform' and hasattr(self.raw_model, 'transform'):
                     self.classes = [f'C{i}' for i in range(model_params.get('n_clusters') or
