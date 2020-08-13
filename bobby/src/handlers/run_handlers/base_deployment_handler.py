@@ -118,6 +118,15 @@ class BaseDeploymentHandler(BaseHandler):
         """
         pass
 
+    def exception_handler(self, exc: Exception):
+        """
+        Function that runs if there is an error
+        executing a job
+        :param exc: the exception thrown
+        """
+        logger.error(f"Running Exception Handler because of encountered: '{exc}'")
+        self.Session.rollback()
+
     def _handle(self) -> None:
         """
         We add the MLFlow Run URL as a parameter
@@ -141,7 +150,7 @@ class BaseDeploymentHandler(BaseHandler):
             self.Session.commit()
             self.execute()
         except Exception as e:
-            self.Session.rollback()  # uncaught exception might not have been managed
+            self.exception_handler(exc=e) # can be overriden by subclasses
             raise e
 
         finally:

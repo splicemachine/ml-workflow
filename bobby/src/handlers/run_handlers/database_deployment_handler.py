@@ -2,6 +2,7 @@
 Definition of Database Deployment Handler
 which handles db deployment jobs
 """
+from uuid import uuid4
 import json
 from typing import Optional
 
@@ -38,6 +39,16 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.metadata_preparer: Optional[DatabaseModelMetadataPreparer] = None
 
         self.model: Optional[Model] = None
+        self.savepoint_name: Optional[str] = f'pre-deploy-{str(uuid4()).replace("-", "")}'
+
+    def _set_savepoint(self):
+        """
+        Set a savepoint that we can restore to if necessary
+        (if the deployment fails). We use a UUID for the savepoint
+        name to guarantee uniqueness across simultaneous workerpool executions.
+        """
+        self.Session.execute(f"SAVEPOINT {self.savepoint_name}")
+        self.Session.commit()
 
     def _retrieve_raw_model_representations(self):
         """
@@ -149,11 +160,26 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
                                        table_name=payload['db_table'], model_columns=payload['model_cols'],
                                        library_specific_args=payload['library_specific'])
 
+    def exception_handler(self, exc: Exception):
+        """
+        Callback for exceptions that are thrown
+        during job execution
+        :param exc: the exception object
+        """
+        super().exception_handler(exc=exc)
+        logger.error("Rolling Back to pre-deployment savepoint")
+        self.Session.execute(f"ROLLBACK TO {self.savepoint_name}")
+        self.Session.commit()
+        logger.error("Releasing savepoint")
+        self.Session.execute(f"RELEASE SAVEPOINT {self.savepoint_name}")
+        self.Session.commit()
+
     def execute(self) -> None:
         """
         Execute the steps required to accomplish database deployment
         """
         steps: tuple = (
+            self._set_savepoint,
             self._retrieve_model_binary_stream_from_db,
             self._deserialize_artifact_stream,
             self._retrieve_raw_model_representations,

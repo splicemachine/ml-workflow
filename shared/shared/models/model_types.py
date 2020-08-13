@@ -1,6 +1,17 @@
 """
 Model Types for database deployment
 """
+from dataclasses import dataclass
+
+
+@dataclass
+class Field:
+    """
+    Field Representing a model column and its enabled
+    status
+    """
+    name: str
+    enabled: bool = False
 
 
 class Representations:
@@ -31,6 +42,7 @@ class Metadata:
 
     DATAFRAME_EXAMPLE = 'dataframe_example'
     SQL_SCHEMA = 'sql_schema'
+    SCHEMA_STR = 'schema_str'
 
 
 class H2OModelType:  # see https://bit.ly/3gJ69gc

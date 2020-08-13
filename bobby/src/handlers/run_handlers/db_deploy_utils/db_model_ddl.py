@@ -7,15 +7,14 @@ from typing import List, Dict, Optional, Tuple
 from shared.models.model_types import DeploymentModelType
 from sqlalchemy import inspect as peer_into_splice_db
 from shared.logger.logging_config import logger
-from shared.shared.models.model_types import Metadata
+from shared.models.model_types import Metadata
 from sqlalchemy.orm import Session
+from shared.shared.models.mlflow_models import DatabaseDeployedMetadata, SysTables, SysTriggers
+
 from shared.services.database import SQLAlchemyClient
 
 from .entities.db_model import Model
 
-
-# TODO move the sqlstatements to the database service (kinda messy here)
-# or create a new service
 
 class DatabaseModelDDL:
     """
@@ -29,8 +28,6 @@ class DatabaseModelDDL:
                  schema_name: str,
                  table_name: str,
                  model_columns: List[str],
-                 schema_types: Dict[str, str],
-                 schema_str: str,
                  primary_key: List[Tuple[str, str]],
                  library_specific_args: Optional[Dict[str, str]] = None):
         """
@@ -42,8 +39,6 @@ class DatabaseModelDDL:
         :param schema_name: (str) the schema name to deploy the model table to
         :param table_name: (str) the table name to deploy the model table to
         :param model_columns: (List[str]) the columns in the feature vector passed into the model/pipeline
-        :param schema_types: (Dict[str, str]) a mapping of model column to (SQL) data type
-        :param schema_str: (str) the structure of the schema_types of the table as a string (col_name TYPE,)
         :param primary_key: (List[Tuple[str,str]]) column name, SQL datatype for the primary key(s) of the table
         :param library_specific_args: (Dict[str,str]) All library specific function arguments (sklearn_args, keras_pred_threshold etc)
         """
@@ -53,8 +48,6 @@ class DatabaseModelDDL:
         self.schema_name = schema_name
         self.table_name = table_name
         self.model_columns = model_columns  # The model_cols parameter
-        self.schema_types = schema_types  # The mapping of model column to data type
-        self.schema_str = schema_str
         self.primary_key = primary_key
         self.library_specific_args = library_specific_args
 
@@ -78,10 +71,18 @@ class DatabaseModelDDL:
             }
         }
 
+        # Create the schema of the table (we use this a few times)
+        schema_str = ''
+        for i in df.columns:
+            spark_data_type = schema_types[str(i)]
+            assert spark_data_type in CONVERSIONS, f'Type {spark_data_type} not supported for table creation. Remove column and try again'
+            schema_str += f'\t{i} {CONVERSIONS[spark_data_type]},'
+
     def create_model_deployment_table(self):
         """
         Creates the table that holds the columns of the feature vector as well as a unique MOMENT_ID
         """
+        schema_str = self.model.get_metadata(Metadata.SCHEMA_STR)
         schema_table_name = f'{self.table_name}.{self.schema_name}'
 
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
@@ -222,6 +223,32 @@ class DatabaseModelDDL:
         self.session.execute(trigger_sql)
         self.session.commit()
 
+    def add_model_to_metadata_table(self):
+        """
+        Add the model to the deployed model metadata table
+        """
+        schema_table_name = f'{self.schema_name}.{self.table_name}'
+        table_id = self.session.execute(f"""
+            SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' AND '{self.schema_name}'
+        """).fetchone()[0]
+        trigger_suffix = f"{schema_table_name.replace('.', '_')}_{self.run_id}".upper()
+
+        trigger_1 = self.session.query(SysTriggers) \
+            .filter_by(tableid=table_id, triggername=f"RUNMODEL_{trigger_suffix}") \
+            .scalar()
+
+        trigger_2 = self.session.query(SysTriggers) \
+            .filter_by(tableid=table_id, triggername=f"PARSERESULT_{trigger_suffix}") \
+            .scalar()
+
+        # TODO Hardcoded to mlmanager user
+        metadata = DatabaseDeployedMetadata(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
+                                            trigger_type='INSERT', triggerid=trigger_1.TRIGGERID,
+                                            triggerid_2=trigger_2.TRIGGERID or 'NULL', db_env='PROD',
+                                            db_user='mlmanager', action_date=str(trigger_1.CREATIONTIMESTAMP))
+        self.session.add(metadata)
+        self.session.commit()
+
     def create_prediction_trigger(self):
         """
         Create the actual prediction trigger for insertion
@@ -277,3 +304,9 @@ class DatabaseModelDDL:
         logger.info(sql_parse_trigger.replace('\n', ' ').replace('\t', ' '))
         self.session.execute(sql_parse_trigger.replace('\n', ' ').replace('\t', ' '))
         self.session.commit()
+
+    def create(self):
+        """
+        Create
+        :return:
+        """
