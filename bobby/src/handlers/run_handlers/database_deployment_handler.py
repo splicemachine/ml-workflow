@@ -67,8 +67,8 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         specified_df_schema = json.loads(self.task.parsed_payload['df_schema'])
         struct_schema = StructType.fromJson(json=specified_df_schema)
 
-        self.model.add_metadata(Metadata.DATAFRAME_EXAMPLE,
-                                self.spark_session.createDataFrame(data=[], schema=struct_schema))
+        self.model.add_metadata(Metadata.DATAFRAME_EXAMPLE, self.spark_session.createDataFrame(data=[],
+                                                                                               schema=struct_schema))
 
         self.model.add_metadata(Metadata.SQL_SCHEMA, {field.name: Converters[str(field.datatype)]
                                                       for field in struct_schema})
@@ -96,7 +96,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
             struct_type.add(StructField(name=field['name'], dataType=spark_d_type))
 
         self.model.add_metadata(Metadata.DATAFRAME_EXAMPLE,
-                                self.spark_session.createDataFrame(data=[], schema=struct_type)
+                                self.spark_session.createDataFrame(data=[], schema=struct_type))
         self.model.add_metadata(Metadata.SQL_SCHEMA, schema_dict)
 
     def _get_model_schema(self):
@@ -154,11 +154,15 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.Session.commit()
 
     def _create_ddl(self):
+        """
+        Create DDL for Database Deployment inside SpliceDB
+        """
         payload = self.task.parsed_payload
         ddl_creator = DatabaseModelDDL(session=self.Session, model=self.model, run_id=payload['run_id'],
                                        primary_key=payload['primary_key'], schema_name=payload['db_schema'],
                                        table_name=payload['db_table'], model_columns=payload['model_cols'],
                                        library_specific_args=payload['library_specific'])
+        ddl_creator.create()
 
     def exception_handler(self, exc: Exception):
         """
@@ -166,7 +170,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         during job execution
         :param exc: the exception object
         """
-        super().exception_handler(exc=exc)
+        super().exception_handler(exc=exc)  # rollback the session
         logger.error("Rolling Back to pre-deployment savepoint")
         self.Session.execute(f"ROLLBACK TO {self.savepoint_name}")
         self.Session.commit()

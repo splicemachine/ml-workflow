@@ -135,6 +135,8 @@ class Job(SQLAlchemyClient.SpliceBase):
     target_service: Column = Column(String(SHORT_VARCHAR_SIZE), default="N/A")
     # target_service is only applicable to access modifiers
 
+    logs: Column = Column(String(20000), default='')
+
     # Foreign Key Relationships
     handler: relationship = relationship('Handler', foreign_keys='Job.handler_name')
 

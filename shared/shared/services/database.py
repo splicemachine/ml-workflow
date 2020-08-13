@@ -159,6 +159,13 @@ class DatabaseSQL:
         GROUP BY 1, 3
         """
 
+    update_job_log = \
+        """
+        UPDATE JOBS SET LOGS=LOGS||:message 
+        WHERE id=:task_id
+        """
+
+
 
 class Converters:
     """

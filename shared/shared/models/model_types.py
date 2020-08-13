@@ -1,17 +1,7 @@
 """
 Model Types for database deployment
 """
-from dataclasses import dataclass
-
-
-@dataclass
-class Field:
-    """
-    Field Representing a model column and its enabled
-    status
-    """
-    name: str
-    enabled: bool = False
+from enum import Enum
 
 
 class Representations:
@@ -45,7 +35,7 @@ class Metadata:
     SCHEMA_STR = 'schema_str'
 
 
-class H2OModelType:  # see https://bit.ly/3gJ69gc
+class H2OModelType(Enum):  # see https://bit.ly/3gJ69gc
     """
     Model types for H2O Model deployment
     in the database
@@ -58,7 +48,7 @@ class H2OModelType:  # see https://bit.ly/3gJ69gc
     # (AutoEncoder, TargetEncoder, DimReduction, WordEmbedding, AnomalyDetection)
 
 
-class SparkModelType:
+class SparkModelType(Enum):
     """
     Spark Model types for MLeap Deployment to DB
     """
@@ -75,7 +65,7 @@ class SparkModelType:
         return {SparkModelType.MULTI_PRED_INT}
 
 
-class SklearnModelType:
+class SklearnModelType(Enum):
     """
     Model Types for Scikit-learn models
     Sklearn isn't as well defined in their model categories, so we are going to classify them by their return values
@@ -85,7 +75,7 @@ class SklearnModelType:
     MULTI_PRED_DOUBLE = 2  # KEY_VALUE
 
 
-class KerasModelType:
+class KerasModelType(Enum):
     """
     Model Types for Keras models
     """
@@ -93,7 +83,7 @@ class KerasModelType:
     MULTI_PRED_DOUBLE = 1  # KEY_VALUE
 
 
-class DeploymentModelType:
+class DeploymentModelType(Enum):
     """
     Generic Model Types for Deployments
     """
@@ -113,6 +103,7 @@ class ModelTypeMapper:
         return model_mapping[model_type]
 
 
+# TODO fix hashing
 model_mapping = {
     H2OModelType.SINGLE_PRED_DOUBLE: DeploymentModelType.SINGLE_PRED_DOUBLE,
     H2OModelType.SINGLE_PRED_INT: DeploymentModelType.SINGLE_PRED_INT,

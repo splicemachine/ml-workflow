@@ -2,12 +2,14 @@
 Class to prepare database models for deployment
 to Splice Machine
 """
+import time
+from contextlib import contextmanager
 from typing import List, Dict, Optional, Tuple
 
 from shared.models.model_types import DeploymentModelType
 from sqlalchemy import inspect as peer_into_splice_db
-from shared.logger.logging_config import logger
-from shared.models.model_types import Metadata
+from shared.logger.logging_config import logger, log_operation_status
+from shared.models.model_types import Metadata, H2OModelType, SklearnModelType, KerasModelType, SparkModelType
 from sqlalchemy.orm import Session
 from shared.shared.models.mlflow_models import DatabaseDeployedMetadata, SysTables, SysTriggers
 
@@ -29,7 +31,8 @@ class DatabaseModelDDL:
                  table_name: str,
                  model_columns: List[str],
                  primary_key: List[Tuple[str, str]],
-                 library_specific_args: Optional[Dict[str, str]] = None):
+                 library_specific_args: Optional[Dict[str, str]] = None,
+                 create_model_table: bool = False):
         """
         Initialize the class
 
@@ -49,6 +52,7 @@ class DatabaseModelDDL:
         self.table_name = table_name
         self.model_columns = model_columns  # The model_cols parameter
         self.primary_key = primary_key
+        self.create_model_table = create_model_table
         self.library_specific_args = library_specific_args
 
         self.prediction_data = {
@@ -72,11 +76,10 @@ class DatabaseModelDDL:
         }
 
         # Create the schema of the table (we use this a few times)
-        schema_str = ''
-        for i in df.columns:
-            spark_data_type = schema_types[str(i)]
-            assert spark_data_type in CONVERSIONS, f'Type {spark_data_type} not supported for table creation. Remove column and try again'
-            schema_str += f'\t{i} {CONVERSIONS[spark_data_type]},'
+        self.model.add_metadata(
+            Metadata.SCHEMA_STR, ', '.join([f'\t{name} {col_type}' for name, col_type in self.model.get_metadata(
+                Metadata.SQL_SCHEMA).items()])
+        )
 
     def create_model_deployment_table(self):
         """
@@ -96,7 +99,7 @@ class DatabaseModelDDL:
                     \tCUR_USER VARCHAR(50) DEFAULT CURRENT_USER,
                     \tEVAL_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     \tRUN_ID VARCHAR(50) DEFAULT '{self.run_id}',
-                    \n {self.schema_str}
+                    \n {schema_str}
                     """
 
         pk_cols = ''
@@ -162,8 +165,11 @@ class DatabaseModelDDL:
         """
         Create Trigger that uses VTI instead of parsing
         """
+        schema_types = self.model.get_metadata(Metadata.SQL_SCHEMA)
         model_type = self.model.get_metadata(Metadata.GENERIC_TYPE)
         classes = self.model.get_metadata(Metadata.CLASSES)
+        schema_str = self.model.get_metadata(Metadata.SCHEMA_STR)
+
         prediction_call = "new com.splicemachine.mlrunner.MLRunner('key_value', '{run_id}', {raw_data}, '{schema_str}'"
 
         if model_type == DeploymentModelType.MULTI_PRED_DOUBLE:
@@ -199,16 +205,16 @@ class DatabaseModelDDL:
         raw_data = ''
         for index, col in enumerate(self.model_columns):
             raw_data += '||' if index != 0 else ''
-            if self.schema_types[str(col)] == 'VARCHAR(5000)':
+            if schema_types[str(col)] == 'VARCHAR(5000)':
                 raw_data += f'NEWROW.{col}||\',\''
             else:
                 inner_cast = f'CAST(NEWROW.{col} as DECIMAL(38,10))' if \
-                    self.schema_types[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
+                    schema_types[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
                 raw_data += f'TRIM(CAST({inner_cast} as CHAR(41)))||\',\''
 
         # Cleanup (remove concatenation SQL from last variable) + schema for PREDICT call
         raw_data = raw_data[:-5].lstrip('||')
-        schema_str_pred_call = self.schema_str.replace('\t', '').replace('\n', '').rstrip(',')
+        schema_str_pred_call = schema_str.replace('\t', '').replace('\n', '').rstrip(',')
 
         prediction_call = prediction_call.format(run_id=self.run_id, raw_data=raw_data, schema_str=schema_str_pred_call)
 
@@ -229,17 +235,15 @@ class DatabaseModelDDL:
         """
         schema_table_name = f'{self.schema_name}.{self.table_name}'
         table_id = self.session.execute(f"""
-            SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' AND '{self.schema_name}'
-        """).fetchone()[0]
+            SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' 
+            AND SCHEMANAME={self.schema_name}'""").fetchone()[0]
         trigger_suffix = f"{schema_table_name.replace('.', '_')}_{self.run_id}".upper()
 
         trigger_1 = self.session.query(SysTriggers) \
-            .filter_by(tableid=table_id, triggername=f"RUNMODEL_{trigger_suffix}") \
-            .scalar()
+            .filter_by(tableid=table_id, triggername=f"RUNMODEL_{trigger_suffix}").scalar()
 
         trigger_2 = self.session.query(SysTriggers) \
-            .filter_by(tableid=table_id, triggername=f"PARSERESULT_{trigger_suffix}") \
-            .scalar()
+            .filter_by(tableid=table_id, triggername=f"PARSERESULT_{trigger_suffix}").scalar()
 
         # TODO Hardcoded to mlmanager user
         metadata = DatabaseDeployedMetadata(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
@@ -253,6 +257,7 @@ class DatabaseModelDDL:
         """
         Create the actual prediction trigger for insertion
         """
+        schema_types = self.model.get_metadata(Metadata.SQL_SCHEMA)
         # The database function call is dependent on the model type
         prediction_call = self.prediction_data[self.model.get_metadata(Metadata.CLASSES)]['prediction_call']
 
@@ -263,16 +268,16 @@ class DatabaseModelDDL:
 
         for index, col in enumerate(self.model_columns):
             pred_trigger += '||' if index != 0 else ''
-            if self.schema_types[str(col)] == 'VARCHAR(5000)':
+            if schema_types[str(col)] == 'VARCHAR(5000)':
                 pred_trigger += f'NEWROW.{col}||\',\''
             else:
                 inner_cast = f'CAST(NEWROW.{col} as DECIMAL(38,10))' if \
-                    self.schema_types[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
+                    schema_types[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
                 pred_trigger += f'TRIM(CAST({inner_cast} as CHAR(41)))||\',\''
 
         # Cleanup + schema for PREDICT call
-        pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.schema_str.replace('\t', '').replace('\n', '') \
-            .rstrip(',') + '\');END'
+        pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(Metadata.SCHEMA_STR).replace(
+            '\t', '').replace('\n', '').rstrip(',') + '\');END'
 
         logger.info(pred_trigger)
         self.session.execute(pred_trigger)
@@ -307,6 +312,33 @@ class DatabaseModelDDL:
 
     def create(self):
         """
-        Create
-        :return:
+        Deploy the model to the database DDL
         """
+        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
+        if self.create_model_table and not self.primary_key:
+            raise Exception("A primary key must be specified if creating model table")
+
+        self.primary_key = self.primary_key or inspector.get_primary_keys(self.table_name, schema=self.schema_name)
+
+        if self.create_model_table:
+            with log_operation_status("creating model deployment table"):
+                self.create_model_deployment_table()
+        else:
+            with log_operation_status("altering existing table"):
+                self.alter_model_table()
+
+        with log_operation_status("creating trigger"):
+            self.model_columns = self.model_columns or self.model.get_metadata(Metadata.SQL_SCHEMA).keys()
+            if self.model.get_metadata(Metadata.TYPE) in {H2OModelType.MULTI_PRED_DOUBLE,
+                                                          KerasModelType.MULTI_PRED_DOUBLE,
+                                                          SklearnModelType.MULTI_PRED_DOUBLE}:
+                self.create_vti_prediction_trigger()
+            else:
+                self.create_prediction_trigger()
+
+        if self.model.get_metadata(Metadata.TYPE) in {SparkModelType.MULTI_PRED_INT, H2OModelType.SINGLE_PRED_INT}:
+            with log_operation_status("create parsing trigger"):
+                self.create_parsing_trigger()
+
+        with log_operation_status("add model to metadata table"):
+            self.add_model_to_metadata_table()
