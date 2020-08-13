@@ -42,8 +42,8 @@ class DatabaseModelDDL:
         :param schema_name: (str) the schema name to deploy the model table to
         :param table_name: (str) the table name to deploy the model table to
         :param model_columns: (List[str]) the columns in the feature vector passed into the model/pipeline
-        :param schema_types: (Dict[str, str]) a mapping of model column to data type
-        :param schema_str: (str) the structure of the schema of the table as a string (col_name TYPE,)
+        :param schema_types: (Dict[str, str]) a mapping of model column to (SQL) data type
+        :param schema_str: (str) the structure of the schema_types of the table as a string (col_name TYPE,)
         :param primary_key: (List[Tuple[str,str]]) column name, SQL datatype for the primary key(s) of the table
         :param library_specific_args: (Dict[str,str]) All library specific function arguments (sklearn_args, keras_pred_threshold etc)
         """
@@ -198,11 +198,11 @@ class DatabaseModelDDL:
         raw_data = ''
         for index, col in enumerate(self.model_columns):
             raw_data += '||' if index != 0 else ''
-            if self.schema_types[str(col)] == 'StringType':
+            if self.schema_types[str(col)] == 'VARCHAR(5000)':
                 raw_data += f'NEWROW.{col}||\',\''
             else:
                 inner_cast = f'CAST(NEWROW.{col} as DECIMAL(38,10))' if \
-                    self.schema_types[str(col)] in {'FloatType', 'DoubleType', 'DecimalType'} else f'NEWROW.{col}'
+                    self.schema_types[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
                 raw_data += f'TRIM(CAST({inner_cast} as CHAR(41)))||\',\''
 
         # Cleanup (remove concatenation SQL from last variable) + schema for PREDICT call
@@ -240,11 +240,11 @@ class DatabaseModelDDL:
 
         for index, col in enumerate(self.model_columns):
             pred_trigger += '||' if index != 0 else ''
-            if self.schema_types[str(col)] == 'StringType':
+            if self.schema_types[str(col)] == 'VARCHAR(5000)':
                 pred_trigger += f'NEWROW.{col}||\',\''
             else:
                 inner_cast = f'CAST(NEWROW.{col} as DECIMAL(38,10))' if \
-                    self.schema_types[str(col)] in {'FloatType', 'DoubleType', 'DecimalType'} else f'NEWROW.{col}'
+                    self.schema_types[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
                 pred_trigger += f'TRIM(CAST({inner_cast} as CHAR(41)))||\',\''
 
         # Cleanup + schema for PREDICT call
