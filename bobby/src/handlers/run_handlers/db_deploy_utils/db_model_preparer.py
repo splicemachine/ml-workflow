@@ -54,8 +54,10 @@ class DatabaseModelMetadataPreparer:
         """
         Prepare spark metadata model for deployment
         """
-        model_stage = SparkUtils.locate_model(self.model.get_representation(Representations.LIBRARY))
+        library_representation = self.model.get_representation(Representations.LIBRARY)
+        model_stage = SparkUtils.locate_model(library_representation)
         self.model_type = SparkUtils.get_model_type(model_stage)
+        self._classes = self._classes or SparkUtils.try_get_class_labels(library_representation)
 
         if self._classes:
             if self.model_type not in SparkModelType.get_class_supporting_types():

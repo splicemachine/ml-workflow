@@ -1,6 +1,5 @@
 from pyspark.ml import PipelineModel
-from pyspark.ml.wrapper import JavaModel
-from pyspark.ml.base import Model as SparkModel
+from pyspark.ml.feature import IndexToString
 from pyspark.ml import classification as spark_classification, regression as spark_regression, \
     clustering as spark_clustering, recommendation as spark_recommendation
 
@@ -32,6 +31,21 @@ class SparkUtils:
             raise AttributeError("Could not locate model within the logged pipeline")
 
     @staticmethod
+    def try_get_class_labels(pipeline: PipelineModel, prediction_col: str):
+        """
+        Try to get the class labels if we can find an index to string
+        :param pipeline: fitted piepline
+        :param prediction_col: the model prediction column in pipeline
+        :return: labels if possible
+        """
+        if not isinstance(pipeline, PipelineModel):
+            return
+
+        for stage in reversed(pipeline.stages):
+            if isinstance(stage, IndexToString) and stage.getOrDefault('inputCol') == prediction_col:
+                return stage.getOrDefault('labels')
+
+    @staticmethod
     def get_num_classes(model):
         """
         Tries to find the number of classes in a Pipeline or Model object
@@ -55,4 +69,3 @@ class SparkUtils:
             'pyspark.ml.clustering': lambda sm: SparkModelType.MULTI_PRED_INT if
             'probabilityCol' in model.explainParams() else SparkModelType.SINGLE_PRED_INT
         }[model.__module__](model)
-
