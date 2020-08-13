@@ -21,6 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import io.airlift.log.Logger;
 import jep.JepException;
@@ -36,14 +38,25 @@ public class MLRunner implements DatasetProvider, VTICosting {
     private final String predictArgs;
     private final double threshold;
 
+    // Model Cache
     private static final ConcurrentHashMap<String, AbstractRunner> runnerCache = new ConcurrentHashMap<>();
+    // Timer to clear the cache every N hours
+    public static Timer myTimer = new Timer();
+    myTimer.scheduleAtFixedRate(new CacheClearer())
+
     //Provide external context which can be carried with the operation
     protected OperationContext operationContext;
     private static final Logger LOG = Logger.get(MLRunner.class);
 
+    private class CacheClearer extends TimerTask{
+        public void run() {
+            runnerCache.clear();
+        }
+    }
+
     public static AbstractRunner getRunner(final String modelID)
             throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
-        AbstractRunner runner = null;
+        AbstractRunner runner;
         // Check if the runner is in cache
         if (runnerCache.containsKey(modelID)) {
             runner = runnerCache.get(modelID);
