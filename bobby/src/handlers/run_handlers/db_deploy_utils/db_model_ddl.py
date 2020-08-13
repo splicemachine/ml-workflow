@@ -216,12 +216,8 @@ class DatabaseModelDDL:
                        f' as b ({output_cols_schema[:-1]}) WHERE 1=1) WHERE '
         # 1=1 because of a DB bug that requires a where clause
 
-        # Set the outer where clause
-        for index in self.primary_key:
-            trigger_sql += f'{index[0]} = NEWROW.{index[0]} AND'
-        # Remove last AND
-        trigger_sql = trigger_sql[:-3]  # TODO ?? is going on here
-
+        trigger_sql += ' AND '.join([f'{index[0]} = NEWROW.{index[0]}' for index in self.primary_key])
+        # TODO - use the above syntax for other queries
         logger.info(trigger_sql)
         self.session.execute(trigger_sql)
         self.session.commit()

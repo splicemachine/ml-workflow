@@ -6,9 +6,8 @@ for new jobs and dispatches them to Workers for execution
 from os import environ as env_vars
 
 from flask import Flask
-from py4j.java_gateway import java_import
-from pyspark import SparkConf, SparkContext
-from pysparkling import *
+from pyspark.sql import SparkSession
+from pysparkling import H2OContext, H2OConf
 from workerpool import Job as ThreadedTask
 from workerpool import WorkerPool
 
@@ -58,26 +57,21 @@ def create_run_contexts() -> tuple:
     deserialized PipelineModel (formerly a byte stream in the database.py)
     :return: (SparkContext) a Global Spark Context, (H2OContext) a global H2O pysparkling context
     """
-
-    spark_config: SparkConf = SparkConf(). \
-        setAppName(env_vars['TASK_NAME']). \
-        setMaster('local[*]'). \
-        set('spark.scheduler.mode', 'FAIR'). \
-        set('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}')
-
-    logger.debug(f"Spark Configuration is: {spark_config.getAll()}")
-    spark_context: SparkContext = SparkContext(conf=spark_config)
-    java_import(spark_context._jvm, 'java.io.{ByteArrayInputStream, ObjectInputStream}')
-    # we need these to deserialize byte stream.
+    spark = SparkSession.builder\
+        .master("local[*]")\
+        .appName(env_vars['TASK_NAME'])\
+        .config('spark.scheduler.mode', 'FAIR')\
+        .config('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}')\
+        .getOrCreate()
 
     # Create pysparkling context for H2O model serialization/deserialization
     conf = H2OConf().setInternalClusterMode()
     hc = H2OContext.getOrCreate(conf)
 
-    return spark_context, hc
+    return spark, hc
 
 
-SPARK_CONTEXT, HC = create_run_contexts()  # Global Spark Context
+SPARK_SESSION, HC = create_run_contexts()  # Global Spark Context
 
 
 def register_handlers() -> None:
@@ -105,7 +99,7 @@ class Runner(ThreadedTask):
     scaled across a pool via threading
     """
 
-    def __init__(self, spark_context: SparkContext, hc: H2OContext, task_id: int, handler_name: str) -> None:
+    def __init__(self, spark_session: SparkSession, hc: H2OContext, task_id: int, handler_name: str) -> None:
         """
         :param task_id: (int) the job id to process.
             Unfortunately, one of the limitations
@@ -117,7 +111,7 @@ class Runner(ThreadedTask):
             This conforms to SQLAlchemy's 'thread-local' architecture.
         """
         super().__init__()
-        self.spark_context: SparkContext = spark_context
+        self.spark_context: SparkSession = spark_session
         self.hc: H2OContext = hc
         self.task_id: id = task_id
         self.handler_name = handler_name
@@ -152,7 +146,7 @@ def check_db_for_jobs() -> None:
                 job_id, handler_name = job_data
                 logger.info(f"Found New Job with id #{job_id} --> {handler_name}")
                 LEDGER.record(job_id)
-                WORKER_POOL.put(Runner(SPARK_CONTEXT, HC, job_id, handler_name))
+                WORKER_POOL.put(Runner(SPARK_SESSION, HC, job_id, handler_name))
     except Exception:
         logger.exception("Error: Encountered Fatal Error while locating and executing jobs")
         raise

@@ -29,6 +29,9 @@ class Metadata:
     TYPE = 'type'
     GENERIC_TYPE = 'generic_type'
 
+    DATAFRAME_EXAMPLE = 'dataframe_example'
+    SQL_SCHEMA = 'sql_schema'
+
 
 class H2OModelType:  # see https://bit.ly/3gJ69gc
     """

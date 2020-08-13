@@ -27,16 +27,16 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
     Handler for handling AWS deployment jobs
     """
 
-    def __init__(self, task_id: int, spark_context=None) -> None:
+    def __init__(self, task_id: int, spark_session=None) -> None:
         """
         Initialize Base Handler
         constructor (set instance variables
         etc.)
 
         :param task_id: (int) Id of job to process
-        :param spark_context: (SparkContext) Global FAIR SparkContext for deserializing models
+        :param spark_session: (SparkSession) Global FAIR SparkContext for deserializing models
         """
-        BaseDeploymentHandler.__init__(self, task_id, spark_context)
+        BaseDeploymentHandler.__init__(self, task_id, spark_session)
 
     def _assume_service_account_role(self) -> None:
         """

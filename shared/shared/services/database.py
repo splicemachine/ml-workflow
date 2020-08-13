@@ -160,5 +160,29 @@ class DatabaseSQL:
         """
 
 
+class Converters:
+    """
+    Converters for the database
+    """
+    SPARK_DB_CONVERSIONS = {
+        'BinaryType': 'BLOB',
+        'BooleanType': 'BOOLEAN',
+        'ByteType': 'TINYINT',
+        'DateType': 'DATE',
+        'DoubleType': 'DOUBLE',
+        'DecimalType': 'DOUBLE',
+        'IntegerType': 'INTEGER',
+        'LongType': 'BIGINT',
+        'NullType': 'VARCHAR(50)',
+        'ShortType': 'SMALLINT',
+        'StringType': 'VARCHAR(5000)',
+        'TimestampType': 'TIMESTAMP',
+        'UnknownType': 'BLOB',
+        'FloatType': 'FLOAT'
+    }
+
+    # Remove length specifications in backwords conversions
+    DB_SPARK_CONVERSIONS = {SPARK_DB_CONVERSIONS[key].split('(')[0]: key for key in SPARK_DB_CONVERSIONS}
+
 
 SQLAlchemyClient.create()

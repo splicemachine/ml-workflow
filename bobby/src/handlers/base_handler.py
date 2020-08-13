@@ -11,7 +11,7 @@ function.
 from abc import abstractmethod
 from traceback import format_exc
 
-from pyspark import SparkContext
+from pyspark.sql import SparkSession
 from sqlalchemy.orm import load_only
 
 from shared.logger.logging_config import logger
@@ -33,7 +33,7 @@ class BaseHandler(object):
     Base Class for all Handlers
     """
 
-    def __init__(self, task_id: int, spark_context: SparkContext = None) -> None:
+    def __init__(self, task_id: int, spark_session: SparkSession = None) -> None:
         """
         Construct a new instance
         of Base Handler (cannot actually
@@ -45,7 +45,8 @@ class BaseHandler(object):
         """
         self.task_id: int = task_id
         self.task: Job or None = None  # assigned later
-        self.spark_context: SparkContext = spark_context
+        self.spark_session: SparkSession = spark_session
+        self.jvm = spark_session._wrapped._sc._jvm
         self.Session = SQLAlchemyClient.SessionFactory
 
     def is_handler_enabled(self) -> None:

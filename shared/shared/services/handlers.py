@@ -54,9 +54,11 @@ class KnownHandlers:
         HandlerNames.deploy_database: Handler(
             required_payload_args=('db_schema', 'db_table', 'run_id'),
             optional_payload_args=dict(
-                df=None,
+                df_schema=None,
                 primary_key=None,
                 create_model_table=False,
+                reference_schema=None,
+                reference_table=None,
                 model_cols=None,
                 classes=None,
                 library_specific={},
