@@ -1,4 +1,4 @@
-from shared.shared.models.model_types import H2OModelType
+from shared.models.model_types import H2OModelType
 
 
 class H2OUtils:

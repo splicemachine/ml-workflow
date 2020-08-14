@@ -7,7 +7,7 @@ from typing import List
 from .entities.db_model import Model
 from shared.logger.logging_config import logger
 from shared.models.enums import FileExtensions
-from shared.shared.models.model_types import (H2OModelType, KerasModelType,
+from shared.models.model_types import (H2OModelType, KerasModelType,
                                               Metadata, ModelTypeMapper,
                                               Representations,
                                               SklearnModelType, SparkModelType)

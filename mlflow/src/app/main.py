@@ -423,6 +423,14 @@ def deploy_k8s() -> Response:
     """
     return show_html('deploy_kubernetes.html')
 
+@APP.route(KnownHandlers.get_url(HandlerNames.deploy_database))
+@login_required
+def deploy_database() -> Response:
+    """
+    Return HTML containing Database Deployment form
+    :return: (Response)
+    """
+    return show_html('deploy_database.html')
 
 @APP.route('/tracker', methods=['GET'])
 @login_required

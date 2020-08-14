@@ -17,7 +17,7 @@ from sqlalchemy.orm import load_only
 
 from shared.models.splice_models import Handler, Job
 from shared.services.database import SQLAlchemyClient
-from shared.shared.logger.job_logging_config import JobLoggingManager
+from shared.logger.job_logging_config import JobLoggingManager
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"

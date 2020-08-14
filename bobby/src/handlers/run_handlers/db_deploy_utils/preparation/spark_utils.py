@@ -5,7 +5,7 @@ from pyspark.ml import recommendation as spark_recommendation
 from pyspark.ml import regression as spark_regression
 from pyspark.ml.feature import IndexToString
 
-from shared.shared.models.model_types import SparkModelType
+from shared.models.model_types import SparkModelType
 
 
 class SparkUtils:
