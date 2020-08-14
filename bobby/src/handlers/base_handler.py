@@ -48,7 +48,7 @@ class BaseHandler(object):
         self.task: Optional[Job] = None  # assigned later
 
         self.spark_session: SparkSession = spark_session
-        self.jvm = spark_session._wrapped._sc._jvm
+        self.jvm = self.spark_session._jvm
         self.Session = SQLAlchemyClient.SessionFactory()
 
         # Logging
