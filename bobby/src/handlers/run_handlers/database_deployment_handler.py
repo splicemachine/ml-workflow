@@ -39,7 +39,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
         self.model: Optional[Model] = None
 
-    def validate_primary_key(self):
+    def _validate_primary_key(self):
         """
         Validates the primary key passed by the user conforms to SQL. If the user is deploying to an existing table
         This verifies that the table has a primary key
@@ -97,7 +97,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         :param schema_name: schema to retrieve examples from
         """
         import pyspark.sql.types as spark_types
-        inspector = peer_into_splicedb(SQLAlchemyClient.engine)
+        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         struct_type = StructType()
         schema_dict = {}
 
@@ -189,7 +189,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         Execute the steps required to accomplish database deployment
         """
         steps: tuple = (
-            DatabaseModelDDL.
+            self._validate_primary_key,
             self._retrieve_model_binary_stream_from_db,
             self._deserialize_artifact_stream,
             self._retrieve_raw_model_representations,

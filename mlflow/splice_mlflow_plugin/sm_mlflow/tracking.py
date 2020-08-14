@@ -40,7 +40,7 @@ from mlflow.store.tracking.sqlalchemy_store import (
     _get_sqlalchemy_filter_clauses)
 from mlflow.utils.search_utils import SearchUtils
 from shared.logger.logging_config import logger
-from shared.models.mlflow_models import (DatabaseModelMetadata, SqlArtifact,
+from shared.models.mlflow_models import (DatabaseDeployedMetadata, SqlArtifact,
                                          SysTables, SysTriggers, SysUsers,
                                          live_model_status_view)
 from shared.services.database import SQLAlchemyClient
@@ -65,7 +65,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
     )  # alembic migrations will be applied to these initial tables
 
     MLFLOW_CUSTOM_TABLES: tuple = (
-        SqlArtifact, SysUsers, SysTriggers, SysTables, DatabaseModelMetadata
+        SqlArtifact, SysUsers, SysTriggers, SysTables, DatabaseDeployedMetadata
     )
 
     TABLES: tuple = MLFLOW_PROVIDED_TABLES + MLFLOW_CUSTOM_TABLES

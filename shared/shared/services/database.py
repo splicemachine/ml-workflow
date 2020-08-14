@@ -170,6 +170,17 @@ class Converters:
     """
     Converters for the database
     """
+
+    @staticmethod
+    def remove_spec_detail(sql_name: str) -> str:
+        """
+        Remove the length/precision/size etc specification
+        from a SQL Type. Example: VARCHAR(2000) -> VARCHAR
+        :param sql_name:  sql identifier
+        :return: cleaned sql identifier
+        """
+        return sql_name.split('(')[0] if '(' in sql_name else sql_name
+
     SQL_TYPES = ['CHAR', 'LONG VARCHAR', 'VARCHAR', 'DATE', 'TIME', 'TIMESTAMP', 'BLOB', 'CLOB', 'TEXT', 'BIGINT',
                  'DECIMAL', 'DOUBLE', 'DOUBLE PRECISION', 'INTEGER', 'NUMERIC', 'REAL', 'SMALLINT', 'TINYINT',
                  'BOOLEAN', 'INT']
@@ -191,7 +202,9 @@ class Converters:
     }
 
     # Remove length specifications in backwords conversions
-    DB_SPARK_CONVERSIONS = {SPARK_DB_CONVERSIONS[key].split('(')[0]: key for key in SPARK_DB_CONVERSIONS}
 
+# Create Backwards Mapping Map
+Converters.DB_SPARK_CONVERSIONS = {Converters.remove_spec_detail(Converters.SPARK_DB_CONVERSIONS[key]): key for key in
+                                   Converters.SPARK_DB_CONVERSIONS}
 
 SQLAlchemyClient.create()

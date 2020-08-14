@@ -116,6 +116,7 @@ class Runner(ThreadedTask):
         self.spark_context: SparkSession = spark_session
         self.hc: H2OContext = hc
         self.task_id: id = task_id
+
         self.handler_name = handler_name
 
     def run(self) -> None:
