@@ -1,10 +1,10 @@
 from os import environ as env_vars
 
-from mlflow.store.db.base_sql_model import Base as MLFlowBase
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 
+from mlflow.store.db.base_sql_model import Base as MLFlowBase
 from shared.logger.logging_config import logger
 
 

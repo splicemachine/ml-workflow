@@ -6,13 +6,13 @@ from datetime import datetime
 from typing import Dict
 
 import pytz
-from mlflow.store.tracking.dbmodels.models import SqlRun
 from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer,
                         LargeBinary, PrimaryKeyConstraint, String, Table)
 from sqlalchemy.orm import backref, relationship
 from sqlalchemy.sql import text
 from sqlalchemy_views import CreateView
 
+from mlflow.store.tracking.dbmodels.models import SqlRun
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 
 __author__: str = "Splice Machine, Inc."

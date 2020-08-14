@@ -4,8 +4,8 @@
 Custom Logging Configuration so we can control Logging and use
 Loguru for increased performance and flexibility
 """
-import time
 import logging
+import time
 from contextlib import contextmanager
 from json import load as read_json_file
 from os import environ as env_vars
@@ -87,21 +87,22 @@ class SpliceLogger:
         return loguru_logger.bind(request_id=None, method=None)
 
 
+logger = SpliceLogger(config_path=resource_filename('shared', 'logger/logging.json')).create_logger()
+
+
 @contextmanager
-def log_operation_status(operation):
+def log_operation_status(operation, logger_obj=logger):
     """
     Log when an operation starts and finishes
     :param operation: the operation this is managing
+    :param logger_obj: override the logger
     """
     # noinspection PyBroadException
     try:
         start_time = time.time()
-        logger.info(f"Starting '{operation}'...")
+        logger_obj.info(f"Starting '{operation}'...", send_db=True)
         yield
-        logger.info(f"Done with '{operation}' [in {(time.time() - start_time) * 1000} ms]")
+        logger_obj.info(f"Done with '{operation}' [in {(time.time() - start_time) * 1000} ms]", send_db=True)
     except Exception:
-        logger.exception(f"Failed to execute '{operation}'")
+        logger_obj.exception(f"Failed to execute '{operation}'", send_db=True)
         raise
-
-
-logger = SpliceLogger(config_path=resource_filename('shared', 'logger/logging.json')).create_logger()

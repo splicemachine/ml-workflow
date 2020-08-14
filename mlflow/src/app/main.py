@@ -4,16 +4,16 @@ from os import environ as env_vars
 from time import time as timestamp
 
 import requests
-from flask import Flask, Response, make_response
+from flask import Flask, Response
 from flask import jsonify as create_json
-from flask import redirect
+from flask import make_response, redirect
 from flask import render_template as show_html
 from flask import request, url_for
-from sqlalchemy import text
-
 from flask_executor import Executor
 from flask_login import (LoginManager, current_user, login_required,
                          login_user, logout_user)
+from sqlalchemy import text
+
 from shared.api.models import APIStatuses, TrackerTableMapping
 from shared.api.responses import HTTP
 from shared.environments.cloud_environment import (CloudEnvironment,

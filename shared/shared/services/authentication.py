@@ -10,11 +10,11 @@ from time import sleep as delay
 from typing import Optional
 
 from flask import Response, request
+from flask_login import UserMixin
 from py4j.java_gateway import JavaGateway, java_import
 from py4j.protocol import Py4JJavaError, Py4JNetworkError
 from retrying import retry
 
-from flask_login import UserMixin
 from shared.api.responses import HTTP
 
 __author__: str = "Splice Machine, Inc."

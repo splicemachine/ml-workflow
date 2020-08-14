@@ -2,12 +2,12 @@
 Contains handler and functions
 pertaining to Azure Model Deployment
 """
-import logging
 from os import environ as env_vars
 
 from azureml.core import Workspace
 from azureml.core.authentication import MsiAuthentication
 from azureml.core.webservice import AciWebservice, Webservice
+
 from mlflow import azureml as mlflow_azureml
 
 from .base_deployment_handler import BaseDeploymentHandler
@@ -20,8 +20,6 @@ __license__: str = "Proprietary"
 __version__: str = "2.0"
 __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
-
-LOGGER = logging.getLogger(__name__)
 
 
 class AzureDeploymentHandler(BaseDeploymentHandler):
@@ -52,6 +50,8 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
         self.update_task_in_db(info='Creating AzureML Workspace')
 
         msi_auth = MsiAuthentication()
+        self.logger.info("Authenticated into azure with MSI, and creating workspace", send_db=True)
+
         self.Workspace = Workspace.create(
             name=self.task.parsed_payload['workspace'],
             subscription_id=env_vars['AZURE_SUBSCRIPTION_ID'],  # extracted from az login
@@ -75,8 +75,8 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
             workspace=self.Workspace,
             synchronous=True  # block thread until job completes
         )
-        LOGGER.error(
-            f"Access the following URI for build logs: {self.azure_image.image_build_log_uri}"
+        self.logger.warning(
+            f"Access the following URI for build logs: {self.azure_image.image_build_log_uri}", send_db=True
         )
 
     def _deploy_model_to_azure(self):
@@ -92,6 +92,8 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
                 memory_gb=self.task.parsed_payload['allocated_ram']
             )
 
+        self.logger.info("Deploying a new webservice to AzureML", send_db=True)
+        
         webservice = Webservice.deploy_from_image(
             deployment_config=webservice_deployment_config,
             image=self.azure_image,

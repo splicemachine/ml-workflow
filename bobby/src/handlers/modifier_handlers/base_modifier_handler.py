@@ -2,7 +2,6 @@
 Base class for modifier handlers:
 Handlers that modify other handlers.
 """
-import logging
 from abc import abstractmethod
 
 from shared.models.splice_models import Handler
@@ -17,8 +16,6 @@ __license__: str = "Proprietary"
 __version__: str = "2.0"
 __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
-
-LOGGER = logging.getLogger(__name__)
 
 
 class BaseModifierHandler(BaseHandler):
@@ -59,7 +56,7 @@ class BaseModifierHandler(BaseHandler):
         """
         Run modifications
         """
-        LOGGER.debug(f"Running Modifier Handler: {self.action}")
+        self.logger.info(f"Running Modifier Handler: {self.action}", send_db=True)
         self.task.target_service = self.task.parsed_payload['service']
         self.target_handler_object: Handler = self._get_handler_by_name(
             self.task.target_service
@@ -70,13 +67,13 @@ class BaseModifierHandler(BaseHandler):
                 self.Session.add(self.target_handler_object)
                 self.Session.add(self.task)  # changes for GUI
                 self.Session.commit()  # commit DB transaction
-                LOGGER.info(f"Modified {self.target_handler_object} successfully")
+                self.logger.info(f"Modified {self.target_handler_object} successfully", send_db=True)
             else:
                 msg: str = f"Forbidden: Cannot execute {self.action}- Target handler " \
-                    f"{self.target_handler_object} is not modifiable"
-                LOGGER.error(msg)
+                           f"{self.target_handler_object} is not modifiable"
+                self.logger.error(msg, send_db=True)
                 raise Exception(msg)
         else:
             msg: str = f"Error: Cannot execute {self.action}- Unable to find service " \
-                f"{self.target_handler_object}"
+                       f"{self.target_handler_object}"
             raise Exception(msg)

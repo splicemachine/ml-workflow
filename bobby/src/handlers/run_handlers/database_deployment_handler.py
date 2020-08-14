@@ -2,21 +2,21 @@
 Definition of Database Deployment Handler
 which handles db deployment jobs
 """
-from uuid import uuid4
 import json
 from typing import Optional
+from uuid import uuid4
 
-from pyspark.sql.types import StructType, StructField
-from shared.models.model_types import Representations, Metadata
-from shared.logger.logging_config import logger
+from pyspark.sql.types import StructField, StructType
+from sqlalchemy import inspect as peer_into_splicedb
+
+from shared.models.model_types import Metadata, Representations
 from shared.services.database import Converters, SQLAlchemyClient
 
-from sqlalchemy import inspect as peer_into_splicedb
 from .base_deployment_handler import BaseDeploymentHandler
-from .db_deploy_utils.entities.db_model import Model
 from .db_deploy_utils.db_model_creator import DatabaseModelConverter
-from .db_deploy_utils.db_model_preparer import DatabaseModelMetadataPreparer
 from .db_deploy_utils.db_model_ddl import DatabaseModelDDL
+from .db_deploy_utils.db_model_preparer import DatabaseModelMetadataPreparer
+from .db_deploy_utils.entities.db_model import Model
 
 
 class DatabaseDeploymentHandler(BaseDeploymentHandler):
@@ -47,23 +47,29 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         (if the deployment fails). We use a UUID for the savepoint
         name to guarantee uniqueness across simultaneous workerpool executions.
         """
+        self.logger.warning("Setting Savepoint in Database in case of error...", send_db=True)
         self.Session.execute(f"SAVEPOINT {self.savepoint_name}")
+        self.logger.info(f"Created savepoint: {self.savepoint_name}")
         self.Session.commit()
 
     def _retrieve_raw_model_representations(self):
         """
         Read the raw model from the MLModel on disk
         """
+        self.logger.info("Creating raw model representation from MLModel", send_db=True)
         self.creator = DatabaseModelConverter(file_ext=self.artifact.file_ext,
                                               java_jvm=self.jvm,
+                                              logger=self.logger,
                                               df_schema=self.task.parsed_payload['df_schema'])
 
         self.creator.create_raw_representations(from_dir=self.downloaded_model_path)
+        self.logger.info("Done.", send_db=True)
 
     def _add_model_examples_from_df(self):
         """
         Add model examples from a dataframe
         """
+        self.logger.info("Generating Model Schema and DF Example from Dataframe")
         specified_df_schema = json.loads(self.task.parsed_payload['df_schema'])
         struct_schema = StructType.fromJson(json=specified_df_schema)
 
@@ -72,6 +78,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
         self.model.add_metadata(Metadata.SQL_SCHEMA, {field.name: Converters[str(field.datatype)]
                                                       for field in struct_schema})
+        self.logger.info("Done.")
 
     def _add_model_examples_from_db(self, table_name: str, schema_name: str):
         """
@@ -136,6 +143,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         """
         self.metadata_preparer = DatabaseModelMetadataPreparer(file_ext=self.artifact.file_ext,
                                                                model=self.model,
+                                                               logger=self.logger,
                                                                classes=self.task.parsed_payload['classes'],
                                                                library_specific=self.task.parsed_payload[
                                                                    'library_specific'])
@@ -148,9 +156,9 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.artifact.database_binary = self.model.get_representation(Representations.BYTES)
         self.artifact.library = self.task.parsed_payload['library']
         self.artifact.version = self.task.parsed_payload['version']
-        logger.info("Updating Artifact with serialized representation")
+        self.logger.info("Updating Artifact with serialized representation")
         self.Session.add(self.artifact)
-        logger.debug("Committing Artifact Update")
+        self.logger.debug("Committing Artifact Update")
         self.Session.commit()
 
     def _create_ddl(self):
@@ -161,7 +169,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         ddl_creator = DatabaseModelDDL(session=self.Session, model=self.model, run_id=payload['run_id'],
                                        primary_key=payload['primary_key'], schema_name=payload['db_schema'],
                                        table_name=payload['db_table'], model_columns=payload['model_cols'],
-                                       library_specific_args=payload['library_specific'])
+                                       library_specific_args=payload['library_specific'], logger=self.logger)
         ddl_creator.create()
 
     def exception_handler(self, exc: Exception):
@@ -171,10 +179,10 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         :param exc: the exception object
         """
         super().exception_handler(exc=exc)  # rollback the session
-        logger.error("Rolling Back to pre-deployment savepoint")
+        self.logger.error("Rolling Back to pre-deployment savepoint")
         self.Session.execute(f"ROLLBACK TO {self.savepoint_name}")
         self.Session.commit()
-        logger.error("Releasing savepoint")
+        self.logger.error("Releasing savepoint")
         self.Session.execute(f"RELEASE SAVEPOINT {self.savepoint_name}")
         self.Session.commit()
 
@@ -194,5 +202,6 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
             self._create_ddl
         )
 
-        for execute_step in steps:
+        for step_no, execute_step in enumerate(steps):
+            self.logger.info(f"Running Step {step_no}...")
             execute_step()

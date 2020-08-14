@@ -2,18 +2,18 @@
 Class to prepare database models for deployment
 to Splice Machine
 """
-import time
-from contextlib import contextmanager
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from shared.models.model_types import DeploymentModelType
 from sqlalchemy import inspect as peer_into_splice_db
-from shared.logger.logging_config import logger, log_operation_status
-from shared.models.model_types import Metadata, H2OModelType, SklearnModelType, KerasModelType, SparkModelType
 from sqlalchemy.orm import Session
-from shared.shared.models.mlflow_models import DatabaseDeployedMetadata, SysTables, SysTriggers
 
+from shared.logger.logging_config import log_operation_status, logger
+from shared.models.model_types import (DeploymentModelType, H2OModelType,
+                                       KerasModelType, Metadata,
+                                       SklearnModelType, SparkModelType)
 from shared.services.database import SQLAlchemyClient
+from shared.shared.models.mlflow_models import (DatabaseDeployedMetadata,
+                                                SysTables, SysTriggers)
 
 from .entities.db_model import Model
 
@@ -32,7 +32,8 @@ class DatabaseModelDDL:
                  model_columns: List[str],
                  primary_key: List[Tuple[str, str]],
                  library_specific_args: Optional[Dict[str, str]] = None,
-                 create_model_table: bool = False):
+                 create_model_table: bool = False,
+                 logger=logger):
         """
         Initialize the class
 
@@ -43,7 +44,9 @@ class DatabaseModelDDL:
         :param table_name: (str) the table name to deploy the model table to
         :param model_columns: (List[str]) the columns in the feature vector passed into the model/pipeline
         :param primary_key: (List[Tuple[str,str]]) column name, SQL datatype for the primary key(s) of the table
-        :param library_specific_args: (Dict[str,str]) All library specific function arguments (sklearn_args, keras_pred_threshold etc)
+        :param library_specific_args: (Dict[str,str]) All library specific function arguments (sklearn_args,
+        keras_pred_threshold etc)
+        :param logger: logger override
         """
         self.session = session
         self.model = model
@@ -54,6 +57,8 @@ class DatabaseModelDDL:
         self.primary_key = primary_key
         self.create_model_table = create_model_table
         self.library_specific_args = library_specific_args
+
+        self.logger = logger
 
         self.prediction_data = {
             DeploymentModelType.MULTI_PRED_INT: {
@@ -76,6 +81,7 @@ class DatabaseModelDDL:
         }
 
         # Create the schema of the table (we use this a few times)
+        self.logger.info("Adding Schema String to model metadata...", send_db=True)
         self.model.add_metadata(
             Metadata.SCHEMA_STR, ', '.join([f'\t{name} {col_type}' for name, col_type in self.model.get_metadata(
                 Metadata.SQL_SCHEMA).items()])
@@ -105,7 +111,7 @@ class DatabaseModelDDL:
         pk_cols = ''
         for key in self.primary_key:
             # If pk is already in the schema_string, don't add another column. PK may be an existing value
-            if key[0] not in self.schema_str:
+            if key[0] not in self.model.get_metadata(Metadata.SCHEMA_STR):
                 table_create_sql += f'\t{key[0]} {key[1]},\n'
             pk_cols += f'{key[0]},'
 
@@ -114,7 +120,7 @@ class DatabaseModelDDL:
 
         table_create_sql += f'\tPRIMARY KEY({pk_cols.rstrip(",")})\n)'
 
-        logger.info(table_create_sql)
+        self.logger.info(f"Executing\n{table_create_sql}")
         self.session.execute(table_create_sql)
         self.session.commit()
 
@@ -123,7 +129,7 @@ class DatabaseModelDDL:
         Alters the provided table for deployment. Adds columns for storing model results as well as metadata such as
         current user, eval time, run_id, and the prediction label columns
         """
-
+        self.logger.info("Altering existing model...", send_db=True)
         # Table needs to exist
         schema_table_name = f'{self.table_name}.{self.schema_name}'
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
@@ -157,7 +163,7 @@ class DatabaseModelDDL:
             alter_table_sql += f'{alter_table_syntax} {col}'
 
         for sql in alter_table_sql:
-            logger.info(sql)
+            logger.info(f"Executing\n{sql})")
             self.session.execute(sql)
         self.session.commit()
 
@@ -165,6 +171,7 @@ class DatabaseModelDDL:
         """
         Create Trigger that uses VTI instead of parsing
         """
+        self.logger.info("Creating VTI Prediction Trigger...", send_db=True)
         schema_types = self.model.get_metadata(Metadata.SQL_SCHEMA)
         model_type = self.model.get_metadata(Metadata.GENERIC_TYPE)
         classes = self.model.get_metadata(Metadata.CLASSES)
@@ -174,6 +181,7 @@ class DatabaseModelDDL:
 
         if model_type == DeploymentModelType.MULTI_PRED_DOUBLE:
             if 'predict_call' not in self.library_specific_args and 'predict_args' not in self.library_specific_args:
+                self.logger.info("Using transform call...", send_db=True)
                 # This must be a .transform call
                 predict_call = 'transform'
                 predict_args = None
@@ -225,7 +233,7 @@ class DatabaseModelDDL:
 
         trigger_sql += ' AND '.join([f'{index[0]} = NEWROW.{index[0]}' for index in self.primary_key])
         # TODO - use the above syntax for other queries
-        logger.info(trigger_sql)
+        self.logger.info(f"Executing\n{trigger_sql}")
         self.session.execute(trigger_sql)
         self.session.commit()
 
@@ -233,6 +241,7 @@ class DatabaseModelDDL:
         """
         Add the model to the deployed model metadata table
         """
+        self.logger.info("Adding Model to Metadata table", send_db=True)
         schema_table_name = f'{self.schema_name}.{self.table_name}'
         table_id = self.session.execute(f"""
             SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' 
@@ -257,6 +266,7 @@ class DatabaseModelDDL:
         """
         Create the actual prediction trigger for insertion
         """
+        self.logger.info("Creating Prediction Trigger...", send_db=True)
         schema_types = self.model.get_metadata(Metadata.SQL_SCHEMA)
         # The database function call is dependent on the model type
         prediction_call = self.prediction_data[self.model.get_metadata(Metadata.CLASSES)]['prediction_call']
@@ -279,7 +289,7 @@ class DatabaseModelDDL:
         pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(Metadata.SCHEMA_STR).replace(
             '\t', '').replace('\n', '').rstrip(',') + '\');END'
 
-        logger.info(pred_trigger)
+        self.logger.info(f"Executing\n{pred_trigger}")
         self.session.execute(pred_trigger)
         self.session.commit()
 
@@ -289,7 +299,7 @@ class DatabaseModelDDL:
         row populating the relevant columns.
         TO be removed when we move to VTI only
         """
-
+        self.logger.info("Creating parsing trigger...", send_db=True)
         schema_table_name = f'{self.table_name}.{self.schema_name}'
         sql_parse_trigger = f'CREATE TRIGGER {self.schema_name}.PARSERESULT_{self.table_name}_{self.run_id}' \
                             f'\n \tBEFORE INSERT\n \tON {schema_table_name}\n \tREFERENCING NEW AS NEWROW\n' \
@@ -306,8 +316,10 @@ class DatabaseModelDDL:
         else:
             sql_parse_trigger += set_prediction_case_str + 'END'
 
-        logger.info(sql_parse_trigger.replace('\n', ' ').replace('\t', ' '))
-        self.session.execute(sql_parse_trigger.replace('\n', ' ').replace('\t', ' '))
+        formatted_sql_parse_trigger = sql_parse_trigger.replace('\n', ' ').replace('\t', ' ')
+
+        self.logger.info(f"Execution\n{formatted_sql_parse_trigger}")
+        self.session.execute(formatted_sql_parse_trigger)
         self.session.commit()
 
     def create(self):

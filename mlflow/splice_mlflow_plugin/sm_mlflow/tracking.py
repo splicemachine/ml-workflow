@@ -2,10 +2,12 @@
 Custom MLFlow Tracking Store for Splice Machine
 DB
 """
+import posixpath
 import re
 import uuid
 
-import posixpath
+from sm_mlflow.alembic_support import SpliceMachineImpl
+from sm_mlflow.db_utils import get_orderby_clauses_test
 from sqlalchemy import inspect as peer_into_splice_db
 from sqlalchemy.exc import IntegrityError
 
@@ -42,8 +44,6 @@ from shared.models.mlflow_models import (DatabaseModelMetadata, SqlArtifact,
                                          SysTables, SysTriggers, SysUsers,
                                          live_model_status_view)
 from shared.services.database import SQLAlchemyClient
-from sm_mlflow.alembic_support import SpliceMachineImpl
-from sm_mlflow.db_utils import get_orderby_clauses_test
 
 # ^ we need this in our global namespace so that alembic will be able to find our dialect during
 # DB migrations

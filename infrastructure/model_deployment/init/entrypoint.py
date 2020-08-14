@@ -7,7 +7,6 @@ from os.path import exists
 from zipfile import ZipFile
 
 from pyspark.sql import SparkSession
-
 from splicemachinesa.pyodbc import splice_connect
 
 

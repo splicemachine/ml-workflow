@@ -12,6 +12,7 @@ from functools import partial
 from os import environ
 from typing import Any
 
+import plotly.express as px
 from py4j.java_gateway import java_import
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.classification import RandomForestClassifier
@@ -20,8 +21,6 @@ from pyspark.sql import DataFrame, SparkSession
 from splicemachine.ml.management import MLManager
 from splicemachine.ml.utilities import SpliceMultiClassificationEvaluator
 from sqlalchemy import Binary, Float, String, bindparam, create_engine, text
-
-import plotly.express as px
 
 environ['USER'] = 'amrit'
 environ['PYSPARK_PYTHON'] = 'python3.6'

@@ -10,13 +10,14 @@ function.
 """
 from abc import abstractmethod
 from traceback import format_exc
+from typing import Optional
 
 from pyspark.sql import SparkSession
 from sqlalchemy.orm import load_only
 
-from shared.logger.logging_config import logger
 from shared.models.splice_models import Handler, Job
 from shared.services.database import SQLAlchemyClient
+from shared.shared.logger.job_logging_config import JobLoggingManager
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -44,16 +45,22 @@ class BaseHandler(object):
             task to handle
         """
         self.task_id: int = task_id
-        self.task: Job or None = None  # assigned later
+        self.task: Optional[Job] = None  # assigned later
+
         self.spark_session: SparkSession = spark_session
         self.jvm = spark_session._wrapped._sc._jvm
-        self.Session = SQLAlchemyClient.SessionFactory
+        self.Session = SQLAlchemyClient.SessionFactory()
+
+        # Logging
+        self.logging_manager = JobLoggingManager(session=self.Session, task_id=task_id)
+        self.logger = self.logging_manager.get_logger()
 
     def is_handler_enabled(self) -> None:
         """
         Set the handler specified
         in handler_name as an instance variable
         """
+        self.logger.info(f"Checking whether handler {self.task.handler_name} is enabled", send_db=True)
         return self.Session.query(Handler) \
             .options(load_only("enabled")) \
             .filter(Handler.name == self.task.handler_name).first().enabled
@@ -63,6 +70,7 @@ class BaseHandler(object):
         Set the task specified
         in task_id as an instance variable
         """
+        self.logger.info("Retrieving Task in Worker Thread", send_db=True)
         self.task = self.Session.query(Job).filter(Job.id == self.task_id).first()
         self.task.parse_payload()  # deserialize json
 
@@ -97,6 +105,7 @@ class BaseHandler(object):
         specified, and this function will update
         the appropriate attributes of the task and commit it
         """
+        self.logger.info(f"Updating Task Status to {status} with detail {info}", send_db=True)
         self.task.update(status=status, info=info)
         self.Session.add(self.task)
         self.Session.commit()
@@ -110,6 +119,7 @@ class BaseHandler(object):
             the info string to
 
         """
+        self.logger.warning("Task succeeded!", send_db=True)
         self.task.succeed(success_message)
         self.Session.add(self.task)
         self.Session.commit()
@@ -123,6 +133,7 @@ class BaseHandler(object):
             the info string to
 
         """
+        self.logger.info(f"Task Failed... {failure_message}", send_db=True)
         self.task.fail(failure_message)
         self.Session.add(self.task)
         self.Session.commit()
@@ -142,11 +153,10 @@ class BaseHandler(object):
         statuses/detailed info on error/success
         """
         try:
-            logger.info("Checking Handler Availability")
             self.retrieve_task()
             if self.is_handler_enabled():
-                logger.info("Handler is available")
-                logger.info("Retrieved task: " + str(self.task.__dict__))
+                self.logger.info("Handler is available", send_db=True)
+                self.logger.info("Retrieved task: " + str(self.task.__dict__))
 
                 self.update_task_in_db(status='RUNNING', info='A Service Worker has found your Job')
                 self._handle()
@@ -159,7 +169,8 @@ class BaseHandler(object):
             self.Session.commit()  # commit transaction to database.py
 
         except Exception:
-            logger.exception("Encountered an unexpected error while processing Task #{self.task_id}")
+            self.logger.exception(f"Encountered an unexpected error while processing Task #{self.task_id}",
+                                  send_db=True)
             self.Session.rollback()
             self.fail_task_in_db(f"Error: <br>{self._format_html_exception(format_exc())}")
 

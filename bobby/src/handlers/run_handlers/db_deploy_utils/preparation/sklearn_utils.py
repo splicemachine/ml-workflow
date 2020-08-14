@@ -1,10 +1,11 @@
 from inspect import signature as get_signature
 
-from sklearn.pipeline import Pipeline as SKPipeline
 from sklearn.base import BaseEstimator as ScikitModel
+from sklearn.base import ClassifierMixin as ClassifierModel
+from sklearn.base import ClusterMixin as ClusteringModel
+from sklearn.base import RegressorMixin as RegressionModel
+from sklearn.pipeline import Pipeline as SKPipeline
 
-from sklearn.base import RegressorMixin as RegressionModel, ClusterMixin as ClusteringModel, \
-    ClassifierMixin as ClassifierModel
 from shared.models.model_types import SklearnModelType
 
 

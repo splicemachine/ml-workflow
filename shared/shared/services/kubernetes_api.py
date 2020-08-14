@@ -156,7 +156,8 @@ class KubernetesAPIService:
             args['name'] = manifest['metadata']['name']
 
         if 'delete' in function_name:
-            from kubernetes.client.models.v1_delete_options import V1DeleteOptions
+            from kubernetes.client.models.v1_delete_options import \
+                V1DeleteOptions
             manifest = V1DeleteOptions()
 
         return function(body=manifest, **args)

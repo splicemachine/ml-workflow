@@ -4,9 +4,9 @@ used for the Queue
 """
 from datetime import datetime
 from json import loads as parse_dict
-from typing import Optional
-from traceback import format_exc
 from time import sleep
+from traceback import format_exc
+from typing import Optional
 
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String)

@@ -8,7 +8,6 @@ from os import system as bash
 from time import sleep
 
 from mlflow import sagemaker
-from shared.logger.logging_config import logger
 
 from .base_deployment_handler import BaseDeploymentHandler
 
@@ -46,10 +45,12 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
         assume_role_exit_code = bash('$SRC_HOME/scripts/assume_service_account_role.sh')
 
         if assume_role_exit_code != 0:
-            logger.error(f"Failed to assume Sagemaker role. Assume script exited with code {assume_role_exit_code} ")
+            self.logger.error(f"Failed to assume Sagemaker role. Assume script exited with code {assume_role_exit_code}",
+                              send_db=True)
             raise Exception('Failed to assume Sagemaker role. Confirm Bobby has been correctly configured in AWS to '
                             'assume the proper role for Sagemaker deployment.')
 
+        self.logger.info("Reading Service Account for AWS from Kubernetes", send_db=True)
         env_vars['AWS_ACCESS_KEY_ID'] = bash_open(
             'cat /tmp/irp-cred.txt | jq -r ".Credentials.AccessKeyId"').read().rstrip("\n")
         env_vars['AWS_SECRET_ACCESS_KEY'] = bash_open(
@@ -70,6 +71,7 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
 
         payload: dict = self.task.parsed_payload
 
+        self.logger.info("Deploying model to SageMaker", send_db=True)
         sagemaker.deploy(
             payload['app_name'],
             self.downloaded_model_path,
@@ -85,7 +87,7 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
         """
         Deploy Job to SageMaker
         """
-        env_vars['AWS_DEFAULT_REGION']: str = self.task.parsed_payload['sagemaker_region']
+        env_vars['AWS_DEFAULT_REGION'] = self.task.parsed_payload['sagemaker_region']
 
         steps: tuple = (
             self._assume_service_account_role,

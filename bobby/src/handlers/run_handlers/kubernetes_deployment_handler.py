@@ -9,6 +9,7 @@ from tempfile import NamedTemporaryFile
 from yaml import dump as dump_yaml
 
 from shared.services.kubernetes_api import KubernetesAPIService
+
 from .base_deployment_handler import BaseDeploymentHandler
 
 
@@ -58,7 +59,9 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
         :return: manifests as a string
         """
         with NamedTemporaryFile(suffix='.yaml') as tf:
+            self.logger.info("Creating Helm Values File to Parametrize Kubernetes Manifests...", send_db=True)
             dump_yaml(self._build_template_parameters(), tf)
+            self.logger.info("Rendering template...", send_db=True)
             rendered_templates = check_output(['helm', 'template',
                                                f"{env_vars['WORKER_HOME']}/configuration/k8s_serving_helm",
                                                "--values", tf.name])

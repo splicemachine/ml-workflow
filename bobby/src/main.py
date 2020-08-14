@@ -6,16 +6,16 @@ for new jobs and dispatches them to Workers for execution
 from os import environ as env_vars
 
 from flask import Flask
-from pyspark.sql import SparkSession
-from pysparkling import H2OContext, H2OConf
-from workerpool import Job as ThreadedTask
-from workerpool import WorkerPool
-
 from handlers.modifier_handlers import (DisableServiceHandler,
                                         EnableServiceHandler)
 from handlers.run_handlers import (AzureDeploymentHandler,
                                    KubernetesDeploymentHandler,
                                    SageMakerDeploymentHandler)
+from pyspark.sql import SparkSession
+from pysparkling import H2OConf, H2OContext
+from workerpool import Job as ThreadedTask
+from workerpool import WorkerPool
+
 from shared.api.responses import HTTP
 from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)

@@ -4,16 +4,19 @@ to Splice Machine
 """
 from typing import List
 
-from shared.models.enums import FileExtensions
-from shared.shared.models.model_types import SparkModelType, KerasModelType, SklearnModelType, H2OModelType, \
-    ModelTypeMapper, Representations, Metadata
+from bobby.src.handlers.run_handlers.db_deploy_utils.entities.db_model import \
+    Model
 from shared.logger.logging_config import logger
+from shared.models.enums import FileExtensions
+from shared.shared.models.model_types import (H2OModelType, KerasModelType,
+                                              Metadata, ModelTypeMapper,
+                                              Representations,
+                                              SklearnModelType, SparkModelType)
 
-from .preparation.spark_utils import SparkUtils
+from .preparation.h2o_utils import H2OUtils
 from .preparation.keras_utils import KerasUtils
 from .preparation.sklearn_utils import ScikitUtils
-from .preparation.h2o_utils import H2OUtils
-from bobby.src.handlers.run_handlers.db_deploy_utils.entities.db_model import Model
+from .preparation.spark_utils import SparkUtils
 
 
 class DatabaseModelMetadataPreparer:
@@ -21,17 +24,19 @@ class DatabaseModelMetadataPreparer:
     Prepare models for deployment
     """
 
-    def __init__(self, file_ext, model: Model, classes: List, library_specific: dict):
+    def __init__(self, file_ext, model: Model, classes: List, library_specific: dict, logger=logger):
         """
         :param file_ext: File extension associated with stored model
         :param model: model representation holder
         :param classes: classes that can be predicted
         :param library_specific: dictionary of library specific parameters
+        :param logger: logger override
         """
         self._classes = classes
         self.library_specific = library_specific
         self.model = model
         self.model_type = None
+        self.logger = logger
 
         self.preparer = {
             FileExtensions.sklearn: self._prepare_sklearn,
@@ -44,6 +49,7 @@ class DatabaseModelMetadataPreparer:
         """
         Prepare model metadata for database deployment
         """
+        self.logger.info("Preparing Model Metadata for Deployment...", send_db=True)
         self.preparer()
         # Register Model Metadata
         self.model.add_metadata(Metadata.CLASSES, self._classes)
@@ -54,30 +60,38 @@ class DatabaseModelMetadataPreparer:
         """
         Prepare spark metadata model for deployment
         """
+        self.logger.info("Preparing Spark Metadata for deployment", send_db=True)
         library_representation = self.model.get_representation(Representations.LIBRARY)
         model_stage = SparkUtils.locate_model(library_representation)
         self.model_type = SparkUtils.get_model_type(model_stage)
-        self._classes = self._classes or SparkUtils.try_get_class_labels(library_representation)
+        self._classes = self._classes or SparkUtils.try_get_class_labels(
+            library_representation, prediction_col=model_stage.getOrDefault('predictionCol'))
+
+        self.logger.info(f"Classes: {self._classes} were specified", send_db=True)
 
         if self._classes:
             if self.model_type not in SparkModelType.get_class_supporting_types():
-                logger.warning("Labels were specified, but the model type deployed does not support them. Ignoring...")
+                self.logger.warning("Labels were specified, but the model type deployed does not support them. "
+                                    "Ignoring...", send_db=True)
                 self._classes = None
             else:
                 self._classes = [cls.replace(' ', '_') for cls in self._classes]  # remove spaces in class names
-                logger.info(f"Labels found. Using {self._classes} as labels for predictions 0-{len(self._classes)}"
-                            " respectively")
+                self.logger.info(f"Labels found. Using {self._classes} as labels for predictions 0-{len(self._classes)}"
+                                 " respectively", send_db=True)
         else:
             if self.model_type in SparkModelType.get_class_supporting_types():  # Add columns for each class (unnamed)
                 self._classes = [f'C{label_idx}' for label_idx in range(SparkUtils.get_num_classes(model_stage))]
+                self.logger.warning(f"No classes were specified, so using {self._classes} as fallback...", send_db=True)
 
     def _prepare_keras(self):
         """
         Prepare keras model metadata for deployment
         """
+        self.logger.info("Preparing Keras Metadata for Deployment...", send_db=True)
         library_model = self.model.get_representation(Representations.LIBRARY)
         KerasUtils.validate_keras_model(library_model)
         pred_threshold = self.library_specific.get('pred_threshold')
+
         self.model_type = KerasUtils.get_keras_model_type(
             model=library_model, pred_threshold=pred_threshold)
 
@@ -85,16 +99,20 @@ class DatabaseModelMetadataPreparer:
             output_shape = library_model.layers[-1].output_shape
             if not self._classes:
                 self._classes = ['prediction'] + [f'C{i}' for i in range(len(output_shape[-1]))]
+                self.logger.info(f"Using classes {self._classes}", send_d=True)
             else:
+                self.logger.warning(f"Classes were not specified... using {self._classes} as fallback", send_db=True)
                 self._classes += ['prediction']
 
             if len(self._classes) > 2 and pred_threshold:
-                logger.warning("Found multiclass model with prediction threshold specified... Ignoring threshold.")
+                self.logger.warning("Found multiclass model with prediction threshold specified... Ignoring "
+                                    "threshold.", send_db=True)
 
     def _prepare_sklearn(self):
         """
         Prepare Scikit-learn metadata for deployment
         """
+        self.logger.info("Prepare Scikit-learn metadata for deployment", send_db=True)
         library_model = self.model.get_representation(Representations.LIBRARY)
         sklearn_args = ScikitUtils.validate_scikit_args(model=library_model,
                                                         lib_specific_args=self.library_specific)
@@ -104,7 +122,8 @@ class DatabaseModelMetadataPreparer:
             if self.model_type == SklearnModelType.MULTI_PRED_DOUBLE:
                 self._classes = [cls.replace(' ', '_') for cls in self._classes]
             else:
-                logger.warning("Prediction classes were specified, but model is not classification... Ignoring classes")
+                self.logger.warning("Prediction classes were specified, but model is not classification... "
+                                    "Ignoring classes", send_db=True)
                 self._classes = None
         else:
             if self.model_type == SklearnModelType.MULTI_PRED_DOUBLE:
@@ -112,15 +131,20 @@ class DatabaseModelMetadataPreparer:
                 if sklearn_args.get('predict_call') == 'transform' and hasattr(library_model, 'transform'):
                     self._classes = [f'C{cls}' for cls in range(model_params.get('n_clusters') or
                                                                 model_params.get('n_components') or 2)]
+                    self.logger.info(f"Using transform operation with classes {self._classes}", send_db=True)
                 elif 'predict_args' in sklearn_args:
                     self._classes = ['prediction', sklearn_args.get('predict_args').lstrip('return_')]
+                    self.logger.info(f"Found predict arguments... classes are {self._classes}")
                 elif hasattr(library_model, 'classes_') and library_model.classes_.size != 0:
                     self._classes = [f'C{cls}' for cls in range(library_model.classes_)]
+                    self.logger.info(f"Using fallback for classes: {self._classes}", send_db=True)
                 elif hasattr(library_model, 'get_params') and (hasattr(library_model, 'n_components') or
                                                                hasattr(library_model, 'n_clusters')):
                     self._classes = [f'C{cls}' for cls in range(model_params.get('n_clusters') or
                                                                 model_params.get('n_components'))]
+                    self.logger.info(f"Using Dimensional Reduction Classes: {self._classes}", send_db=True)
                 else:
+                    self.logger.error("Could not locate classes. Pass in classes manually.", send_db=True)
                     raise Exception("Could not locate classes from the model. Pass in classes parameter.")
 
         if sklearn_args.get('predict_call') == 'predict_proba':
@@ -130,6 +154,7 @@ class DatabaseModelMetadataPreparer:
         """
         Prepare H2O Metadata for Model Deployment
         """
+        self.logger.info("Preparing H2O Model metadata for deployment", send_db=True)
         model_category = H2OUtils.get_model_category(
             self.model.get_representation(Representations.JAVA_MOJO)
         )
@@ -137,11 +162,12 @@ class DatabaseModelMetadataPreparer:
 
         if self._classes:
             if self.model_type not in {H2OModelType.MULTI_PRED_DOUBLE, H2OModelType.MULTI_PRED_INT}:
-                logger.warning("Classes were specified, but model does not support them... Ignoring.")
+                self.logger.warning("Classes were specified, but model does not support them... Ignoring.",
+                                    send_db=True)
                 self._classes = None
             else:
                 self._classes = [cls.replace(' ', '_') for cls in self._classes]
-                logger.info(f"Using {self._classes} as labels for predictions")
+                self.logger.info(f"Using {self._classes} as labels for predictions", send_db=True)
         else:
             raw_mojo = self.model.get_representation(Representations.RAW_MOJO)
             if self.model_type == H2OModelType.MULTI_PRED_INT:
@@ -156,3 +182,4 @@ class DatabaseModelMetadataPreparer:
                                              range(self.model.get_representation(Representations.LIBRARY))],
                     'AnomalyDetection': lambda: ['score', 'normalizedScore']
                 }[model_category]()
+            self.logger.info(f"Using Classes: {self._classes}")
