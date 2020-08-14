@@ -24,6 +24,8 @@ class HandlerNames:
         if HandlerNames.deploy_csp:
             run_handlers.append(HandlerNames.deploy_csp)
 
+        return run_handlers
+
 
 class KnownHandlers:
     """
