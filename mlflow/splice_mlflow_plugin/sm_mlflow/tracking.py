@@ -350,3 +350,4 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
 
 if __name__ == "__main__":
     print(SpliceMachineImpl)
+

@@ -208,3 +208,4 @@ Converters.DB_SPARK_CONVERSIONS = {Converters.remove_spec_detail(Converters.SPAR
                                    Converters.SPARK_DB_CONVERSIONS}
 
 SQLAlchemyClient.create()
+

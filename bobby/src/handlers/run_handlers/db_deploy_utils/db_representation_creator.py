@@ -5,7 +5,6 @@ from importlib import import_module
 from io import BytesIO
 from tempfile import TemporaryDirectory
 
-from mleap.spark_support import SimpleSparkSerializer
 from py4j.java_gateway import java_import
 from yaml import safe_load
 
@@ -147,6 +146,7 @@ class DatabaseRepresentationCreator:
         :param model: model to serialize
         :return: bytearray
         """
+        from mleap.pyspark.spark_support import SimpleSparkSerializer
         SimpleSparkSerializer()
         library_representation = self.model.get_representation(Representations.LIBRARY)
         with TemporaryDirectory() as tmpdir:
@@ -169,3 +169,4 @@ class DatabaseRepresentationCreator:
             self.model.add_representation(Representations.MLEAP, java_mleap_bundle)
             self.logger.info("Adding Serialized Representations...", send_db=True)
             self.model.add_representation(Representations.BYTES, self._load_into_java_bytearray(java_mleap_bundle))
+
