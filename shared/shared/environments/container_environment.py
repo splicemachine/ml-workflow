@@ -8,7 +8,7 @@ class RoleConfig:
     """
     Role Configuration for table creation
     """
-    creator: bool = bool(env_vars.get("CREATOR_ROLE"))
+    creator: bool = env_vars['TASK_NAME'] == 'bobby-0'
 
     # Future Roles can go here
 
