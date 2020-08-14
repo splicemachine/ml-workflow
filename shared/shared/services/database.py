@@ -166,21 +166,23 @@ class DatabaseSQL:
         """
 
 
-
 class Converters:
     """
     Converters for the database
     """
+    SQL_TYPES = ['CHAR', 'LONG VARCHAR', 'VARCHAR', 'DATE', 'TIME', 'TIMESTAMP', 'BLOB', 'CLOB', 'TEXT', 'BIGINT',
+                 'DECIMAL', 'DOUBLE', 'DOUBLE PRECISION', 'INTEGER', 'NUMERIC', 'REAL', 'SMALLINT', 'TINYINT',
+                 'BOOLEAN', 'INT']
+
     SPARK_DB_CONVERSIONS = {
         'BinaryType': 'BLOB',
         'BooleanType': 'BOOLEAN',
         'ByteType': 'TINYINT',
         'DateType': 'DATE',
         'DoubleType': 'DOUBLE',
-        'DecimalType': 'DOUBLE',
+        'DecimalType': 'DECIMAL',
         'IntegerType': 'INTEGER',
         'LongType': 'BIGINT',
-        'NullType': 'VARCHAR(50)',
         'ShortType': 'SMALLINT',
         'StringType': 'VARCHAR(5000)',
         'TimestampType': 'TIMESTAMP',

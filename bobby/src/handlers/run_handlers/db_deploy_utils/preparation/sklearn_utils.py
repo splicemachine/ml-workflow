@@ -16,6 +16,15 @@ class ScikitUtils:
     """
 
     @staticmethod
+    def locate_model_stage(pipeline):
+        """
+        Locate the model stage within an Sklearn pipepline
+        :param pipeline: Skpipeline
+        :return: model stage if exsts, else None
+        """
+        raise NotImplementedError("not implemented :(")
+
+    @staticmethod
     def validate_scikit_args(model, lib_specific_args):
         """
         Validate scikit-learn arguments passed in
@@ -27,19 +36,21 @@ class ScikitUtils:
         """
         keys = set(lib_specific_args.keys())
         if keys - {'predict_call', 'predict_args'} != set():
-            raise Exception("You've passed in an sklearn_args key that is not valid. Valid keys are "
+            raise Exception("You've passed in an library specific key that is not valid. Valid keys are "
                             "('predict_call', 'predict_args')")
-        elif 'predict_call' in lib_specific_args:
+        elif lib_specific_args['predict_call']:
             predict_call = lib_specific_args['predict_call']
             if not hasattr(model, predict_call):
                 raise Exception('The predict function specified is not available for the given model')
-            if predict_call != 'predict' and 'predict_args' in lib_specific_args:
-                raise Exception('predict_args passed in but predict_call is {p}. This combination is not allowed')
-        if 'predict_args' in lib_specific_args:
+            if predict_call != 'predict' and lib_specific_args['predict_args']:
+                raise Exception(f'predict_args passed in but predict_call is {predict_call}. '
+                                f'This combination is not allowed')
+        if lib_specific_args['predict_args']:
             predict_args = lib_specific_args['predict_args']
             if predict_args not in ('return_std', 'return_cov') and not isinstance(model, SKPipeline):
                 raise Exception('Predict_args value is invalid. Available options are ("return_std", "return_cov")')
             else:
+                # TOdo implement the location
                 model_stage = model.steps[-1][-1] if isinstance(model, SKPipeline) else model
                 model_params = get_signature(model_stage.predict) if \
                     hasattr(model_stage, 'predict') else get_signature(model_stage.transform)

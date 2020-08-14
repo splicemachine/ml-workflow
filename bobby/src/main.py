@@ -10,7 +10,8 @@ from handlers.modifier_handlers import (DisableServiceHandler,
                                         EnableServiceHandler)
 from handlers.run_handlers import (AzureDeploymentHandler,
                                    KubernetesDeploymentHandler,
-                                   SageMakerDeploymentHandler)
+                                   SageMakerDeploymentHandler,
+                                   DatabaseDeploymentHandler)
 from pyspark.sql import SparkSession
 from pysparkling import H2OConf, H2OContext
 from workerpool import Job as ThreadedTask
@@ -57,11 +58,11 @@ def create_run_contexts() -> tuple:
     deserialized PipelineModel (formerly a byte stream in the database.py)
     :return: (SparkContext) a Global Spark Context, (H2OContext) a global H2O pysparkling context
     """
-    spark = SparkSession.builder\
-        .master("local[*]")\
-        .appName(env_vars['TASK_NAME'])\
-        .config('spark.scheduler.mode', 'FAIR')\
-        .config('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}')\
+    spark = SparkSession.builder \
+        .master("local[*]") \
+        .appName(env_vars['TASK_NAME']) \
+        .config('spark.scheduler.mode', 'FAIR') \
+        .config('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}') \
         .getOrCreate()
 
     # Create pysparkling context for H2O model serialization/deserialization
@@ -91,6 +92,7 @@ def register_handlers() -> None:
     KnownHandlers.register(HandlerNames.enable_service, EnableServiceHandler)
     KnownHandlers.register(HandlerNames.disable_service, DisableServiceHandler)
     KnownHandlers.register(HandlerNames.deploy_k8s, KubernetesDeploymentHandler)
+    KnownHandlers.register(HandlerNames.deploy_database, DatabaseDeploymentHandler)
 
 
 class Runner(ThreadedTask):

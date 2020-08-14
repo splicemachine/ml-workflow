@@ -4,8 +4,7 @@ to Splice Machine
 """
 from typing import List
 
-from bobby.src.handlers.run_handlers.db_deploy_utils.entities.db_model import \
-    Model
+from .entities.db_model import Model
 from shared.logger.logging_config import logger
 from shared.models.enums import FileExtensions
 from shared.shared.models.model_types import (H2OModelType, KerasModelType,
@@ -70,7 +69,8 @@ class DatabaseModelMetadataPreparer:
         self.logger.info(f"Classes: {self._classes} were specified", send_db=True)
 
         if self._classes:
-            if self.model_type not in SparkModelType.get_class_supporting_types():
+            # TODo prove ben wrong
+            if self.model_type not in {SparkModelType.SINGLE_PRED_INT, SparkModelType.MULTI_PRED_INT}:
                 self.logger.warning("Labels were specified, but the model type deployed does not support them. "
                                     "Ignoring...", send_db=True)
                 self._classes = None
@@ -79,7 +79,7 @@ class DatabaseModelMetadataPreparer:
                 self.logger.info(f"Labels found. Using {self._classes} as labels for predictions 0-{len(self._classes)}"
                                  " respectively", send_db=True)
         else:
-            if self.model_type in SparkModelType.get_class_supporting_types():  # Add columns for each class (unnamed)
+            if self.model_type in {SparkModelType.SINGLE_PRED_INT, SparkModelType.MULTI_PRED_INT}:
                 self._classes = [f'C{label_idx}' for label_idx in range(SparkUtils.get_num_classes(model_stage))]
                 self.logger.warning(f"No classes were specified, so using {self._classes} as fallback...", send_db=True)
 
@@ -93,7 +93,8 @@ class DatabaseModelMetadataPreparer:
         pred_threshold = self.library_specific.get('pred_threshold')
 
         self.model_type = KerasUtils.get_keras_model_type(
-            model=library_model, pred_threshold=pred_threshold)
+            model=library_model, pred_threshold=pred_threshold
+        )
 
         if self.model_type == KerasModelType.MULTI_PRED_DOUBLE:
             output_shape = library_model.layers[-1].output_shape
@@ -102,7 +103,7 @@ class DatabaseModelMetadataPreparer:
                 self.logger.info(f"Using classes {self._classes}", send_d=True)
             else:
                 self.logger.warning(f"Classes were not specified... using {self._classes} as fallback", send_db=True)
-                self._classes += ['prediction']
+                self._classes.insert(0, 'prediction')
 
             if len(self._classes) > 2 and pred_threshold:
                 self.logger.warning("Found multiclass model with prediction threshold specified... Ignoring "
@@ -117,7 +118,7 @@ class DatabaseModelMetadataPreparer:
         sklearn_args = ScikitUtils.validate_scikit_args(model=library_model,
                                                         lib_specific_args=self.library_specific)
         self.model_type = ScikitUtils.get_model_type(model=library_model, lib_specific_args=sklearn_args)
-
+        # TODO split into separate func (clean)
         if self._classes:
             if self.model_type == SklearnModelType.MULTI_PRED_DOUBLE:
                 self._classes = [cls.replace(' ', '_') for cls in self._classes]

@@ -19,13 +19,10 @@ class SparkUtils:
     @staticmethod
     def locate_model(pipeline_or_model):
         """
-        Get the Model stage of a fit pipeline, or return the model
+        Get the Model stage of a fit pipeline
         :param pipeline_or_model: pipeline to locate stage in
         :return: model in pipeline if it exists
         """
-        if not isinstance(pipeline_or_model, PipelineModel):
-            return pipeline_or_model
-
         try:
             filter_func = lambda stage: getattr(stage, '__module__', None) in SparkUtils.MODEL_MODULES
             return list(filter(filter_func, pipeline_or_model.stages))[0]
@@ -40,9 +37,6 @@ class SparkUtils:
         :param prediction_col: the model prediction column in pipeline
         :return: labels if possible
         """
-        if not isinstance(pipeline, PipelineModel):
-            return
-
         for stage in reversed(pipeline.stages):
             if isinstance(stage, IndexToString) and stage.getOrDefault('inputCol') == prediction_col:
                 return stage.getOrDefault('labels')
@@ -65,9 +59,11 @@ class SparkUtils:
         :param model: the specified model get the type of
         :return: the model type
         """
+        probability_check = SparkModelType.MULTI_PRED_INT if 'probabilityCol' in model.explainParams() \
+            else SparkModelType.SINGLE_PRED_INT
+
         return {
-            'pyspark.ml.classification': lambda sm: SparkModelType.MULTI_PRED_INT,
-            'pyspark.ml.regression': lambda sm: SparkModelType.SINGLE_PRED_DOUBLE,
-            'pyspark.ml.clustering': lambda sm: SparkModelType.MULTI_PRED_INT if
-            'probabilityCol' in model.explainParams() else SparkModelType.SINGLE_PRED_INT
-        }[model.__module__](model)
+            'pyspark.ml.classification': probability_check,
+            'pyspark.ml.regression': SparkModelType.SINGLE_PRED_DOUBLE,
+            'pyspark.ml.clustering': probability_check
+        }[model.__module__]

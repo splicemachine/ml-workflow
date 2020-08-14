@@ -17,7 +17,7 @@ from shared.models.model_types import Metadata, Representations
 from .entities.db_model import Model
 
 
-class DatabaseModelConverter:
+class DatabaseRepresentationCreator:
     """
     Classes for serializing an MLModel to a
     database readable object
@@ -45,7 +45,7 @@ class DatabaseModelConverter:
         self.model: Model = Model()
         self.model.add_metadata(Metadata.FILE_EXT, file_ext)
 
-    def create_raw_representations(self, *, from_dir: str):
+    def get_library_representation(self, *, from_dir: str):
         """
         Read the raw machine learning
         model from the MLModel zipped in the database
@@ -57,6 +57,7 @@ class DatabaseModelConverter:
             self.logger.info("Reading MLModel Flavor from Extracted Archive", send_db=True)
             loader_module = safe_load(ml_model.read())['flavors']['python_function']['loader_module']
 
+        # TODO use regex
         mlflow_module = loader_module.split('.')[1]  # mlflow.spark --> spark
         import_module(loader_module)  # import the specified mlflow retriever module
 
@@ -95,7 +96,6 @@ class DatabaseModelConverter:
     def _create_alternate_h2o(self, model):
         """
         Serialize H2O model to bytearray
-        :param model: model to serialize
         :return: bytearray
         """
         self.logger.info("Creating Alternative Representations for H2O...")
@@ -103,7 +103,8 @@ class DatabaseModelConverter:
         java_import(self.java_jvm, "hex.genmodel.easy.EasyPredictModelWrapper")
         java_import(self.java_jvm, "hex.genmodel.MojoModel")
         with TemporaryDirectory() as tmpdir:
-            model_path = self.model.get_representation('library').download_mojo(f'/{tmpdir}/h2o_model.zip')
+            model_path = self.model.get_representation(Representations.LIBRARY).\
+                download_mojo(f'/{tmpdir}/h2o_model.zip')
             raw_mojo = self.java_jvm.MojoModel.load(model_path)
             java_mojo_config = self.java_jvm.EasyPredictModelWrapper.Config().setModel(raw_mojo)
             java_mojo = self.java_jvm.EasyPredictModelWrapper(java_mojo_config)
@@ -118,45 +119,45 @@ class DatabaseModelConverter:
     def _create_alternate_sklearn(self, model):
         """
         Serialize a Scikit model to a bytearray
-        :param model: model to serialize
         :return: bytearray
         """
         from cloudpickle import dumps as save_cloudpickle
         self.logger.info("Creating Alternative Scikit Representations", send_db=True)
         self.logger.info("Registering Serialized Representation", send_db=True)
-        self.model.add_representation(Representations.BYTES, save_cloudpickle(model))
+        self.model.add_representation(Representations.BYTES, save_cloudpickle(
+            self.model.get_representation(Representations.LIBRARY)
+        ))
 
-    def _create_alternate_keras(self, model):
+    def _create_alternate_keras(self):
         """
         Serialize a Keras model to a bytearray
-        :param model: model to serialize
         :return: bytearray
         """
         from tensorflow.keras.models import save_model
         self.logger.info("Creating Alternative Keras Representations", send_db=True)
         h5_buffer = BytesIO()
-        save_model(model=model, filepath=h5_buffer)
+        save_model(model=self.model.get_representation(Representations.LIBRARY), filepath=h5_buffer)
         h5_buffer.seek(0)
         self.logger.info("Registering Serialized Representation", send_db=True)
         self.model.add_representation(Representations.BYTES, h5_buffer.read())
 
-    def _create_alternate_spark(self, model):
+    def _create_alternate_spark(self):
         """
         Serialize a Spark model to a bytearray
         :param model: model to serialize
         :return: bytearray
         """
-        # TODO: ask ben about raw models
         SimpleSparkSerializer()
+        library_representation = self.model.get_representation(Representations.LIBRARY)
         with TemporaryDirectory() as tmpdir:
             try:
                 self.logger.info("Saving Spark Representation to MLeap Format", send_db=True)
-                model.serializeToBundle(f"jar:file://{tmpdir}/mleap_model.zip")
+                library_representation.serializeToBundle(f"jar:file://{tmpdir}/mleap_model.zip")
                 self.logger.info("Done.")
             except Exception as e:
                 self.logger.exception("Encountered Exception while converting model to bundle")
                 self.logger.error("Encountered Unknown Exception while processing...", send_db=True)
-                model_type = getattr(model, '__class__', 'UnknownModel')
+                model_type = getattr(library_representation, '__class__', 'UnknownModel')
                 raise Exception(
                     f'It look like your model type {model_type} is not supported. Supported models are '
                     f'listed here https://mleap-docs.combust.ml/core-concepts/transformers/support.html') from None

@@ -1,4 +1,4 @@
-from shared.models.model_types import H2OModelType
+from shared.shared.models.model_types import H2OModelType
 
 
 class H2OUtils:
@@ -23,11 +23,11 @@ class H2OUtils:
         :return: model type
         """
         if category == 'Regression':
-            return H2OModelType.REGRESSION
+            return H2OModelType.SINGLE_PRED_DOUBLE
         elif category in {'HGLMRegression', 'Clustering'}:
-            return H2OModelType.SINGULAR
+            return H2OModelType.SINGLE_PRED_INT
         elif category in {'Binomial', 'Multinomial', 'Ordinal'}:
-            return H2OModelType.CLASSIFICATION
+            return H2OModelType.MULTI_PRED_INT
         elif category in {'AutoEncoder', 'TargetEncoder', 'DimReduction', 'WordEmbedding', 'AnomalyDetection'}:
-            return H2OModelType.KEY_VALUE
+            return H2OModelType.MULTI_PRED_DOUBLE
         raise Exception(f"H2O model {category} is not supported! Only models with MOJOs are currently supported.")

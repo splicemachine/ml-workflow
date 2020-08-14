@@ -4,18 +4,17 @@ which handles db deployment jobs
 """
 import json
 from typing import Optional
-from uuid import uuid4
 
 from pyspark.sql.types import StructField, StructType
-from sqlalchemy import inspect as peer_into_splicedb
+from sqlalchemy import inspect as peer_into_splice_db
 
 from shared.models.model_types import Metadata, Representations
 from shared.services.database import Converters, SQLAlchemyClient
 
 from .base_deployment_handler import BaseDeploymentHandler
-from .db_deploy_utils.db_model_creator import DatabaseModelConverter
+from .db_deploy_utils.db_representation_creator import DatabaseRepresentationCreator
 from .db_deploy_utils.db_model_ddl import DatabaseModelDDL
-from .db_deploy_utils.db_model_preparer import DatabaseModelMetadataPreparer
+from .db_deploy_utils.db_metadata_preparer import DatabaseModelMetadataPreparer
 from .db_deploy_utils.entities.db_model import Model
 
 
@@ -35,34 +34,44 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         """
         BaseDeploymentHandler.__init__(self, task_id, spark_context)
 
-        self.creator: Optional[DatabaseModelConverter] = None
+        self.creator: Optional[DatabaseRepresentationCreator] = None
         self.metadata_preparer: Optional[DatabaseModelMetadataPreparer] = None
 
         self.model: Optional[Model] = None
-        self.savepoint_name: Optional[str] = f'pre-deploy-{str(uuid4()).replace("-", "")}'
 
-    def _set_savepoint(self):
+    def validate_primary_key(self):
         """
-        Set a savepoint that we can restore to if necessary
-        (if the deployment fails). We use a UUID for the savepoint
-        name to guarantee uniqueness across simultaneous workerpool executions.
+        Validates the primary key passed by the user conforms to SQL. If the user is deploying to an existing table
+        This verifies that the table has a primary key
         """
-        self.logger.warning("Setting Savepoint in Database in case of error...", send_db=True)
-        self.Session.execute(f"SAVEPOINT {self.savepoint_name}")
-        self.logger.info(f"Created savepoint: {self.savepoint_name}")
-        self.Session.commit()
+        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
+        create_model_table = self.task.parsed_payload['create_model_table']
+        primary_key = self.task.parsed_payload['primary_key']
+
+        if create_model_table and not primary_key:
+            raise Exception("A deployed model table must have primary_key parameter specified")
+
+        if not create_model_table:
+            primary_keys = inspector.get_primary_keys(self.task.parsed_payload['db_table'],
+                                                      schema=self.task.parsed_payload['db_schema'])
+            assert primary_keys, "No primary keys were found for the specified table"
+            self.task.parsed_payload['primary_key'] = {pk: None for pk in primary_keys}
+
+        if primary_key:
+            for key in primary_key:
+                assert key.split('(')[0] in Converters.SQL_TYPES, f"Unsupported type {key}"
 
     def _retrieve_raw_model_representations(self):
         """
         Read the raw model from the MLModel on disk
         """
         self.logger.info("Creating raw model representation from MLModel", send_db=True)
-        self.creator = DatabaseModelConverter(file_ext=self.artifact.file_ext,
-                                              java_jvm=self.jvm,
-                                              logger=self.logger,
-                                              df_schema=self.task.parsed_payload['df_schema'])
+        self.creator = DatabaseRepresentationCreator(file_ext=self.artifact.file_ext,
+                                                     java_jvm=self.jvm,
+                                                     logger=self.logger,
+                                                     df_schema=self.task.parsed_payload['df_schema'])
 
-        self.creator.create_raw_representations(from_dir=self.downloaded_model_path)
+        self.creator.get_library_representation(from_dir=self.downloaded_model_path)
         self.logger.info("Done.", send_db=True)
 
     def _add_model_examples_from_df(self):
@@ -76,8 +85,9 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.model.add_metadata(Metadata.DATAFRAME_EXAMPLE, self.spark_session.createDataFrame(data=[],
                                                                                                schema=struct_schema))
 
-        self.model.add_metadata(Metadata.SQL_SCHEMA, {field.name: Converters[str(field.datatype)]
-                                                      for field in struct_schema})
+        self.model.add_metadata(Metadata.SQL_SCHEMA,
+                                {field.name: Converters.SPARK_DB_CONVERSIONS[str(field.datatype).upper()]
+                                 for field in struct_schema})
         self.logger.info("Done.")
 
     def _add_model_examples_from_db(self, table_name: str, schema_name: str):
@@ -99,7 +109,9 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         for field in columns:
             schema_dict[field['name']] = str(field['type'])
             # Remove length specification from datatype for backwards conversion
-            spark_d_type = getattr(spark_types, Converters.DB_SPARK_CONVERSIONS[str(field['type'].split('(')[0])])
+            # TODO fix this to be regex
+            spark_d_type = getattr(spark_types,
+                                   Converters.DB_SPARK_CONVERSIONS[str(field['type'].split('(')[0]).upper()])
             struct_type.add(StructField(name=field['name'], dataType=spark_d_type))
 
         self.model.add_metadata(Metadata.DATAFRAME_EXAMPLE,
@@ -116,10 +128,10 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         reference_schema = self.task.parsed_payload['reference_table']
 
         if self.task.parsed_payload['create_model_table']:
-            logger.info("Creating Model Table...")
+            self.logger.info("Adding Model Schema and DF...", send_db=True)
             if reference_table and reference_schema:
                 if specified_df_schema:
-                    raise Exception("Cannot create model table with both db schema and reference table")
+                    raise Exception("Cannot pass both df schema and reference table")
                 self._add_model_examples_from_db(table_name=reference_table, schema_name=reference_schema)
             elif specified_df_schema:
                 self._add_model_examples_from_df()
@@ -172,26 +184,12 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
                                        library_specific_args=payload['library_specific'], logger=self.logger)
         ddl_creator.create()
 
-    def exception_handler(self, exc: Exception):
-        """
-        Callback for exceptions that are thrown
-        during job execution
-        :param exc: the exception object
-        """
-        super().exception_handler(exc=exc)  # rollback the session
-        self.logger.error("Rolling Back to pre-deployment savepoint")
-        self.Session.execute(f"ROLLBACK TO {self.savepoint_name}")
-        self.Session.commit()
-        self.logger.error("Releasing savepoint")
-        self.Session.execute(f"RELEASE SAVEPOINT {self.savepoint_name}")
-        self.Session.commit()
-
     def execute(self) -> None:
         """
         Execute the steps required to accomplish database deployment
         """
         steps: tuple = (
-            self._set_savepoint,
+            DatabaseModelDDL.
             self._retrieve_model_binary_stream_from_db,
             self._deserialize_artifact_stream,
             self._retrieve_raw_model_representations,

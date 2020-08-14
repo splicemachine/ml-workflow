@@ -11,9 +11,9 @@ from shared.logger.logging_config import log_operation_status, logger
 from shared.models.model_types import (DeploymentModelType, H2OModelType,
                                        KerasModelType, Metadata,
                                        SklearnModelType, SparkModelType)
-from shared.services.database import SQLAlchemyClient
-from shared.shared.models.mlflow_models import (DatabaseDeployedMetadata,
-                                                SysTables, SysTriggers)
+from shared.services.database import SQLAlchemyClient, Converters
+from shared.models.mlflow_models import (DatabaseDeployedMetadata,
+                                         SysTables, SysTriggers)
 
 from .entities.db_model import Model
 
@@ -29,6 +29,7 @@ class DatabaseModelDDL:
                  model: Model,
                  schema_name: str,
                  table_name: str,
+                 request_user: str,
                  model_columns: List[str],
                  primary_key: List[Tuple[str, str]],
                  library_specific_args: Optional[Dict[str, str]] = None,
@@ -42,6 +43,7 @@ class DatabaseModelDDL:
         :param model: Model object containing representations and metadata
         :param schema_name: (str) the schema name to deploy the model table to
         :param table_name: (str) the table name to deploy the model table to
+        :param request_user: (str) the user who submitted the task
         :param model_columns: (List[str]) the columns in the feature vector passed into the model/pipeline
         :param primary_key: (List[Tuple[str,str]]) column name, SQL datatype for the primary key(s) of the table
         :param library_specific_args: (Dict[str,str]) All library specific function arguments (sklearn_args,
@@ -54,6 +56,7 @@ class DatabaseModelDDL:
         self.schema_name = schema_name
         self.table_name = table_name
         self.model_columns = model_columns  # The model_cols parameter
+        self.request_user = request_user
         self.primary_key = primary_key
         self.create_model_table = create_model_table
         self.library_specific_args = library_specific_args
@@ -120,7 +123,7 @@ class DatabaseModelDDL:
 
         table_create_sql += f'\tPRIMARY KEY({pk_cols.rstrip(",")})\n)'
 
-        self.logger.info(f"Executing\n{table_create_sql}")
+        self.logger.info(f"Executing\n{table_create_sql}", send_db=True)
         self.session.execute(table_create_sql)
         self.session.commit()
 
@@ -163,7 +166,7 @@ class DatabaseModelDDL:
             alter_table_sql += f'{alter_table_syntax} {col}'
 
         for sql in alter_table_sql:
-            logger.info(f"Executing\n{sql})")
+            self.logger.info(f"Executing\n{sql})", send_db=True)
             self.session.execute(sql)
         self.session.commit()
 
@@ -254,11 +257,10 @@ class DatabaseModelDDL:
         trigger_2 = self.session.query(SysTriggers) \
             .filter_by(tableid=table_id, triggername=f"PARSERESULT_{trigger_suffix}").scalar()
 
-        # TODO Hardcoded to mlmanager user
         metadata = DatabaseDeployedMetadata(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
                                             trigger_type='INSERT', triggerid=trigger_1.TRIGGERID,
                                             triggerid_2=trigger_2.TRIGGERID or 'NULL', db_env='PROD',
-                                            db_user='mlmanager', action_date=str(trigger_1.CREATIONTIMESTAMP))
+                                            db_user=self.request_user, action_date=str(trigger_1.CREATIONTIMESTAMP))
         self.session.add(metadata)
         self.session.commit()
 
@@ -329,7 +331,7 @@ class DatabaseModelDDL:
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         if self.create_model_table and not self.primary_key:
             raise Exception("A primary key must be specified if creating model table")
-
+        #
         self.primary_key = self.primary_key or inspector.get_primary_keys(self.table_name, schema=self.schema_name)
 
         if self.create_model_table:
@@ -348,7 +350,7 @@ class DatabaseModelDDL:
             else:
                 self.create_prediction_trigger()
 
-        if self.model.get_metadata(Metadata.TYPE) in {SparkModelType.MULTI_PRED_INT, H2OModelType.SINGLE_PRED_INT}:
+        if self.model.get_metadata(Metadata.TYPE) in {SparkModelType.MULTI_PRED_INT, H2OModelType.MULTI_PRED_INT}:
             with log_operation_status("create parsing trigger"):
                 self.create_parsing_trigger()
 

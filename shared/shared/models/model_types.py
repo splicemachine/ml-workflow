@@ -56,14 +56,6 @@ class SparkModelType(Enum):
     SINGLE_PRED_INT = 1  # CLUSTERING_WO_PROB
     MULTI_PRED_INT = 2  # CLUSTERING_WITH_PROB, CLASSIFICATION
 
-    @staticmethod
-    def get_class_supporting_types() -> set:
-        """
-        Get a set of types that support prediction classes
-        :return: set of types
-        """
-        return {SparkModelType.MULTI_PRED_INT}
-
 
 class SklearnModelType(Enum):
     """
@@ -103,7 +95,6 @@ class ModelTypeMapper:
         return model_mapping[model_type]
 
 
-# TODO fix hashing
 model_mapping = {
     H2OModelType.SINGLE_PRED_DOUBLE: DeploymentModelType.SINGLE_PRED_DOUBLE,
     H2OModelType.SINGLE_PRED_INT: DeploymentModelType.SINGLE_PRED_INT,
