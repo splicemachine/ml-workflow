@@ -62,18 +62,14 @@ class CloudEnvironments:
     gcp: CloudEnvironment = CloudEnvironment(
         name="GCP",
         fullname="Google Cloud",
-        handler_mapping={
-            'deploy': 'NONE'
-        },
+        handler_mapping={},
         can_deploy=False
     )
 
     openstack: CloudEnvironment = CloudEnvironment(
         name="OpenStack",
         fullname="OpenStack",
-        handler_mapping={
-            'deploy': 'NONE'
-        },
+        handler_mapping={},
         can_deploy=False
     )
 

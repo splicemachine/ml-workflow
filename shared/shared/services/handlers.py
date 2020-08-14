@@ -12,22 +12,17 @@ class HandlerNames:
     disable_service: str = 'DISABLE_SERVICE'
     deploy_k8s: str = 'DEPLOY_KUBERNETES'
     deploy_database: str = 'DEPLOY_DATABASE'
-    deploy_csp: str = CloudEnvironments.get_current().handler_mapping['deploy']
-
-    # through getting get_current().handler_mapping['<common key across cloud environments>'] we
-    # can add new functionality that changes depending on the CSP. What are doing here
-    # is generalizing the specific functionality of each deployment handler (DEPLOY_AZURE,
-    # DEPLOY_AWS) to a single attribute, "deploy_csp" which points to the CSP specific handler
-    # name. The same functionality could be extended for retraining, as long as each CSP
-    # defines the 'retrain' key in their handler mapping, we could generalize it similar to how
-    # we do here.
+    deploy_csp: str = CloudEnvironments.get_current().handler_mapping.get('deploy')
 
     @staticmethod
     def get_run_handlers():
         """
         Get handlers that can run operations
         """
-        return HandlerNames.deploy_k8s, HandlerNames.deploy_database, HandlerNames.deploy_csp
+        run_handlers = [HandlerNames.deploy_k8s, HandlerNames.deploy_database]
+
+        if HandlerNames.deploy_csp:
+            run_handlers.append(HandlerNames.deploy_csp)
 
 
 class KnownHandlers:
@@ -117,22 +112,6 @@ class KnownHandlers:
             name=HandlerNames.deploy_csp,
             modifiable=True,
             url='/deploy/deploy_azure'
-        )
-    elif CloudEnvironments.get_current_name() == CloudEnvironments.gcp:
-        MAPPING[HandlerNames.deploy_csp] = Handler(  # We don't currently support GCP deployment
-            required_payload_args=None,
-            optional_payload_args=None,
-            name=HandlerNames.deploy_csp,
-            modifiable=False,
-            url='/'
-        )
-    elif CloudEnvironments.get_current_name() == CloudEnvironments.openstack:
-        MAPPING[HandlerNames.deploy_csp] = Handler(  # We don't currently support OpenStack deployment
-            required_payload_args=None,
-            optional_payload_args=None,
-            name=HandlerNames.deploy_csp,
-            modifiable=False,
-            url='/'
         )
 
     @staticmethod

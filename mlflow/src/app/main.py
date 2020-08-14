@@ -396,7 +396,6 @@ def contact() -> Response:
     return show_html('contact.html')
 
 
-@APP.route(KnownHandlers.get_url(HandlerNames.deploy_csp))
 @login_required
 def deploy_csp() -> Response:
     """
@@ -408,9 +407,7 @@ def deploy_csp() -> Response:
     # 1) deploy_aws.html, 2) deploy_azure.html, 3) deploy_gcp.html
     # they need to match the names given to the CloudEnvironments
     # given in ml-workflow-lib/shared/database.py/splice_models.py:KnownHandlers
-    if CLOUD_ENVIRONMENT.can_deploy:
-        return show_html(f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html')
-    return make_response("<h1>Deployment on this CSP is disabled</h1>", HTTP.codes['forbidden'])
+    return show_html(f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html')
 
 
 @APP.route(KnownHandlers.get_url(HandlerNames.deploy_k8s))
@@ -454,6 +451,9 @@ def home() -> Response:
     """
     return show_html('index.html')
 
+
+if CLOUD_ENVIRONMENT.can_deploy:
+    APP.add_url_rule(KnownHandlers.get_url(HandlerNames.deploy_csp), 'deploy_csp', view_func=deploy_csp)
 
 if __name__ == '__main__':
     APP.run(host='0.0.0.0', port=5000)

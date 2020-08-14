@@ -34,7 +34,7 @@
                 {% for handler in handler_names.get_run_handlers() %}
                     <ul class="side-nav-dropdown">
                         <li><a href="{{ known_handlers.get_url(handler) }}">
-                            Deploy Model to {{ handler.split('_')[-1].title() }}</a>
+                            Deploy Model to {{ handler.split('_')[-1].upper() }}</a>
                         </li>
                     </ul>
                 {% endfor %}
