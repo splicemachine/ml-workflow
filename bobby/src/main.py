@@ -21,6 +21,7 @@ from shared.api.responses import HTTP
 from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
+from shared.models.splice_models import create_bobby_tables
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import (HandlerNames, KnownHandlers,
                                       populate_handlers)
@@ -167,6 +168,8 @@ def get_new_jobs():
 
 
 def main():
+    logger.info("Creating Splice Tables...")
+    create_bobby_tables()
     logger.info('Registering handlers...')
     register_handlers()
     logger.info('Populating handlers...')

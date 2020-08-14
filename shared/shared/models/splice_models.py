@@ -5,14 +5,12 @@ used for the Queue
 from datetime import datetime
 from json import loads as parse_dict
 from time import sleep
-from traceback import format_exc
 from typing import Optional
 
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String)
 from sqlalchemy.orm import relationship
 
-from shared.environments.container_environment import RoleConfig
 from shared.logger.logging_config import logger
 from shared.models.enums import JobStatuses
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
@@ -209,17 +207,13 @@ def create_bobby_tables(_sleep_secs=1) -> None:
     if _sleep_secs > 500:
         raise Exception("Could not connect to database ")
 
+    # noinspection PyBroadException
     try:
-        if RoleConfig.has_role('creator'):
-            logger.warning("Creating Splice Tables inside Splice DB...")
-            SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
-            logger.info("Created Tables")
-    except Exception as e:
+        logger.warning("Creating Splice Tables inside Splice DB...")
+        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
+        logger.info("Created Tables")
+    except Exception:
         logger.exception(f"Encountered Error while initializing")  # logger might have failed
-        logger.error("Retrying after 2s...")
+        logger.error(f"Retrying after {_sleep_secs} seconds...")
         sleep(_sleep_secs)
         create_bobby_tables(_sleep_secs=_sleep_secs * 2)
-
-
-create_bobby_tables()
-
