@@ -62,6 +62,7 @@ class KnownHandlers:
                 replace=False
             ),
             name=HandlerNames.deploy_database,
+            modifiable=True,
             url='/deploy/database'
         ),
         HandlerNames.deploy_k8s: Handler(
@@ -83,6 +84,7 @@ class KnownHandlers:
                 expose_external=False,
             ),
             name=HandlerNames.deploy_k8s,
+            modifiable=True,
             url='/deploy/kubernetes'
         )
     }
