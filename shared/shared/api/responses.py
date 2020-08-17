@@ -148,10 +148,10 @@ class HTTP:
                 return HTTP.responses['malformed'](
                     create_json(status=APIStatuses.failure, msg=msg))
 
-            except Exception:
+            except Exception as e:
                 logger.exception("An unexpected error occurred while processing the request")
                 return HTTP.responses['unexpected'](
-                    create_json(status=APIStatuses.error, msg=get_exception(limit=100))
+                    create_json(status=APIStatuses.error, msg=str(e))
                 )
 
         return wrapped

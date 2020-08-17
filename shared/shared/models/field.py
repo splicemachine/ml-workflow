@@ -3,14 +3,17 @@ class Field:
     Field for API
     """
 
-    def __init__(self, name, *, default=None, callback_on=None, callback=None):
+    def __init__(self, name, *, default=None, use_default=False, callback_on=None, callback=None):
         """
         :param name: the name of the field
         :param default: default value for the field
         :param callback: preprocessor for the field
+        :param callback_on: the type to run the callback on
+        :param use_default: whether or not to use the default
         """
         self.name = name
         self.default = default
+        self.use_default = use_default
         self.callback_on = callback_on
         self.callback = callback
 
@@ -38,9 +41,9 @@ class Field:
         :return: processed value
         """
         if value is None:
-            if self.default:
+            if self.use_default:
                 return self.default
-            raise Exception(f"Required value {self.name} must be specified")
+            raise KeyError(self.name)
         else:
             return self.process(value)
 
