@@ -119,11 +119,7 @@ class Runner(ThreadedTask):
         """
         try:
             logger.info(f"Runner executing job id {self.task_id} --> {self.handler_name}")
-            options: dict = dict(
-                spark_context=self.spark_context
-            ) if self.handler_name in RUN_HANDLERS else {}
-
-            KnownHandlers.get_class(self.handler_name)(self.task_id, **options).handle()
+            KnownHandlers.get_class(self.handler_name)(self.task_id).handle()
 
         except Exception:  # uncaught exceptions should't break the runner
             logger.exception(
