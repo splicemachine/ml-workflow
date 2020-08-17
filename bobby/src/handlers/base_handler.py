@@ -49,7 +49,7 @@ class BaseHandler(object):
         self.Session = SQLAlchemyClient.SessionFactory()
 
         # Logging
-        self.logging_manager = JobLoggingManager(session=self.Session, task_id=task_id)
+        self.logging_manager: JobLoggingManager = JobLoggingManager(session=self.Session, task_id=task_id)
         self.logger = self.logging_manager.get_logger()
 
     def is_handler_enabled(self) -> None:
@@ -172,4 +172,5 @@ class BaseHandler(object):
             self.fail_task_in_db(f"Error: <br>{self._format_html_exception(format_exc())}")
 
         finally:
+            self.logging_manager.destroy_logger()
             self.Session.close()  # close the thread local session in all cases
