@@ -13,7 +13,7 @@ function toggleParameter(name){
 }
 
 function toggleDatabaseCreate(){
-    if (document.getElementById('input_create_model_table').value) == "true"){
+    if (document.getElementById('input_create_model_table').value == "true"){
         document.getElementById("create_table_inputs").style.display = "block";
     } else {
         document.getElementById("create_table_inputs").style.display = "none";
