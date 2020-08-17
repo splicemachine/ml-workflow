@@ -15,7 +15,7 @@ from shared.api.responses import HTTP
 from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
-from shared.shared.models.splice_models import Handler, Job
+from shared.models.splice_models import Handler, Job
 from shared.services.authentication import Authentication, User
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import HandlerNames, KnownHandlers
