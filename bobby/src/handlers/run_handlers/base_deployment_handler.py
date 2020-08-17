@@ -61,7 +61,7 @@ class BaseDeploymentHandler(BaseHandler):
         from Database with the specified path
         and associated Run UUID
         """
-        self.update_task_in_db(info="Reading Model Artifact Stream from Splice Machine")
+        self.logger.info("Reading Model Artifact Stream from Splice Machine", send_db=True)
         run_id: str = self.mlflow_run.info.run_uuid
 
         self.logger.info(f"Extracting Model from DB with Name: {self.model_dir}", send_db=True)
@@ -150,7 +150,7 @@ class BaseDeploymentHandler(BaseHandler):
             self.execute()
         except Exception as e:
             self.exception_handler(exc=e)  # can be overriden by subclasses
-            raise e from None
+            raise e
         finally:
             self.Session.commit()
             self._cleanup()  # always run cleanup, regardless of success or failure
