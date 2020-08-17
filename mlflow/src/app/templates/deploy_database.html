@@ -40,7 +40,7 @@ names correspond to those in shared/database/splice_models.py -->
                                 <div class='form--inputContainer js-input'>
                                     <label for='input_create_model_table' class='form--label'>Deploy to existing table
                                         *</label>
-                                    <select id='input_create_model_table' onchange="toggleCreate()"
+                                    <select id='input_create_model_table' onchange="toggleDatabaseCreate()"
                                             class='js-input-fullName' required>
                                         <option value=false selected>No</option>
                                         <option value=true>Yes</option>
@@ -49,18 +49,13 @@ names correspond to those in shared/database/splice_models.py -->
                             </div>
                             <div class="col-md-6">
                                 <div class='form--inputContainer js-input'>
-                                    <label for='input_run_uuid' class='form--label'>Run ID
-                                        *</label>
-                                    <div class='form--inputContainer js-input'>
-                                        <label for='input_run_uuid' class='form--label'>Run ID *</label>
-                                        <input id='input_run_uuid' class='js-input-fullName' type='text'
-                                               placeholder='e.g. cd93d9342bae4024a5290b908c02f386' name="run_id"
-                                               required>
-                                    </div>
+                                    <label for='input_run_uuid' class='form--label'>Run ID *</label>
+                                    <input id='input_run_uuid' class='js-input-fullName' type='text'
+                                           placeholder='e.g. cd93d9342bae4024a5290b908c02f386' name="run_id"
+                                           required>
                                 </div>
                             </div>
                         </div>
-                        <br><br>
                         <div class="row">
                             <div class="col-md-6">
                                 <!-- governance -->
@@ -82,7 +77,6 @@ names correspond to those in shared/database/splice_models.py -->
                                 </div>
                             </div>
                         </div>
-                        <br><br>
                         <div id="create_table_inputs" style="display: none">
                             <div class="row">
                                 <div class="col-md-12">
@@ -90,8 +84,8 @@ names correspond to those in shared/database/splice_models.py -->
                                         <label for='input_primary_key' class='form--label'>Primary Key Name &
                                             Type</label>
                                         <input type='text' id='input_primary_key' placeholder='"id" VARCHAR(30)'
-                                                name="primary_key"
-                                                required>
+                                               name="primary_key"
+                                               required>
                                     </div>
                                 </div>
                             </div>
@@ -118,7 +112,6 @@ names correspond to those in shared/database/splice_models.py -->
                                 </div>
                             </div>
                         </div>
-                        <br><br>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class='form--inputContainer js-input'>
@@ -137,7 +130,6 @@ names correspond to those in shared/database/splice_models.py -->
                                 </div>
                             </div>
                         </div>
-                        <br><br>
                         <div class="row">
                             <div class="col-md-12">
                                 <div class='form--inputContainer js-input'>
@@ -229,5 +221,5 @@ names correspond to those in shared/database/splice_models.py -->
 {% endblock %}
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/widgets.js') }}"></script>
+<script src="{{ url_for('static', filename='js/form_utils.js') }}"></script>
 {% endblock %}

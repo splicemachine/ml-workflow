@@ -154,6 +154,7 @@ class BaseHandler(object):
                 self.logger.info("Retrieved task: " + str(self.task.__dict__))
 
                 self._handle()
+                self.succeed_task_in_db()
                 self.logger.info(f"Success! Target '{self.task.handler_name}' completed successfully.", send_db=True)
             else:
                 self.logger.error(f"Error: Target '{self.task.handler_name}' is disabled", send_db=True)
