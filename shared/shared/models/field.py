@@ -13,6 +13,8 @@ class Field:
         """
         self.name = name
         self.default = default
+        # We need use_default (although it is repetitive) because None and non specified
+        # defaults look the same as not specifying them at all.
         self.use_default = use_default
         self.callback_on = callback_on
         self.callback = callback
