@@ -12,7 +12,6 @@ from abc import abstractmethod
 from traceback import format_exc
 from typing import Optional
 
-from pyspark.sql import SparkSession
 from sqlalchemy.orm import load_only
 
 from shared.models.splice_models import Handler, Job
@@ -34,7 +33,7 @@ class BaseHandler(object):
     Base Class for all Handlers
     """
 
-    def __init__(self, task_id: int, spark_session: SparkSession = None) -> None:
+    def __init__(self, task_id: int) -> None:
         """
         Construct a new instance
         of Base Handler (cannot actually
@@ -47,8 +46,6 @@ class BaseHandler(object):
         self.task_id: int = task_id
         self.task: Optional[Job] = None  # assigned later
 
-        self.spark_session: SparkSession = spark_session
-        self.jvm = self.spark_session._jvm
         self.Session = SQLAlchemyClient.SessionFactory()
 
         # Logging

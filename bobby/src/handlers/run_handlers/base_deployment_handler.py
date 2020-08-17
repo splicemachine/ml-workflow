@@ -32,11 +32,11 @@ class BaseDeploymentHandler(BaseHandler):
     handlers that execute jobs (AWS Deployment etc.)
     """
 
-    def __init__(self, task_id: int, spark_session) -> None:
+    def __init__(self, task_id: int) -> None:
         """
         :param task_id: (int) id of the task to execute
         """
-        BaseHandler.__init__(self, task_id, spark_session=spark_session)
+        BaseHandler.__init__(self, task_id)
         self.downloaded_model_path: str = DOWNLOAD_PATH + str(
             task_id)  # So when we temporarily download the model we don't overwrite other models
         self.mlflow_run: object = None

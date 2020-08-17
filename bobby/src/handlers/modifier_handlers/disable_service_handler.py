@@ -1,5 +1,7 @@
 from .base_modifier_handler import BaseModifierHandler
 
+from shared.services.handlers import HandlerNames
+
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
 __credits__: list = ["Amrit Baveja"]
@@ -15,7 +17,7 @@ class DisableServiceHandler(BaseModifierHandler):
     Handle DISABLE_HANDLER Jobs
     """
 
-    def __init__(self, task_id: int, spark_context=None) -> None:
+    def __init__(self, task_id: int) -> None:
         """
         Initialize Base Handler
         constructor (set instance variables
@@ -25,7 +27,7 @@ class DisableServiceHandler(BaseModifierHandler):
             handler job to process
 
         """
-        BaseModifierHandler.__init__(self, task_id, "DISABLE_HANDLER")
+        BaseModifierHandler.__init__(self, task_id, HandlerNames.disable_service)
 
     def modify(self) -> None:
         """

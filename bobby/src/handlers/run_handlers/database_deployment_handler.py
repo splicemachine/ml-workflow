@@ -5,6 +5,7 @@ which handles db deployment jobs
 import json
 from typing import Optional
 
+from pyspark.sql import SparkSession
 from pyspark.sql.types import StructField, StructType
 from sqlalchemy import inspect as peer_into_splice_db
 
@@ -23,20 +24,20 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
     Handler for processing deployment to the database
     """
 
-    def __init__(self, task_id: int, spark_context: None):
+    def __init__(self, task_id: int):
         """
         Initialize Base Handler
         constructor (set instance variables
         etc.)
 
         :param task_id: (int) Id of job to process
-        :param spark_context: (SparkContext) Global FAIR SparkContext for deserializing models
         """
-        BaseDeploymentHandler.__init__(self, task_id, spark_context)
+        BaseDeploymentHandler.__init__(self, task_id)
 
         self.creator: Optional[DatabaseRepresentationCreator] = None
         self.metadata_preparer: Optional[DatabaseModelMetadataPreparer] = None
-
+        self.spark_session = SparkSession.builder.getOrCreate()
+        self.jvm = self.spark_session._jvm
         self.model: Optional[Model] = None
 
     def _validate_primary_key(self):

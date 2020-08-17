@@ -18,16 +18,15 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
     Handler for processing deployment to Kubernetes
     """
 
-    def __init__(self, task_id: int, spark_context: None):
+    def __init__(self, task_id: int):
         """
         Initialize Base Handler
         constructor (set instance variables
         etc.)
 
         :param task_id: (int) Id of job to process
-        :param spark_context: (SparkContext) Global FAIR SparkContext for deserializing models
         """
-        BaseDeploymentHandler.__init__(self, task_id, spark_context)
+        BaseDeploymentHandler.__init__(self, task_id)
 
     def _build_template_parameters(self):
         """

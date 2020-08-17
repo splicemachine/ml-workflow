@@ -52,12 +52,11 @@ WORKER_POOL: WorkerPool = WorkerPool(size=30)
 LEDGER: JobLedger = JobLedger(LEDGER_MAX_SIZE)
 
 
-def create_run_contexts() -> tuple:
+def create_run_contexts():
     """
     Create a Global Spark Context that runs in the FAIR scheduling mode, and an H2O context. This means that
     it shares resources across threads. We need a Spark Context to create the directory structure from a
     deserialized PipelineModel (formerly a byte stream in the database.py)
-    :return: (SparkContext) a Global Spark Context, (H2OContext) a global H2O pysparkling context
     """
     spark = SparkSession.builder \
         .master("local[*]") \
@@ -70,10 +69,6 @@ def create_run_contexts() -> tuple:
     conf = H2OConf().setInternalClusterMode()
     hc = H2OContext.getOrCreate(conf)
 
-    return spark, hc
-
-
-SPARK_SESSION, HC = create_run_contexts()  # Global Spark Context
 
 
 def register_handlers() -> None:
@@ -102,7 +97,7 @@ class Runner(ThreadedTask):
     scaled across a pool via threading
     """
 
-    def __init__(self, spark_session: SparkSession, hc: H2OContext, task_id: int, handler_name: str) -> None:
+    def __init__(self, task_id: int, handler_name: str) -> None:
         """
         :param task_id: (int) the job id to process.
             Unfortunately, one of the limitations
@@ -114,8 +109,6 @@ class Runner(ThreadedTask):
             This conforms to SQLAlchemy's 'thread-local' architecture.
         """
         super().__init__()
-        self.spark_context: SparkSession = spark_session
-        self.hc: H2OContext = hc
         self.task_id: id = task_id
 
         self.handler_name = handler_name
@@ -150,7 +143,7 @@ def check_db_for_jobs() -> None:
                 job_id, handler_name = job_data
                 logger.info(f"Found New Job with id #{job_id} --> {handler_name}")
                 LEDGER.record(job_id)
-                WORKER_POOL.put(Runner(SPARK_SESSION, HC, job_id, handler_name))
+                WORKER_POOL.put(Runner(job_id, handler_name))
     except Exception:
         logger.exception("Error: Encountered Fatal Error while locating and executing jobs")
         raise
