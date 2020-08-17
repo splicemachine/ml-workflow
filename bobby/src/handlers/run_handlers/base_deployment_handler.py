@@ -137,18 +137,20 @@ class BaseDeploymentHandler(BaseHandler):
             run_url: str = f"#/experiments/{self.mlflow_run.info.experiment_id}/" \
                            f"runs/{self.mlflow_run.info.run_uuid}"
 
-            self.logger.info(f"Using `Retrieved MLFlow Run: {self.mlflow_run}", send_db=True)
+            self.logger.info(f"Retrieved MLFlow Run", send_db=True)
 
             self.model_dir: str = self.mlflow_run.data.tags['splice.model_name']
 
             # populates a link to the associated Mlflow run that opens in a new tab.
-            self.Session.add(self.task)
             self.task.mlflow_url = f"<a href='/mlflow/{run_url}' target='_blank' onmouseover=" \
                                    f">Link to Mlflow Run</a>"
+            self.Session.add(self.task)
+            self.Session.commit()
+
             self.execute()
         except Exception as e:
             self.exception_handler(exc=e)  # can be overriden by subclasses
-            raise e
+            raise e from None
         finally:
             self.Session.commit()
             self._cleanup()  # always run cleanup, regardless of success or failure
