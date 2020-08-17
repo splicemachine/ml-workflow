@@ -47,7 +47,8 @@ class JobLoggingManager:
         :param message: record to add to the database
         """
         self.session.execute(
-            text(DatabaseSQL.update_job_log), {'message': message, 'task_id': self.task_id}
+            text(DatabaseSQL.update_job_log),
+            params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
         )
         self.session.commit()
 
