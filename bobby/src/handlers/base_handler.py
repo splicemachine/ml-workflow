@@ -107,7 +107,7 @@ class BaseHandler(object):
         self.Session.add(self.task)
         self.Session.commit()
 
-    def succeed_task_in_db(self, success_message: str) -> None:
+    def succeed_task_in_db(self):
         """
         Succeed the current task in the Database under
         a local session context
@@ -117,21 +117,17 @@ class BaseHandler(object):
 
         """
         self.logger.warning("Task succeeded!", send_db=True)
-        self.task.succeed(success_message)
+        self.task.succeed()
         self.Session.add(self.task)
         self.Session.commit()
 
-    def fail_task_in_db(self, failure_message: str) -> None:
+    def fail_task_in_db(self) -> None:
         """
         Fail the current task in the database.py under
         a local session context
-
-        :param failure_message: (str) the message to updatr
-            the info string to
-
         """
-        self.logger.info(f"Task Failed... {failure_message}", send_db=True)
-        self.task.fail(failure_message)
+        self.logger.error(f"Task Failed..", send_db=True)
+        self.task.fail()
         self.Session.add(self.task)
         self.Session.commit()
 
@@ -151,25 +147,23 @@ class BaseHandler(object):
         """
         try:
             self.retrieve_task()
+            self.logger.info("A service worker has found your request", send_db=True)
+            self.update_task_in_db(status='RUNNING')
             if self.is_handler_enabled():
                 self.logger.info("Handler is available", send_db=True)
                 self.logger.info("Retrieved task: " + str(self.task.__dict__))
 
-                self.update_task_in_db(status='RUNNING', info='A Service Worker has found your Job')
                 self._handle()
-                self.succeed_task_in_db(
-                    f"Success! Target '{self.task.handler_name} completed successfully."
-                )
+                self.logger.info(f"Success! Target '{self.task.handler_name} completed successfully.", send_db=True)
             else:
-                self.fail_task_in_db(f"Error: Target '{self.task.handler_name}' is disabled")
+                self.logger.error(f"Error: Target '{self.task.handler_name}' is disabled", send_db=True)
 
             self.Session.commit()  # commit transaction to database.py
 
         except Exception:
-            self.logger.exception(f"Encountered an unexpected error while processing Task #{self.task_id}",
-                                  send_db=True)
+            self.logger.error(f"Error: <br>{self._format_html_exception(format_exc())}",
+                              send_db=True)
             self.Session.rollback()
-            self.fail_task_in_db(f"Error: <br>{self._format_html_exception(format_exc())}")
 
         finally:
             self.logging_manager.destroy_logger()

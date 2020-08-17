@@ -114,6 +114,7 @@ class Job(SQLAlchemyClient.SpliceBase):
     # Sizes for Truncation
     SHORT_VARCHAR_SIZE: int = 100
     LONG_VARCHAR_SIZE: int = 5000
+    EXTRA_LONG_VARCHAR_SIZE: int = 24000
 
     # TBA (To-Be-Assigned later) when JSON is parsed by structures
     parsed_payload: dict or None = None
@@ -123,8 +124,10 @@ class Job(SQLAlchemyClient.SpliceBase):
     timestamp: Column = Column(String(SHORT_VARCHAR_SIZE), default=format_timestamp)
     handler_name: Column = Column(String(SHORT_VARCHAR_SIZE), ForeignKey(Handler.name),
                                   nullable=False)
+
     status: Column = Column(String(SHORT_VARCHAR_SIZE), default='PENDING')
-    info: Column = Column(String(LONG_VARCHAR_SIZE), default='Waiting for an available Worker...')
+    logs: Column = Column(String(24000), default='---Job Logs---')
+
     payload: Column = Column(String(LONG_VARCHAR_SIZE), nullable=False)
     user: Column = Column(String(SHORT_VARCHAR_SIZE), nullable=False)
 
@@ -132,8 +135,6 @@ class Job(SQLAlchemyClient.SpliceBase):
     # mlflow_url is only applicable to deployment jobs (and maybe retraining in the future)
     target_service: Column = Column(String(SHORT_VARCHAR_SIZE), default="N/A")
     # target_service is only applicable to access modifiers
-
-    logs: Column = Column(String(20000), default='---Job Logs---')
 
     # Foreign Key Relationships
     handler: relationship = relationship('Handler', foreign_keys='Job.handler_name')
@@ -151,44 +152,26 @@ class Job(SQLAlchemyClient.SpliceBase):
         """
         return f"<Job: {self.handler_name} ({self.status}) | Data={self.payload}>"
 
-    def update(self, status: str = None, info: str = None) -> None:
+    def update(self, status: str = None) -> None:
         """
-        Update the info of a job or the
-        status of a job (or both) to new values
-
-        * Note: there is a
-        check constraint on this field for status*
-
-        We truncate the inputted values so that way
-        we don't get truncation errors when doing an insert
-        with a large traceback
+        Update the status of a job
 
         :param status: (str) the new status to change to
-        :param info: (str) the new info to change to
         """
-        if status:
-            self.status: str = status[:self.SHORT_VARCHAR_SIZE]
+        self.status: str = status[:self.SHORT_VARCHAR_SIZE]
 
-        if info:
-            self.info: str = info[:self.LONG_VARCHAR_SIZE]
-
-    def fail(self, error_message: str) -> None:
+    def fail(self) -> None:
         """
         Fail the current task instance
-        (update the info and status)
-
-        :param error_message: (str) the formatted HTML string
         """
-        self.update(status=JobStatuses.failure, info=error_message)
+        self.update(status=JobStatuses.failure)
 
-    def succeed(self, success_message: str) -> None:
+    def succeed(self) -> None:
         """
         Succeed the current task instance
         (update the info and status)
-
-        :param success_message: (str) formatted HTML string
         """
-        self.update(status=JobStatuses.success, info=success_message)
+        self.update(status=JobStatuses.success)
 
     def parse_payload(self) -> None:
         """
