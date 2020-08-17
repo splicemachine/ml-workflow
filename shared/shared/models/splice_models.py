@@ -126,7 +126,7 @@ class Job(SQLAlchemyClient.SpliceBase):
                                   nullable=False)
 
     status: Column = Column(String(SHORT_VARCHAR_SIZE), default='PENDING')
-    logs: Column = Column(String(24000), default='---Job Logs---')
+    logs: Column = Column(String(24000), default='---Job Logs---\n')
 
     payload: Column = Column(String(LONG_VARCHAR_SIZE), nullable=False)
     user: Column = Column(String(SHORT_VARCHAR_SIZE), nullable=False)

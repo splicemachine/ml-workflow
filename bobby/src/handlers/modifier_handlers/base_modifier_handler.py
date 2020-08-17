@@ -67,7 +67,7 @@ class BaseModifierHandler(BaseHandler):
                 self.Session.add(self.target_handler_object)
                 self.Session.add(self.task)  # changes for GUI
                 self.Session.commit()  # commit DB transaction
-                self.logger.info(f"Modified {self.target_handler_object} successfully", send_db=True)
+                self.logger.info(f"Modified successfully", send_db=True)
             else:
                 msg: str = f"Forbidden: Cannot execute {self.action}- Target handler " \
                            f"{self.target_handler_object} is not modifiable"
