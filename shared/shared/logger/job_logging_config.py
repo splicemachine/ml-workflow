@@ -25,7 +25,7 @@ class JobLoggingManager:
         self.task_id = task_id
         self.session = session
         self.handler_id = logger.add(
-            JobLoggingManager.splice_sink, format=self.logging_format, filter=self.message_filter
+            self.splice_sink, format=self.logging_format, filter=self.message_filter
         )
 
     def message_filter(self, record):
