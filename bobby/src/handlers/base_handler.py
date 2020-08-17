@@ -102,8 +102,8 @@ class BaseHandler(object):
         specified, and this function will update
         the appropriate attributes of the task and commit it
         """
-        self.logger.info(f"Updating Task Status to {status} with detail {info}", send_db=True)
-        self.task.update(status=status, info=info)
+        self.logger.info(f"Updating Task Status to {status}", send_db=True)
+        self.task.update(status=status)
         self.Session.add(self.task)
         self.Session.commit()
 
