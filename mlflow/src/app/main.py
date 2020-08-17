@@ -4,11 +4,7 @@ from os import environ as env_vars
 from time import time as timestamp
 
 import requests
-from flask import Flask, Response
-from flask import jsonify as create_json
-from flask import make_response, redirect
-from flask import render_template as show_html
-from flask import request, url_for
+from flask import request, url_for, render_template as show_html, redirect, jsonify as create_json, Flask, Response
 from flask_executor import Executor
 from flask_login import (LoginManager, current_user, login_required,
                          login_user, logout_user)
@@ -19,7 +15,7 @@ from shared.api.responses import HTTP
 from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
-from shared.models.splice_models import Handler, Job
+from shared.shared.models.splice_models import Handler, Job
 from shared.services.authentication import Authentication, User
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import HandlerNames, KnownHandlers
@@ -191,14 +187,7 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
     :return: (Response) JSON payload for success
     """
     # Format Payload
-    payload: dict = {}
-    for required_key in handler.required_payload_args:
-        payload[required_key] = request_payload[required_key]
-
-    for optional_key in handler.optional_payload_args:
-        supplied_value: object = payload.get(optional_key)
-        payload[optional_key] = supplied_value if supplied_value \
-            else handler.optional_payload_args[optional_key]
+    payload: dict = {field.name: field.get_value(request_payload.get(field.name)) for field in handler.payload_args}
 
     job: Job = Job(handler_name=handler.name,
                    user=user,
@@ -247,7 +236,7 @@ def get_monthly_aggregated_jobs() -> dict:
 def get_handler_data() -> dict:
     """
     Get a count of the enabled handlers
-    currently in the database.py
+    currently in the database
     :return: (dict) response containing
         number of enabled handlers
     """

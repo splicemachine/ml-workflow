@@ -129,7 +129,7 @@ class Authentication:
             realm.initialize(username, password)
         except Py4JJavaError as e:
             LOGGER.info('Login Failed')
-            LOGGER.info(e.errmsg, '\n', type(e).__name__, '\n', e.java_exception)
+            LOGGER.info(f'{e.errmsg}-{type(e)}: {e.java_exception}')
             return None
         LOGGER.debug('Login successful')
         return username

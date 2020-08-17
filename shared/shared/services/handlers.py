@@ -2,6 +2,7 @@ from typing import Callable
 
 from shared.environments.cloud_environment import CloudEnvironments
 from shared.models.splice_models import Handler
+from shared.models.field import Field
 
 
 class HandlerNames:
@@ -35,54 +36,63 @@ class KnownHandlers:
     # Service Togglers
     MAPPING: dict = {
         HandlerNames.enable_service: Handler(
-            required_payload_args=('service',),
-            optional_payload_args=dict(),
+            payload_args=[
+                Field('service')
+            ],
             name=HandlerNames.enable_service,
             url='/access',
             modifiable=False,
         ),
         HandlerNames.disable_service: Handler(
-            required_payload_args=('service',),
-            optional_payload_args=dict(),
+            payload_args=[
+                Field('service')
+            ],
             name=HandlerNames.disable_service,
             url='/access',
             modifiable=False
         ),
         HandlerNames.deploy_database: Handler(
-            required_payload_args=('db_schema', 'db_table', 'run_id'),
-            optional_payload_args=dict(
-                df_schema=None,
-                primary_key=None,
-                create_model_table=False,
-                reference_schema=None,
-                reference_table=None,
-                model_cols=None,
-                classes=None,
-                library_specific={},
-                replace=False
-            ),
+            payload_args=[
+                Field('db_schema'),
+                Field('db_table'),
+                Field('run_id'),
+                Field('df_schema', default=None),
+                Field('primary_key', default=None, callback=lambda value: dict([value.split(' ')]), callback_on=str),
+                Field('create_model_table', default=False),
+                Field('reference_schema', default=None),
+                Field('reference_table', default=None),
+                Field('model_cols', default=None, callback=lambda value: value.split(','), callback_on=str),
+                Field('classes', default=None, callback=lambda value: value.split(','), callback_on=str),
+                Field('library_specific', default={}, callback=lambda value: dict(
+                    (key.strip(), val.strip()) for key, val in (element.split('=') for element in value.split(','))),
+                      callback_on=str),
+                Field('replace', default=False, callback=Field.string_to_boolean_converter, callback_on=str)
+            ],
             name=HandlerNames.deploy_database,
             modifiable=True,
             url='/deploy/database'
         ),
         HandlerNames.deploy_k8s: Handler(
-            required_payload_args=('run_id',),
-            optional_payload_args=dict(
-                service_port=80,
-                base_replicas=1,
-                autoscaling_enabled=False,
-                max_replicas=1,
-                target_cpu_utilization=50,
-                disable_nginx=False,
-                gunicorn_workers=1,  # strongly recommended on spark models to prevent OOM
-                resource_requests_enabled=True,
-                resource_limits_enabled=True,
-                cpu_request="0.5",
-                cpu_limit="1",
-                memory_request="512Mi",
-                memory_limit="2048Mi",
-                expose_external=False,
-            ),
+            payload_args=[
+                Field('run_id'),
+                Field('service_port', default=80),
+                Field('base_replicas', default=1),
+                Field('autoscaling_enabled', default=False, callback=Field.string_to_boolean_converter,
+                      callback_on=str),
+                Field('max_replicas', default=2),
+                Field('target_cpu_utilization', default=50),
+                Field('disable_nginx', default=False, callback=Field.string_to_boolean_converter, callback_on=str),
+                Field('gunicorn_workers', default=1),
+                Field('resource_requests_enabled', default=False, callback=Field.string_to_boolean_converter,
+                      callback_on=str),
+                Field('resource_limits_enabled', default=False, callback=Field.string_to_boolean_converter,
+                      callback_on=str),
+                Field('cpu_request', default="0.5"),
+                Field('cpu_limit', default="1"),
+                Field('memory_request', default="512Mi"),
+                Field('memory_limit', default="2048Mi"),
+                Field('expose_external', default=False, callback=Field.string_to_boolean_converter, callback_on=str)
+            ],
             name=HandlerNames.deploy_k8s,
             modifiable=True,
             url='/deploy/kubernetes'
@@ -92,27 +102,31 @@ class KnownHandlers:
     # Environment-Specific Handlers
     if CloudEnvironments.get_current_name() == CloudEnvironments.aws:
         MAPPING[HandlerNames.deploy_csp] = Handler(
-            required_payload_args=('run_id', 'app_name'),
-            optional_payload_args=dict(
-                deployment_mode='replace',
-                sagemaker_region='us-east-2',
-                instance_type='ml.m5.xlarge',
-                instance_count=1,
-                model_dir='pipeline'
-            ),
+            payload_args=[
+                Field('run_id'),
+                Field('app_name'),
+                Field('deployment_mode', default='replace'),
+                Field('sagemaker_region', default='us-east-2'),
+                Field('instance_type', default='ml.m5.xlarge'),
+                Field('instance_count', default=1),
+                Field('pipeline', default='model')
+            ],
             name=HandlerNames.deploy_csp,
             modifiable=True,
             url='/deploy/deploy_aws'
         )
     elif CloudEnvironments.get_current_name() == CloudEnvironments.azure:
         MAPPING[HandlerNames.deploy_csp] = Handler(
-            required_payload_args=('run_id', 'workspace', 'endpoint_name', 'resource_group'),
-            optional_payload_args=dict(
-                model_name=None,
-                region='East US',
-                cpu_cores=0.1,
-                allocated_ram=0.5
-            ),
+            payload_args=[
+                Field('run_id'),
+                Field('workspace'),
+                Field('endpoint_name'),
+                Field('resource_group'),
+                Field('model_name', default=None),
+                Field('region', default='East US'),
+                Field('cpu_cores', default=0.1),
+                Field('allocated_ram', default=0.5)
+            ],
             name=HandlerNames.deploy_csp,
             modifiable=True,
             url='/deploy/deploy_azure'

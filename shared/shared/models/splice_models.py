@@ -57,20 +57,14 @@ class Handler(SQLAlchemyClient.SpliceBase):
     modifiable: Column = Column(Boolean, default=True)
     enabled: Column = Column(Boolean, default=True)
 
-    def __init__(self, required_payload_args: tuple, optional_payload_args: dict, *args,
+    def __init__(self, payload_args: list, *args,
                  **kwargs) -> None:
         """
-        :param required_payload_args: (tuple) tuple of required keys in the payload for this handler
-            to execute
-
-        :param optional_payload_args: (dict) dictionary of optional key/values in the payload
-            for this handler (if arguments are not specified, it uses the defaults specified
-            as values in the dictionary)
+        :param payload_args: list of fields for the API
         """
         super().__init__(*args, **kwargs)
-        # these attributes are used for the API, not persisted in the database.py
-        self.required_payload_args: Optional[tuple] = required_payload_args
-        self.optional_payload_args: Optional[dict] = optional_payload_args
+        # these attributes are used for the API, not persisted in the database
+        self.payload_args = payload_args
         self.handler_class: object = None
 
     def __repr__(self) -> None:

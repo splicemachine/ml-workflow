@@ -125,7 +125,6 @@ class DatabaseModelDDL:
 
         self.logger.info(f"Executing\n{table_create_sql}", send_db=True)
         self.session.execute(table_create_sql)
-        self.session.commit()
 
     def alter_model_table(self):
         """
@@ -168,7 +167,6 @@ class DatabaseModelDDL:
         for sql in alter_table_sql:
             self.logger.info(f"Executing\n{sql})", send_db=True)
             self.session.execute(sql)
-        self.session.commit()
 
     def create_vti_prediction_trigger(self):
         """
@@ -238,7 +236,6 @@ class DatabaseModelDDL:
         # TODO - use the above syntax for other queries
         self.logger.info(f"Executing\n{trigger_sql}")
         self.session.execute(trigger_sql)
-        self.session.commit()
 
     def add_model_to_metadata_table(self):
         """
@@ -262,7 +259,6 @@ class DatabaseModelDDL:
                                             triggerid_2=trigger_2.TRIGGERID or 'NULL', db_env='PROD',
                                             db_user=self.request_user, action_date=str(trigger_1.CREATIONTIMESTAMP))
         self.session.add(metadata)
-        self.session.commit()
 
     def create_prediction_trigger(self):
         """
@@ -293,7 +289,6 @@ class DatabaseModelDDL:
 
         self.logger.info(f"Executing\n{pred_trigger}")
         self.session.execute(pred_trigger)
-        self.session.commit()
 
     def create_parsing_trigger(self):
         """
@@ -322,7 +317,6 @@ class DatabaseModelDDL:
 
         self.logger.info(f"Execution\n{formatted_sql_parse_trigger}")
         self.session.execute(formatted_sql_parse_trigger)
-        self.session.commit()
 
     def create(self):
         """

@@ -30,6 +30,9 @@
                 <div class="col-md-12">
                     <div class="box">
                         <form method='POST' action="/api/ui/initiate">
+                            <div class="services">
+
+                            </div>
                             <div class="row">
                                 <div class="col-md-6">
                                     <!-- governance -->
@@ -78,7 +81,7 @@
                             <div class="row">
                                 <div class="col-md-6 toggle-visibility-button">
                                     <a data-toggle="collapse" href="#autoscaling-form" role="button"
-                                       aria-expanded="false"
+                                       aria-expanded="false" onclick="toggleParameter('autoscaling_enabled')"
                                        aria-controls="autoscaling-form">+ Enable Horizontal Autoscaling</a>
                                 </div>
                             </div>
@@ -87,7 +90,7 @@
                                 <div class="col-md-6">
                                     <div class='form--inputContainer js-input'>
                                         <label for='input_max_replicas' class='form--label'>Max Pod Replicas*</label>
-                                        <input id='input_service_port' class='js-input-fullName' type='number'
+                                        <input id='input_max_replicas' class='js-input-fullName' type='number'
                                                value="2" name="max_replicas" required>
                                     </div>
                                 </div>
@@ -104,7 +107,7 @@
                             <div class="row">
                                 <div class="col-md-6 toggle-visibility-button">
                                     <a data-toggle="collapse" href="#resource-rq-form" role="button"
-                                       aria-expanded="true"
+                                       aria-expanded="true" onclick="toggleParameter('resource_requests_enabled')"
                                        aria-controls="resource-rq-form">+ Enable Resource Requests</a>
                                 </div>
                             </div>
@@ -129,7 +132,7 @@
                             <div class="row">
                                 <div class="col-md-6 toggle-visibility-button">
                                     <a data-toggle="collapse" href="#resource-lm-form" role="button"
-                                       aria-expanded="true"
+                                       aria-expanded="true" onclick="toggleParameter('resource_limits_enabled')"
                                        aria-controls="resource-lm-form">+ Enable Resource Limits</a>
                                 </div>
                             </div>
@@ -262,4 +265,7 @@
         </div>
     </section><br><br>
 {% endblock %}
-kafka-broker-0-test1-nonprod-gke-test1.gke.splicemachine-dev.io:19092
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/form_utils.js') }}"></script>
+{% endblock %}
