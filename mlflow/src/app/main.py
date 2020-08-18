@@ -148,6 +148,7 @@ def logout() -> redirect:
 # Api Routes
 @APP.route('/api/ui/logs', methods=['POST'])
 @login_required
+@HTTP.generate_json_response
 def get_job_logs_ui():
     """
     Retrieve the Job Logs for the UI
@@ -158,6 +159,7 @@ def get_job_logs_ui():
 
 @APP.route('/api/api/logs', methods=['POST'])
 @Authentication.basic_auth_required
+@HTTP.generate_json_response
 def get_job_logs_api():
     """
     Retrieve the Job Logs for the API
