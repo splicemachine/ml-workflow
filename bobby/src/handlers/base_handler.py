@@ -158,6 +158,7 @@ class BaseHandler(object):
                 self.logger.info(f"Success! Target '{self.task.handler_name}' completed successfully.", send_db=True)
             else:
                 self.logger.error(f"Error: Target '{self.task.handler_name}' is disabled", send_db=True)
+                raise Exception("Task is disabled")
 
             self.Session.commit()  # commit transaction to database.py
 

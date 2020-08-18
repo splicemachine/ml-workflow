@@ -143,7 +143,7 @@ class HTTP:
                 )
 
             except KeyError as e:  # key errors are caused by missing JSON data 99% of the time
-                msg: str = f"The JSON payload received is malformed-- '{e}' is missing/unknown"
+                msg: str = f"The JSON payload received is malformed-- parameter {e} is missing/unknown"
                 logger.exception(msg)
                 return HTTP.responses['malformed'](
                     create_json(status=APIStatuses.failure, msg=msg))

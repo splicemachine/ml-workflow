@@ -83,7 +83,7 @@ class BaseDeploymentHandler(BaseHandler):
         convert it into a model,
         and then serialize it to the disk for deployment
         """
-        self.update_task_in_db(info="Decoding Model Artifact Binary Stream for Deployment")
+        self.logger.info("Decoding Model Artifact Binary Stream for Deployment", send_db=True)
 
         try:
             if exists(self.downloaded_model_path):

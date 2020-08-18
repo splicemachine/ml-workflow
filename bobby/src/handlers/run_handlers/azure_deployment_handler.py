@@ -46,7 +46,7 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
         Create/Retrieve the Specified AzureML
         Workspace
         """
-        self.update_task_in_db(info='Creating AzureML Workspace')
+        self.logger.info('Creating AzureML Workspace', send_db=True)
 
         msi_auth = MsiAuthentication()
         self.logger.info("Authenticated into azure with MSI, and creating workspace", send_db=True)
@@ -67,7 +67,7 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
         push it to the specified workspace
         :return:
         """
-        self.update_task_in_db(info='Building MLFlow Docker Container')
+        self.logger.info('Building MLFlow Docker Container', send_db=True)
         self.azure_image, self.azure_model = mlflow_azureml.build_image(
             model_name=self.task.parsed_payload['model_name'],  # name of model
             model_uri=self.downloaded_model_path,
@@ -83,7 +83,7 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
         Deploy the generated model from the Docker
         Image to AzureML
         """
-        self.update_task_in_db(info="Waiting for AzureML Deployment to finish")
+        self.logger.info("Waiting for AzureML Deployment to finish", send_db=True)
 
         webservice_deployment_config: AciWebservice.deploy_configuration = \
             AciWebservice.deploy_configuration(  # deployment specs

@@ -8,7 +8,7 @@ from typing import Dict
 import pytz
 from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer,
                         LargeBinary, PrimaryKeyConstraint, String, Table)
-from sqlalchemy.orm import backref, relationship
+from sqlalchemy.orm import backref, relationship, deferred
 from sqlalchemy.sql import text
 from sqlalchemy_views import CreateView
 
@@ -50,12 +50,12 @@ class SqlArtifact(SQLAlchemyClient.MlflowBase):
     # in Python 2, this object passed to this must be of type
     # bytearray as the bytes object is an alias for str. However,
     # in Python 3, the bytes object can be passed in (byte stream)
-    binary: Column = Column(LargeBinary(length=int(2e9)), nullable=False)
+    binary: Column = deferred(Column(LargeBinary(length=int(2e9)), nullable=False))
     run: relationship = relationship(SqlRun, backref=backref('artifacts', cascade='all'))
     file_extension: Column = Column(String(10), nullable=False)
 
     # Database Deployment
-    database_binary: Column = Column(LargeBinary(length=int(2e9)), nullable=True)
+    database_binary: Column = deferred(Column(LargeBinary(length=int(2e9)), nullable=True))
 
     __table_args__: tuple = (
         PrimaryKeyConstraint('run_uuid', 'name', name='artifact_pk'),

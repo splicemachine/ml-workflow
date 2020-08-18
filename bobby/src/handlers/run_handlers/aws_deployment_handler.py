@@ -40,7 +40,7 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
         """
         Manually assume the service account role before deployment
         """
-        self.update_task_in_db(info='Assuming ServiceAccount Role')
+        self.logger.info('Assuming ServiceAccount Role', send_db=True)
         assume_role_exit_code = bash('$SRC_HOME/scripts/assume_service_account_role.sh')
 
         if assume_role_exit_code != 0:
@@ -64,9 +64,7 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
         Deploy a model to sagemaker using a specified iam role, app name, model path and region
         """
 
-        self.update_task_in_db(
-            info='Waiting for SageMaker to activate endpoint'
-        )  # Update Information
+        self.logger.info('Waiting for SageMaker to activate endpoint', send_db=True)  # Update Information
 
         payload: dict = self.task.parsed_payload
 

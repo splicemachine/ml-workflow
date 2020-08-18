@@ -32,8 +32,8 @@ class TrackerTableMapping:
     user: str = "USER"
     handler_name: str = "HANDLER_NAME"
     payload: str = "PAYLOAD"
+    job_logs = "JOB_LOGS"
     status: str = "STATUS"
-    logs: str = "LOGS"
     mlflow_url: str = "MLFLOW_URL"
     target_service: str = "TARGET_SERVICE"
 
@@ -45,7 +45,6 @@ class TrackerTableMapping:
         handler_name: '"HANDLER_NAME"',  # capitalized since it is a backref
         payload: "payload",
         status: '"STATUS"',
-        logs: "logs",
         mlflow_url: "mlflow_url",
         target_service: 'TARGET_SERVICE'
     }
@@ -58,7 +57,6 @@ class TrackerTableMapping:
             DB_MAPPING[handler_name],
             DB_MAPPING[payload],
             DB_MAPPING[status],
-            DB_MAPPING[logs],
             DB_MAPPING[mlflow_url],
             DB_MAPPING[target_service]
         )
@@ -78,6 +76,5 @@ class TrackerTableMapping:
     ]
 
     preformatted_columns: list = [  # columns whose values need to be surrounded with <pre></pre>
-        payload,
-        logs
+        payload
     ]

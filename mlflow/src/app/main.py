@@ -9,6 +9,7 @@ from flask_executor import Executor
 from flask_login import (LoginManager, current_user, login_required,
                          login_user, logout_user)
 from sqlalchemy import text
+from sqlalchemy.orm import load_only
 
 from shared.api.models import APIStatuses, TrackerTableMapping
 from shared.api.responses import HTTP
@@ -145,6 +146,37 @@ def logout() -> redirect:
 
 
 # Api Routes
+@APP.route('/api/ui/logs', methods=['POST'])
+@login_required
+def get_job_logs_ui():
+    """
+    Retrieve the Job Logs for the UI
+    :return: (dict) job logs
+    """
+    return dict(logs=_get_logs(task_id=request.json['task_id']))
+
+
+@APP.route('/api/api/logs', methods=['POST'])
+@Authentication.basic_auth_required
+def get_job_logs_api():
+    """
+    Retrieve the Job Logs for the API
+    :return: (dict) job logs
+    """
+    return dict(logs=_get_logs(task_id=request.json['task_id']))
+
+
+def _get_logs(task_id):
+    """
+    Retrieve the logs for the specified task di
+    :param task_id: the task id to retrieve the logs for
+    :return: the logs in an array
+    """
+    job_id = task_id
+    logs = Session.query(Job).options(load_only("logs")).filter_by(id=job_id).one()
+    return logs.split('\n')
+
+
 @APP.route('/api/ui/initiate/', methods=['POST'])
 @HTTP.generate_html_in_home_response
 @login_required
@@ -288,6 +320,10 @@ def get_jobs() -> dict:
     ]
 
     table_data, total_rows = futures[0].result(), futures[1].result()  # block until we get results
+
+    # Add Job Logs Links
+    for row in total_rows:
+        row[TrackerTableMapping.job_logs] = f"<a href='/watch/{row[TrackerTableMapping.id_col]}'>View Logs</a>"
 
     return dict(rows=table_data,
                 current=int_offset + 1,
@@ -439,6 +475,18 @@ def home() -> Response:
     :return: (Response) HTML
     """
     return show_html('index.html')
+
+
+@APP.route('/watch/<int:task_id>', methods=['GET'])
+@login_required
+def watch_job(task_id: int) -> Response:
+    """
+    Serves up the logs watching page
+    for MLManager Director
+    :param task_id: the id to watch
+    :return: (Response) HTML
+    """
+    return show_html('watch_logs.html', task_id=task_id)
 
 
 if CLOUD_ENVIRONMENT.can_deploy:

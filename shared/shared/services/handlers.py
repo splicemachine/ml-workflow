@@ -37,7 +37,7 @@ class KnownHandlers:
     MAPPING: dict = {
         HandlerNames.enable_service: Handler(
             payload_args=[
-                Field('service')
+                Field('service', callback=lambda value: value.upper())
             ],
             name=HandlerNames.enable_service,
             url='/access',
@@ -45,7 +45,7 @@ class KnownHandlers:
         ),
         HandlerNames.disable_service: Handler(
             payload_args=[
-                Field('service')
+                Field('service', callabk=lambda value: value.upper())
             ],
             name=HandlerNames.disable_service,
             url='/access',

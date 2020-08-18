@@ -5,11 +5,10 @@ used for the Queue
 from datetime import datetime
 from json import loads as parse_dict
 from time import sleep
-from typing import Optional
 
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String)
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, deferred
 
 from shared.logger.logging_config import logger
 from shared.models.enums import JobStatuses
@@ -120,7 +119,7 @@ class Job(SQLAlchemyClient.SpliceBase):
                                   nullable=False)
 
     status: Column = Column(String(SHORT_VARCHAR_SIZE), default='PENDING')
-    logs: Column = Column(String(24000), default='---Job Logs---\n')
+    logs: Column = deferred(Column(String(24000), default='---Job Logs---\n'))
 
     payload: Column = Column(String(LONG_VARCHAR_SIZE), nullable=False)
     user: Column = Column(String(SHORT_VARCHAR_SIZE), nullable=False)

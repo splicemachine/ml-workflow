@@ -74,6 +74,5 @@ class BaseModifierHandler(BaseHandler):
                 self.logger.error(msg, send_db=True)
                 raise Exception(msg)
         else:
-            msg: str = f"Error: Cannot execute {self.action}- Unable to find service " \
-                       f"{self.target_handler_object}"
+            msg: str = f"Error: Cannot execute {self.action}- Unable to find service"
             raise Exception(msg)
