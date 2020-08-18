@@ -26,7 +26,7 @@
 {% endblock %}
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/watch_logs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/log_watcher.js') }}"></script>
 <script>
     setTimeout(function() {
         watchLogs({{ task_id }})
