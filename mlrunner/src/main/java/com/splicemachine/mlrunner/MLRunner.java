@@ -60,16 +60,6 @@ public class MLRunner implements DatasetProvider, VTICosting {
         LOG.info("Timeout reached. Cache cleared");
         runnerCache.clear();
     }
-    /*
-    Sets the number of days between clearing the runner cache. Every [days] days, the cache will be cleared and all
-    models will be removed until their next invocation
-     */
-    public static void setCacheTimeout(int days){
-        timer.cancel();
-        timer.purge();
-        timer.scheduleAtFixedRate(cc, 0, days*MILLISECONDS);
-        LOG.info(String.format("Cache timeout modified to %d days", days));
-    }
 
     public static AbstractRunner getRunner(final String modelID)
             throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
