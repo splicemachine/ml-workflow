@@ -154,7 +154,7 @@ class DatabaseRepresentationCreator:
                 self.logger.info("Saving Spark Representation to MLeap Format", send_db=True)
                 library_representation.serializeToBundle(f"jar:file://{tmpdir}/mleap_model.zip")
                 self.logger.info("Done.")
-            except Exception as e:
+            except Exception:
                 self.logger.exception("Encountered Exception while converting model to bundle")
                 self.logger.error("Encountered Unknown Exception while processing...", send_db=True)
                 model_type = getattr(library_representation, '__class__', 'UnknownModel')

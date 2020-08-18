@@ -1,7 +1,6 @@
-package com.splicemachine.mlrunner
+package com.splicemachine.fileretriever
 
 import java.net.URI
-
 
 import ml.combust.mleap.runtime.frame.Transformer
 import ml.combust.mleap.runtime.MleapSupport._
