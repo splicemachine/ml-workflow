@@ -173,8 +173,8 @@ def _get_logs(task_id):
     :return: the logs in an array
     """
     job_id = task_id
-    logs = Session.query(Job).options(load_only("logs")).filter_by(id=job_id).one()
-    return logs.split('\n')
+    job = Session.query(Job).options(load_only("logs")).filter_by(id=job_id).one()
+    return job.logs.split('\n')
 
 
 @APP.route('/api/ui/initiate/', methods=['POST'])
