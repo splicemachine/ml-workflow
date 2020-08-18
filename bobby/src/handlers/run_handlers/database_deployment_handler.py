@@ -101,8 +101,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         struct_type = StructType()
         schema_dict = {}
-        columns = inspector.get_columns(table_name, schema_name=schema_name)
-        raise Exception(f"Table name is {table_name}, Schema name is {schema_name}, columns is {columns}")
+        columns = inspector.get_columns(table_name, schema=schema_name)
 
         if len(columns) == 0:
             raise Exception("Either the table has no columns, or the table cannot be found.")
