@@ -165,7 +165,8 @@ class BaseHandler(object):
             self.logger.error(f"Error: <br>{self._format_html_exception(format_exc())}",
                               send_db=True)
             self.Session.rollback()
-
+            self.fail_task_in_db()
+            self.Session.commit()
         finally:
-            self.logging_manager.destroy_logger()
+            self.logging_manager.destroy_logger() # release the logger
             self.Session.close()  # close the thread local session in all cases

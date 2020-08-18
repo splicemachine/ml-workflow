@@ -56,8 +56,6 @@ class SqlArtifact(SQLAlchemyClient.MlflowBase):
 
     # Database Deployment
     database_binary: Column = Column(LargeBinary(length=int(2e9)), nullable=True)
-    library: Column = Column(String(32), nullable=True)
-    version: Column = Column(String(32), nullable=False)
 
     __table_args__: tuple = (
         PrimaryKeyConstraint('run_uuid', 'name', name='artifact_pk'),
