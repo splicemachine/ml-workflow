@@ -12,6 +12,9 @@ ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/L
 # Spark Configuration
 ARG spark_version='2.4.0'
 
+# File Retriever Configuration
+ARG file_retriever_version='0.0.1'
+
 # Defining Directories
 ENV SRC_HOME=/opt/bobby
 ENV BUILD_HOME=/tmp
@@ -55,6 +58,10 @@ RUN rm -r $BUILD_HOME/* && \
 
 # Install Helm
 RUN curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+
+# Install Jars
+RUN mkdir -p $SRC_HOME/lib && \
+    curl https://splicemachine.s3.amazonaws.com/artifacts/fileretriever-$file_retriever_version-shaded.jar $SRC_HOME/lib/fileretriever.jar
 
 # Install Shared Lib
 COPY shared /tmp/shared

@@ -58,16 +58,17 @@ def create_run_contexts():
     it shares resources across threads. We need a Spark Context to create the directory structure from a
     deserialized PipelineModel (formerly a byte stream in the database.py)
     """
-    spark = SparkSession.builder \
+    SparkSession.builder \
         .master("local[*]") \
         .appName(env_vars['TASK_NAME']) \
         .config('spark.scheduler.mode', 'FAIR') \
         .config('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}') \
+        .config('spark.driver.extraClassPath', f'{env_vars["SRC_HOME"]}/lib/*') \
         .getOrCreate()
 
     # Create pysparkling context for H2O model serialization/deserialization
     conf = H2OConf().setInternalClusterMode()
-    hc = H2OContext.getOrCreate(conf)
+    H2OContext.getOrCreate(conf)
 
 
 def register_handlers() -> None:
