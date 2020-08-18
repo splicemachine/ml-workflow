@@ -70,7 +70,6 @@ def create_run_contexts():
     hc = H2OContext.getOrCreate(conf)
 
 
-
 def register_handlers() -> None:
     """
     Register all handlers
@@ -157,6 +156,8 @@ def get_new_jobs():
 
 
 def main():
+    logger.info("Creating Contexts...")
+    create_run_contexts()
     logger.info("Creating Splice Tables...")
     create_bobby_tables()
     logger.info('Registering handlers...')
