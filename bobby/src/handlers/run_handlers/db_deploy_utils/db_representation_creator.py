@@ -162,7 +162,7 @@ class DatabaseRepresentationCreator:
                     f'It look like your model type {model_type} is not supported. Supported models are '
                     f'listed here https://mleap-docs.combust.ml/core-concepts/transformers/support.html') from None
 
-            java_import(self.java_jvm, 'com.splicemachine.mlrunner.FileRetriever')  # TODO need the MLeap Jars
+            java_import(self.java_jvm, 'com.splicemachine.fileretriever.FileRetriever')  # TODO need the MLeap Jars
             java_mleap_bundle = self.java_jvm.FileRetriever.loadBundle(f"jar:file://{tmpdir}/mleap_model.zip")
 
             self.logger.info("Adding Library Specific Representations...", send_db=True)
