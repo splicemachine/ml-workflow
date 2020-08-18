@@ -185,12 +185,14 @@ class Converters:
                  'DECIMAL', 'DOUBLE', 'DOUBLE PRECISION', 'INTEGER', 'NUMERIC', 'REAL', 'SMALLINT', 'TINYINT',
                  'BOOLEAN', 'INT']
 
+    NON_CONVERTABLE_TYPES = ['DoubleType']
+
     SPARK_DB_CONVERSIONS = {
         'BinaryType': 'BLOB',
         'BooleanType': 'BOOLEAN',
         'ByteType': 'TINYINT',
         'DateType': 'DATE',
-        'DoubleType': 'DOUBLE',
+        'DoubleType': 'FLOAT',
         'DecimalType': 'DECIMAL',
         'IntegerType': 'INTEGER',
         'LongType': 'BIGINT',
@@ -201,11 +203,27 @@ class Converters:
         'FloatType': 'FLOAT'
     }
 
-    # Remove length specifications in backwords conversions
+    DB_SPARK_CONVERSIONS = {
+        'FLOAT': 'FloatType',
+        'DOUBLE': 'FloatType',
+        'BLOB': 'BinaryType',
+        'BIGINT': 'LongType',
+        'DATE': 'DateType',
+        'INTEGER': 'IntegerType',
+        'TIMESTAMP': 'TimestampType',
+        'VARCHAR': 'StringType',
+        'DECIMAL': 'DecimalType',
+        'TINYINT': 'ByteType',
+        'BOOLEAN': 'BooleanType',
+        'SMALLINT': 'ShortType',
+        'REAL': 'DoubleType',
+        'NUMERIC': 'DecimalType',
+        'DOUBLE PRECISION': 'DoubleType',
+        'TEXT': 'StringType',
+        'CLOB': 'StringType',
+        'LONG VARCHAR': 'StringType',
+        'CHAR': 'StringType'
+    }
 
-# Create Backwards Mapping Map
-Converters.DB_SPARK_CONVERSIONS = {Converters.remove_spec_detail(Converters.SPARK_DB_CONVERSIONS[key]): key for key in
-                                   Converters.SPARK_DB_CONVERSIONS}
 
 SQLAlchemyClient.create()
-
