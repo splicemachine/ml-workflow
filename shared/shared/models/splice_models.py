@@ -146,7 +146,7 @@ class Job(SQLAlchemyClient.SpliceBase):
         """
         return f"<Job: {self.handler_name} ({self.status}) | Data={self.payload}>"
 
-    def update(self, status: str = None) -> None:
+    def update(self, status: str) -> None:
         """
         Update the status of a job
 
