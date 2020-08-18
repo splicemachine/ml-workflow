@@ -9,7 +9,6 @@ function watchLogs(task_id){
 
     var xhr = new XMLHttpRequest();
     xhr.withCredentials = true;
-    xhr.responseType = 'json';
 
     xhr.onload = function(e) {
       if (this.status == 200) {
