@@ -71,25 +71,6 @@ class BaseHandler(object):
         self.task = self.Session.query(Job).filter(Job.id == self.task_id).first()
         self.task.parse_payload()  # deserialize json
 
-    @staticmethod
-    def _format_html_exception(traceback: str) -> str:
-        """
-        Turn a Python string into HTML so that it can be rendered in the deployment GUI
-
-        :param traceback: string to format for the GUI
-        :returns: string in HTML pre-formatted code-block format
-
-        """
-        # what we need to change in order to get formatted HTML <pre>
-        replacements: dict = {
-            '\n': '<br>',
-            "'": ""
-        }
-        for subject, target in replacements.items():
-            traceback: str = traceback.replace(subject, target)
-
-        return f'<br>{traceback}'
-
     def update_task_in_db(self, status: str = None, info: str = None) -> None:
         """
         Update the current task in the Database
@@ -163,11 +144,10 @@ class BaseHandler(object):
             self.Session.commit()  # commit transaction to database.py
 
         except Exception:
-            self.logger.error(f"Error: <br>{self._format_html_exception(format_exc())}",
-                              send_db=True)
+            self.logger.error(f"Error:{format_exc(100)}", send_db=True)
             self.Session.rollback()
             self.fail_task_in_db()
             self.Session.commit()
         finally:
-            self.logging_manager.destroy_logger() # release the logger
+            self.logging_manager.destroy_logger()  # release the logger
             self.Session.close()  # close the thread local session in all cases
