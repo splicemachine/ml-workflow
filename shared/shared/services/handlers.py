@@ -45,7 +45,7 @@ class KnownHandlers:
         ),
         HandlerNames.disable_service: Handler(
             payload_args=[
-                Field('service', callabk=lambda value: value.upper())
+                Field('service', callback=lambda value: value.upper())
             ],
             name=HandlerNames.disable_service,
             url='/access',
