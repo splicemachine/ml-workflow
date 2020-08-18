@@ -29,6 +29,11 @@ import jep.JepException;
 import org.deeplearning4j.nn.modelimport.keras.exceptions.InvalidKerasConfigurationException;
 import org.deeplearning4j.nn.modelimport.keras.exceptions.UnsupportedKerasConfigurationException;
 
+class CacheClearer extends TimerTask {
+    public void run(){
+        MLRunner.clearCache();
+    }
+}
 
 public class MLRunner implements DatasetProvider, VTICosting {
 
@@ -38,24 +43,36 @@ public class MLRunner implements DatasetProvider, VTICosting {
     private final String predictArgs;
     private final double threshold;
 
-    // Model Cache
-    private static final ConcurrentHashMap<String, AbstractRunner> runnerCache = new ConcurrentHashMap<>();
-    // Timer to clear the cache every N hours
-    public static Timer myTimer = new Timer();
-    myTimer.scheduleAtFixedRate(new CacheClearer())
-
     //Provide external context which can be carried with the operation
     protected OperationContext operationContext;
     private static final Logger LOG = Logger.get(MLRunner.class);
 
-    private class CacheClearer extends TimerTask{
-        public void run() {
-            runnerCache.clear();
-        }
+    // Model Cache
+    protected static final ConcurrentHashMap<String, AbstractRunner> runnerCache = new ConcurrentHashMap<>();
+
+    // Timer to clear the cache every N days
+    private static int MILLISECONDS = 86400000; // Milliseconds in a day
+    static int CACHE_TIMEOUT_DAYS = 7; // Clear cache after 7 days
+    public static Timer timer = new Timer();
+    private static CacheClearer cc = new CacheClearer();
+    static {timer.scheduleAtFixedRate(cc, 0, CACHE_TIMEOUT_DAYS*MILLISECONDS );}
+    public static void clearCache(){
+        LOG.info("Timeout reached. Cache cleared");
+        runnerCache.clear();
+    }
+    /*
+    Sets the number of days between clearing the runner cache. Every [days] days, the cache will be cleared and all
+    models will be removed until their next invocation
+     */
+    public static void setCacheTimeout(int days){
+        timer.cancel();
+        timer.purge();
+        timer.scheduleAtFixedRate(cc, 0, days*MILLISECONDS);
+        LOG.info(String.format("Cache timeout modified to %d days", days));
     }
 
     public static AbstractRunner getRunner(final String modelID)
-            throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+            throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
         AbstractRunner runner;
         // Check if the runner is in cache
         if (runnerCache.containsKey(modelID)) {
@@ -86,6 +103,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
             }
             // Add runner to cache
             runnerCache.put(modelID, runner);
+            LOG.info(String.format("Adding model %s to cache", modelID));
         }
         return runner;
     }
