@@ -67,7 +67,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         Read the raw model from the MLModel on disk
         """
         self.logger.info("Creating raw model representation from MLModel", send_db=True)
-        self.creator = DatabaseRepresentationCreator(file_ext=self.artifact.file_ext,
+        self.creator = DatabaseRepresentationCreator(file_ext=self.artifact.file_extension,
                                                      java_jvm=self.jvm,
                                                      logger=self.logger,
                                                      df_schema=self.task.parsed_payload['df_schema'])
@@ -154,7 +154,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         """
         Populate model metadata necessary for database deployment
         """
-        self.metadata_preparer = DatabaseModelMetadataPreparer(file_ext=self.artifact.file_ext,
+        self.metadata_preparer = DatabaseModelMetadataPreparer(file_ext=self.artifact.file_extension,
                                                                model=self.model,
                                                                logger=self.logger,
                                                                classes=self.task.parsed_payload['classes'],
