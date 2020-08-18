@@ -19,7 +19,7 @@ function watchLogs(task_id){
       }
     };
 
-    xhr.open("GET", "/api/ui/logs");
+    xhr.open("POST", "/api/ui/logs");
     xhr.setRequestHeader("Content-Type", "application/json");
 
     xhr.send(data);
