@@ -101,8 +101,8 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         struct_type = StructType()
         schema_dict = {}
-
         columns = inspector.get_columns(table_name, schema_name=schema_name)
+        raise Exception(f"Table name is {table_name}, Schema name is {schema_name}, columns is {columns}")
 
         if len(columns) == 0:
             raise Exception("Either the table has no columns, or the table cannot be found.")
@@ -110,7 +110,6 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         for field in columns:
             schema_dict[field['name']] = str(field['type'])
             # Remove length specification from datatype for backwards conversion
-            # TODO fix this to be regex
             spark_d_type = getattr(spark_types,
                                    Converters.DB_SPARK_CONVERSIONS[str(field['type'].split('(')[0]).upper()])
             struct_type.add(StructField(name=field['name'], dataType=spark_d_type))
