@@ -3,7 +3,7 @@ FROM splicemachine/sm_k8_base:$splice_base_image_version
 
 LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 
-ENV PYSPARK_PYTHON = /usr/bin/python3
+ENV PYSPARK_PYTHON="/usr/bin/python3"
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
