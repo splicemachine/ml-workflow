@@ -322,7 +322,7 @@ def get_jobs() -> dict:
     table_data, total_rows = futures[0].result(), futures[1].result()  # block until we get results
 
     # Add Job Logs Links
-    for row in total_rows:
+    for row in table_data:
         row[TrackerTableMapping.job_logs] = f"<a href='/watch/{row[TrackerTableMapping.id_col]}'>View Logs</a>"
 
     return dict(rows=table_data,
