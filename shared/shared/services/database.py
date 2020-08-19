@@ -176,8 +176,8 @@ class DatabaseSQL:
         """
         INSERT INTO DATABASE_DEPLOYED_METADATA (
             run_uuid,action,tableid,trigger_type,triggerid,triggerid_2,db_env,db_user,action_date
-        ) VALUES (':run_uuid',':action',':tableid',':trigger_type',':triggerid',':triggerid_2',':db_env',':db_user',
-        ':action_date')
+        ) VALUES (:run_uuid,:action,:tableid,:trigger_type,:triggerid,:triggerid_2,:db_env,:db_user,
+        :action_date)
         """
 
     update_artifact_database_blob = \
