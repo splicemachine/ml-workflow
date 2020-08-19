@@ -73,6 +73,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
                                                      df_schema=self.task.parsed_payload['df_schema'])
 
         self.creator.get_library_representation(from_dir=self.downloaded_model_path)
+        self.model = self.creator.model
         self.logger.info("Done.", send_db=True)
 
     def _add_model_examples_from_df(self):
@@ -146,7 +147,6 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         and library specific (MOJO, MLeap) that are required for deployment
         """
         self.creator.create_alternate_representations()
-        self.model = self.creator.model
 
     def _create_model_metadata(self):
         """
