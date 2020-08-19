@@ -11,6 +11,7 @@ from sqlalchemy import inspect as peer_into_splice_db, text
 
 from shared.models.model_types import Metadata, Representations
 from shared.services.database import Converters, SQLAlchemyClient, DatabaseSQL
+from shared.services.database import SQLAlchemyClient
 
 from .base_deployment_handler import BaseDeploymentHandler
 from .db_deploy_utils.db_representation_creator import DatabaseRepresentationCreator
@@ -39,6 +40,8 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.spark_session = SparkSession.builder.getOrCreate()
         self.jvm = self.spark_session._jvm
         self.model: Optional[Model] = None
+
+        self.DDLSession = SQLAlchemyClient.SessionFactory()
 
     def _validate_primary_key(self):
         """
@@ -166,27 +169,34 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         Update the artifact with the retrieved data
         """
         # TODO @amrit: transaction handling on two sessions
-        self.Session.execute(
+        self.DDLSession.execute(
             text(DatabaseSQL.update_artifact_database_blob),
             dict(run_uuid=self.artifact.run_uuid, binary=self.model.get_representation(Representations.BYTES),
                  name=self.artifact.name)
         )
 
         self.logger.info("Updating Artifact with serialized representation", send_db=True)
-        self.logger.debug("Committing Artifact Update", send_db=True)
-        self.Session.commit()
 
     def _create_ddl(self):
         """
         Create DDL for Database Deployment inside SpliceDB
         """
         payload = self.task.parsed_payload
-        ddl_creator = DatabaseModelDDL(session=self.Session, model=self.model, run_id=payload['run_id'],
+        ddl_creator = DatabaseModelDDL(session=self.DDLSession, model=self.model, run_id=payload['run_id'],
                                        primary_key=payload['primary_key'], schema_name=payload['db_schema'],
                                        table_name=payload['db_table'], model_columns=payload['model_cols'],
                                        library_specific_args=payload['library_specific'], logger=self.logger,
                                        request_user=self.task.user)
         ddl_creator.create()
+        self.DDLSession.commit()
+
+    def exception_handler(self, exc: Exception):
+        """
+        Override the Exception Handler to Rollback the DDL Session
+        :param exc: exception that was triggered
+        """
+        self.DDLSession.rollback()
+        super().exception_handler(exc=exc)
 
     def execute(self) -> None:
         """

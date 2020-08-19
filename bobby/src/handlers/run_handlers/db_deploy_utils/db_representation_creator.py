@@ -40,7 +40,6 @@ class DatabaseRepresentationCreator:
         }[file_ext]
 
         self.logger = logger
-
         self.model: Model = Model()
         self.model.add_metadata(Metadata.FILE_EXT, file_ext)
 
