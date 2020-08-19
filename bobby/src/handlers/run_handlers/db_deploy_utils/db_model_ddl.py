@@ -253,13 +253,13 @@ class DatabaseModelDDL:
         table_id = self.session.execute(f"""SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' 
             AND SCHEMANAME='{self.schema_name}'""").fetchone()[0]
 
-        trigger = f"{self.schema_name}.{{trigger}}_{self.table_name}_{self.run_id}".upper()
+        trigger_suffix = f"_{self.table_name}_{self.run_id}".upper()
 
         trigger_1 = self.session.query(SysTriggers) \
-            .filter_by(TABLEID=table_id, TRIGGERNAME=trigger.format(trigger="RUNMODEL")).scalar()
+            .filter_by(TABLEID=table_id, TRIGGERNAME="RUNMODEL" + trigger_suffix).scalar()
 
         trigger_2 = self.session.query(SysTriggers) \
-            .filter_by(TABLEID=table_id, TRIGGERNAME=trigger.format(trigger="PARSERESULT")).scalar()
+            .filter_by(TABLEID=table_id, TRIGGERNAME="PARSERESULT" + trigger_suffix).scalar()
 
         metadata = DatabaseDeployedMetadata(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
                                             trigger_type='INSERT', triggerid=trigger_1.TRIGGERID,
