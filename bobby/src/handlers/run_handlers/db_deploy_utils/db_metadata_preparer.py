@@ -69,7 +69,6 @@ class DatabaseModelMetadataPreparer:
         self.logger.info(f"Classes: {self._classes} were specified", send_db=True)
 
         if self._classes:
-            # TODo prove ben wrong
             if self.model_type not in {SparkModelType.SINGLE_PRED_INT, SparkModelType.MULTI_PRED_INT}:
                 self.logger.warning("Labels were specified, but the model type deployed does not support them. "
                                     "Ignoring...", send_db=True)
