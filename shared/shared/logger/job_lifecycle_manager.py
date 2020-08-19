@@ -57,7 +57,7 @@ class JobLifecycleManager:
 
         :param message: record to add to the database
         """
-        if message.extra.get('update_status'):
+        if message.record['extra'].get('update_status'):
             self.task.update(status=message['extra']['update_status'])
             JobLifecycleManager.Session.add(self.task)
 
