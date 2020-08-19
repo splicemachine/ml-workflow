@@ -269,7 +269,7 @@ class DatabaseModelDDL:
         metadata = DatabaseDeployedMetadata(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
                                             trigger_type='INSERT', triggerid=trigger_1_id,
                                             triggerid_2=trigger_2_id, db_env='PROD',
-                                            db_user=self.request_user, action_date=trigger_1_timestamp)
+                                            db_user=self.request_user, action_date=str(trigger_1_timestamp))
         self.session.add(metadata)
 
     def create_prediction_trigger(self):
