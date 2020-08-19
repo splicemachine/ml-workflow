@@ -274,7 +274,7 @@ class DatabaseModelDDL:
         self.logger.info("Creating Prediction Trigger...", send_db=True)
         schema_types = self.model.get_metadata(Metadata.SQL_SCHEMA)
         # The database function call is dependent on the model type
-        prediction_call = self.prediction_data[self.model.get_metadata(Metadata.CLASSES)]['prediction_call']
+        prediction_call = self.prediction_data[self.model.get_metadata(Metadata.GENERIC_TYPE)]['prediction_call']
 
         pred_trigger = f'CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}\n \tBEFORE INSERT\n' \
                        f'\tON {self.schema_table_name}\n \tREFERENCING NEW AS NEWROW\n \tFOR EACH ROW\n \tBEGIN ATOMIC \t\t' \
