@@ -325,7 +325,7 @@ class DatabaseModelDDL:
 
         formatted_sql_parse_trigger = sql_parse_trigger.replace('\n', ' ').replace('\t', ' ')
 
-        self.logger.info(f"Execution\n{formatted_sql_parse_trigger}")
+        self.logger.info(f"Executing\n{formatted_sql_parse_trigger}", send_db=True)
         self.session.execute(formatted_sql_parse_trigger)
 
     def create(self):

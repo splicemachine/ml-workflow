@@ -94,7 +94,7 @@ class BaseHandler(object):
 
         except Exception:
             self.Session.rollback()
-            self.logger.error(f"Task Failed:{format_exc(100)}", update_status='FAILURE', send_db=True)
+            self.logger.exception(f"Task Failed", update_status='FAILURE', send_db=True)
             self.Session.commit()
         finally:
             self.manager.destroy_logger()  # release the logger
