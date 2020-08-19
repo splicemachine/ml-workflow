@@ -185,7 +185,6 @@ class Converters:
                  'DECIMAL', 'DOUBLE', 'DOUBLE PRECISION', 'INTEGER', 'NUMERIC', 'REAL', 'SMALLINT', 'TINYINT',
                  'BOOLEAN', 'INT']
 
-    NON_CONVERTABLE_TYPES = ['DoubleType']
 
     SPARK_DB_CONVERSIONS = {
         'BinaryType': 'BLOB',
