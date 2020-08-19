@@ -250,21 +250,26 @@ class DatabaseModelDDL:
         Add the model to the deployed model metadata table
         """
         self.logger.info("Adding Model to Metadata table", send_db=True)
-        table_id = self.session.execute(f"""SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' 
+        table_id = self.session.execute(f"""
+            SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' 
             AND SCHEMANAME='{self.schema_name}'""").fetchone()[0]
 
-        trigger_suffix = f"_{self.table_name}_{self.run_id}".upper()
+        trigger_suffix = f"{self.table_name}_{self.run_id}".upper()
 
-        trigger_1 = self.session.query(SysTriggers) \
-            .filter_by(TABLEID=table_id, TRIGGERNAME="RUNMODEL" + trigger_suffix).scalar()
+        trigger_1_id, trigger_1_timestamp = self.session.execute(f"""
+            SELECT TRIGGERID, CREATIONTIMESTAMP FROM SYS.SYSTRIGGERS
+            WHERE TABLEID='{table_id}' AND TRIGGERNAME='RUNMODEL_{trigger_suffix}'
+        """).fetchone()
 
-        trigger_2 = self.session.query(SysTriggers) \
-            .filter_by(TABLEID=table_id, TRIGGERNAME="PARSERESULT" + trigger_suffix).scalar()
-
+        trigger_2_id = self.session.execute(f"""
+            SELECT TRIGGERID FROM SYS.SYSTRIGGERS
+            WHERE TABLEID='{table_id}' AND TRIGGERNAME='PARSERESULT_{trigger_suffix}'
+        """).fetchone()
+        trigger_id_2 = trigger_2_id[0] if trigger_2_id else None
         metadata = DatabaseDeployedMetadata(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
-                                            trigger_type='INSERT', triggerid=trigger_1.TRIGGERID,
-                                            triggerid_2=trigger_2.TRIGGERID or 'NULL', db_env='PROD',
-                                            db_user=self.request_user, action_date=str(trigger_1.CREATIONTIMESTAMP))
+                                            trigger_type='INSERT', triggerid=trigger_1_id,
+                                            triggerid_2=trigger_2_id, db_env='PROD',
+                                            db_user=self.request_user, action_date=trigger_1_timestamp)
         self.session.add(metadata)
 
     def create_prediction_trigger(self):
@@ -352,7 +357,6 @@ class DatabaseModelDDL:
         if self.model.get_metadata(Metadata.TYPE) in {SparkModelType.MULTI_PRED_INT, H2OModelType.MULTI_PRED_INT}:
             with log_operation_status("create parsing trigger"):
                 self.create_parsing_trigger()
-                self.session.commit()
 
         with log_operation_status("add model to metadata table"):
             self.add_model_to_metadata_table()
