@@ -38,6 +38,7 @@ class JobLifecycleManager:
         """
         self.task: Job = JobLifecycleManager.Session.query(Job).filter_by(id=self.task_id).first()
         self.task.parse_payload()
+        return self.task
 
     def message_filter(self, record):
         """
