@@ -87,7 +87,7 @@ class DatabaseRepresentationCreator:
         self.logger.info("Loading Object into Java Bytes")
         byte_output_stream = self.java_jvm.java.io.ByteArrayOutputStream()
         object_output_stream = self.java_jvm.java.io.ObjectOutputStream(byte_output_stream)
-        object_output_stream.write(obj)
+        object_output_stream.writeObject(obj)
         object_output_stream.flush()
         object_output_stream.close()
         return byte_output_stream.toByteArray()
