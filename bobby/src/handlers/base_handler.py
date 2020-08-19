@@ -16,7 +16,7 @@ from sqlalchemy.orm import load_only
 
 from shared.models.splice_models import Handler, Job
 from shared.services.database import SQLAlchemyClient
-from shared.logger.job_logging_config import JobLoggingManager
+from shared.logger.job_lifecycle_manager import JobLifecycleManager
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -48,9 +48,9 @@ class BaseHandler(object):
 
         self.Session = SQLAlchemyClient.SessionFactory()
 
-        # Logging
-        self.logging_manager: JobLoggingManager = JobLoggingManager(task_id=task_id)
-        self.logger = self.logging_manager.get_logger()
+        # Lifecycle Management
+        self.manager: JobLifecycleManager = JobLifecycleManager(task_id=task_id)
+        self.logger = self.manager.get_logger()
 
     def is_handler_enabled(self) -> None:
         """
@@ -61,56 +61,6 @@ class BaseHandler(object):
         return self.Session.query(Handler) \
             .options(load_only("enabled")) \
             .filter(Handler.name == self.task.handler_name).first().enabled
-
-    def retrieve_task(self) -> None:
-        """
-        Set the task specified
-        in task_id as an instance variable
-        """
-        self.logger.info("Retrieving Task in Worker Thread", send_db=True)
-        self.task = self.Session.query(Job).filter(Job.id == self.task_id).first()
-        self.task.parse_payload()  # deserialize json
-
-    def update_task_in_db(self, status: str = None, info: str = None) -> None:
-        """
-        Update the current task in the Database
-        under a local context
-
-        :param status: (str) the new status to update to
-        :param info: (str) the new info to update to
-
-        One or both of the arguments (status/info) can be
-        specified, and this function will update
-        the appropriate attributes of the task and commit it
-        """
-        self.logger.info(f"Updating Task Status to {status}", send_db=True)
-        self.task.update(status=status)
-        self.Session.add(self.task)
-        self.Session.commit()
-
-    def succeed_task_in_db(self):
-        """
-        Succeed the current task in the Database under
-        a local session context
-
-        :param success_message: (str) the message to update
-            the info string to
-
-        """
-        self.logger.warning("Task succeeded!", send_db=True)
-        self.task.succeed()
-        self.Session.add(self.task)
-        self.Session.commit()
-
-    def fail_task_in_db(self) -> None:
-        """
-        Fail the current task in the database.py under
-        a local session context
-        """
-        self.logger.error(f"Task Failed..", send_db=True)
-        self.task.fail()
-        self.Session.add(self.task)
-        self.Session.commit()
 
     @abstractmethod
     def _handle(self) -> None:
@@ -127,16 +77,15 @@ class BaseHandler(object):
         statuses/detailed info on error/success
         """
         try:
-            self.retrieve_task()
-            self.logger.info("A service worker has found your request", send_db=True)
-            self.update_task_in_db(status='RUNNING')
+            self.task = self.manager.retrieve_task()
+            self.logger.info("A service worker has found your request", send_db=True, update_status='RUNNING')
             if self.is_handler_enabled():
                 self.logger.info("Handler is available", send_db=True)
                 self.logger.info("Retrieved task: " + str(self.task.__dict__))
 
                 self._handle()
-                self.succeed_task_in_db()
-                self.logger.info(f"Success! Target '{self.task.handler_name}' completed successfully.", send_db=True)
+                self.logger.info(f"Success! Target '{self.task.handler_name}' completed successfully.",
+                                 update_status='SUCCESS', send_db=True)
             else:
                 self.logger.error(f"Error: Target '{self.task.handler_name}' is disabled", send_db=True)
                 raise Exception("Task is disabled")
@@ -144,10 +93,9 @@ class BaseHandler(object):
             self.Session.commit()  # commit transaction to database.py
 
         except Exception:
-            self.logger.error(f"Error:{format_exc(100)}", send_db=True)
             self.Session.rollback()
-            self.fail_task_in_db()
+            self.logger.error(f"Task Failed:{format_exc(100)}", update_status='FAILURE', send_db=True)
             self.Session.commit()
         finally:
-            self.logging_manager.destroy_logger()  # release the logger
+            self.manager.destroy_logger()  # release the logger
             self.Session.close()  # close the thread local session in all cases

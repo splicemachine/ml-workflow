@@ -6,12 +6,13 @@ from sqlalchemy import text
 
 from shared.logger.logging_config import logger
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from shared.models.splice_models import Job
 
 
-class JobLoggingManager:
+class JobLifecycleManager:
     """
-    Externally facing logger that updates the logs
-    associated with the specific cells in a database
+    Externally facing logger that updates the Job status
+    and logs in the database
     """
     LOGGING_FORMAT = "{level: <8} {time:YYYY-MM-DD HH:mm:ss.SSS} - {message}"
     # SQLAlchemy Manages Sessions on a thread local basis, so we need to create a
@@ -23,11 +24,20 @@ class JobLoggingManager:
         """
         :param task_id: the task id to bind the logger to
         """
-        self.logging_format = JobLoggingManager.LOGGING_FORMAT or logging_format
+        self.logging_format = JobLifecycleManager.LOGGING_FORMAT or logging_format
         self.task_id = task_id
+        self.task = None
+
         self.handler_id = logger.add(
             self.splice_sink, format=self.logging_format, filter=self.message_filter
         )
+
+    def retrieve_task(self):
+        """
+        Retrieve the task object from the database
+        """
+        self.task: Job = JobLifecycleManager.Session.query(Job).filter_by(id=self.task_id).first()
+        self.task.parse_payload()
 
     def message_filter(self, record):
         """
@@ -47,11 +57,15 @@ class JobLoggingManager:
 
         :param message: record to add to the database
         """
-        JobLoggingManager.Session.execute(
+        if message['extra'].get('update_status'):
+            self.task.update(status=message['extra']['update_status'])
+            JobLifecycleManager.Session.add(self.task)
+
+        JobLifecycleManager.Session.execute(
             text(DatabaseSQL.update_job_log),
             params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
         )
-        JobLoggingManager.Session.commit() # shouldn't commit the job thread
+        JobLifecycleManager.Session.commit()
 
     def get_logger(self):
         """

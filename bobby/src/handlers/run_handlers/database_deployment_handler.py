@@ -41,8 +41,6 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.jvm = self.spark_session._jvm
         self.model: Optional[Model] = None
 
-        self.DDLSession = SQLAlchemyClient.SessionFactory()
-
     def _validate_primary_key(self):
         """
         Validates the primary key passed by the user conforms to SQL. If the user is deploying to an existing table
@@ -169,7 +167,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         Update the artifact with the retrieved data
         """
         # TODO @amrit: transaction handling on two sessions
-        self.DDLSession.execute(
+        self.Session.execute(
             text(DatabaseSQL.update_artifact_database_blob),
             dict(run_uuid=self.artifact.run_uuid, binary=self.model.get_representation(Representations.BYTES),
                  name=self.artifact.name)
@@ -182,23 +180,13 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         Create DDL for Database Deployment inside SpliceDB
         """
         payload = self.task.parsed_payload
-        ddl_creator = DatabaseModelDDL(session=self.DDLSession, model=self.model, run_id=payload['run_id'],
+        ddl_creator = DatabaseModelDDL(session=self.Session, model=self.model, run_id=payload['run_id'],
                                        primary_key=payload['primary_key'], schema_name=payload['db_schema'],
                                        table_name=payload['db_table'], model_columns=payload['model_cols'],
                                        library_specific_args=payload['library_specific'], logger=self.logger,
                                        request_user=self.task.user)
         ddl_creator.create()
-        self.DDLSession.commit()
-
-    # DB TXNXN SOLUTION --> have logger use a new db connection
-    def exception_handler(self, exc: Exception):
-        """
-        Override the Exception Handler to Rollback the DDL Session
-        :param exc: exception that was triggered
-        """
-        self.DDLSession.rollback()
-        super().exception_handler(exc=exc)
-        raise exc
+        self.Session.commit()
 
     def execute(self) -> None:
         """

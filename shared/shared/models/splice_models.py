@@ -153,19 +153,6 @@ class Job(SQLAlchemyClient.SpliceBase):
         """
         self.status: str = status[:self.SHORT_VARCHAR_SIZE]
 
-    def fail(self) -> None:
-        """
-        Fail the current task instance
-        """
-        self.update(status=JobStatuses.failure)
-
-    def succeed(self) -> None:
-        """
-        Succeed the current task instance
-        (update the info and status)
-        """
-        self.update(status=JobStatuses.success)
-
     def parse_payload(self) -> None:
         """
         Convert the serialized JSON payload

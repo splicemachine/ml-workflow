@@ -126,7 +126,6 @@ class BaseDeploymentHandler(BaseHandler):
         self.Session.rollback()
         raise exc
 
-
     def _handle(self) -> None:
         """
         We add the MLFlow Run URL as a parameter
