@@ -171,7 +171,7 @@ class DatabaseModelDDL:
 
         # Add the correct prediction type
         for col in self.prediction_data[self.model.get_metadata(Metadata.GENERIC_TYPE)]['column_vals']:
-            alter_table_sql += f'{alter_table_syntax} {col}'
+            alter_table_sql.append(f'{alter_table_syntax} {col}')
 
         for sql in alter_table_sql:
             self.logger.info(f"Executing\n{sql})", send_db=True)
