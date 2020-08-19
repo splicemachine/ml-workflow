@@ -32,7 +32,6 @@ class BaseModifierHandler(BaseHandler):
         """
         BaseHandler.__init__(self, task_id)
         self.action: str = action
-        self.Session = SQLAlchemyClient.SessionFactory()
 
     def _get_handler_by_name(self, handler_name: str) -> Handler:
         """

@@ -103,6 +103,5 @@ def log_operation_status(operation, logger_obj=logger):
         logger_obj.info(f"Starting '{operation}'...", send_db=True)
         yield
         logger_obj.info(f"Done with '{operation}' [in {(time.time() - start_time) * 1000} ms]", send_db=True)
-    except Exception:
-        logger_obj.exception(f"Failed to execute '{operation}'", send_db=True)
-        raise
+    finally:
+        pass

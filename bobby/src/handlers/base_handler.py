@@ -90,12 +90,9 @@ class BaseHandler(object):
                 self.logger.error(f"Error: Target '{self.task.handler_name}' is disabled", send_db=True)
                 raise Exception("Task is disabled")
 
-            self.Session.commit()  # commit transaction to database.py
-
         except Exception:
             self.Session.rollback()
             self.logger.exception(f"Task Failed", update_status='FAILURE', send_db=True)
-            self.Session.commit()
         finally:
             self.manager.destroy_logger()  # release the logger
             self.Session.close()  # close the thread local session in all cases

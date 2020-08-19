@@ -124,9 +124,6 @@ class BaseDeploymentHandler(BaseHandler):
         :param exc: the exception thrown
         """
         self.logger.error(f"Running Exception Callback because of encountered: '{exc}'", send_db=True)
-        self.logger.warning("Rolling back.", send_db=True)
-        self.Session.rollback()
-        raise exc
 
     def _handle(self) -> None:
         """
@@ -143,7 +140,6 @@ class BaseDeploymentHandler(BaseHandler):
 
             self.model_dir: str = self.mlflow_run.data.tags['splice.model_name']
 
-            self.Session.merge(self.task)
             # populates a link to the associated Mlflow run that opens in a new tab.
             self.logger.info("Updating MLFlow Run for the UI", send_db=True)
             self.task.mlflow_url = f"<a href='/mlflow/{run_url}' target='_blank' onmouseover=" \
