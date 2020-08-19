@@ -166,6 +166,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         """
         Update the artifact with the retrieved data
         """
+        raise Exception(self.artifact.__dict__)
         self.Session.execute(
             text(DatabaseSQL.update_artifact_database_blob),
             dict(run_uuid=self.artifact.run_uuid, binary=self.model.get_representation(Representations.BYTES),
