@@ -61,7 +61,7 @@ RUN curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 |
 
 # Install Jars
 RUN mkdir -p $SRC_HOME/lib && \
-    curl https://splicemachine.s3.amazonaws.com/artifacts/fileretriever-$file_retriever_version-shaded.jar -o $SRC_HOME/lib/fileretriever.jar
+    curl https://splicemachine.s3.amazonaws.com/artifacts/fileretriever-0.0.2-shaded.jar -o $SRC_HOME/lib/fileretriever.jar
 
 # Install Shared Lib
 COPY shared /tmp/shared

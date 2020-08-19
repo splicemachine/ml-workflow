@@ -60,7 +60,7 @@ def create_run_contexts():
     """
     SparkSession.builder \
         .master("local[*]") \
-        .appName(env_vars['TASK_NAME']) \
+        .appName(env_vars.get('TASK_NAME', 'bobby-0')) \
         .config('spark.scheduler.mode', 'FAIR') \
         .config('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}') \
         .config('spark.driver.extraClassPath', f'{env_vars["SRC_HOME"]}/lib/*') \

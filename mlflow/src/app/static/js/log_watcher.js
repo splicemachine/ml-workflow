@@ -30,5 +30,5 @@ function watchLogs(task_id){
     xhr.setRequestHeader("Content-Type", "application/json");
 
     xhr.send(data);
-    }, 2000)
+    }, 100)
 }
