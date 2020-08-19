@@ -166,7 +166,6 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         """
         Update the artifact with the retrieved data
         """
-        # TODO @amrit: transaction handling on two sessions
         self.Session.execute(
             text(DatabaseSQL.update_artifact_database_blob),
             dict(run_uuid=self.artifact.run_uuid, binary=self.model.get_representation(Representations.BYTES),
@@ -186,6 +185,11 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
                                        library_specific_args=payload['library_specific'], logger=self.logger,
                                        request_user=self.task.user)
         ddl_creator.create()
+        self.logger.info("Flushing", send_db=True)
+        self.Session.flush()
+        self.logger.warning("Committing Transaction to Database", send_db=True)
+        self.Session.commit()
+        self.logger.info("Committed.", send_db=True)
 
     def execute(self) -> None:
         """

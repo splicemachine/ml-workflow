@@ -172,11 +172,18 @@ class DatabaseSQL:
         UPDATE JOBS SET LOGS=LOGS||:message 
         WHERE id=:task_id
         """
+    add_database_deployed_metadata = \
+        """
+        INSERT INTO DATABASE_DEPLOYED_METADATA (
+            run_uuid,action,tableid,trigger_type,triggerid,triggerid_2,db_env,db_user,action_date
+        ) VALUES (':run_uuid',':action',':tableid',':trigger_type',':triggerid',':triggerid_2',':db_env',':db_user',
+        ':action_date')
+        """
 
     update_artifact_database_blob = \
         """
         UPDATE ARTIFACTS SET database_binary=:binary
-        WHERE run_uuid=:run_uuid AND name=:name
+        WHERE run_uuid=':run_uuid' AND name=':name'
         """
 
 

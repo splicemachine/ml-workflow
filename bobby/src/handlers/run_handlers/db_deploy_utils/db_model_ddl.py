@@ -4,16 +4,14 @@ to Splice Machine
 """
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import inspect as peer_into_splice_db
+from sqlalchemy import inspect as peer_into_splice_db, text
 from sqlalchemy.orm import Session
 
 from shared.logger.logging_config import log_operation_status, logger
 from shared.models.model_types import (DeploymentModelType, H2OModelType,
                                        KerasModelType, Metadata,
                                        SklearnModelType, SparkModelType)
-from shared.services.database import SQLAlchemyClient, Converters
-from shared.models.mlflow_models import (DatabaseDeployedMetadata,
-                                         SysTables, SysTriggers)
+from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL
 
 from .entities.db_model import Model
 
@@ -266,11 +264,14 @@ class DatabaseModelDDL:
             WHERE TABLEID='{table_id}' AND TRIGGERNAME='PARSERESULT_{trigger_suffix}'
         """).fetchone()
         trigger_2_id = trigger_2_id[0] if trigger_2_id else None
-        metadata = DatabaseDeployedMetadata(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
-                                            trigger_type='INSERT', triggerid=trigger_1_id,
-                                            triggerid_2=trigger_2_id, db_env='PROD',
-                                            db_user=self.request_user, action_date=str(trigger_1_timestamp))
-        self.session.add(metadata)
+
+        self.session.execute(
+            text(DatabaseSQL.add_database_deployed_metadata),
+            params=dict(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
+                        trigger_type='INSERT', triggerid=trigger_1_id,
+                        triggerid_2=trigger_2_id, db_env='PROD',
+                        db_user=self.request_user, action_date=str(trigger_1_timestamp))
+        )
 
     def create_prediction_trigger(self):
         """
@@ -358,11 +359,5 @@ class DatabaseModelDDL:
             with log_operation_status("create parsing trigger", logger_obj=self.logger):
                 self.create_parsing_trigger()
 
-        self.logger.info("Flushing", send_db=True)
-        self.session.flush()
-        self.logger.warning("Committing Transaction to Database", send_db=True)
-        self.session.commit()
-        self.logger.info("Committed.", send_db=True)
-
-        # with log_operation_status("add model to metadata table", logger_obj=self.logger):
-        #     self.add_model_to_metadata_table()
+        with log_operation_status("add model to metadata table", logger_obj=self.logger):
+            self.add_model_to_metadata_table()
