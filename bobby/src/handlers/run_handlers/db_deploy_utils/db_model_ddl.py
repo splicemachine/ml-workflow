@@ -352,5 +352,7 @@ class DatabaseModelDDL:
             with log_operation_status("create parsing trigger"):
                 self.create_parsing_trigger()
 
+        self.session.commit()
+
         with log_operation_status("add model to metadata table"):
             self.add_model_to_metadata_table()
