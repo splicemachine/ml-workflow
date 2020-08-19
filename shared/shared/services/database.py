@@ -58,6 +58,7 @@ class SQLAlchemyClient:
     Database configuration constants
     """
     engine = None  # SQLAlchemy Engine
+    logging_engine = None
     reflector = None  # Inspector for DB reflection
 
     SessionMaker = None  # Session Maker
@@ -97,6 +98,13 @@ class SQLAlchemyClient:
         return SQLAlchemyClient.engine
 
     @staticmethod
+    def create_logging_engine():
+        """
+        Create a logging connection to log to the splice machine database
+        :return: sqlalchemy engine
+        """
+
+    @staticmethod
     def execute(sql: str) -> list:
         """
         Directly Execute SQL on the
@@ -109,7 +117,7 @@ class SQLAlchemyClient:
         :param sql: (str) the SQL to execute
         :return: (list) returned result set
         """
-        return list(SQLAlchemyClient.engine.execute(sql))
+        return SQLAlchemyClient.engine.execute(sql)
 
 
 class DatabaseSQL:

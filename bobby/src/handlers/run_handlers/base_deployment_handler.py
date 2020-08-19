@@ -124,6 +124,8 @@ class BaseDeploymentHandler(BaseHandler):
         """
         self.logger.error(f"Running Exception Callback because of encountered: '{exc}'", send_db=True)
         self.Session.rollback()
+        raise exc
+
 
     def _handle(self) -> None:
         """

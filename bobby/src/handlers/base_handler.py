@@ -49,7 +49,7 @@ class BaseHandler(object):
         self.Session = SQLAlchemyClient.SessionFactory()
 
         # Logging
-        self.logging_manager: JobLoggingManager = JobLoggingManager(session=self.Session, task_id=task_id)
+        self.logging_manager: JobLoggingManager = JobLoggingManager(task_id=task_id)
         self.logger = self.logging_manager.get_logger()
 
     def is_handler_enabled(self) -> None:

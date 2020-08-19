@@ -190,6 +190,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         ddl_creator.create()
         self.DDLSession.commit()
 
+    # DB TXNXN SOLUTION --> have logger use a new db connection
     def exception_handler(self, exc: Exception):
         """
         Override the Exception Handler to Rollback the DDL Session
@@ -197,6 +198,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         """
         self.DDLSession.rollback()
         super().exception_handler(exc=exc)
+        raise exc
 
     def execute(self) -> None:
         """

@@ -28,8 +28,6 @@
 {{ super() }}
 <script src="{{ url_for('static', filename='js/log_watcher.js') }}"></script>
 <script>
-    setTimeout(function() {
-        watchLogs({{ task_id }})
-     }, 1000)
+    watchLogs({{ task_id }})
 </script>
 {% endblock %}

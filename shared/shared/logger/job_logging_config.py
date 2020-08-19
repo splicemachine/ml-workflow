@@ -3,10 +3,9 @@ Class for Logging information to the database
 by updating the contents of a cell
 """
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from shared.logger.logging_config import logger
-from shared.services.database import DatabaseSQL
+from shared.services.database import DatabaseSQL, SQLAlchemyClient
 
 
 class JobLoggingManager:
@@ -15,15 +14,17 @@ class JobLoggingManager:
     associated with the specific cells in a database
     """
     LOGGING_FORMAT = "{level: <8} {time:YYYY-MM-DD HH:mm:ss.SSS} - {message}"
+    # SQLAlchemy Manages Sessions on a thread local basis, so we need to create a
+    # session here to maintain separate transactions then the queries executing in the
+    # job threads.
+    Session = SQLAlchemyClient.SessionFactory()
 
-    def __init__(self, *, session: Session, task_id: int, logging_format=None):
+    def __init__(self, *, task_id: int, logging_format=None):
         """
-        :param session: SQLAlchemy Session to use for logging
         :param task_id: the task id to bind the logger to
         """
         self.logging_format = JobLoggingManager.LOGGING_FORMAT or logging_format
         self.task_id = task_id
-        self.session = session
         self.handler_id = logger.add(
             self.splice_sink, format=self.logging_format, filter=self.message_filter
         )
@@ -46,11 +47,11 @@ class JobLoggingManager:
 
         :param message: record to add to the database
         """
-        self.session.execute(
+        JobLoggingManager.Session.execute(
             text(DatabaseSQL.update_job_log),
             params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
         )
-        self.session.commit()
+        JobLoggingManager.Session.commit() # shouldn't commit the job thread
 
     def get_logger(self):
         """
