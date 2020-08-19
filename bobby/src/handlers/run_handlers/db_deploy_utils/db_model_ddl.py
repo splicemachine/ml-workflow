@@ -60,9 +60,10 @@ class DatabaseModelDDL:
         self.primary_key = primary_key
         self.create_model_table = create_model_table
         self.library_specific_args = library_specific_args
-
         self.logger = logger
-
+        
+        self.schema_table_name = f'{self.schema_name}.{self.table_name}'
+        
         self.prediction_data = {
             DeploymentModelType.MULTI_PRED_INT: {
                 'prediction_call': 'MLMANAGER.PREDICT_CLASSIFICATION',
@@ -95,16 +96,15 @@ class DatabaseModelDDL:
         Creates the table that holds the columns of the feature vector as well as a unique MOMENT_ID
         """
         schema_str = self.model.get_metadata(Metadata.SCHEMA_STR)
-        schema_table_name = f'{self.table_name}.{self.schema_name}'
 
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         if self.table_name in set(inspector.get_table_names(schema=self.schema_name)):
             raise Exception(
-                f'The table {schema_table_name} already exists. To deploy to an existing table, do not pass in a'
+                f'The table {self.schema_table_name} already exists. To deploy to an existing table, do not pass in a'
                 f' dataframe and/or set create_model_table parameter=False')
 
         table_create_sql = f"""
-                    CREATE TABLE {schema_table_name} (\
+                    CREATE TABLE {self.schema_table_name} (\
                     \tCUR_USER VARCHAR(50) DEFAULT CURRENT_USER,
                     \tEVAL_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     \tRUN_ID VARCHAR(50) DEFAULT '{self.run_id}',
@@ -133,11 +133,10 @@ class DatabaseModelDDL:
         """
         self.logger.info("Altering existing model...", send_db=True)
         # Table needs to exist
-        schema_table_name = f'{self.table_name}.{self.schema_name}'
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         if self.table_name not in set(inspector.get_table_names(schema=self.schema_name)):
             raise Exception(
-                f'The table {schema_table_name} does not exist. To create a new table for deployment, '
+                f'The table {self.schema_table_name} does not exist. To create a new table for deployment, '
                 f'pass in a dataframe and set the set create_model_table=True')
 
         # Currently we only support deploying 1 model to a table
@@ -148,14 +147,14 @@ class DatabaseModelDDL:
         for col in table_cols:
             if col in reserved_fields:
                 raise Exception(
-                    f'The table {schema_table_name} looks like it already has values associated with '
+                    f'The table {self.schema_table_name} looks like it already has values associated with '
                     f'a deployed model. Only 1 model can be deployed to a table currently.'
                     f'The table cannot have the following fields: {reserved_fields}')
 
         # Splice cannot currently add multiple columns in an alter statement so we need to make a bunch and execute
         # all of them
         alter_table_sql = []
-        alter_table_syntax = f'ALTER TABLE {schema_table_name} ADD COLUMN'
+        alter_table_syntax = f'ALTER TABLE {self.schema_table_name} ADD COLUMN'
         alter_table_sql.append(f'{alter_table_syntax} CUR_USER VARCHAR(50) DEFAULT CURRENT_USER')
         alter_table_sql.append(f'{alter_table_syntax} EVAL_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
         alter_table_sql.append(f'{alter_table_syntax} RUN_ID VARCHAR(50) DEFAULT \'{self.run_id}\'')
@@ -198,10 +197,9 @@ class DatabaseModelDDL:
 
         prediction_call += ')'  # Close the prediction call
 
-        schema_table_name = f'{self.table_name}.{self.schema_name}'
         trigger_sql = f'CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}\n\tAFTER INSERT\n ' \
-                      f'\tON {schema_table_name}\n \tREFERENCING NEW AS NEWROW\n \tFOR EACH ROW\n \t\tUPDATE ' \
-                      f'{schema_table_name} SET ('
+                      f'\tON {self.schema_table_name}\n \tREFERENCING NEW AS NEWROW\n \tFOR EACH ROW\n \t\tUPDATE ' \
+                      f'{self.schema_table_name} SET ('
 
         output_column_names = ''  # Names of the output columns from the model
         output_cols_vti_reference = ''  # Names references from the VTI (ie b.COL_NAME)
@@ -242,11 +240,10 @@ class DatabaseModelDDL:
         Add the model to the deployed model metadata table
         """
         self.logger.info("Adding Model to Metadata table", send_db=True)
-        schema_table_name = f'{self.schema_name}.{self.table_name}'
         table_id = self.session.execute(f"""
             SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' 
             AND SCHEMANAME={self.schema_name}'""").fetchone()[0]
-        trigger_suffix = f"{schema_table_name.replace('.', '_')}_{self.run_id}".upper()
+        trigger_suffix = f"{self.schema_table_name.replace('.', '_')}_{self.run_id}".upper()
 
         trigger_1 = self.session.query(SysTriggers) \
             .filter_by(tableid=table_id, triggername=f"RUNMODEL_{trigger_suffix}").scalar()
@@ -269,9 +266,8 @@ class DatabaseModelDDL:
         # The database function call is dependent on the model type
         prediction_call = self.prediction_data[self.model.get_metadata(Metadata.CLASSES)]['prediction_call']
 
-        schema_table_name = f'{self.table_name}.{self.schema_name}'
         pred_trigger = f'CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}\n \tBEFORE INSERT\n' \
-                       f'\tON {schema_table_name}\n \tREFERENCING NEW AS NEWROW\n \tFOR EACH ROW\n \tBEGIN ATOMIC \t\t' \
+                       f'\tON {self.schema_table_name}\n \tREFERENCING NEW AS NEWROW\n \tFOR EACH ROW\n \tBEGIN ATOMIC \t\t' \
                        f'SET NEWROW.PREDICTION={prediction_call}(\'{self.run_id}\','
 
         for index, col in enumerate(self.model_columns):
@@ -297,9 +293,8 @@ class DatabaseModelDDL:
         TO be removed when we move to VTI only
         """
         self.logger.info("Creating parsing trigger...", send_db=True)
-        schema_table_name = f'{self.table_name}.{self.schema_name}'
         sql_parse_trigger = f'CREATE TRIGGER {self.schema_name}.PARSERESULT_{self.table_name}_{self.run_id}' \
-                            f'\n \tBEFORE INSERT\n \tON {schema_table_name}\n \tREFERENCING NEW AS NEWROW\n' \
+                            f'\n \tBEFORE INSERT\n \tON {self.schema_table_name}\n \tREFERENCING NEW AS NEWROW\n' \
                             f' \tFOR EACH ROW\n \t\tBEGIN ATOMIC\n\t set '
         set_prediction_case_str = 'NEWROW.PREDICTION=\n\t\tCASE\n'
         for i, c in enumerate(self.model.get_metadata(Metadata.CLASSES)):
