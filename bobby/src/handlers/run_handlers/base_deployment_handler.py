@@ -141,6 +141,7 @@ class BaseDeploymentHandler(BaseHandler):
 
             self.model_dir: str = self.mlflow_run.data.tags['splice.model_name']
 
+            self.Session.merge(self.task)
             # populates a link to the associated Mlflow run that opens in a new tab.
             self.task.mlflow_url = f"<a href='/mlflow/{run_url}' target='_blank' onmouseover=" \
                                    f">Link to Mlflow Run</a>"
