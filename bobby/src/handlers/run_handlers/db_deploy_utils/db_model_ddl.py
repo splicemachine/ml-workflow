@@ -100,7 +100,7 @@ class DatabaseModelDDL:
         :return: whether exists or not
         """
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
-        return table_name in set(inspector.get_table_names(schema=schema_name))
+        return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
 
     def create_model_deployment_table(self):
         """
