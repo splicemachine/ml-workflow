@@ -250,9 +250,8 @@ class DatabaseModelDDL:
         Add the model to the deployed model metadata table
         """
         self.logger.info("Adding Model to Metadata table", send_db=True)
-        table_id = self.session.execute(f"""
-            SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' 
-            AND SCHEMANAME={self.schema_name}'""").fetchone()[0]
+        table_id = self.session.execute(f"""SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' 
+            AND SCHEMANAME='{self.schema_name}'""").fetchone()[0]
         trigger_suffix = f"{self.schema_table_name.replace('.', '_')}_{self.run_id}".upper()
 
         trigger_1 = self.session.query(SysTriggers) \
