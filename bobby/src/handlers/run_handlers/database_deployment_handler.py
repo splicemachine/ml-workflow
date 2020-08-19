@@ -186,11 +186,6 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
                                        library_specific_args=payload['library_specific'], logger=self.logger,
                                        request_user=self.task.user)
         ddl_creator.create()
-        self.logger.info("Flushing", send_db=True)
-        self.Session.flush()
-        self.logger.warning("Committing Transaction to Database", send_db=True)
-        self.Session.commit()
-        self.logger.info("Committed.", send_db=True)
 
     def execute(self) -> None:
         """

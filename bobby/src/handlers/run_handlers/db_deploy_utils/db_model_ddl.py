@@ -358,5 +358,11 @@ class DatabaseModelDDL:
             with log_operation_status("create parsing trigger", logger_obj=self.logger):
                 self.create_parsing_trigger()
 
-        with log_operation_status("add model to metadata table", logger_obj=self.logger):
-            self.add_model_to_metadata_table()
+        self.logger.info("Flushing", send_db=True)
+        self.session.flush()
+        self.logger.warning("Committing Transaction to Database", send_db=True)
+        self.session.commit()
+        self.logger.info("Committed.", send_db=True)
+
+        # with log_operation_status("add model to metadata table", logger_obj=self.logger):
+        #     self.add_model_to_metadata_table()
