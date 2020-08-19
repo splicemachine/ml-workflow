@@ -265,7 +265,7 @@ class DatabaseModelDDL:
             SELECT TRIGGERID FROM SYS.SYSTRIGGERS
             WHERE TABLEID='{table_id}' AND TRIGGERNAME='PARSERESULT_{trigger_suffix}'
         """).fetchone()
-        trigger_id_2 = trigger_2_id[0] if trigger_2_id else None
+        trigger_2_id = trigger_2_id[0] if trigger_2_id else None
         metadata = DatabaseDeployedMetadata(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
                                             trigger_type='INSERT', triggerid=trigger_1_id,
                                             triggerid_2=trigger_2_id, db_env='PROD',
