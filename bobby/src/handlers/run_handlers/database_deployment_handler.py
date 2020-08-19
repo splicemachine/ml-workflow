@@ -166,8 +166,6 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         Update the artifact with the retrieved data
         """
         self.artifact.database_binary = self.model.get_representation(Representations.BYTES)
-        self.artifact.library = self.task.parsed_payload['library']
-        self.artifact.version = self.task.parsed_payload['version']
         self.logger.info("Updating Artifact with serialized representation")
         self.Session.add(self.artifact)
         self.logger.debug("Committing Artifact Update")

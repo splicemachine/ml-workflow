@@ -75,10 +75,11 @@ class DatabaseRepresentationCreator:
         self.logger.info("Creating Alternative/Library Specific Model Representations")
         self.representation_generator()
 
-    def _load_into_java_bytearray(self, obj) -> bytearray:
+    def _load_into_java_bytearray(self, obj, as_object=False) -> bytearray:
         """
         Load an object into a java bytestream
         :param obj: the object to write
+        :param as_object: whether or not to write it as an object to the stream
         :return: the java bytearray
         """
         if not self.java_jvm:
