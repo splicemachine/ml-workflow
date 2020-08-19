@@ -7,10 +7,10 @@ from typing import Optional
 
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructField, StructType
-from sqlalchemy import inspect as peer_into_splice_db
+from sqlalchemy import inspect as peer_into_splice_db, text
 
 from shared.models.model_types import Metadata, Representations
-from shared.services.database import Converters, SQLAlchemyClient
+from shared.services.database import Converters, SQLAlchemyClient, DatabaseSQL
 
 from .base_deployment_handler import BaseDeploymentHandler
 from .db_deploy_utils.db_representation_creator import DatabaseRepresentationCreator
@@ -165,10 +165,15 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         """
         Update the artifact with the retrieved data
         """
-        self.artifact.database_binary = self.model.get_representation(Representations.BYTES)
-        self.logger.info("Updating Artifact with serialized representation")
-        self.Session.add(self.artifact)
-        self.logger.debug("Committing Artifact Update")
+        # TODO @amrit: transaction handling on two sessions
+        self.Session.execute(
+            text(DatabaseSQL.update_artifact_database_blob),
+            dict(run_uuid=self.artifact.run_uuid, binary=self.model.get_representation(Representations.BYTES),
+                 name=self.artifact.name)
+        )
+
+        self.logger.info("Updating Artifact with serialized representation", send_db=True)
+        self.logger.debug("Committing Artifact Update", send_db=True)
         self.Session.commit()
 
     def _create_ddl(self):

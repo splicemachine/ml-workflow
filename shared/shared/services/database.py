@@ -165,6 +165,12 @@ class DatabaseSQL:
         WHERE id=:task_id
         """
 
+    update_artifact_database_blob = \
+        """
+        UPDATE ARTIFACTS SET database_binary=:binary
+        WHERE run_uuid=:run_uuid AND name=:name
+        """
+
 
 class Converters:
     """
@@ -184,7 +190,6 @@ class Converters:
     SQL_TYPES = ['CHAR', 'LONG VARCHAR', 'VARCHAR', 'DATE', 'TIME', 'TIMESTAMP', 'BLOB', 'CLOB', 'TEXT', 'BIGINT',
                  'DECIMAL', 'DOUBLE', 'DOUBLE PRECISION', 'INTEGER', 'NUMERIC', 'REAL', 'SMALLINT', 'TINYINT',
                  'BOOLEAN', 'INT']
-
 
     SPARK_DB_CONVERSIONS = {
         'BinaryType': 'BLOB',
