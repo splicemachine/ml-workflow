@@ -6,7 +6,7 @@ All Rights Reserved
 function toggleParameter(name){
     var service = document.getElementById(name);
     if (service == null){
-        document.getElementById("services").innerHTML += `<input type='hidden' name=${name} value=true>`;
+        document.getElementById("services").innerHTML += `<input type='hidden' name='${name}' id='${name}' value=true>`;
     } else {
         service.parentNode.removeChild(service);
     }

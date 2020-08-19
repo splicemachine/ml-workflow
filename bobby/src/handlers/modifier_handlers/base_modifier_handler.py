@@ -5,7 +5,7 @@ Handlers that modify other handlers.
 from abc import abstractmethod
 
 from shared.models.splice_models import Handler
-
+from shared.services.database import SQLAlchemyClient
 from ..base_handler import BaseHandler
 
 __author__: str = "Splice Machine, Inc."
@@ -32,6 +32,7 @@ class BaseModifierHandler(BaseHandler):
         """
         BaseHandler.__init__(self, task_id)
         self.action: str = action
+        self.Session = SQLAlchemyClient.SessionFactory()
 
     def _get_handler_by_name(self, handler_name: str) -> Handler:
         """
@@ -65,7 +66,6 @@ class BaseModifierHandler(BaseHandler):
             if self.target_handler_object.modifiable:
                 self.modify()
                 self.Session.add(self.target_handler_object)
-                self.Session.add(self.task)  # changes for GUI
                 self.Session.commit()  # commit DB transaction
                 self.logger.info(f"Modified successfully", send_db=True)
             else:

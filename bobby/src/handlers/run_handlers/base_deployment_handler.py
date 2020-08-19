@@ -11,6 +11,7 @@ from zipfile import ZipFile
 
 from mlflow.tracking import MlflowClient
 from shared.models.mlflow_models import SqlArtifact
+from shared.shared.logger.job_lifecycle_manager import JobLifecycleManager
 
 from ..base_handler import BaseHandler
 
@@ -143,10 +144,12 @@ class BaseDeploymentHandler(BaseHandler):
 
             self.Session.merge(self.task)
             # populates a link to the associated Mlflow run that opens in a new tab.
+            self.logger.info("Updating MLFlow Run for the UI", send_db=True)
             self.task.mlflow_url = f"<a href='/mlflow/{run_url}' target='_blank' onmouseover=" \
                                    f">Link to Mlflow Run</a>"
-            self.Session.add(self.task)
-            self.Session.commit()
+
+            JobLifecycleManager.Session.add(self.task)  # when editing jobs, we must use the manager
+            JobLifecycleManager.Session.commit()
 
             self.execute()
         except Exception as e:
