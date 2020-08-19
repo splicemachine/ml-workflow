@@ -166,11 +166,10 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         """
         Update the artifact with the retrieved data
         """
-        raise Exception(self.artifact.run_uuid)
         self.Session.execute(
-            text(DatabaseSQL.update_artifact_database_blob),
-            dict(run_uuid=self.artifact.run_uuid, binary=self.model.get_representation(Representations.BYTES),
-                 name=self.artifact.name)
+            text(DatabaseSQL.update_artifact_database_blob.format(
+                run_uuid=self.artifact.run_uuid, name=self.artifact.name
+            )), dict(binary=self.model.get_representation(Representations.BYTES))
         )
 
         self.logger.info("Updating Artifact with serialized representation", send_db=True)

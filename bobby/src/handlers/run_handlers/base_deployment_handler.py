@@ -41,6 +41,7 @@ class BaseDeploymentHandler(BaseHandler):
         self.downloaded_model_path: str = DOWNLOAD_PATH + str(
             task_id)  # So when we temporarily download the model we don't overwrite other models
         self.mlflow_run: object = None
+        self.artifact = None
         self.artifact_buffer: bytearray or None = None
 
     def retrieve_run_from_mlflow(self) -> None:

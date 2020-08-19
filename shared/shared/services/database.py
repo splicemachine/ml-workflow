@@ -183,7 +183,7 @@ class DatabaseSQL:
     update_artifact_database_blob = \
         """
         UPDATE ARTIFACTS SET database_binary=:binary
-        WHERE run_uuid=:run_uuid AND name=:name
+        WHERE run_uuid='{run_uuid}' AND name='{name}'
         """
 
 
