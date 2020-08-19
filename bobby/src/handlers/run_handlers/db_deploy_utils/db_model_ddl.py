@@ -351,8 +351,7 @@ class DatabaseModelDDL:
         if self.model.get_metadata(Metadata.TYPE) in {SparkModelType.MULTI_PRED_INT, H2OModelType.MULTI_PRED_INT}:
             with log_operation_status("create parsing trigger"):
                 self.create_parsing_trigger()
-
-        self.session.commit()
+                self.session.commit()
 
         with log_operation_status("add model to metadata table"):
             self.add_model_to_metadata_table()
