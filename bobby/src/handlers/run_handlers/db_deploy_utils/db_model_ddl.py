@@ -339,13 +339,13 @@ class DatabaseModelDDL:
         self.primary_key = self.primary_key or inspector.get_primary_keys(self.table_name, schema=self.schema_name)
 
         if self.create_model_table:
-            with log_operation_status("creating model deployment table", logger=self.logger):
+            with log_operation_status("creating model deployment table", logger_obj=self.logger):
                 self.create_model_deployment_table()
         else:
-            with log_operation_status("altering existing table", logger=self.logger):
+            with log_operation_status("altering existing table", logger_obj=self.logger):
                 self.alter_model_table()
 
-        with log_operation_status("creating trigger", logger=self.logger):
+        with log_operation_status("creating trigger", logger_obj=self.logger):
             self.model_columns = self.model_columns or self.model.get_metadata(Metadata.SQL_SCHEMA).keys()
             if self.model.get_metadata(Metadata.TYPE) in {H2OModelType.MULTI_PRED_DOUBLE,
                                                           KerasModelType.MULTI_PRED_DOUBLE,
@@ -355,8 +355,8 @@ class DatabaseModelDDL:
                 self.create_prediction_trigger()
 
         if self.model.get_metadata(Metadata.TYPE) in {SparkModelType.MULTI_PRED_INT, H2OModelType.MULTI_PRED_INT}:
-            with log_operation_status("create parsing trigger", logger=self.logger):
+            with log_operation_status("create parsing trigger", logger_obj=self.logger):
                 self.create_parsing_trigger()
 
-        with log_operation_status("add model to metadata table", logger=self.logger):
+        with log_operation_status("add model to metadata table", logger_obj=self.logger):
             self.add_model_to_metadata_table()
