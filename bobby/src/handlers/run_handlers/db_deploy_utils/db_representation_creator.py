@@ -102,7 +102,7 @@ class DatabaseRepresentationCreator:
         java_import(self.java_jvm, "hex.genmodel.easy.EasyPredictModelWrapper")
         java_import(self.java_jvm, "hex.genmodel.MojoModel")
         with TemporaryDirectory() as tmpdir:
-            model_path = self.model.get_representation(Representations.LIBRARY).\
+            model_path = self.model.get_representation(Representations.LIBRARY). \
                 download_mojo(f'/{tmpdir}/h2o_model.zip')
             raw_mojo = self.java_jvm.MojoModel.load(model_path)
             java_mojo_config = self.java_jvm.EasyPredictModelWrapper.Config().setModel(raw_mojo)
@@ -152,7 +152,8 @@ class DatabaseRepresentationCreator:
         with TemporaryDirectory() as tmpdir:
             try:
                 self.logger.info("Saving Spark Representation to MLeap Format", send_db=True)
-                library_representation.serializeToBundle(f"jar:file://{tmpdir}/mleap_model.zip")
+                library_representation.serializeToBundle(f"jar:file://{tmpdir}/mleap_model.zip",
+                                                         self.model.get_metadata(Metadata.DATAFRAME_EXAMPLE))
                 self.logger.info("Done.")
             except Exception:
                 self.logger.exception("Encountered Exception while converting model to bundle")
@@ -169,4 +170,3 @@ class DatabaseRepresentationCreator:
             self.model.add_representation(Representations.MLEAP, java_mleap_bundle)
             self.logger.info("Adding Serialized Representations...", send_db=True)
             self.model.add_representation(Representations.BYTES, self._load_into_java_bytearray(java_mleap_bundle))
-
