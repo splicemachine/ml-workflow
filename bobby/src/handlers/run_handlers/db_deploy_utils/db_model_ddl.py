@@ -277,7 +277,7 @@ class DatabaseModelDDL:
         prediction_call = self.prediction_data[self.model.get_metadata(Metadata.GENERIC_TYPE)]['prediction_call']
 
         pred_trigger = f'CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}\n \tBEFORE INSERT\n' \
-                       f'\tON {self.schema_table_name}\n \tREFERENCING NEW AS NEWROW\n \tFOR EACH ROW\n \tBEGIN ATOMIC \t\t' \
+                       f'\tON {self.schema_table_name}\n \tREFERENCING NEW AS NEWROW\n \tFOR EACH ROW\n\t' \
                        f'SET NEWROW.PREDICTION={prediction_call}(\'{self.run_id}\','
 
         for index, col in enumerate(self.model_columns):
@@ -291,9 +291,9 @@ class DatabaseModelDDL:
 
         # Cleanup + schema for PREDICT call
         pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(Metadata.SCHEMA_STR).replace(
-            '\t', '').replace('\n', '').rstrip(',') + '\');END;'
+            '\t', '').replace('\n', '').rstrip(',') + '\')'
 
-        self.logger.info(f"Executing\n{pred_trigger}")
+        self.logger.info(f"Executing\n{pred_trigger}", send_db=True)
         self.session.execute(pred_trigger)
 
     def create_parsing_trigger(self):
@@ -305,18 +305,19 @@ class DatabaseModelDDL:
         self.logger.info("Creating parsing trigger...", send_db=True)
         sql_parse_trigger = f'CREATE TRIGGER {self.schema_name}.PARSERESULT_{self.table_name}_{self.run_id}' \
                             f'\n \tBEFORE INSERT\n \tON {self.schema_table_name}\n \tREFERENCING NEW AS NEWROW\n' \
-                            f' \tFOR EACH ROW\n \t\tBEGIN ATOMIC\n\t set '
+                            f' \tFOR EACH ROW\n\t set '
         set_prediction_case_str = 'NEWROW.PREDICTION=\n\t\tCASE\n'
         for i, c in enumerate(self.model.get_metadata(Metadata.CLASSES)):
             sql_parse_trigger += f'NEWROW."{c}"=MLMANAGER.PARSEPROBS(NEWROW.prediction,{i}),'
             set_prediction_case_str += f'\t\tWHEN MLMANAGER.GETPREDICTION(NEWROW.prediction)={i} then \'{c}\'\n'
 
         set_prediction_case_str += '\t\tEND;'
+        #TODO: can't this block just be
         if self.model.get_metadata(Metadata.GENERIC_TYPE) == DeploymentModelType.MULTI_PRED_DOUBLE:
             # These models don't have an actual prediction
-            sql_parse_trigger = sql_parse_trigger[:-1] + 'END'
+            sql_parse_trigger = sql_parse_trigger[:-1]
         else:
-            sql_parse_trigger += set_prediction_case_str + 'END'
+            sql_parse_trigger += set_prediction_case_str
 
         formatted_sql_parse_trigger = sql_parse_trigger.replace('\n', ' ').replace('\t', ' ')
 
