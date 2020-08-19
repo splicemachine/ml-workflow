@@ -78,20 +78,20 @@ ARG SCALAPB_LENSES_URI=https://repo1.maven.org/maven2/com/thesamet/scalapb/lense
 ARG SCALA_ARM_URI=https://repo1.maven.org/maven2/com/jsuereth/scala-arm_2.11/2.0/scala-arm_2.11-2.0.jar
 ARG PROTOBUF_JAVA_URI=https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.11.1/protobuf-java-3.11.1.jar
 RUN \
-  curl -kLs $MLEAP_CORE_URI      -o $SPARK_HOME/jars/mleap-core_2.11-0.15.0.jar && \
-  curl -kLs $MLEAP_RUNTIME_URI      -o $SPARK_HOME/jars/mleap-runtime_2.11-0.15.0.jar && \
-  curl -kLs $MLEAP_BUNDLE_HDFS_URI      -o $SPARK_HOME/jars/bundle-hdfs_2.11-0.15.0.jar && \
-  curl -kLs $MLEAP_BUNDLE_ML_URI        -o $SPARK_HOME/jars/bundle-ml_2.11-0.15.0.jar && \
-  curl -kLs $MLEAP_BASE_URI             -o $SPARK_HOME/jars/mleap-base_2.11-0.15.0.jar && \
-  curl -kLs $SPRAY_JSON_URI -o $SPARK_HOME/jars/spray-json_2.11-1.3.5.jar && \
-  curl -kLs $TYPESAFE_CONFIG_URI -o $SPARK_HOME/jars/config-1.4.0.jar && \
-  curl -kLs $SCALAPB_RUNTIME_URI -o  $SPARK_HOME/jars/scalapb-runtime_2.11-0.9.0.jar && \
-  curl -kLs $SCALAPB_LENSES_URI -o $SPARK_HOME/jars/lenses_2.11-0.9.0.jar && \
-  curl -kLs $MLEAP_TENSOR_URI -o $SPARK_HOME/jars/mleap-tensor_2.11-0.15.0.jar && \
-  curl -kLs $SCALA_ARM_URI -o $SPARK_HOME/jars/scala-arm_2.11-2.0.jar && \
-  curl -kLs $PROTOBUF_JAVA_URI -o $SPARK_HOME/jars/protobuf-java-3.11.1.jar && \
-  curl -kLs $MLEAP_SPARK_URI -o $SPARK_HOME/jars/mleap-spark_2.11-0.15.0.jar && \
-  curl -kLs $MLEAP_SPARK_BASE_URI -o $SPARK_HOME/jars/mleap-spark-base_2.11-0.15.0.jar
+  curl -kLs $MLEAP_CORE_URI      -o $SRC_HOME/lib/mleap-core_2.11-0.15.0.jar && \
+  curl -kLs $MLEAP_RUNTIME_URI      -o $SRC_HOME/lib/mleap-runtime_2.11-0.15.0.jar && \
+  curl -kLs $MLEAP_BUNDLE_HDFS_URI      -o $SRC_HOME/lib/bundle-hdfs_2.11-0.15.0.jar && \
+  curl -kLs $MLEAP_BUNDLE_ML_URI        -o $SRC_HOME/lib/bundle-ml_2.11-0.15.0.jar && \
+  curl -kLs $MLEAP_BASE_URI             -o $SRC_HOME/lib/mleap-base_2.11-0.15.0.jar && \
+  curl -kLs $SPRAY_JSON_URI -o $SRC_HOME/lib/spray-json_2.11-1.3.5.jar && \
+  curl -kLs $TYPESAFE_CONFIG_URI -o $SRC_HOME/lib/config-1.4.0.jar && \
+  curl -kLs $SCALAPB_RUNTIME_URI -o  $SRC_HOME/lib/scalapb-runtime_2.11-0.9.0.jar && \
+  curl -kLs $SCALAPB_LENSES_URI -o $SRC_HOME/lib/lenses_2.11-0.9.0.jar && \
+  curl -kLs $MLEAP_TENSOR_URI -o $SRC_HOME/lib/mleap-tensor_2.11-0.15.0.jar && \
+  curl -kLs $SCALA_ARM_URI -o $SRC_HOME/lib/scala-arm_2.11-2.0.jar && \
+  curl -kLs $PROTOBUF_JAVA_URI -o $SRC_HOME/lib/protobuf-java-3.11.1.jar && \
+  curl -kLs $MLEAP_SPARK_URI -o $SRC_HOME/lib/mleap-spark_2.11-0.15.0.jar && \
+  curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_2.11-0.15.0.jar
 
 # Install Shared Lib
 COPY shared /tmp/shared
