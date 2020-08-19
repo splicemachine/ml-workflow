@@ -291,7 +291,7 @@ class DatabaseModelDDL:
 
         # Cleanup + schema for PREDICT call
         pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(Metadata.SCHEMA_STR).replace(
-            '\t', '').replace('\n', '').rstrip(',') + '\');END'
+            '\t', '').replace('\n', '').rstrip(',') + '\');END;'
 
         self.logger.info(f"Executing\n{pred_trigger}")
         self.session.execute(pred_trigger)
