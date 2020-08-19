@@ -124,6 +124,7 @@ class BaseDeploymentHandler(BaseHandler):
         :param exc: the exception thrown
         """
         self.logger.error(f"Running Exception Callback because of encountered: '{exc}'", send_db=True)
+        self.logger.warning("Rolling back.", send_db=True)
         self.Session.rollback()
         raise exc
 
@@ -152,9 +153,8 @@ class BaseDeploymentHandler(BaseHandler):
             JobLifecycleManager.Session.commit()
 
             self.execute()
+            self._cleanup()
         except Exception as e:
+            self._cleanup()  # always run cleanup, regardless of success or failure
             self.exception_handler(exc=e)  # can be overriden by subclasses
             raise e
-        finally:
-            self.Session.commit()
-            self._cleanup()  # always run cleanup, regardless of success or failure

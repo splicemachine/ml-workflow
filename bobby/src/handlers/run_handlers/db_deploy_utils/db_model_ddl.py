@@ -255,10 +255,10 @@ class DatabaseModelDDL:
         trigger_suffix = f"{self.schema_table_name.replace('.', '_')}_{self.run_id}".upper()
 
         trigger_1 = self.session.query(SysTriggers) \
-            .filter_by(tableid=table_id, triggername=f"RUNMODEL_{trigger_suffix}").scalar()
+            .filter_by(TABLEID=table_id, TRIGGERNAME=f"RUNMODEL_{trigger_suffix}").scalar()
 
         trigger_2 = self.session.query(SysTriggers) \
-            .filter_by(tableid=table_id, triggername=f"PARSERESULT_{trigger_suffix}").scalar()
+            .filter_by(TABLEID=table_id, TRIGGERNAME=f"PARSERESULT_{trigger_suffix}").scalar()
 
         metadata = DatabaseDeployedMetadata(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
                                             trigger_type='INSERT', triggerid=trigger_1.TRIGGERID,
@@ -311,7 +311,6 @@ class DatabaseModelDDL:
             set_prediction_case_str += f'\t\tWHEN MLMANAGER.GETPREDICTION(NEWROW.prediction)={i} then \'{c}\'\n'
 
         set_prediction_case_str += '\t\tEND;'
-        #TODO: can't this block just be
         if self.model.get_metadata(Metadata.GENERIC_TYPE) == DeploymentModelType.MULTI_PRED_DOUBLE:
             # These models don't have an actual prediction
             sql_parse_trigger = sql_parse_trigger[:-1]
