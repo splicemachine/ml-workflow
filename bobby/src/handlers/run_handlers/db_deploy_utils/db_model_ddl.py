@@ -61,9 +61,9 @@ class DatabaseModelDDL:
         self.create_model_table = create_model_table
         self.library_specific_args = library_specific_args
         self.logger = logger
-        
+
         self.schema_table_name = f'{self.schema_name}.{self.table_name}'
-        
+
         self.prediction_data = {
             DeploymentModelType.MULTI_PRED_INT: {
                 'prediction_call': 'MLMANAGER.PREDICT_CLASSIFICATION',
@@ -91,14 +91,24 @@ class DatabaseModelDDL:
                 Metadata.SQL_SCHEMA).items()])
         )
 
+    @staticmethod
+    def _table_exists(table_name, schema_name):
+        """
+        Check whether or not a given table exists
+        :param table_name: the table name
+        :param schema_name: schema name
+        :return: whether exists or not
+        """
+        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
+        return table_name in set(inspector.get_table_names(schema=schema_name))
+
     def create_model_deployment_table(self):
         """
         Creates the table that holds the columns of the feature vector as well as a unique MOMENT_ID
         """
         schema_str = self.model.get_metadata(Metadata.SCHEMA_STR)
 
-        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
-        if self.table_name in set(inspector.get_table_names(schema=self.schema_name)):
+        if DatabaseModelDDL._table_exists(table_name=self.table_name, schema_name=self.schema_name):
             raise Exception(
                 f'The table {self.schema_table_name} already exists. To deploy to an existing table, do not pass in a'
                 f' dataframe and/or set create_model_table parameter=False')
@@ -133,13 +143,13 @@ class DatabaseModelDDL:
         """
         self.logger.info("Altering existing model...", send_db=True)
         # Table needs to exist
-        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
-        if self.table_name not in set(inspector.get_table_names(schema=self.schema_name)):
+        if not DatabaseModelDDL._table_exists(table_name=self.table_name, schema_name=self.schema_name):
             raise Exception(
                 f'The table {self.schema_table_name} does not exist. To create a new table for deployment, '
                 f'pass in a dataframe and set the set create_model_table=True')
 
         # Currently we only support deploying 1 model to a table
+        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         table_cols = [col['name'] for col in inspector.get_columns(self.table_name, schema=self.schema_name)]
         reserved_fields = set(
             ['CUR_USER', 'EVAL_TIME', 'RUN_ID', 'PREDICTION'] + self.model.get_metadata(Metadata.CLASSES)
