@@ -152,13 +152,15 @@ class DatabaseRepresentationCreator:
         with TemporaryDirectory() as tmpdir:
             try:
                 self.logger.info("Saving Spark Representation to MLeap Format", send_db=True)
-                library_representation.serializeToBundle(f"jar:file://{tmpdir}/mleap_model.zip",
-                                                         self.model.get_metadata(Metadata.DATAFRAME_EXAMPLE))
+                library_representation.serializeToBundle(
+                    f"jar:file://{tmpdir}/mleap_model.zip",
+                    library_representation.transform(self.model.get_metadata(Metadata.DATAFRAME_EXAMPLE))
+                )
                 self.logger.info("Done.")
-            except Exception:
+            except Exception as e:
                 self.logger.exception("Encountered Exception while converting model to bundle")
                 self.logger.error("Encountered Unknown Exception while processing...", send_db=True)
-                raise Exception from None
+                raise e from None
 
             java_import(self.java_jvm, 'com.splicemachine.fileretriever.FileRetriever')  # TODO need the MLeap Jars
             java_mleap_bundle = self.java_jvm.FileRetriever.loadBundle(f"jar:file://{tmpdir}/mleap_model.zip")
