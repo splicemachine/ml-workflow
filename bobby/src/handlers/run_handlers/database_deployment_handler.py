@@ -112,7 +112,8 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
             # Remove length specification from datatype for backwards conversion
             spark_d_type = getattr(spark_types,
                                    Converters.DB_SPARK_CONVERSIONS[str(field['type']).split('(')[0].upper()])
-            struct_type.add(StructField(name=field['name'], dataType=spark_d_type()))
+            # TODO @ben or @amrit: case-sensitity
+            struct_type.add(StructField(name=field['name'].upper(), dataType=spark_d_type()))
 
         self.model.add_metadata(Metadata.DATAFRAME_EXAMPLE,
                                 self.spark_session.createDataFrame(data=[], schema=struct_type))
