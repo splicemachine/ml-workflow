@@ -182,6 +182,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         ddl_creator = DatabaseModelDDL(session=self.Session, model=self.model, run_id=payload['run_id'],
                                        primary_key=payload['primary_key'], schema_name=payload['db_schema'],
                                        table_name=payload['db_table'], model_columns=payload['model_cols'],
+                                       create_model_table=payload['create_model_table'],
                                        library_specific_args=payload['library_specific'], logger=self.logger,
                                        request_user=self.task.user)
         ddl_creator.create()
