@@ -270,7 +270,7 @@ class DatabaseModelDDL:
             params=dict(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
                         trigger_type='INSERT', triggerid=trigger_1_id,
                         triggerid_2=trigger_2_id, db_env='PROD',
-                        db_user=self.request_user, action_date=trigger_1_timestamp)
+                        db_user=self.request_user, action_date=trigger_1_timestamp.strftime("%Y-%m-%d %H:%M:%S"))
         )
 
     def create_prediction_trigger(self):
