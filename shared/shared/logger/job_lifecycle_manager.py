@@ -62,21 +62,16 @@ class JobLifecycleManager:
 
         :param message: record to add to the database
         """
-        try:
-            updated_status = message.record['extra'].get('update_status')
-            if updated_status:
-                self.task.update(status=updated_status)
-                self.Session.add(self.task)
+        updated_status = message.record['extra'].get('update_status')
+        if updated_status:
+            self.task.update(status=updated_status)
+            self.Session.add(self.task)
 
-            self.Session.execute(
-                text(DatabaseSQL.update_job_log),
-                params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
-            )
-            self.Session.commit()
-        except Exception:
-            logger.exception("Encountered Exception while updating logs.")
-            logger.warning("Rolling back Job Session.")
-            self.Session.rollback()
+        self.Session.execute(
+            text(DatabaseSQL.update_job_log),
+            params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
+        )
+        self.Session.commit()
 
     def get_logger(self):
         """
