@@ -61,7 +61,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
         if primary_key:
             for key in primary_key:
-                assert key.split('(')[0] in Converters.SQL_TYPES, f"Unsupported type {key}"
+                assert primary_key[key].split('(')[0] in Converters.SQL_TYPES, f"Unsupported type {key}"
 
     def _retrieve_raw_model_representations(self):
         """
@@ -127,7 +127,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         """
         specified_df_schema = self.task.parsed_payload['df_schema']
         reference_table = self.task.parsed_payload['reference_table']
-        reference_schema = self.task.parsed_payload['reference_table']
+        reference_schema = self.task.parsed_payload['reference_schema']
 
         if self.task.parsed_payload['create_model_table']:
             self.logger.info("Adding Model Schema and DF...", send_db=True)
