@@ -29,7 +29,7 @@ class DatabaseModelDDL:
                  table_name: str,
                  request_user: str,
                  model_columns: List[str],
-                 primary_key: List[Tuple[str, str]],
+                 primary_key: Dict[str, str],
                  library_specific_args: Optional[Dict[str, str]] = None,
                  create_model_table: bool = False,
                  logger=logger):
@@ -120,7 +120,7 @@ class DatabaseModelDDL:
         pk_cols = ''
         for key in self.primary_key:
             # If pk is already in the schema_string, don't add another column. PK may be an existing value
-            if key not in self.model.get_metadata(Metadata.SCHEMA_STR):
+            if key.lower() not in self.model.get_metadata(Metadata.SCHEMA_STR).lower():
                 table_create_sql += f'{key} {self.primary_key[key]},'
             pk_cols += f'{key},'
 
