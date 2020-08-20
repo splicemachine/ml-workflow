@@ -20,11 +20,7 @@ function watchLogs(task_id){
 
     xhr.onload = function(e) {
       if (this.status == 200) {
-        var newLogs = escapeHtml(JSON.parse(xhr.responseText)['logs'].join('\n'));
-        currentHtml = document.getElementById("logs").innerHTML;
-        if (newLogs != currentHtml){
-            currentHtml = newLogs;
-        }
+        document.getElementById("logs").innerHTML = escapeHtml(JSON.parse(xhr.responseText)['logs'].join('\n'));
       } else {
         document.getElementById("logs").innerHTML = "Error Retrieving Logs.";
       }
