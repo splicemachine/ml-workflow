@@ -38,14 +38,14 @@ class ScikitUtils:
         if keys - {'predict_call', 'predict_args'} != set():
             raise Exception("You've passed in an library specific key that is not valid. Valid keys are "
                             "('predict_call', 'predict_args')")
-        elif lib_specific_args['predict_call']:
+        elif lib_specific_args.get('predict_call'):
             predict_call = lib_specific_args['predict_call']
             if not hasattr(model, predict_call):
                 raise Exception('The predict function specified is not available for the given model')
             if predict_call != 'predict' and lib_specific_args['predict_args']:
                 raise Exception(f'predict_args passed in but predict_call is {predict_call}. '
                                 f'This combination is not allowed')
-        if lib_specific_args['predict_args']:
+        if lib_specific_args.get('predict_args'):
             predict_args = lib_specific_args['predict_args']
             if predict_args not in ('return_std', 'return_cov') and not isinstance(model, SKPipeline):
                 raise Exception('Predict_args value is invalid. Available options are ("return_std", "return_cov")')

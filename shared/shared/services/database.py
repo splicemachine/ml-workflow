@@ -98,13 +98,6 @@ class SQLAlchemyClient:
         return SQLAlchemyClient.engine
 
     @staticmethod
-    def create_logging_engine():
-        """
-        Create a logging connection to log to the splice machine database
-        :return: sqlalchemy engine
-        """
-
-    @staticmethod
     def execute(sql: str) -> list:
         """
         Directly Execute SQL on the
