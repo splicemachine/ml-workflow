@@ -157,7 +157,7 @@ def get_job_logs_ui():
     return dict(logs=_get_logs(task_id=request.json['task_id']))
 
 
-@APP.route('/api/api/logs', methods=['POST'])
+@APP.route('/api/rest/logs', methods=['POST'])
 @Authentication.basic_auth_required
 @HTTP.generate_json_response
 def get_job_logs_api():
@@ -193,7 +193,7 @@ def initiate_job_ui() -> dict:
     return handler_queue_job(request.form, handler, user=request.form['user'])
 
 
-@APP.route('/api/api/initiate', methods=['POST'])
+@APP.route('/api/rest/initiate', methods=['POST'])
 @HTTP.generate_json_response
 @Authentication.basic_auth_required
 def initiate_job_rest() -> dict:
@@ -229,6 +229,8 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
 
     Session.add(job)
     Session.commit()
+    Session.merge(job) # get identity col
+
     try:
         # Tell bobby there's a new job to process
         requests.post(f"{BOBBY_URI}:2375/job")
@@ -236,6 +238,7 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
         logger.warning('Bobby was not reachable by MLFlow. Ensure Bobby is running. \nThe job has'
                        'been added to the database and will be processed when Bobby is running again.')
     return dict(job_status=APIStatuses.pending,
+                job_id=job.id,
                 timestamp=timestamp())  # turned into JSON and returned
 
 
