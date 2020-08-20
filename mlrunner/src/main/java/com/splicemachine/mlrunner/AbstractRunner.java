@@ -22,7 +22,7 @@ public abstract class AbstractRunner {
     
     public static Object[] getModelBlob(final String modelID) throws SQLException, IOException, ClassNotFoundException {
         final Connection conn = EngineDriver.driver().getInternalConnection();
-        final PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.models where RUN_UUID=?");
+        final PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where RUN_UUID=?");
         pstmt.setString(1, modelID);
         final ResultSet rs = pstmt.executeQuery();
         if (rs.next()) {
