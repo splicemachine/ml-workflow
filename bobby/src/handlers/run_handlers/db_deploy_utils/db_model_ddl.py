@@ -120,9 +120,9 @@ class DatabaseModelDDL:
         pk_cols = ''
         for key in self.primary_key:
             # If pk is already in the schema_string, don't add another column. PK may be an existing value
-            if key[0] not in self.model.get_metadata(Metadata.SCHEMA_STR):
-                table_create_sql += f'{key[0]} {key[1]},'
-            pk_cols += f'{key[0]},'
+            if key not in self.model.get_metadata(Metadata.SCHEMA_STR):
+                table_create_sql += f'{key} {self.primary_key[key]},'
+            pk_cols += f'{key},'
 
         for col in self.prediction_data[self.model.get_metadata(Metadata.GENERIC_TYPE)]['column_vals']:
             table_create_sql += f'{col},'
