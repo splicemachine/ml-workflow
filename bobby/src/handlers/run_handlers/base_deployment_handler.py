@@ -152,6 +152,6 @@ class BaseDeploymentHandler(BaseHandler):
             self.execute()
             self._cleanup()
         except Exception as e:
-            self._cleanup()  # always run cleanup, regardless of success or failure
             self.exception_handler(exc=e)  # can be overriden by subclasses
+            self._cleanup()  # always run cleanup, regardless of success or failure
             raise e

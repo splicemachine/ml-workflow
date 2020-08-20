@@ -265,13 +265,15 @@ class DatabaseModelDDL:
         """).fetchone()
         trigger_2_id = trigger_2_id[0] if trigger_2_id else None
 
+        self.logger.info("Executing SQL to insert Database Deployed Metadata", send_db=True)
         self.session.execute(
             text(DatabaseSQL.add_database_deployed_metadata),
-            params=dict(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
-                        trigger_type='INSERT', triggerid=trigger_1_id,
-                        triggerid_2=trigger_2_id, db_env='PROD',
-                        db_user=self.request_user, action_date=trigger_1_timestamp.strftime("%Y-%m-%d %H:%M:%S"))
+            dict(run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
+                 trigger_type='INSERT', triggerid=trigger_1_id,
+                 triggerid_2=trigger_2_id, db_env='PROD',
+                 db_user=self.request_user, action_date=trigger_1_timestamp.strftime("%Y-%m-%d %H:%M:%S"))
         )
+        self.logger.info("Done executing.", send_db=True)
 
     def create_prediction_trigger(self):
         """
