@@ -34,7 +34,7 @@ class DatabaseEngineConfig:
     """
     Database Engine Connection Configuration
     """
-    pool_size: int = 3
+    pool_size: int = 6
     max_overflow: int = 0
     echo: bool = env_vars['MODE'] == 'development'
     pool_pre_ping: bool = True
@@ -96,6 +96,7 @@ class SQLAlchemyClient:
             logger.info("Creating Logging Factory")
             SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
             logger.info("Done.")
+            SQLAlchemyClient._job_manager_created = True
 
     @staticmethod
     def create():
