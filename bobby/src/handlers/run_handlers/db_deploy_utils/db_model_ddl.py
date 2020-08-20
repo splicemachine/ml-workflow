@@ -86,7 +86,7 @@ class DatabaseModelDDL:
         self.logger.info("Adding Schema String to model metadata...", send_db=True)
         self.model.add_metadata(
             Metadata.SCHEMA_STR, ', '.join([f'\t{name} {col_type}' for name, col_type in self.model.get_metadata(
-                Metadata.SQL_SCHEMA).items()])
+                Metadata.SQL_SCHEMA).items()]) + ','
         )
 
     @staticmethod
@@ -111,25 +111,23 @@ class DatabaseModelDDL:
                 f'The table {self.schema_table_name} already exists. To deploy to an existing table, do not pass in a'
                 f' dataframe and/or set create_model_table parameter=False')
 
-        table_create_sql = f"""
-                    CREATE TABLE {self.schema_table_name} (\
-                    \tCUR_USER VARCHAR(50) DEFAULT CURRENT_USER,
-                    \tEVAL_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    \tRUN_ID VARCHAR(50) DEFAULT '{self.run_id}',
-                    \n {schema_str}
-                    """
+        table_create_sql = f"""CREATE TABLE {self.schema_table_name} (
+                CUR_USER VARCHAR(50) DEFAULT CURRENT_USER,
+                EVAL_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                RUN_ID VARCHAR(50) DEFAULT '{self.run_id}',
+                {schema_str}"""
 
         pk_cols = ''
         for key in self.primary_key:
             # If pk is already in the schema_string, don't add another column. PK may be an existing value
             if key[0] not in self.model.get_metadata(Metadata.SCHEMA_STR):
-                table_create_sql += f'\t{key[0]} {key[1]},\n'
+                table_create_sql += f'{key[0]} {key[1]},'
             pk_cols += f'{key[0]},'
 
         for col in self.prediction_data[self.model.get_metadata(Metadata.GENERIC_TYPE)]['column_vals']:
-            table_create_sql += f'\t{col},\n'
+            table_create_sql += f'{col},'
 
-        table_create_sql += f'\tPRIMARY KEY({pk_cols.rstrip(",")})\n)'
+        table_create_sql += f'PRIMARY KEY({pk_cols.rstrip(",")}))'
 
         self.logger.info(f"Executing\n{table_create_sql}", send_db=True)
         self.session.execute(table_create_sql)
@@ -205,9 +203,9 @@ class DatabaseModelDDL:
 
         prediction_call += ')'  # Close the prediction call
 
-        trigger_sql = f'CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}\n\tAFTER INSERT\n ' \
-                      f'\tON {self.schema_table_name}\n \tREFERENCING NEW AS NEWROW\n \tFOR EACH ROW\n \t\tUPDATE ' \
-                      f'{self.schema_table_name} SET ('
+        trigger_sql = f"""CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id} 
+                        AFTER INSERT ON {self.schema_table_name} REFERENCING NEW AS NEWROW FOR EACH ROW
+                        UPDATE {self.schema_table_name} SET ("""
 
         output_column_names = ''  # Names of the output columns from the model
         output_cols_vti_reference = ''  # Names references from the VTI (ie b.COL_NAME)
@@ -284,9 +282,9 @@ class DatabaseModelDDL:
         # The database function call is dependent on the model type
         prediction_call = self.prediction_data[self.model.get_metadata(Metadata.GENERIC_TYPE)]['prediction_call']
 
-        pred_trigger = f'CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}\n \tBEFORE INSERT\n' \
-                       f'\tON {self.schema_table_name}\n \tREFERENCING NEW AS NEWROW\n \tFOR EACH ROW\n\t' \
-                       f'SET NEWROW.PREDICTION={prediction_call}(\'{self.run_id}\','
+        pred_trigger = f"""CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}
+                           BEFORE INSERT ON {self.schema_table_name} REFERENCING NEW AS NEWROW 
+                           FOR EACH ROW SET NEWROW.PREDICTION={prediction_call}(\'{self.run_id}\',"""
 
         for index, col in enumerate(self.model_columns):
             pred_trigger += '||' if index != 0 else ''
@@ -311,9 +309,9 @@ class DatabaseModelDDL:
         TO be removed when we move to VTI only
         """
         self.logger.info("Creating parsing trigger...", send_db=True)
-        sql_parse_trigger = f'CREATE TRIGGER {self.schema_name}.PARSERESULT_{self.table_name}_{self.run_id}' \
-                            f'\n \tBEFORE INSERT\n \tON {self.schema_table_name}\n \tREFERENCING NEW AS NEWROW\n' \
-                            f' \tFOR EACH ROW\n\t set '
+        sql_parse_trigger = f"""CREATE TRIGGER {self.schema_name}.PARSERESULT_{self.table_name}_{self.run_id}
+                                BEFORE INSERT ON {self.schema_table_name} REFERENCING NEW AS NEWROW
+                                FOR EACH ROW set """
         set_prediction_case_str = 'NEWROW.PREDICTION=\n\t\tCASE\n'
         for i, c in enumerate(self.model.get_metadata(Metadata.CLASSES)):
             sql_parse_trigger += f'NEWROW."{c}"=MLMANAGER.PARSEPROBS(NEWROW.prediction,{i}),'
