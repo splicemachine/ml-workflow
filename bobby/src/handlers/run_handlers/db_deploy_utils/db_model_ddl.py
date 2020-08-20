@@ -85,7 +85,7 @@ class DatabaseModelDDL:
         # Create the schema of the table (we use this a few times)
         self.logger.info("Adding Schema String to model metadata...", send_db=True)
         self.model.add_metadata(
-            Metadata.SCHEMA_STR, ', '.join([f'\t{name} {col_type}' for name, col_type in self.model.get_metadata(
+            Metadata.SCHEMA_STR, ', '.join([f'{name} {col_type}' for name, col_type in self.model.get_metadata(
                 Metadata.SQL_SCHEMA).items()]) + ','
         )
 

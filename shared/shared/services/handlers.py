@@ -1,5 +1,5 @@
 from typing import Callable
-
+import json
 from shared.environments.cloud_environment import CloudEnvironments
 from shared.models.splice_models import Handler
 from shared.models.field import Field
@@ -57,7 +57,7 @@ class KnownHandlers:
                 Field('db_table'),
                 Field('run_id'),
                 Field('create_model_table', callback=Field.string_to_boolean_converter, callback_on=str),
-                Field('df_schema', default=None, use_default=True),
+                Field('df_schema', default=None, use_default=True, callback=json.loads, callback_on=str),
                 Field('primary_key', default=None, use_default=True, callback=lambda value: dict([value.split(' ')]),
                       callback_on=str),
                 Field('reference_schema', use_default=True, default=None),

@@ -82,14 +82,14 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         Add model examples from a dataframe
         """
         self.logger.info("Generating Model Schema and DF Example from Dataframe")
-        specified_df_schema = json.loads(self.task.parsed_payload['df_schema'])
+        specified_df_schema = self.task.parsed_payload['df_schema']
         struct_schema = StructType.fromJson(json=specified_df_schema)
 
         self.model.add_metadata(Metadata.DATAFRAME_EXAMPLE, self.spark_session.createDataFrame(data=[],
                                                                                                schema=struct_schema))
 
         self.model.add_metadata(Metadata.SQL_SCHEMA,
-                                {field.name: Converters.SPARK_DB_CONVERSIONS[str(field.datatype).upper()]
+                                {field.name: Converters.SPARK_DB_CONVERSIONS[str(field.dataType).upper()]
                                  for field in struct_schema})
         self.logger.info("Done.")
 
