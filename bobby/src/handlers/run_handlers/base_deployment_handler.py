@@ -146,8 +146,10 @@ class BaseDeploymentHandler(BaseHandler):
             self.task.mlflow_url = f"<a href='/mlflow/{run_url}' target='_blank' onmouseover=" \
                                    f">Link to Mlflow Run</a>"
 
-            JobLifecycleManager.Session.add(self.task)  # when editing jobs, we must use the manager
-            JobLifecycleManager.Session.commit()
+            # WHEN UPDATING JOBS, WE *MUST* USE THE MANAGER SESSION, NOT THE RUN SESSION
+            # TO PREVENT EARLY COMMITTING OF THE DDL TRANSACTIONS WHEN WE UPDATE STATUS/LOGS
+            self.manager.Session.add(self.task)
+            self.manager.Session.commit()
 
             self.execute()
             self._cleanup()

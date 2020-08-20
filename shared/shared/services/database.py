@@ -58,11 +58,16 @@ class SQLAlchemyClient:
     Database configuration constants
     """
     engine = None  # SQLAlchemy Engine
-    logging_engine = None
+
+    logging_connection = None  # Logging Connection the database
+
     reflector = None  # Inspector for DB reflection
 
     SessionMaker = None  # Session Maker
     SessionFactory = None  # Thread-safe session factory issuer
+
+    LoggingSessionMaker = None  # Logging Session Maker
+    LoggingSessionFactory = None  # Thread-safe session factory issuer
 
     # We have two bases because there are two different types of tables to create.
     # There are MLFlow tables (created by their code, such as Experiment
@@ -70,6 +75,27 @@ class SQLAlchemyClient:
     MlflowBase = MLFlowBase
 
     _created = False
+    _job_manager_created = False
+
+    @staticmethod
+    def create_job_manager():
+        """
+        Create Job Manager Connection (only runs if Job Manager is used)
+        """
+        if not SQLAlchemyClient._created:
+            raise Exception("Cannot create SQLAlchemy Job Manager Resources as `create()` has not been run")
+
+        if SQLAlchemyClient._job_manager_created:
+            logger.info("Using existing Job Manager SQLAlchemy Resources")
+        else:
+            logger.info("Creating Job Manager Database Connection")
+            SQLAlchemyClient.logging_connection = SQLAlchemyClient.engine.connect()
+            logger.info("Creating Job Manager Session Maker")
+            SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection,
+                                                                expire_on_commit=False)
+            logger.info("Creating Logging Factory")
+            SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
+            logger.info("Done.")
 
     @staticmethod
     def create():

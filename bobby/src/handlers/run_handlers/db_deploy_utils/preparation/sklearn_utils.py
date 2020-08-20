@@ -72,7 +72,7 @@ class ScikitUtils:
         if lib_specific_args:
             return SklearnModelType.MULTI_PRED_DOUBLE
 
-        steps = model.steps if isinstance(model, SKPipeline) else [model]
+        steps = model.steps if isinstance(model, SKPipeline) else [None, model]
 
         for _, step in reversed(steps):
             if not isinstance(step, ScikitModel):

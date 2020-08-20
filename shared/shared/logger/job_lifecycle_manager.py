@@ -18,15 +18,18 @@ class JobLifecycleManager:
     # SQLAlchemy Manages Sessions on a thread local basis, so we need to create a
     # session here to maintain separate transactions then the queries executing in the
     # job threads.
-    Session = SQLAlchemyClient.SessionFactory()
 
     def __init__(self, *, task_id: int, logging_format=None):
         """
         :param task_id: the task id to bind the logger to
         """
+        SQLAlchemyClient.create_job_manager()
+
         self.logging_format = JobLifecycleManager.LOGGING_FORMAT or logging_format
         self.task_id = task_id
         self.task = None
+
+        self.Session = SQLAlchemyClient.LoggingSessionFactory()
 
         self.handler_id = logger.add(
             self.splice_sink, format=self.logging_format, filter=self.message_filter
@@ -36,7 +39,7 @@ class JobLifecycleManager:
         """
         Retrieve the task object from the database
         """
-        self.task: Job = JobLifecycleManager.Session.query(Job).filter_by(id=self.task_id).first()
+        self.task: Job = self.Session.query(Job).filter_by(id=self.task_id).first()
         self.task.parse_payload()
         return self.task
 
@@ -52,22 +55,28 @@ class JobLifecycleManager:
         record_extras = record['extra']
         return record_extras.get('task_id') == self.task_id and record_extras.get('send_db', False)
 
+    # noinspection PyBroadException
     def splice_sink(self, message):
         """
         Splice Sink to send messages to the database
 
         :param message: record to add to the database
         """
-        updated_status = message.record['extra'].get('update_status')
-        if updated_status:
-            self.task.update(status=updated_status)
-            JobLifecycleManager.Session.add(self.task)
+        try:
+            updated_status = message.record['extra'].get('update_status')
+            if updated_status:
+                self.task.update(status=updated_status)
+                self.Session.add(self.task)
 
-        JobLifecycleManager.Session.execute(
-            text(DatabaseSQL.update_job_log),
-            params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
-        )
-        JobLifecycleManager.Session.commit()
+            self.Session.execute(
+                text(DatabaseSQL.update_job_log),
+                params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
+            )
+            self.Session.commit()
+        except Exception:
+            logger.exception("Encountered Exception while updating logs.")
+            logger.warning("Rolling back Job Session.")
+            self.Session.rollback()
 
     def get_logger(self):
         """
@@ -80,6 +89,7 @@ class JobLifecycleManager:
         """
         Destroy the logger handler
         """
+        self.Session.close()
         logger.warning(f"Removing Database Logger - {self.task_id}")
         logger.remove(self.handler_id)
         logger.info("Done.")
