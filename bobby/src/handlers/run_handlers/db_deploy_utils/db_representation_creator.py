@@ -115,7 +115,7 @@ class DatabaseRepresentationCreator:
             self.logger.info("Adding Serialized Representation", send_db=True)
             self.model.add_representation(Representations.BYTES, self._load_into_java_bytearray(java_mojo))
 
-    def _create_alternate_sklearn(self, model):
+    def _create_alternate_sklearn(self):
         """
         Serialize a Scikit model to a bytearray
         :return: bytearray

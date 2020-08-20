@@ -2,7 +2,6 @@
 Definition of Database Deployment Handler
 which handles db deployment jobs
 """
-import json
 from typing import Optional
 
 from pyspark.sql import SparkSession
