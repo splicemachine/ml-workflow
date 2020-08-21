@@ -61,26 +61,8 @@ class DatabaseModelDDL:
         self.logger = logger
 
         self.schema_table_name = f'{self.schema_name}.{self.table_name}'
-
-        self.prediction_data = {
-            DeploymentModelType.MULTI_PRED_INT: {
-                'prediction_call': 'MLMANAGER.PREDICT_CLASSIFICATION',
-                'column_vals': ['PREDICTION VARCHAR(5000)'] + [f'"{cls}" DOUBLE' for cls in
-                                                               self.model.get_metadata(Metadata.CLASSES)]
-            },
-            DeploymentModelType.SINGLE_PRED_DOUBLE: {
-                'prediction_call': 'MLMANAGER.PREDICT_REGRESSION',
-                'column_vals': ['PREDICTION DOUBLE']
-            },
-            DeploymentModelType.SINGLE_PRED_INT: {
-                'prediction_call': 'MLMANAGER.PREDICT_CLUSTER',
-                'column_vals': ['PREDICTION INT']
-            },
-            DeploymentModelType.MULTI_PRED_DOUBLE: {
-                'prediction_call': 'MLMANAGER.PREDICT_KEY_VALUE',
-                'column_vals': [f'"{cls}" DOUBLE' for cls in self.model.get_metadata(Metadata.CLASSES)]
-            }
-        }
+        self.prediction_data = {}
+        self._create_prediction_data()
 
         # Create the schema of the table (we use this a few times)
         self.logger.info("Adding Schema String to model metadata...", send_db=True)
@@ -88,6 +70,37 @@ class DatabaseModelDDL:
             Metadata.SCHEMA_STR, ', '.join([f'{name} {col_type}' for name, col_type in self.model.get_metadata(
                 Metadata.SQL_SCHEMA).items()]) + ','
         )
+
+    def _create_prediction_data(self):
+        """
+        Get the prediction data
+        :return: prediction data
+        """
+        model_generic_type = self.model.get_metadata(Metadata.GENERIC_TYPE)
+
+        if model_generic_type == DeploymentModelType.MULTI_PRED_INT:
+            self.prediction_data.update({
+                'prediction_call': 'MLMANAGER.PREDICT_CLASSIFICATION',
+                'column_vals': ['PREDICTION VARCHAR(5000)'] + [f'"{cls}" DOUBLE' for cls in
+                                                               self.model.get_metadata(Metadata.CLASSES)]
+            })
+        elif model_generic_type == DeploymentModelType.SINGLE_PRED_DOUBLE:
+            self.prediction_data.update({
+                'prediction_call': 'MLMANAGER.PREDICT_REGRESSION',
+                'column_vals': ['PREDICTION DOUBLE']
+            })
+        elif model_generic_type == DeploymentModelType.SINGLE_PRED_INT:
+            self.prediction_data.update({
+                'prediction_call': 'MLMANAGER.PREDICT_CLUSTER',
+                'column_vals': ['PREDICTION INT']
+            })
+        elif model_generic_type == DeploymentModelType.MULTI_PRED_DOUBLE:
+            self.prediction_data.update({
+                'prediction_call': 'MLMANAGER.PREDICT_KEY_VALUE',
+                'column_vals': [f'"{cls}" DOUBLE' for cls in self.model.get_metadata(Metadata.CLASSES)]
+            })
+        else:
+            raise Exception("Unknown Model Deployment Type")
 
     @staticmethod
     def _table_exists(table_name, schema_name):
