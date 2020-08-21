@@ -161,7 +161,7 @@ class DatabaseModelDDL:
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         table_cols = [col['name'] for col in inspector.get_columns(self.table_name, schema=self.schema_name)]
         reserved_fields = set(
-            ['CUR_USER', 'EVAL_TIME', 'RUN_ID', 'PREDICTION'] + self.model.get_metadata(Metadata.CLASSES) or []
+            ['CUR_USER', 'EVAL_TIME', 'RUN_ID', 'PREDICTION'] + (self.model.get_metadata(Metadata.CLASSES) or [])
         )
         for col in table_cols:
             if col in reserved_fields:
