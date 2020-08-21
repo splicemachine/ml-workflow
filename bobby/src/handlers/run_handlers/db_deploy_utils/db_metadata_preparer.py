@@ -179,7 +179,7 @@ class DatabaseModelMetadataPreparer:
                     'TargetEncoder': lambda: [f'{cls}_te' for cls in list(raw_mojo.getNames()) if
                                               cls != raw_mojo.getResponseName()],
                     'DimReduction': lambda: [f'PC{k}' for k in
-                                             range(self.model.get_representation(Representations.LIBRARY))],
+                                             range(self.model.get_representation(Representations.LIBRARY).k)],
                     'AnomalyDetection': lambda: ['score', 'normalizedScore'],
                     'WordEmbedding': lambda: [f'{name}_C{idx}' for idx in range(raw_mojo.getVecSize()) for name in
                                               raw_mojo.getNames()]
