@@ -42,7 +42,7 @@ class ScikitUtils:
             predict_call = lib_specific_args['predict_call']
             if not hasattr(model, predict_call):
                 raise Exception('The predict function specified is not available for the given model')
-            if predict_call != 'predict' and lib_specific_args['predict_args']:
+            if predict_call != 'predict' and lib_specific_args.get('predict_args'):
                 raise Exception(f'predict_args passed in but predict_call is {predict_call}. '
                                 f'This combination is not allowed')
         if lib_specific_args.get('predict_args'):

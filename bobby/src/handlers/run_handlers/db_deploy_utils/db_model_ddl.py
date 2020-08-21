@@ -252,7 +252,7 @@ class DatabaseModelDDL:
 
         trigger_sql += ' AND '.join([f'{index} = NEWROW.{index}' for index in self.primary_key])
         # TODO - use the above syntax for other queries
-        self.logger.info(f"Executing\n{trigger_sql}")
+        self.logger.info(f"Executing\n{trigger_sql}", send_db=True)
         self.session.execute(trigger_sql)
 
     def add_model_to_metadata_table(self):
