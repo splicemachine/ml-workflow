@@ -98,7 +98,7 @@ class DatabaseModelMetadataPreparer:
         if self.model_type == KerasModelType.MULTI_PRED_DOUBLE:
             output_shape = library_model.layers[-1].output_shape
             if not self._classes:
-                self._classes = ['prediction'] + [f'C{i}' for i in range(len(output_shape[-1]))]
+                self._classes = ['prediction'] + [f'C{i}' for i in range(output_shape[-1])]
                 self.logger.info(f"Using classes {self._classes}", send_d=True)
             else:
                 self.logger.warning(f"Classes were not specified... using {self._classes} as fallback", send_db=True)
