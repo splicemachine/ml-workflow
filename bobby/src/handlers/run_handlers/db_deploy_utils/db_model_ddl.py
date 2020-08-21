@@ -179,7 +179,7 @@ class DatabaseModelDDL:
         alter_table_sql.append(f'{alter_table_syntax} RUN_ID VARCHAR(50) DEFAULT \'{self.run_id}\'')
 
         # Add the correct prediction type
-        for col in self.prediction_data[self.model.get_metadata(Metadata.GENERIC_TYPE)]['column_vals']:
+        for col in self.prediction_data['column_vals']:
             alter_table_sql.append(f'{alter_table_syntax} {col}')
 
         for sql in alter_table_sql:
@@ -293,7 +293,7 @@ class DatabaseModelDDL:
         self.logger.info("Creating Prediction Trigger...", send_db=True)
         schema_types = self.model.get_metadata(Metadata.SQL_SCHEMA)
         # The database function call is dependent on the model type
-        prediction_call = self.prediction_data[self.model.get_metadata(Metadata.GENERIC_TYPE)]['prediction_call']
+        prediction_call = self.prediction_data['prediction_call']
 
         pred_trigger = f"""CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}
                            BEFORE INSERT ON {self.schema_table_name} REFERENCING NEW AS NEWROW 
