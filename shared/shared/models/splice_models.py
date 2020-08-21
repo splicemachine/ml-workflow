@@ -107,7 +107,7 @@ class Job(SQLAlchemyClient.SpliceBase):
     # Sizes for Truncation
     SHORT_VARCHAR_SIZE: int = 100
     LONG_VARCHAR_SIZE: int = 5000
-    EXTRA_LONG_VARCHAR_SIZE: int = 24000
+    EXTRA_LONG_VARCHAR_SIZE: int = 30000
 
     # TBA (To-Be-Assigned later) when JSON is parsed by structures
     parsed_payload: dict or None = None
@@ -121,7 +121,7 @@ class Job(SQLAlchemyClient.SpliceBase):
     status: Column = Column(String(SHORT_VARCHAR_SIZE), default='PENDING')
     logs: Column = deferred(Column(String(24000), default='---Job Logs---\n'))
 
-    payload: Column = Column(String(LONG_VARCHAR_SIZE), nullable=False)
+    payload: Column = Column(String(EXTRA_LONG_VARCHAR_SIZE), nullable=False)
     user: Column = Column(String(SHORT_VARCHAR_SIZE), nullable=False)
 
     mlflow_url: Column = Column(String(LONG_VARCHAR_SIZE), default="N/A")
