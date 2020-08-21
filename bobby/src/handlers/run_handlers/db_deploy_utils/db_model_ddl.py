@@ -196,7 +196,8 @@ class DatabaseModelDDL:
         classes = self.model.get_metadata(Metadata.CLASSES)
         schema_str = self.model.get_metadata(Metadata.SCHEMA_STR)
 
-        prediction_call = "new com.splicemachine.mlrunner.MLRunner('key_value', '{run_id}', {raw_data}, '{schema_str}'"
+        prediction_call = """new "com.splicemachine.mlrunner.MLRunner"('key_value', '{run_id}', {raw_data}, 
+        '{schema_str}'"""
 
         if model_type == DeploymentModelType.MULTI_PRED_DOUBLE:
             if 'predict_call' not in self.library_specific_args and 'predict_args' not in self.library_specific_args:
