@@ -62,9 +62,9 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
         Create a values file in /tmp to render the helm template
         :return: manifests as a string
         """
-        with NamedTemporaryFile(suffix='.yaml') as tf:
+        with NamedTemporaryFile(suffix='.yaml', mode='w') as tf:
             self.logger.info("Creating Helm Values File to Parametrize Kubernetes Manifests...", send_db=True)
-            dump_yaml(self._build_template_parameters(), tf)
+            dump_yaml(self._build_template_parameters(), tf.file)
             self.logger.info("Rendering template...", send_db=True)
             rendered_templates = check_output(['helm', 'template',
                                                f"{env_vars['WORKER_HOME']}/configuration/k8s_serving_helm",
