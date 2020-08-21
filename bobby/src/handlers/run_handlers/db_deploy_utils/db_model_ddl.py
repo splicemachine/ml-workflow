@@ -137,7 +137,7 @@ class DatabaseModelDDL:
                 table_create_sql += f'{key} {self.primary_key[key]},'
             pk_cols += f'{key},'
 
-        for col in self.prediction_data[self.model.get_metadata(Metadata.GENERIC_TYPE)]['column_vals']:
+        for col in self.prediction_data['column_vals']:
             table_create_sql += f'{col},'
 
         table_create_sql += f'PRIMARY KEY({pk_cols.rstrip(",")}))'
