@@ -26,7 +26,7 @@ spec:
           emptyDir:
             medium: Memory # store model in RAM
       initContainers:
-        - name: model-{{ .Values.model.runId }}-init
+        - name: model-{{ .Values.model.runId }}-it
           env:
             - name: DB_USER
               value: {{ .Values.db.user }}
@@ -55,7 +55,7 @@ spec:
           image: splicemachine/sm_k8_model_serving:{{ .Values.versions.server }}
           ports:
             - containerPort: 8080
-              name: {{ .Values.model.runId }}-port
+              name: {{ .Values.model.runId }}
           resources:
             {{ if eq .Values.resourceRequests.enabled "true" }}
             requests:
