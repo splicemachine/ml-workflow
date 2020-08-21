@@ -101,6 +101,7 @@ class DatabaseRepresentationCreator:
         java_import(self.java_jvm, "java.io.{BinaryOutputStream, ObjectOutputStream, ByteArrayInputStream}")
         java_import(self.java_jvm, "hex.genmodel.easy.EasyPredictModelWrapper")
         java_import(self.java_jvm, "hex.genmodel.MojoModel")
+
         with TemporaryDirectory() as tmpdir:
             model_path = self.model.get_representation(Representations.LIBRARY). \
                 download_mojo(f'/{tmpdir}/h2o_model.zip')
@@ -135,7 +136,8 @@ class DatabaseRepresentationCreator:
         from tensorflow.keras.models import save_model
         self.logger.info("Creating Alternative Keras Representations", send_db=True)
         h5_buffer = BytesIO()
-        save_model(model=self.model.get_representation(Representations.LIBRARY), filepath=h5_buffer)
+        h5_buffer.seek(0)
+        save_model(model=self.model.get_representation(Representations.LIBRARY), filepath=h5_buffer.read())
         h5_buffer.seek(0)
         self.logger.info("Registering Serialized Representation", send_db=True)
         self.model.add_representation(Representations.BYTES, h5_buffer.read())
