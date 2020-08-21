@@ -67,7 +67,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
             dump_yaml(self._build_template_parameters(), tf.file)
             self.logger.info("Rendering template...", send_db=True)
             rendered_templates = check_output(['helm', 'template',
-                                               f"{env_vars['WORKER_HOME']}/configuration/k8s_serving_helm",
+                                               f"{env_vars['SRC_HOME']}/configuration/k8s_serving_helm",
                                                "--values", tf.name])
 
             KubernetesAPIService.add_from_yaml(data=rendered_templates)
