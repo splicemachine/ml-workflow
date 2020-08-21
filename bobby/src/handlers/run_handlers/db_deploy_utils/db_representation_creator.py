@@ -92,7 +92,7 @@ class DatabaseRepresentationCreator:
         object_output_stream.close()
         return byte_output_stream.toByteArray()
 
-    def _create_alternate_h2o(self, model):
+    def _create_alternate_h2o(self):
         """
         Serialize H2O model to bytearray
         :return: bytearray
