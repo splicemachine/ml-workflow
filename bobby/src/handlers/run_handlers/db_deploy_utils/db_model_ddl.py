@@ -161,7 +161,7 @@ class DatabaseModelDDL:
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         table_cols = [col['name'] for col in inspector.get_columns(self.table_name, schema=self.schema_name)]
         reserved_fields = set(
-            ['CUR_USER', 'EVAL_TIME', 'RUN_ID', 'PREDICTION'] + self.model.get_metadata(Metadata.CLASSES)
+            ['CUR_USER', 'EVAL_TIME', 'RUN_ID', 'PREDICTION'] + self.model.get_metadata(Metadata.CLASSES) or []
         )
         for col in table_cols:
             if col in reserved_fields:
@@ -260,8 +260,8 @@ class DatabaseModelDDL:
         """
         self.logger.info("Adding Model to Metadata table", send_db=True)
         table_id = self.session.execute(f"""
-            SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name}' 
-            AND SCHEMANAME='{self.schema_name}'""").fetchone()[0]
+            SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name.upper()}' 
+            AND SCHEMANAME='{self.schema_name.upper()}'""").fetchone()[0]
 
         trigger_suffix = f"{self.table_name}_{self.run_id}".upper()
 
