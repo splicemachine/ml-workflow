@@ -17,6 +17,8 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
     """
     Handler for processing deployment to Kubernetes
     """
+    DEFAULT_RETRIEVER_TAG = '0.0.1'
+    DEFAULT_SERVING_TAG = '0.0.1'
 
     def __init__(self, task_id: int):
         """
@@ -41,7 +43,10 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
             'model': {'runId': payload['run_id'], 'name': self.model_dir, 'namespace': env_vars['NAMESPACE']},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'],
                    'host': env_vars['DB_HOST']},
-            'versions': {'retriever': env_vars['RETRIEVER_IMAGE_TAG'], 'server': env_vars['SERVER_IMAGE_TAG']},
+            'versions': {'retriever': env_vars.get('RETRIEVER_IMAGE_TAG',
+                                                   KubernetesDeploymentHandler.DEFAULT_RETRIEVER_TAG),
+                         'server': env_vars.get('SERVER_IMAGE_TAG',
+                                                KubernetesDeploymentHandler.DEFAULT_SERVING_TAG)},
             'serving': {'gunicornWorkers': payload['gunicorn_workers'], 'disableNginx': payload['disable_nginx'],
                         'exposePort': payload['service_port']},
             'resourceRequests': {'enabled': payload['resource_requests_enabled'],
