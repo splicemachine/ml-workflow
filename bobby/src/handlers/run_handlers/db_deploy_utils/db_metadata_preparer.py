@@ -180,6 +180,9 @@ class DatabaseModelMetadataPreparer:
                                               cls != raw_mojo.getResponseName()],
                     'DimReduction': lambda: [f'PC{k}' for k in
                                              range(self.model.get_representation(Representations.LIBRARY))],
-                    'AnomalyDetection': lambda: ['score', 'normalizedScore']
+                    'AnomalyDetection': lambda: ['score', 'normalizedScore'],
+                    'WordEmbedding': lambda: [f'{name}_C{idx}' for idx in range(raw_mojo.getVecSize()) for name in
+                                              raw_mojo.getNames()]
+
                 }[model_category]()
             self.logger.info(f"Using Classes: {self._classes}")
