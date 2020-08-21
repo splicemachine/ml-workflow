@@ -249,7 +249,7 @@ class DatabaseModelDDL:
                        f' as b ({output_cols_schema[:-1]}) WHERE 1=1) WHERE '
         # 1=1 because of a DB bug that requires a where clause
 
-        trigger_sql += ' AND '.join([f'{index[0]} = NEWROW.{index[0]}' for index in self.primary_key])
+        trigger_sql += ' AND '.join([f'{index} = NEWROW.{index}' for index in self.primary_key])
         # TODO - use the above syntax for other queries
         self.logger.info(f"Executing\n{trigger_sql}")
         self.session.execute(trigger_sql)

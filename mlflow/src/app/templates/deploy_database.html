@@ -40,8 +40,8 @@ names correspond to those in shared/database/splice_models.py -->
                                 <div class='form--inputContainer js-input'>
                                     <label for='input_create_model_table' class='form--label'>Deploy to existing table
                                         *</label>
-                                    <select id='input_create_model_table' onchange="toggleDatabaseCreate()"
-                                            class='js-input-fullName' required>
+                                    <select id='input_create_model_table' name="create_model_table"
+                                            onchange="toggleDatabaseCreate()" class='js-input-fullName' required>
                                         <option value=false selected>No</option>
                                         <option value=true>Yes</option>
                                     </select>

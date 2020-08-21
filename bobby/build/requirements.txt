@@ -16,6 +16,6 @@ tensorflow==2.2.0rc3
 kubernetes==11.0.0
 tensorboard==2.2.0
 tensorflow-estimator==2.2.0
-scikit-learn==0.22.2
+scikit-learn==0.21.3
 loguru==0.5.1
 mleap==0.16.1

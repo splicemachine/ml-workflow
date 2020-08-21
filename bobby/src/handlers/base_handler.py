@@ -94,5 +94,6 @@ class BaseHandler(object):
             self.Session.rollback()
             self.logger.exception(f"Task Failed", update_status='FAILURE', send_db=True)
         finally:
+            self.logger.info("TASK_COMPLETED", send_db=True)
             self.manager.destroy_logger()  # release the logger
             self.Session.close()  # close the thread local session in all cases
