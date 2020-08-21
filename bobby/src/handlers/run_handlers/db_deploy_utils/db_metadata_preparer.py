@@ -117,7 +117,6 @@ class DatabaseModelMetadataPreparer:
         sklearn_args = ScikitUtils.validate_scikit_args(model=library_model,
                                                         lib_specific_args=self.library_specific)
         self.model_type = ScikitUtils.get_model_type(model=library_model, lib_specific_args=sklearn_args)
-        # TODO split into separate func (clean)
         if self._classes:
             if self.model_type == SklearnModelType.MULTI_PRED_DOUBLE:
                 self._classes = [cls.replace(' ', '_') for cls in self._classes]
@@ -134,7 +133,7 @@ class DatabaseModelMetadataPreparer:
                     self.logger.info(f"Using transform operation with classes {self._classes}", send_db=True)
                 elif 'predict_args' in sklearn_args:
                     self._classes = ['prediction', sklearn_args.get('predict_args').lstrip('return_')]
-                    self.logger.info(f"Found predict arguments... classes are {self._classes}")
+                    self.logger.info(f"Found predict arguments... classes are {self._classes}", send_db=True)
                 elif hasattr(library_model, 'classes_') and library_model.classes_.size != 0:
                     self._classes = [f'C{cls}' for cls in range(library_model.classes_)]
                     self.logger.info(f"Using fallback for classes: {self._classes}", send_db=True)
@@ -178,8 +177,10 @@ class DatabaseModelMetadataPreparer:
                         ['MSE'] if 'DeeplearningMojoModel' in raw_mojo.getClass().toString() else [])],
                     'TargetEncoder': lambda: [f'{cls}_te' for cls in list(raw_mojo.getNames()) if
                                               cls != raw_mojo.getResponseName()],
-                    'DimReduction': lambda: [f'PC{k}' for k in
-                                             range(self.model.get_representation(Representations.LIBRARY).k)],
+                    'DimReduction': lambda: [
+                        f'PC{k}' for k in range(
+                            self.model.get_representation(Representations.LIBRARY).actual_params['k'])
+                    ],
                     'AnomalyDetection': lambda: ['score', 'normalizedScore'],
                     'WordEmbedding': lambda: [f'{name}_C{idx}' for idx in range(raw_mojo.getVecSize()) for name in
                                               raw_mojo.getNames()]
