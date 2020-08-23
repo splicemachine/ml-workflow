@@ -16,6 +16,6 @@ spec:
     identifier: model-{{ .Values.model.runId }}
   ports:
     - protocol: TCP
-      port: 8080
-      targetPort: {{ .Values.serving.exposePort }}
+      port: {{ .Values.serving.exposePort }}
+      targetPort: 8000
       name: {{ .Values.model.runId }}

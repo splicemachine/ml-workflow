@@ -29,6 +29,7 @@ class DatabaseRepresentationCreator:
         :param df_schema: serialized JSON dataframe schema
         :param logger: override the default logger
         """
+
         self.java_jvm = java_jvm
         self.df_schema = df_schema
 
@@ -42,6 +43,8 @@ class DatabaseRepresentationCreator:
         self.logger = logger
         self.model: Model = Model()
         self.model.add_metadata(Metadata.FILE_EXT, file_ext)
+
+        java_import(self.java_jvm, "java.io.{BinaryOutputStream, ObjectOutputStream, ByteArrayInputStream}")
 
     def get_library_representation(self, *, from_dir: str):
         """
@@ -98,7 +101,6 @@ class DatabaseRepresentationCreator:
         :return: bytearray
         """
         self.logger.info("Creating Alternative Representations for H2O...")
-        java_import(self.java_jvm, "java.io.{BinaryOutputStream, ObjectOutputStream, ByteArrayInputStream}")
         java_import(self.java_jvm, "hex.genmodel.easy.EasyPredictModelWrapper")
         java_import(self.java_jvm, "hex.genmodel.MojoModel")
 
@@ -133,14 +135,15 @@ class DatabaseRepresentationCreator:
         Serialize a Keras model to a bytearray
         :return: bytearray
         """
-        from tensorflow.keras.models import save_model
         self.logger.info("Creating Alternative Keras Representations", send_db=True)
-        h5_buffer = BytesIO()
-        h5_buffer.seek(0)
-        save_model(model=self.model.get_representation(Representations.LIBRARY), filepath=h5_buffer.read())
-        h5_buffer.seek(0)
+        with TemporaryDirectory() as tmpdir:
+            self.model.get_representation(Representations.LIBRARY).save(f'{tmpdir}/keras.h5')
+
+            with open(f'{tmpdir}/keras.h5', 'rb') as model:
+                buffer = bytearray(bytes(model.read()))
+
         self.logger.info("Registering Serialized Representation", send_db=True)
-        self.model.add_representation(Representations.BYTES, h5_buffer.read())
+        self.model.add_representation(Representations.BYTES, buffer)
 
     def _create_alternate_spark(self):
         """

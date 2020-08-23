@@ -9,7 +9,6 @@ This function will be called in the `def handle(self)`
 function.
 """
 from abc import abstractmethod
-from traceback import format_exc
 from typing import Optional
 
 from sqlalchemy.orm import load_only

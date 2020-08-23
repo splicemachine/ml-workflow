@@ -23,8 +23,9 @@ class ImageBuilder(object):
         copy_file("./entrypoint.sh", build_dir)
 
         setup_commands = [
+            "RUN conda config --add channels conda-forge",
             "COPY ./entrypoint.sh /entrypoint.sh",
-            "RUN chmod +x /entrypoint.sh"
+            "RUN chmod +x /entrypoint.sh",
         ]
         return "\n".join(setup_commands)
 

@@ -23,8 +23,7 @@ spec:
     spec:
       volumes:
         - name: model
-          emptyDir:
-            medium: Memory # store model in RAM
+          emptyDir: {}
       initContainers:
         - name: model-{{ .Values.model.runId }}-it
           env:
@@ -40,7 +39,7 @@ spec:
               value: {{ .Values.model.name }}
           image: splicemachine/sm_k8_model_serving-init:{{ .Values.versions.retriever }}
           volumeMounts:
-            - mountPath: /opt/ml/model
+            - mountPath: "/var/run/model"
               name: model
       containers:
         - name: model-{{ .Values.model.runId }}
@@ -51,10 +50,10 @@ spec:
             - name: DISABLE_NGINX
               value: "true"
             {{ end }}
-          imagePullPolicy: Never
+          imagePullPolicy: Always
           image: splicemachine/sm_k8_model_serving:{{ .Values.versions.server }}
           ports:
-            - containerPort: 8080
+            - containerPort: 8000
               name: {{ .Values.model.runId }}
           resources:
             {{ if eq .Values.resourceRequests.enabled "true" }}
@@ -68,6 +67,6 @@ spec:
               cpu: {{ .Values.resourceLimits.cpu }}
             {{ end }}
           volumeMounts:
-            - mountPath: /opt/ml/model
+            - mountPath: "/opt/ml/model"
               name: model
       serviceAccountName: model-{{ .Values.model.runId }}

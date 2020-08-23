@@ -2,11 +2,10 @@
 Retrieve Model from the database
 """
 from io import BytesIO
-from os import environ
+from os import environ, system
 from os.path import exists
 from zipfile import ZipFile
 
-from pyspark.sql import SparkSession
 from splicemachinesa.pyodbc import splice_connect
 
 
@@ -20,36 +19,35 @@ class Retriever:
     DB_USER = environ['DB_USER']
     DB_PASSWORD = environ['DB_PASSWORD']
     DB_HOST = environ['DB_HOST']
-    MLFLOW_URL = environ.get('MLFLOW_URL', 'splicedb-mlflow:5001')
 
     RUN_ID = environ['RUN_ID']
     MODEL_NAME = environ['MODEL_NAME']
 
-    SPARK_SESSION = SparkSession.builder.getOrCreate()
-
     @staticmethod
     def write_artifact():
+        """
+        Write the artifact to EmptyDir Mounted Volume
+        """
         cnxn = splice_connect(UID=Retriever.DB_USER, PWD=Retriever.DB_PASSWORD,
-                              URL=Retriever.DB_HOST)
+                              URL=Retriever.DB_HOST, SSL=None)
         with cnxn.cursor() as cursor:
-            cursor.execute(f'SELECT "binary", file_ext from MLMANAGER.ARTIFACTS WHERE RUN_UUID={Retriever.RUN_ID}'
-                           f'AND MODEL_')
-            binary, file_ext = cursor.fetchone()
+            cursor.execute(f'SELECT "binary" from MLMANAGER.ARTIFACTS WHERE RUN_UUID=\'{Retriever.RUN_ID}\''
+                           f'AND NAME=\'{Retriever.MODEL_NAME}\'')
+            binary = list(cursor.fetchone())[0]
             # Write to BytesIO buffer
             buffer = BytesIO(binary)
             buffer.seek(0)
             ZipFile(buffer).extractall(path=Retriever.MOUNT_PATH)
+            print("Mounted Volume Contents:")
+            system(f"ls {Retriever.MOUNT_PATH}")
 
 
 def main():
     """
     Main logic of entrypoint
     """
-    if exists(Retriever.MOUNT_PATH):
-        print("Model has already been loaded... Exiting.")
-    else:
-        print("Retrieving model as it has not been loaded")
-        Retriever.write_artifact()
+    system(f"rm -rf {Retriever.MOUNT_PATH}/*")
+    Retriever.write_artifact()
 
 
 if __name__ == "__main__":
