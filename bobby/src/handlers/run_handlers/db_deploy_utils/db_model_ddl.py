@@ -66,10 +66,18 @@ class DatabaseModelDDL:
 
         # Create the schema of the table (we use this a few times)
         self.logger.info("Adding Schema String to model metadata...", send_db=True)
+
         self.model.add_metadata(
             Metadata.SCHEMA_STR, ', '.join([f'{name} {col_type}' for name, col_type in self.model.get_metadata(
                 Metadata.SQL_SCHEMA).items()]) + ','
         )
+
+        mcols = [m.upper() for m in self.model_columns]
+        self.model.add_metadata(
+            Metadata.MODEL_VECTOR_STR, ', '.join([f'{name} {col_type}' for name, col_type in self.model.get_metadata(
+                Metadata.SQL_SCHEMA).items() if name.upper() in mcols]) + ','
+        )
+
 
     def _create_prediction_data(self):
         """
@@ -113,6 +121,23 @@ class DatabaseModelDDL:
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
 
+    @staticmethod
+    def _get_feature_vector_sql(model_columns: List[str], schema_types: Dict[str,str]):
+        model_cols = [i.upper() for i in model_columns]
+        stypes = {i.upper():j.upper() for i,j in schema_types.items()}
+
+        sql_vector = ''
+        for index, col in enumerate(model_cols):
+            sql_vector += '||' if index != 0 else ''
+            if stypes[str(col)] == 'VARCHAR(5000)':
+                sql_vector += f'NEWROW.{col}||\',\''
+            else:
+                inner_cast = f'CAST(NEWROW.{col} as DECIMAL(38,10))' if \
+                    stypes[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
+                sql_vector += f'TRIM(CAST({inner_cast} as CHAR(41)))||\',\''
+        return sql_vector
+
+
     def create_model_deployment_table(self):
         """
         Creates the table that holds the columns of the feature vector as well as a unique MOMENT_ID
@@ -133,7 +158,7 @@ class DatabaseModelDDL:
         pk_cols = ''
         for key in self.primary_key:
             # If pk is already in the schema_string, don't add another column. PK may be an existing value
-            if key.lower() not in self.model.get_metadata(Metadata.SCHEMA_STR).lower():
+            if key.lower() not in schema_str.lower():
                 table_create_sql += f'{key} {self.primary_key[key]},'
             pk_cols += f'{key},'
 
@@ -194,10 +219,10 @@ class DatabaseModelDDL:
         schema_types = self.model.get_metadata(Metadata.SQL_SCHEMA)
         model_type = self.model.get_metadata(Metadata.GENERIC_TYPE)
         classes = self.model.get_metadata(Metadata.CLASSES)
-        schema_str = self.model.get_metadata(Metadata.SCHEMA_STR)
+        model_vector_str = self.model.get_metadata(Metadata.MODEL_VECTOR_STR)
 
         prediction_call = """new "com.splicemachine.mlrunner.MLRunner"('key_value', '{run_id}', {raw_data}, 
-        '{schema_str}'"""
+        '{model_vector_str}'"""
 
         if model_type == DeploymentModelType.MULTI_PRED_DOUBLE:
             if 'predict_call' not in self.library_specific_args and 'predict_args' not in self.library_specific_args:
@@ -229,21 +254,13 @@ class DatabaseModelDDL:
             output_cols_vti_reference += f'b."{cls}",'
             output_cols_schema += f'"{cls}" DOUBLE,' if cls != 'prediction' else f'"{cls}" INT,'  # sk predict_proba
 
-        raw_data = ''
-        for index, col in enumerate(self.model_columns):
-            raw_data += '||' if index != 0 else ''
-            if schema_types[str(col)] == 'VARCHAR(5000)':
-                raw_data += f'NEWROW.{col}||\',\''
-            else:
-                inner_cast = f'CAST(NEWROW.{col} as DECIMAL(38,10))' if \
-                    schema_types[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
-                raw_data += f'TRIM(CAST({inner_cast} as CHAR(41)))||\',\''
+        raw_data = DatabaseModelDDL._get_feature_vector_sql(self.model_columns, schema_types)
 
         # Cleanup (remove concatenation SQL from last variable) + schema for PREDICT call
         raw_data = raw_data[:-5].lstrip('||')
-        schema_str_pred_call = schema_str.replace('\t', '').replace('\n', '').rstrip(',')
+        model_vector_str_pred_call = model_vector_str.replace('\t', '').replace('\n', '').rstrip(',')
 
-        prediction_call = prediction_call.format(run_id=self.run_id, raw_data=raw_data, schema_str=schema_str_pred_call)
+        prediction_call = prediction_call.format(run_id=self.run_id, raw_data=raw_data, model_vector_str=model_vector_str_pred_call)
 
         trigger_sql += f'{output_column_names[:-1]}) = ('
         trigger_sql += f'SELECT {output_cols_vti_reference[:-1]} FROM {prediction_call}' \
@@ -300,17 +317,10 @@ class DatabaseModelDDL:
                            BEFORE INSERT ON {self.schema_table_name} REFERENCING NEW AS NEWROW 
                            FOR EACH ROW SET NEWROW.PREDICTION={prediction_call}(\'{self.run_id}\',"""
 
-        for index, col in enumerate(self.model_columns):
-            pred_trigger += '||' if index != 0 else ''
-            if schema_types[str(col)] == 'VARCHAR(5000)':
-                pred_trigger += f'NEWROW.{col}||\',\''
-            else:
-                inner_cast = f'CAST(NEWROW.{col} as DECIMAL(38,10))' if \
-                    schema_types[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
-                pred_trigger += f'TRIM(CAST({inner_cast} as CHAR(41)))||\',\''
+        pred_trigger += DatabaseModelDDL._get_feature_vector_sql(self.model_columns, schema_types)
 
         # Cleanup + schema for PREDICT call
-        pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(Metadata.SCHEMA_STR).replace(
+        pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(Metadata.MODEL_VECTOR_STR).replace(
             '\t', '').replace('\n', '').rstrip(',') + '\')'
 
         self.logger.info(f"Executing\n{pred_trigger}", send_db=True)

@@ -33,6 +33,7 @@ class Metadata:
     DATAFRAME_EXAMPLE = 'dataframe_example'
     SQL_SCHEMA = 'sql_schema'
     SCHEMA_STR = 'schema_str'
+    MODEL_VECTOR_STR = 'model_vector_str' # Like SCHEMA_STR but only columns that are in the feature vector
 
 
 class H2OModelType(Enum):  # see https://bit.ly/3gJ69gc

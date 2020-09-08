@@ -12,10 +12,9 @@ metadata:
       name: {{ .Values.k8s.ownerPod }}
       uid: {{ .Values.k8s.ownerUID }}
 spec:
+  clusterIP: None
   selector:
     identifier: model-{{ .Values.model.runId }}
   ports:
-    - protocol: TCP
-      port: {{ .Values.serving.exposePort }}
-      targetPort: 8000
-      name: {{ .Values.model.runId }}
+    port: {{ .Values.serving.exposePort }}
+    name: {{ .Values.model.runId }}
