@@ -75,7 +75,7 @@ class DatabaseModelMetadataPreparer:
                 self._classes = None
             else:
                 self._classes = [cls.replace(' ', '_') for cls in self._classes]  # remove spaces in class names
-                self.logger.info(f"Labels found. Using {self._classes} as labels for predictions 0-{len(self._classes)}"
+                self.logger.info(f"Labels found. Using {self._classes} as labels for predictions 0-{len(self._classes)-1}"
                                  " respectively", send_db=True)
         else:
             if self.model_type in {SparkModelType.SINGLE_PRED_INT, SparkModelType.MULTI_PRED_INT}:
@@ -135,7 +135,7 @@ class DatabaseModelMetadataPreparer:
                     self._classes = ['prediction', sklearn_args.get('predict_args').lstrip('return_')]
                     self.logger.info(f"Found predict arguments... classes are {self._classes}", send_db=True)
                 elif hasattr(library_model, 'classes_') and library_model.classes_.size != 0:
-                    self._classes = [f'C{cls}' for cls in range(library_model.classes_)]
+                    self._classes = [f'C{cls}' for cls in library_model.classes_]
                     self.logger.info(f"Using fallback for classes: {self._classes}", send_db=True)
                 elif hasattr(library_model, 'get_params') and (hasattr(library_model, 'n_components') or
                                                                hasattr(library_model, 'n_clusters')):

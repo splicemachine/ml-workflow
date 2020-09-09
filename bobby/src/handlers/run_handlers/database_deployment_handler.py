@@ -108,7 +108,8 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
             raise Exception("Either the table has no columns, or the table cannot be found.")
 
         for field in columns:
-            schema_dict[field['name']] = str(field['type'])
+            # FIXME: Sqlalchemy assumes lowercase and Splice assumes uppercase. Quoted cols in DB don't translate
+            schema_dict[field['name'].upper()] = str(field['type']).split('(')[0].upper()
             # Remove length specification from datatype for backwards conversion
             spark_d_type = getattr(spark_types,
                                    Converters.DB_SPARK_CONVERSIONS[str(field['type']).split('(')[0].upper()])

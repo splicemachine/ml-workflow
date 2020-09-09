@@ -23,8 +23,8 @@ from splicemachine.ml.utilities import SpliceMultiClassificationEvaluator
 from sqlalchemy import Binary, Float, String, bindparam, create_engine, text
 
 environ['USER'] = 'amrit'
-environ['PYSPARK_PYTHON'] = 'python3.6'
-environ['PYSPARK_DRIVER_PYTHON'] = 'python3.6'
+environ['PYSPARK_PYTHON'] = 'python3.7'
+environ['PYSPARK_DRIVER_PYTHON'] = 'python3.7'
 
 logger = logging.getLogger(__name__)
 

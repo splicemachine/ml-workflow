@@ -37,7 +37,9 @@ RUN yum-config-manager --add-repo https://download.docker.com/linux/centos/docke
 RUN yum clean all && \
     rm -rf /var/cache/yum && \
     yum -y update && \
-    yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
+    yum -y install $(cat /$BUILD_HOME/yum_packages.txt) && \
+    yum -y groupinstall development && \
+    yum -y --enablerepo=extras install epel-release
 
 # Install ODBC Driver
 RUN cd $BUILD_HOME && \
@@ -47,9 +49,21 @@ RUN cd $BUILD_HOME && \
     sh ./install.sh -q
 
 # Install Python dependencies
-RUN pip3 install --upgrade pip wheel && \
-    pip3 install -r $BUILD_HOME/requirements.txt && \
-    pip3 install 'pyspark=='$spark_version
+RUN cd /tmp && \
+  wget https://www.python.org/ftp/python/3.7.3/Python-3.7.3.tgz && \
+  tar xzf Python-3.7.3.tgz && \
+  cd Python-3.7.3  && \
+  ./configure --enable-shared --enable-optimizations && \
+  make altinstall && \
+  ln -sfn /usr/local/bin/python3.7 /usr/bin/python3 && \
+  ln -sfn /usr/local/bin/pip3.7 /usr/bin/pip3 && \
+  rm -rf /tmp/Python-3.7.3 && \
+  rm /tmp/rm -rf Python-3.7.3.tgz && \
+  ldconfig /usr/local/lib
+
+RUN pip3.7 install --upgrade pip wheel && \
+    pip3.7 install -r $BUILD_HOME/requirements.txt && \
+    pip3.7 install 'pyspark=='$spark_version
 
 # Clean up Build Dependencies and setup src directories
 RUN rm -r $BUILD_HOME/* && \

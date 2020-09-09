@@ -7,7 +7,7 @@ from json import loads as parse_dict
 from time import sleep
 
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
-                        String)
+                        String, Text)
 from sqlalchemy.orm import relationship, deferred
 
 from shared.logger.logging_config import logger
@@ -121,7 +121,7 @@ class Job(SQLAlchemyClient.SpliceBase):
     status: Column = Column(String(SHORT_VARCHAR_SIZE), default='PENDING')
     logs: Column = deferred(Column(String(24000), default='---Job Logs---\n'))
 
-    payload: Column = Column(String(EXTRA_LONG_VARCHAR_SIZE), nullable=False)
+    payload: Column = Column(Text, nullable=False)
     user: Column = Column(String(SHORT_VARCHAR_SIZE), nullable=False)
 
     mlflow_url: Column = Column(String(LONG_VARCHAR_SIZE), default="N/A")

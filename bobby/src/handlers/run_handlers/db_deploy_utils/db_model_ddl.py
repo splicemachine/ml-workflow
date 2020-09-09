@@ -53,7 +53,7 @@ class DatabaseModelDDL:
         self.run_id = run_id
         self.schema_name = schema_name
         self.table_name = table_name
-        self.model_columns = model_columns  # The model_cols parameter
+        self.model_columns = model_columns or self.model.get_metadata(Metadata.SQL_SCHEMA).keys()# The model_cols parameter
         self.request_user = request_user
         self.primary_key = primary_key
         self.create_model_table = create_model_table
@@ -371,7 +371,6 @@ class DatabaseModelDDL:
                 self.alter_model_table()
 
         with log_operation_status("creating trigger", logger_obj=self.logger):
-            self.model_columns = self.model_columns or self.model.get_metadata(Metadata.SQL_SCHEMA).keys()
             if self.model.get_metadata(Metadata.TYPE) in {H2OModelType.MULTI_PRED_DOUBLE,
                                                           KerasModelType.MULTI_PRED_DOUBLE,
                                                           SklearnModelType.MULTI_PRED_DOUBLE}:

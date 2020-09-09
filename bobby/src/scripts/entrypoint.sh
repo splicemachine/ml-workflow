@@ -43,7 +43,7 @@ then
 elif [[ "$ENVIRONMENT" == "azure" ]] || [[ "$ENVIRONMENT" == "AZ" ]] || [[ "$ENVIRONMENT" == "az" ]] || [[ "$ENVIRONMENT" == "AZURE" ]]
 then
     export ENVIRONMENT="azure"
-    export AZURE_SUBSCRIPTION_ID=$(python3.6 ${SRC_HOME}/scripts/login_azure.py)
+    export AZURE_SUBSCRIPTION_ID=$(python3.7 ${SRC_HOME}/scripts/login_azure.py)
 elif [[ "$ENVIRONMENT" == "openstack" ]] || [[ "$ENVIRONMENT" == "Openstack" ]] || [[ "$ENVIRONMENT" == "OPENSTACK" ]] || [[ "$ENVIRONMENT" == "OpenStack" ]]
 then
     export ENVIRONMENT="openstack"
