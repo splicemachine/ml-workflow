@@ -16,5 +16,5 @@ spec:
   selector:
     identifier: model-{{ .Values.model.runId }}
   ports:
-    port: {{ .Values.serving.exposePort }}
-    name: {{ .Values.model.runId }}
+    - port: {{ .Values.serving.exposePort }}
+      name: {{ .Values.model.runId }}

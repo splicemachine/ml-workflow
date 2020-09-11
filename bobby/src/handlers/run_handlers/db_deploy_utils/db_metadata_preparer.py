@@ -120,6 +120,16 @@ class DatabaseModelMetadataPreparer:
         if self._classes:
             if self.model_type == SklearnModelType.MULTI_PRED_DOUBLE:
                 self._classes = [cls.replace(' ', '_') for cls in self._classes]
+                if hasattr(library_model, 'classes_') and library_model.classes_.size != 0:
+                    if library_model.classes_.size != len(self._classes):
+                        self.logger.error(f"Provided {len(self._classes)} classes but model has "
+                                          f"{library_model.classes_.size}", send_db=True)
+                        raise Exception(f"Provided {len(self._classes)} classes but model has {library_model.classes_.size}")
+                    else:
+                        self.logger.info(f"Classes provided. Using {self._classes} for model classes "
+                                         f"{library_model.classes_}", send_db=True)
+                else:
+                    self.logger.info(f"Using classes {self._classes} for classes")
             else:
                 self.logger.warning("Prediction classes were specified, but model is not classification... "
                                     "Ignoring classes", send_db=True)
@@ -136,7 +146,7 @@ class DatabaseModelMetadataPreparer:
                     self.logger.info(f"Found predict arguments... classes are {self._classes}", send_db=True)
                 elif hasattr(library_model, 'classes_') and library_model.classes_.size != 0:
                     self._classes = [f'C{cls}' for cls in library_model.classes_]
-                    self.logger.info(f"Using fallback for classes: {self._classes}", send_db=True)
+                    self.logger.info(f"Using model provided classes: {self._classes}", send_db=True)
                 elif hasattr(library_model, 'get_params') and (hasattr(library_model, 'n_components') or
                                                                hasattr(library_model, 'n_clusters')):
                     self._classes = [f'C{cls}' for cls in range(model_params.get('n_clusters') or

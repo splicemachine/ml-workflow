@@ -45,7 +45,7 @@ spec:
         - name: model-{{ .Values.model.runId }}
           env:
             - name: GUNICORN_CMD_ARGS
-              value: -w {{ .Values.serving.gunicornWorkers }} -b 0.0.0.0:{{ .Values.exposePort }}
+              value: "-w {{ .Values.serving.gunicornWorkers }} -b 0.0.0.0:{{ .Values.serving.exposePort }}"
             {{ if eq .Values.serving.disableNginx "true" }}
             - name: DISABLE_NGINX
               value: "true"
@@ -53,7 +53,7 @@ spec:
           imagePullPolicy: Always
           image: splicemachine/sm_k8_model_serving:{{ .Values.versions.server }}
           ports:
-            - containerPort: {{ .Values.exposePort }}
+            - containerPort: {{ .Values.serving.exposePort }}
               name: {{ .Values.model.runId }}
           resources:
             {{ if eq .Values.resourceRequests.enabled "true" }}

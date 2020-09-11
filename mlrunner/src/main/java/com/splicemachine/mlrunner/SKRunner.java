@@ -130,12 +130,8 @@ public class SKRunner extends AbstractRunner {
             }
             else{ // transform
                 interp.eval("preds = model.transform([X])");
-                NDArray<Number[]> r = (NDArray<Number[]>) interp.getValue("preds[0]");
-                Number[] nums = r.getData();
-                result = new double[nums.length];
-                for(int i = 0; i < nums.length; i++){
-                    result[i] = nums[i].doubleValue();
-                }
+                NDArray<double[]> r = (NDArray<double[]>) interp.getValue("preds[0]");
+                result = r.getData();
             }
             return result;
 
