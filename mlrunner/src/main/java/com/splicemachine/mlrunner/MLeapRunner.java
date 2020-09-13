@@ -219,7 +219,7 @@ public class MLeapRunner extends AbstractRunner {
         final DefaultLeapFrame output = this.model.transform(frame).get();
         final ArrayList<String> outputCols = new ArrayList<String>(Collections.singletonList("prediction"));
         // Get the prediction
-        final int pred = output.select(MLeapRunner.createScalaSequence(outputCols)).get().collect().last().getInt(0);
+        final int pred = ((Number)output.select(MLeapRunner.createScalaSequence(outputCols)).get().collect().last().get(0)).intValue();
         return pred;
     }
 

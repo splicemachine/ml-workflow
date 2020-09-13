@@ -220,11 +220,13 @@ class DatabaseModelDDL:
         model_type = self.model.get_metadata(Metadata.GENERIC_TYPE)
         classes = self.model.get_metadata(Metadata.CLASSES)
         model_vector_str = self.model.get_metadata(Metadata.MODEL_VECTOR_STR)
+        specific_type = self.model.get_metadata(Metadata.TYPE)
 
         prediction_call = """new "com.splicemachine.mlrunner.MLRunner"('key_value', '{run_id}', {raw_data}, 
         '{model_vector_str}'"""
 
-        if model_type == DeploymentModelType.MULTI_PRED_DOUBLE:
+        if model_type == DeploymentModelType.MULTI_PRED_DOUBLE and isinstance(specific_type, SklearnModelType):
+            self.logger.info('Managing Sklearn prediction args', send_db=True)
             if 'predict_call' not in self.library_specific_args and 'predict_args' not in self.library_specific_args:
                 self.logger.info("Using transform call...", send_db=True)
                 # This must be a .transform call
@@ -237,7 +239,8 @@ class DatabaseModelDDL:
             prediction_call += f", '{predict_call}', '{predict_args}'"
 
         elif model_type == DeploymentModelType.MULTI_PRED_DOUBLE and len(classes) == 2 and \
-                self.library_specific_args.get('pred_threshold'):
+                self.library_specific_args.get('pred_threshold') and isinstance(specific_type,KerasModelType):
+            self.logger.info('Managing Keras prediction args', send_db=True)
             prediction_call += f", '{self.library_specific_args.get('pred_threshold')}'"
 
         prediction_call += ')'  # Close the prediction call
