@@ -77,6 +77,10 @@ class DatabaseModelMetadataPreparer:
                 self._classes = [cls.replace(' ', '_') for cls in self._classes]  # remove spaces in class names
                 self.logger.info(f"Labels found. Using {self._classes} as labels for predictions 0-{len(self._classes)-1}"
                                  " respectively", send_db=True)
+            if len(self._classes) != SparkUtils.get_num_classes(model_stage):
+                self.logger.warning(f"You've passed in {len(self._classes)} classes but it looks like your model expects "
+                                    f"{SparkUtils.get_num_classes(model_stage)} classes. You will likely see issues with "
+                                    f"model inference.", send_db=True)
         else:
             if self.model_type in {SparkModelType.SINGLE_PRED_INT, SparkModelType.MULTI_PRED_INT}:
                 self._classes = [f'C{label_idx}' for label_idx in range(SparkUtils.get_num_classes(model_stage))]
@@ -99,9 +103,12 @@ class DatabaseModelMetadataPreparer:
             output_shape = library_model.layers[-1].output_shape
             if not self._classes:
                 self._classes = ['prediction'] + [f'C{i}' for i in range(output_shape[-1])]
-                self.logger.info(f"Using classes {self._classes}", send_d=True)
+                self.logger.info(f"Classes were not specified... using {self._classes} as fallback", send_db=True)
             else:
-                self.logger.warning(f"Classes were not specified... using {self._classes} as fallback", send_db=True)
+                self.logger.info(f"Classes were specified... using {self._classes}", send_db=True)
+                if len(self._classes) != output_shape[-1]:
+                    self.logger.warning(f"You've passed in {len(self._classes)} classes but it looks like your model expects "
+                                    f"{output_shape[-1]} classes. You will likely see issues with model inference.",send_db=True)
                 self._classes.insert(0, 'prediction')
 
             if len(self._classes) > 2 and pred_threshold:

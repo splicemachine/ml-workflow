@@ -74,16 +74,16 @@ public class MLRunner implements DatasetProvider, VTICosting {
             final String lib = ((String) modelAndLibrary[1]).toLowerCase();
             Blob model = (Blob) modelAndLibrary[0];
             switch (lib) {
-                case "h2omojo":
+                case "h2o":
                     runner = new H2ORunner(model);
                     break;
-                case "mleap":
+                case "spark":
                     runner = new MLeapRunner(model);
                     break;
-                case "sklearn":
+                case "pkl":
                     runner = new SKRunner(model);
                     break;
-                case "keras":
+                case "h5":
                     runner = new KerasRunner(model);
                     break;
                 default:
