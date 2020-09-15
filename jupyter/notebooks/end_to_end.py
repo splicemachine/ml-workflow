@@ -16,15 +16,15 @@ import plotly.express as px
 from py4j.java_gateway import java_import
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.classification import RandomForestClassifier
-from pyspark.ml.feature import VectorAssembler, StringIndexer
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.ml.feature import StringIndexer, VectorAssembler
+from pyspark.sql import DataFrame, SparkSession
 from splicemachine.ml.management import MLManager
 from splicemachine.ml.utilities import SpliceMultiClassificationEvaluator
-from sqlalchemy import create_engine, String, Float, text, Binary, bindparam
+from sqlalchemy import Binary, Float, String, bindparam, create_engine, text
 
 environ['USER'] = 'amrit'
-environ['PYSPARK_PYTHON'] = 'python3.6'
-environ['PYSPARK_DRIVER_PYTHON'] = 'python3.6'
+environ['PYSPARK_PYTHON'] = 'python3.7'
+environ['PYSPARK_DRIVER_PYTHON'] = 'python3.7'
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +169,7 @@ class EndToEndTester:
 
         self.manager.log_model_params(fitted_pipeline)  # automatically log model hyperparameters
         self.manager.log_spark_model(
-            fitted_pipeline)  # save pipeline to the database for deployment
+            fitted_pipeline)  # save pipeline to the database.py for deployment
 
         self.manager.start_timer("Prediction")
         predictions: DataFrame = fitted_pipeline.transform(test)

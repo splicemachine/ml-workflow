@@ -14329,7 +14329,7 @@ module.exports = function(Chart) {
 			var context = item && item.getContext && item.getContext('2d');
 
 			// `instanceof HTMLCanvasElement/CanvasRenderingContext2D` fails when the item is
-			// inside an iframe or when running in a protected environment. We could guess the
+			// inside an iframe or when running in a protected environments. We could guess the
 			// types from their toString() value but let's keep things flexible and assume it's
 			// a sufficient condition if the item has a context2D which has item as `canvas`.
 			// https://github.com/chartjs/Chart.js/issues/3887

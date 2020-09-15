@@ -1,17 +1,19 @@
 """
 Definition of Base Run Handler
 """
-import logging
+
 from abc import abstractmethod
-import os
+from io import BytesIO
 from os import environ as env_vars
+from os.path import exists
 from subprocess import check_call as run_shell_command
-from functools import partial as fix_params
+from zipfile import ZipFile
+
 from mlflow.tracking import MlflowClient
-from mlmanager_lib.database.mlflow_models import SqlArtifact
-from mlmanager_lib.database.constants import FileExtensions
+from shared.models.mlflow_models import SqlArtifact
+from shared.logger.job_lifecycle_manager import JobLifecycleManager
+
 from ..base_handler import BaseHandler
-from .deserializers import Deserializers
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -22,10 +24,7 @@ __version__: str = "2.0"
 __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
-LOGGER = logging.getLogger(__name__)
-
 DOWNLOAD_PATH: str = f'{env_vars["WORKER_HOME"]}/pmml'
-GET_CONDA_FILE = lambda file_ext: f'{env_vars["SRC_HOME"]}/configuration/conda_envs/{file_ext}.yaml'
 
 
 class BaseDeploymentHandler(BaseHandler):
@@ -34,26 +33,22 @@ class BaseDeploymentHandler(BaseHandler):
     handlers that execute jobs (AWS Deployment etc.)
     """
 
-    def __init__(self, task_id: int, spark_context) -> None:
+    def __init__(self, task_id: int) -> None:
         """
         :param task_id: (int) id of the task to execute
         """
-        BaseHandler.__init__(self, task_id, spark_context=spark_context)
-        self.downloaded_model_path: str = DOWNLOAD_PATH + str(task_id) # So when we temporarily download the model we don't overwrite other models
+        BaseHandler.__init__(self, task_id)
+        self.downloaded_model_path: str = DOWNLOAD_PATH + str(
+            task_id)  # So when we temporarily download the model we don't overwrite other models
         self.mlflow_run: object = None
-        self.artifact: bytearray or None = None
-
-        self.deserializers: dict = {
-            FileExtensions.spark: fix_params(Deserializers.spark, self.spark_context._jvm),
-            FileExtensions.keras: Deserializers.keras,
-            FileExtensions.h2o: Deserializers.h2o,
-            FileExtensions.sklearn: Deserializers.sklearn
-        }
+        self.artifact = None
+        self.artifact_buffer: bytearray or None = None
 
     def retrieve_run_from_mlflow(self) -> None:
         """
         Retrieve the current run from mlflow tracking server
         """
+        self.logger.info("Retrieving Run from MLFlow Tracking Server...", send_db=True)
         client: MlflowClient = MlflowClient(tracking_uri=env_vars['MLFLOW_URL'])
         try:
             self.mlflow_run: object = client.get_run(self.task.parsed_payload['run_id'].strip())
@@ -68,46 +63,51 @@ class BaseDeploymentHandler(BaseHandler):
         from Database with the specified path
         and associated Run UUID
         """
-        self.update_task_in_db(info="Reading Model Artifact Stream from Splice Machine")
+        self.logger.info("Reading Model Artifact Stream from Splice Machine", send_db=True)
         run_id: str = self.mlflow_run.info.run_uuid
 
-        LOGGER.info(f"Extracting Model from DB with Path: {self.model_dir} and ")
+        self.logger.info(f"Extracting Model from DB with Name: {self.model_dir}", send_db=True)
         try:
-            self.artifact = self.Session.query(SqlArtifact).filter_by(
-                name=self.model_dir).filter_by(run_uuid=run_id).one()
+            self.artifact = self.Session.query(SqlArtifact) \
+                .filter_by(name=self.model_dir) \
+                .filter_by(run_uuid=run_id).one()
 
-            LOGGER.info(self.artifact)
         except IndexError:
-            LOGGER.exception(
-                f"No artifact could be found in database with path {self.model_dir} and run_id "
-                f"{run_id}"
+            self.logger.exception(
+                f"No artifact could be found in database with name {self.model_dir} and run_id "
+                f"{run_id}", send_db=True
             )
             raise Exception("Model with the specified Run ID and Name could not be found!")
 
     def _deserialize_artifact_stream(self) -> None:
         """
-        Take the BLOB Retrieved from the database,
+        Take the BLOB Retrieved from the database.py,
         convert it into a model,
         and then serialize it to the disk for deployment
         """
-        self.update_task_in_db(info="Decoding Model Artifact Binary Stream for Deployment")
+        self.logger.info("Decoding Model Artifact Binary Stream for Deployment", send_db=True)
 
         try:
-            if os.path.exists(self.downloaded_model_path):
+            if exists(self.downloaded_model_path):
                 run_shell_command(('rm', '-Rf', self.downloaded_model_path))
-            self.deserializers[self.artifact.file_extension](self.artifact.binary, f'{self.downloaded_model_path}/',
-                                                             conda_env=GET_CONDA_FILE(self.artifact.file_extension))
-        except KeyError as e:
-            LOGGER.exception("Unable to find the specified file extension handler")
-            raise Exception(f"Unable to find the specified fix extension {self.artifact.file_extension}")
 
+            artifact_buffer = BytesIO()
+            artifact_buffer.write(self.artifact.binary)
+            artifact_buffer.seek(0)
+            self.logger.info("Decompressing Model Artifact", send_db=True)
+            ZipFile(artifact_buffer).extractall(path=self.downloaded_model_path)
+
+        except KeyError as e:
+            self.logger.exception("Unable to find the specified file extension handler", send_db=True)
+            raise Exception(f"Unable to find the specified fix extension {self.artifact.file_extension}")
 
     def _cleanup(self) -> None:
         """
         Cleanup after the model is deployed
         """
+        self.logger.info("Cleaning up deployment", send_db=True)
         temp_glob: str = "/tmp/tmp*"  # remove all temp files generated by MLFlow
-        self.update_task_in_db(info='Cleaning Up')
+
         run_shell_command(('rm', '-Rf', self.downloaded_model_path))
         run_shell_command(('rm', '-Rf', temp_glob))  # cleanup azure deployment files
 
@@ -118,6 +118,14 @@ class BaseDeploymentHandler(BaseHandler):
         """
         pass
 
+    def exception_handler(self, exc: Exception):
+        """
+        Function that runs if there is an error
+        executing a job
+        :param exc: the exception thrown
+        """
+        self.logger.error(f"Running Exception Callback because of encountered: '{exc}'", send_db=True)
+
     def _handle(self) -> None:
         """
         We add the MLFlow Run URL as a parameter
@@ -126,22 +134,26 @@ class BaseDeploymentHandler(BaseHandler):
         """
         try:
             self.retrieve_run_from_mlflow()
-            run_url: str = f"/#/experiments/{self.mlflow_run.info.experiment_id}/" \
+            run_url: str = f"#/experiments/{self.mlflow_run.info.experiment_id}/" \
                            f"runs/{self.mlflow_run.info.run_uuid}"
 
-            LOGGER.info(f"Using `Retrieved MLFlow Run: {self.mlflow_run}")
-
-            self.task.mlflow_url = f"<a href='{run_url.replace('-jobtracker', '')}/mlflow' target='_blank' onmouseover=" \
-                                   f">Link to Mlflow Run</a>"
+            self.logger.info(f"Retrieved MLFlow Run", send_db=True)
 
             self.model_dir: str = self.mlflow_run.data.tags['splice.model_name']
 
             # populates a link to the associated Mlflow run that opens in a new tab.
-            self.Session.add(self.task)
-            self.Session.commit()
-            self.execute()
-        except Exception as e:
-            raise e
+            self.logger.info("Updating MLFlow Run for the UI", send_db=True)
+            self.task.mlflow_url = f"<a href='/mlflow/{run_url}' target='_blank' onmouseover=" \
+                                   f">Link to Mlflow Run</a>"
 
-        finally:
+            # WHEN UPDATING JOBS, WE *MUST* USE THE MANAGER SESSION, NOT THE RUN SESSION
+            # TO PREVENT EARLY COMMITTING OF THE DDL TRANSACTIONS WHEN WE UPDATE STATUS/LOGS
+            self.manager.Session.add(self.task)
+            self.manager.Session.commit()
+
+            self.execute()
+            self._cleanup()
+        except Exception as e:
+            self.exception_handler(exc=e)  # can be overriden by subclasses
             self._cleanup()  # always run cleanup, regardless of success or failure
+            raise e

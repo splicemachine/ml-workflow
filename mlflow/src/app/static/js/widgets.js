@@ -82,7 +82,6 @@ function setGlobalHandlerData(count, html) {
     sessionStorage.setItem('enabled_handler_count', JSON.stringify(count));
     sessionStorage.setItem('widget_html', JSON.stringify(html));
 }
-
 function createAccessWidgetHTML(enabled, widget_name) {
     var icon_class;
     var status;

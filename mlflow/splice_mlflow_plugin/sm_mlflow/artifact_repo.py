@@ -3,24 +3,22 @@ Splice Machine Custom
 Artifact Store that uses
 BLOBS
 """
-import posixpath
+import os
+import re
 import tempfile
 from contextlib import contextmanager
-
-import os
 from os.path import splitext
-from io import BytesIO
-from zipfile import ZipFile
 
-from mlflow.protos.databricks_pb2 import INVALID_PARAMETER_VALUE, RESOURCE_DOES_NOT_EXIST
-from mlflow.entities.file_info import FileInfo
-from mlflow.exceptions import MlflowException, INTERNAL_ERROR
-from mlflow.store.artifact.artifact_repo import ArtifactRepository
-from mlmanager_lib.database.constants import Extraction
-from mlmanager_lib.database.mlflow_models import Base, SqlArtifact
-from mlmanager_lib.database.models import ENGINE, SessionFactory
-from mlmanager_lib.logger.logging_config import logging
 from sqlalchemy.orm import load_only
+
+from mlflow.entities.file_info import FileInfo
+from mlflow.exceptions import INTERNAL_ERROR, MlflowException
+from mlflow.protos.databricks_pb2 import (INVALID_PARAMETER_VALUE,
+                                          RESOURCE_DOES_NOT_EXIST)
+from mlflow.store.artifact.artifact_repo import ArtifactRepository
+from shared.logger.logging_config import logger
+from shared.models.mlflow_models import SqlArtifact
+from shared.services.database import SQLAlchemyClient
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
@@ -32,25 +30,22 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
-LOGGER = logging.getLogger(__name__)
-
 
 class SpliceMachineArtifactStore(ArtifactRepository):
 
     def __init__(self, artifact_uri: str) -> None:
         super().__init__(artifact_uri)
 
-        _match = Extraction.ARTIFACT_PATH_REGEX.match(self.artifact_uri)
+        _match = re.compile("^.*?:\/\/(?P<experiment>.*?)\/(?P<runid>.*?)\/\w+$").match(artifact_uri)
 
         if not _match:
             raise MlflowException("The Artifact Path Specified is Invalid")
 
         # extract data from regex
-        self.experiment_id: int = int(_match.group(1))
-        self.run_uuid: str = _match.group(2)
+        self.experiment_id: int = int(_match.group("experiment"))
+        self.run_uuid: str = _match.group("runid")
+        self.engine = SQLAlchemyClient.engine
         self.ManagedSessionMaker = self._get_managed_session_maker()
-
-        Base.metadata.bind = ENGINE
 
     @staticmethod
     def _get_managed_session_maker():
@@ -63,11 +58,11 @@ class SpliceMachineArtifactStore(ArtifactRepository):
 
         @contextmanager
         def make_managed_session():
-            session = SessionFactory()
+            session = SQLAlchemyClient.SessionFactory()
             try:
                 yield session
             except Exception as e:
-                LOGGER.exception("Encountered an error in Managed Session Context")
+                logger.exception("Encountered an error in Managed Session Context")
                 session.rollback()
                 raise MlflowException(message=e, error_code=INTERNAL_ERROR)
             finally:
@@ -101,8 +96,7 @@ class SpliceMachineArtifactStore(ArtifactRepository):
             # users from expanding (which they won't be able to do
             # since objects are stored as BLOBs)
             columns: tuple = ('name', 'size')
-            sqlalchemy_query = Session.query(
-                SqlArtifact).options(load_only(*columns)).filter_by(
+            sqlalchemy_query = Session.query(SqlArtifact).options(load_only(*columns)).filter_by(
                 run_uuid=self.run_uuid)
 
             if path:
@@ -126,13 +120,6 @@ class SpliceMachineArtifactStore(ArtifactRepository):
                          directly in the case of the LocalArtifactRepository.
         :return: Absolute path of the local filesystem location containing the desired artifacts.
         """
-
-        def get_artifact_name(name, ext):
-            """
-            Format the file name for whether or not it has the file extension. Add it if not
-            """
-            return name if splitext(name)[1].lstrip('.') == ext else f'{name}.{ext}'
-
         if dst_path is None:
             dst_path = tempfile.mkdtemp()
         dst_path = os.path.abspath(dst_path)
@@ -151,16 +138,16 @@ class SpliceMachineArtifactStore(ArtifactRepository):
 
         with self.ManagedSessionMaker() as Session:
             columns: tuple = ('binary', 'file_extension', 'name')
-            sqlalchemy_query = Session.query(
-                SqlArtifact).options(load_only(*columns)).filter_by(
-                run_uuid=self.run_uuid).filter_by(name=artifact_path)
+            sqlalchemy_query = Session.query(SqlArtifact).options(
+                load_only(*columns)).filter_by(run_uuid=self.run_uuid).filter_by(name=artifact_path)
 
-        object = sqlalchemy_query.one()
+        obj = sqlalchemy_query.one()
         # If the user included the file extension in the file name don't append the extension
-        full_file_path_name = f'{dst_path}/' + get_artifact_name(object.name, object.file_extension)
+        full_file_path_name = f'{dst_path}/' + obj.name if splitext(obj.name)[1].lstrip(
+            '.') == obj.file_extension else f'{obj.name}.{obj.file_extension}'
 
         with open(full_file_path_name, 'wb') as downloaded_file:
-            downloaded_file.write(object.binary)
+            downloaded_file.write(obj.binary)
 
         return full_file_path_name
 

@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-{{ .Values.model.runId }}
+  namespace: {{ .Values.model.namespace }}
+  labels:
+    identifier: model-{{ .Values.model.runId }}
+  ownerReferences:
+    - apiVersion: v1
+      controller: true
+      kind: Pod
+      name: {{ .Values.k8s.ownerPod }}
+      uid: {{ .Values.k8s.ownerUID }}
+spec:
+  replicas: {{ .Values.baseReplicas }}
+  selector:
+    matchLabels:
+      identifier: model-{{ .Values.model.runId }}
+  template:
+    metadata:
+      labels:
+        identifier: model-{{ .Values.model.runId }}
+    spec:
+      volumes:
+        - name: model
+          emptyDir: {}
+      initContainers:
+        - name: model-{{ .Values.model.runId }}-it
+          env:
+            - name: DB_USER
+              value: {{ .Values.db.user }}
+            - name: DB_PASSWORD
+              value: {{ .Values.db.password }}
+            - name: DB_HOST
+              value: {{ .Values.db.host }}
+            - name: RUN_ID
+              value: {{ .Values.model.runId }}
+            - name: MODEL_NAME
+              value: {{ .Values.model.name }}
+          image: splicemachine/sm_k8_model_serving-init:{{ .Values.versions.retriever }}
+          volumeMounts:
+            - mountPath: "/var/run/model"
+              name: model
+      containers:
+        - name: model-{{ .Values.model.runId }}
+          env:
+            - name: GUNICORN_CMD_ARGS
+              value: "-w {{ .Values.serving.gunicornWorkers }} -b 0.0.0.0:{{ .Values.serving.exposePort }}"
+            {{ if eq .Values.serving.disableNginx "true" }}
+            - name: DISABLE_NGINX
+              value: "true"
+            {{ end }}
+          imagePullPolicy: Always
+          image: splicemachine/sm_k8_model_serving:{{ .Values.versions.server }}
+          ports:
+            - containerPort: {{ .Values.serving.exposePort }}
+              name: {{ .Values.model.runId }}
+          resources:
+            {{ if eq .Values.resourceRequests.enabled "true" }}
+            requests:
+              memory: {{ .Values.resourceRequests.memory }}
+              cpu: {{ .Values.resourceRequests.cpu }}
+            {{ end }}
+            {{ if eq .Values.resourceLimits.enabled "true" }}
+            limits:
+              memory: {{ .Values.resourceLimits.memory }} # choose carefully to avoid OOM, esp with Spark
+              cpu: {{ .Values.resourceLimits.cpu }}
+            {{ end }}
+          volumeMounts:
+            - mountPath: "/opt/ml/model"
+              name: model
+      serviceAccountName: model-{{ .Values.model.runId }}

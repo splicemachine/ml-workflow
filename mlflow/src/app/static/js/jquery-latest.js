@@ -4753,7 +4753,7 @@ jQuery.event = {
 		return fixHook.filter ? fixHook.filter( event, originalEvent ) : event;
 	},
 
-	// Includes some event props shared by KeyEvent and MouseEvent
+	// Includes some event props structures by KeyEvent and MouseEvent
 	props: "altKey bubbles cancelable ctrlKey currentTarget eventPhase metaKey relatedTarget shiftKey target timeStamp view which".split(" "),
 
 	fixHooks: {},
@@ -6074,7 +6074,7 @@ function defaultDisplay( nodeName ) {
 
 		body = document.getElementsByTagName( "body" )[ 0 ];
 		if ( !body || !body.style ) {
-			// Test fired too early or in an unsupported environment, exit.
+			// Test fired too early or in an unsupported environments, exit.
 			return;
 		}
 
@@ -6318,7 +6318,7 @@ function addGetHookIf( conditionFn, hookFn ) {
 
 		body = document.getElementsByTagName( "body" )[ 0 ];
 		if ( !body || !body.style ) {
-			// Test fired too early or in an unsupported environment, exit.
+			// Test fired too early or in an unsupported environments, exit.
 			return;
 		}
 

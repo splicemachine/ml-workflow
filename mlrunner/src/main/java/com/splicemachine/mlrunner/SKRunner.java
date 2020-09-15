@@ -12,6 +12,7 @@ import hex.genmodel.easy.exception.PredictException;
 import jep.*;
 import jep.SharedInterpreter;
 import jep.JepException;
+import org.python.antlr.ast.Num;
 
 
 import static java.nio.ByteBuffer.allocateDirect;
@@ -46,7 +47,7 @@ public class SKRunner extends AbstractRunner {
             interp.eval("X = [float(x) if pat.match(x) else x for x in X.split(',')]");
             interp.eval("model = pickle.loads(jmodel)");
             interp.eval("pred = model.predict([X])");
-            double result = (double) interp.getValue("pred[0]");
+            double result = ((Number) interp.getValue("pred[0]")).doubleValue();
             return result;
 
 
@@ -111,21 +112,21 @@ public class SKRunner extends AbstractRunner {
 
             }
             else if(predictCall.equals("predict_proba")) {
+                interp.eval("pred = model.predict([X])");
+                Number predClass = (Number) interp.getValue("pred[0]");
                 interp.eval("preds = model.predict_proba([X])");
                 NDArray<double[]> r = (NDArray<double[]>) interp.getValue("preds[0]");
                 result = new double[r.getDimensions()[0] + 1]; // extra element for prediction class
                 int index = 0; //index of list
-                double c = 0.0; //prediction class
                 double max = 0.0;
                 for (double p : r.getData()) {
                     result[index + 1] = p;
                     if (p > max) {
                         max = p;
-                        c = index;
                     }
                     index++;
                 }
-                result[0] = c;
+                result[0] = predClass.doubleValue();
             }
             else{ // transform
                 interp.eval("preds = model.transform([X])");

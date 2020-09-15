@@ -4,32 +4,32 @@ returned Subscription ID
 """
 from json import loads as parse_json
 from os import environ as env_vars
-from subprocess import check_output as capture_shell_cmd, SubprocessError
-from sys import stdout, stderr
-from traceback import format_exc as get_traceback
+from subprocess import SubprocessError
+from subprocess import check_output as capture_shell_cmd
+
+from shared.logger.logging_config import logger
 
 
-def main() -> None:
+def main():
     """
     Execute `az login --identity` and
     parses the returned JSON and echos
     the returned subscription ID to stdout
     """
     if env_vars['MODE'] == 'development':
-        azure_login_cmd: tuple = (
+        azure_login_cmd = (
             'az', 'login', '--username', env_vars['AZURE_USERNAME'], '--password',
             env_vars['AZURE_PASSWORD']
         )  # use Azure AD
     else:
-        azure_login_cmd: tuple = ('az', 'login', '--identity')  # use managed instance profile
+        azure_login_cmd = ('az', 'login', '--identity')  # use managed instance profile
 
     try:
         login_output: dict = parse_json(capture_shell_cmd(azure_login_cmd))
-        print(login_output[0]['id'], file=stdout)
+        logger.info(f"Azure ID: {login_output[0]['id']}")
 
     except SubprocessError:
-        print("An unexpected error was encountered while logging into Azure:", file=stderr)
-        print(get_traceback(), file=stderr)
+        logger.exception(f"Unable to log into Azure")
         raise
 
 

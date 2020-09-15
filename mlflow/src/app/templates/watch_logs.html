@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="welcome">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="content">
+                    <h2>Job Logs - #{{ task_id }}</h2>
+                    <p>Updated every two seconds</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<section class="statistics">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="box">
+                    <pre id="logs">Job Logs will appear here...</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/log_watcher.js') }}"></script>
+<script>
+    watchLogs({{ task_id }})
+</script>
+{% endblock %}

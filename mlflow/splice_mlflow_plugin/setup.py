@@ -5,7 +5,7 @@ MLFlow finds third-party plugins through entrypoints
 registered upon the execution of this file
 """
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2018, Splice Machine Inc. All Rights Reserved"

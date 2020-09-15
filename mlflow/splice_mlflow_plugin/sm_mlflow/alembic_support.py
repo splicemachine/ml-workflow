@@ -1,6 +1,6 @@
 from alembic.ddl import base
-from alembic.ddl.base import ColumnType, RenameTable, ColumnName, ColumnNullable, alter_table, \
-    format_column_name
+from alembic.ddl.base import (ColumnName, ColumnNullable, ColumnType,
+                              RenameTable, alter_table, format_column_name)
 from alembic.ddl.impl import DefaultImpl
 from sqlalchemy.ext.compiler import compiles
 

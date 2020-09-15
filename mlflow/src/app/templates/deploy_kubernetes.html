@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+{% block content %}
+    <div class="welcome">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="content">
+                        <h2>Deploy a model to Kubernetes</h2>
+                        <p>Click <a href="invocation-detail">here</a> to see how to invoke your model</p><br>
+                        <p>Note: You must log a pipeline
+                            to an MLFlow run using the MLManager library
+                            before you can deploy a pipeline.</p>
+                        {% if msg %}
+                            <h3>{{ msg }}</h3>
+                        {% endif %}
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- In the backend, after a POST request from form submission,
+    the values in this field are referenced via request.form(n) where
+    n is the name of the input field. Therefore, it is important that the input
+    names correspond to those in shared/database.py/splice_models.py -->
+
+    <section class="statistics">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="box">
+                        <form method='POST' action="/api/ui/initiate">
+                            <div id="services">
+
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <!-- governance -->
+                                    <input type="hidden" name="user" value="{{ current_user.id }}"/>
+                                    <input type="hidden" name="handler_name"
+                                           value="{{ handler_names.deploy_kubernetes }}"/>
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_run_uuid' class='form--label'>Run ID *</label>
+                                        <input id='input_run_uuid' class='js-input-fullName' type='text'
+                                               placeholder='e.g. cd93d9342bae4024a5290b908c02f386'
+                                               name="run_id"
+                                               required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_service_port' class='form--label'>Cluster Service Port
+                                            *</label>
+                                        <input id='input_service_port' class='js-input-fullName' type='number'
+                                               value="80" name="service_port" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_base_replicas' class='form--label'>Pod Replicas *</label>
+                                        <input id='input_base_replicas' class='js-input-fullName' type='number'
+                                               value="1" name="base_replicas" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_ingress' class='form--label'>Expose API Externally (<a
+                                                href="#ingress-detail">learn more</a>)
+                                            *</label>
+                                        <select id='input_ingress' class='js-input-fullName'
+                                                name='expose_external'>
+                                            <option value=false selected>No</option>
+                                            <option value=true>Yes</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="row">
+                                <div class="col-md-6 toggle-visibility-button">
+                                    <a data-toggle="collapse" href="#autoscaling-form" role="button"
+                                       aria-expanded="false" onclick="toggleParameter('autoscaling_enabled')"
+                                       aria-controls="autoscaling-form">+ Enable Horizontal Autoscaling</a>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="row collapse" id="autoscaling-form">
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_max_replicas' class='form--label'>Max Pod Replicas*</label>
+                                        <input id='input_max_replicas' class='js-input-fullName' type='number'
+                                               value="2" name="max_replicas" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_cpu_thresh' class='form--label'>Target CPU
+                                            Utilization*</label>
+                                        <input id='input_cpu_thresh' class='js-input-fullName' type='number'
+                                               value="2" name="target_cpu_utilization" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="row">
+                                <div class="col-md-6 toggle-visibility-button">
+                                    <a data-toggle="collapse" href="#resource-rq-form" role="button"
+                                       aria-expanded="true" onclick="toggleParameter('resource_requests_enabled')"
+                                       aria-controls="resource-rq-form">+ Enable Resource Requests</a>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="row collapse" id="resource-rq-form">
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_cpu_req' class='form--label'>CPU Requests *</label>
+                                        <input id='input_cpu_req' class='js-input-fullName' type='number'
+                                               value="0.5" step="0.1" name="cpu_request" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_mem_req' class='form--label'>RAM Request (MB) *</label>
+                                        <input id='input_mem_req' class='js-input-fullName' type='number'
+                                               value="512" name="memory_request" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="row">
+                                <div class="col-md-6 toggle-visibility-button">
+                                    <a data-toggle="collapse" href="#resource-lm-form" role="button"
+                                       aria-expanded="true" onclick="toggleParameter('resource_limits_enabled')"
+                                       aria-controls="resource-lm-form">+ Enable Resource Limits</a>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="row collapse" id="resource-lm-form">
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_cpu_lim' class='form--label'>CPU Limit *</label>
+                                        <input id='input_cpu_lim' class='js-input-fullName' type='number'
+                                               value="1" step="0.1" name="cpu_limit" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_mem_lim' class='form--label'>RAM Limit (MB) *</label>
+                                        <input id='input_mem_lim' class='js-input-fullName' type='number'
+                                               value="2048" name="memory_limit" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="row">
+                                <div class="col-md-6 toggle-visibility-button">
+                                    <a data-toggle="collapse" href="#adv-serving-form" role="button"
+                                       aria-expanded="true"
+                                       aria-controls="adv-serving-form">+ Configure Advanced Serving Options</a>
+                                </div>
+                            </div>
+                            <br>
+                            <div class="row collapse" id="adv-serving-form">
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_enable_nginx' class='form--label'>Disable Pod NGINX *</label>
+                                        <select id='input_enable_nginx' class='js-input-fullName'
+                                                name='disable_nginx'>
+                                            <option value=false selected>No (Recommended)</option>
+                                            <option value=true>Yes</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class='form--inputContainer js-input'>
+                                        <label for='input_wsgi_workers' class='form--label'>WSGI Workers (set 1 for
+                                            Spark)</label>
+                                        <input id='input_wsgi_workers' class='js-input-fullName' type='number'
+                                               value="1" name="gunicorn_workers" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <br>
+                            <br>
+                            <div class="row">
+                                <div class='col-md-12'>
+                                    <input id='sbt-btn' type='submit'>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="welcome">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="content">
+                            <h2>Help</h2>
+                            <h3 id="invocation-detail">
+                                Making Predictions
+                            </h3>
+                            <p>
+                                Deploying to Kubernetes will create an internal (and external if enabled) REST endpoint
+                                from which your model can be invoked. All resources created are prefixed with <code>model-&lt;run
+                                id&gt;</code>
+                                and are deployed to the database namespace.
+                                <br><br>
+                                Your model runs in a lightweight Docker container runtime which exposes a port to a
+                                Kubernetes
+                                service, so invocation internal to the cluster is automatically enabled at <code>model-&lt;run
+                                id&gt;.&lt;db namespace&gt;.svc.cluster.local:&lt;service port specified&gt; </code>.
+                                See the next
+                                help section for more detail on external invocation.
+                                If the pod that invokes the API is in the same namespace as the database, you can simply
+                                access it at <code>model-&lt;run id&gt;:&lt;service port&gt;</code><br><br>
+                                The REST API server accepts the following data formats as POST input to the <code>/invocations</code>
+                                path:
+                            <ul>
+                                <li>JSON-serialized pandas DataFrames in the split orientation. For example, <code>data
+                                    = pandas_df.to_json(orient='split')</code>. This format is specified using a
+                                    Content-Type request header value of <code>application/json</code> or <code>application/json;
+                                        format=pandas-split</code>.
+                                </li>
+                                <li>JSON-serialized pandas DataFrames in the records orientation. We do not recommend
+                                    using this format because it is not guaranteed to preserve column ordering. This
+                                    format is specified using a Content-Type request header value of <code>application/json;
+                                        format=pandas-records.</code></li>
+                                <li>CSV-serialized pandas DataFrames. For example, data = pandas_df.to_csv(). This
+                                    format is specified using a Content-Type request header value of
+                                    <code>text/csv.</code></li>
+                            </ul>
+                            <sub><a href="https://www.mlflow.org/docs/latest/models.html#built-in-deployment-tools">Doc
+                                Source</a></sub><br>
+                            <h3 id="ingress-detail">
+                                External Exposure via Ingress
+                            </h3>
+                            <p>If you choose to enable external exposure of your model, a new ingress will be created,
+                                mapping
+                                the internal service to <code>&lt;your cluster url&gt;/&lt;run id&gt;/invocations</code>.
+                                See the <a href="#invocation-detail">above detail</a> for the REST API syntax.
+                            </p>
+                            <h3>
+                                How do I find the Run ID?
+                            </h3>
+                            <p>
+                                Your Run ID can be found in the MLFlow UI:
+                            <ol style="margin-left:30px">
+                                <li>Go to the MLFlow UI (located on port 5001 of your cluster)</li>
+                                <li>Click on the experiment (right sidebar) containing your run</li>
+                                <li>Locate the run containing the model you would like to deploy. It may
+                                    be helpful to order your runs by start time.
+                                </li>
+                                <li>Your Run ID is located at the top left corner of your screen.</li>
+                            </ol>
+                            <p>You can also accomplish the same task using the MLManager Python
+                                interface.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section><br><br>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/form_utils.js') }}"></script>
+{% endblock %}

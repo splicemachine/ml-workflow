@@ -4,25 +4,28 @@ for new jobs and dispatches them to Workers for execution
 (in threads). This execution happens in parallel.
 """
 from os import environ as env_vars
-from time import sleep as wait
 
-from flask import Flask, jsonify as create_json, has_request_context
-from handlers.modifier_handlers import EnableServiceHandler, DisableServiceHandler
-from handlers.run_handlers import SageMakerDeploymentHandler, AzureDeploymentHandler
-from mlmanager_lib import CloudEnvironments, CloudEnvironment
-from mlmanager_lib.database.constants import JobStatuses
-from mlmanager_lib.database.handlers import KnownHandlers, HandlerNames, populate_handlers
-from mlmanager_lib.database.models import Job, SessionFactory, execute_sql
-from mlmanager_lib.logger.logging_config import logging
-from mlmanager_lib.worker.ledger import JobLedger
-from mlmanager_lib.rest.responses import HTTP
-from mlmanager_lib.rest.constants import APIStatuses
-from py4j.java_gateway import java_import
-from pyspark import SparkConf, SparkContext
-from workerpool import Job as ThreadedTask, WorkerPool
-from pysparkling import *
-from retrying import retry
-from traceback import format_exc
+from flask import Flask
+from handlers.modifier_handlers import (DisableServiceHandler,
+                                        EnableServiceHandler)
+from handlers.run_handlers import (AzureDeploymentHandler,
+                                   KubernetesDeploymentHandler,
+                                   SageMakerDeploymentHandler,
+                                   DatabaseDeploymentHandler)
+from pyspark.sql import SparkSession
+from pysparkling import H2OConf, H2OContext
+from workerpool import Job as ThreadedTask
+from workerpool import WorkerPool
+
+from shared.api.responses import HTTP
+from shared.environments.cloud_environment import (CloudEnvironment,
+                                                   CloudEnvironments)
+from shared.logger.logging_config import logger
+from shared.models.splice_models import create_bobby_tables
+from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from shared.services.handlers import (HandlerNames, KnownHandlers,
+                                      populate_handlers)
+from shared.structures.ledger import JobLedger
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -33,9 +36,7 @@ __version__: str = "2.0"
 __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
-APP: Flask = Flask(__name__)
-LOGGER = logging.getLogger(__name__)
-LOGGER.warning(f"Using Logging Level {logging.getLevelName(LOGGER.getEffectiveLevel())}")
+APP: Flask = Flask("bobby")
 
 # Jobs
 POLL_INTERVAL: int = 5  # check for new jobs every 2 seconds
@@ -44,61 +45,30 @@ LEDGER_MAX_SIZE: int = int(env_vars['WORKER_THREADS'] * 2)  # how many previous 
 # Spark
 SPARK_SCHEDULING_FILE: str = "configuration/fair_scheduling.xml"
 
-# Thread Local Database Session
-Session = SessionFactory()
-
 # We only need spark context for modifiable handlers
 RUN_HANDLERS: tuple = KnownHandlers.get_modifiable()
 
-# Initializes workerpool on construction of object
 WORKER_POOL: WorkerPool = WorkerPool(size=30)
 LEDGER: JobLedger = JobLedger(LEDGER_MAX_SIZE)
 
-ID_COL: str = "id"  # column name for id in Jobs
-TIMESTAMP_COL: str = "timestamp"
-STATUS_COL: str = "status"
-HANDLER_COL: str = "handler_name"
-POLL_SQL_QUERY: str = \
-    f"""
-    SELECT {ID_COL}, {HANDLER_COL} FROM {Job.__tablename__}
-    WHERE {STATUS_COL}='{JobStatuses.pending}'
-    ORDER BY "{TIMESTAMP_COL}"
+
+def create_run_contexts():
     """
-
-def create_spark() -> SparkContext:
+    Create a Global Spark Context that runs in the FAIR scheduling mode, and an H2O context. This means that
+    it shares resources across threads. We need a Spark Context to create the directory structure from a
+    deserialized PipelineModel (formerly a byte stream in the database.py)
     """
-    Create a Global Spark Context
-    that runs in the FAIR
-    scheduling mode. This means that
-    it shares resources across threads.
-    We need a Spark Context to create
-    the directory structure from a
-    deserialized PipelineModel (formerly
-    a byte stream in the database)
-
-    :return: (SparkContext) a Global Spark
-        Context
-    """
-
-    spark_config: SparkConf = SparkConf(). \
-        setAppName(env_vars['TASK_NAME']). \
-        setMaster('local[*]'). \
-        set('spark.scheduler.mode', 'FAIR'). \
-        set('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}')
-
-    LOGGER.debug(f"Spark Configuration is: {spark_config.getAll()}")
-    spark_context: SparkContext = SparkContext(conf=spark_config)
-    java_import(spark_context._jvm, 'java.io.{ByteArrayInputStream, ObjectInputStream}')
-    # we need these to deserialize byte stream.
+    SparkSession.builder \
+        .master("local[*]") \
+        .appName(env_vars.get('TASK_NAME', 'bobby-0')) \
+        .config('spark.scheduler.mode', 'FAIR') \
+        .config('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}') \
+        .config('spark.driver.extraClassPath', f'{env_vars["SRC_HOME"]}/lib/*') \
+        .getOrCreate()
 
     # Create pysparkling context for H2O model serialization/deserialization
     conf = H2OConf().setInternalClusterMode()
-    hc = H2OContext.getOrCreate(conf)
-
-    return spark_context, hc
-
-
-SPARK_CONTEXT, HC = create_spark()  # Global Spark Context
+    H2OContext.getOrCreate(conf)
 
 
 def register_handlers() -> None:
@@ -117,6 +87,8 @@ def register_handlers() -> None:
 
     KnownHandlers.register(HandlerNames.enable_service, EnableServiceHandler)
     KnownHandlers.register(HandlerNames.disable_service, DisableServiceHandler)
+    KnownHandlers.register(HandlerNames.deploy_k8s, KubernetesDeploymentHandler)
+    KnownHandlers.register(HandlerNames.deploy_database, DatabaseDeploymentHandler)
 
 
 class Runner(ThreadedTask):
@@ -125,21 +97,20 @@ class Runner(ThreadedTask):
     scaled across a pool via threading
     """
 
-    def __init__(self, spark_context: SparkContext, hc: H2OContext, task_id: int, handler_name: str) -> None:
+    def __init__(self, task_id: int, handler_name: str) -> None:
         """
         :param task_id: (int) the job id to process.
             Unfortunately, one of the limitations
             of SQLAlchemy is that its Sessions aren't thread safe.
             So that means we have to retrieve the id in
             the main thread and then the actual object
-            in the worker thread, rather than passing the
+            in the structures thread, rather than passing the
             object directly from the main thread.
             This conforms to SQLAlchemy's 'thread-local' architecture.
         """
         super().__init__()
-        self.spark_context: SparkContext = spark_context
-        self.hc: H2OContext = hc
         self.task_id: id = task_id
+
         self.handler_name = handler_name
 
     def run(self) -> None:
@@ -147,71 +118,57 @@ class Runner(ThreadedTask):
         Execute the job
         """
         try:
-            LOGGER.info(f"Runner executing job id {self.task_id} --> {self.handler_name}")
-            options: dict = dict(
-                spark_context=self.spark_context
-            ) if self.handler_name in RUN_HANDLERS else {}
-
-            # for handlers that execute a job, e.g. retraining and deployment, we need to specify
-            # a spark context. for modification handlers, that is not necessary
-
-            KnownHandlers.get_class(self.handler_name)(self.task_id,
-                                                       **options).handle()
-            # execute the handler of the registered class with the specified handler_name
+            logger.info(f"Runner executing job id {self.task_id} --> {self.handler_name}")
+            KnownHandlers.get_class(self.handler_name)(self.task_id).handle()
 
         except Exception:  # uncaught exceptions should't break the runner
-            LOGGER.exception(
+            logger.exception(
                 f"Uncaught Exception Encountered while processing task #{self.task_id}")
 
-def _get_pending_task_ids_handler() -> list:
-    """
-    Returns all task ids and handlers in the
-    database with the status 'PENDING'
-    from the database
-    """
-    return execute_sql(POLL_SQL_QUERY)
 
-
-def get_new_pending_jobs() -> None:
+def check_db_for_jobs() -> None:
     """
     Gets the currently pending jobs for Bobby to handle. This gets called both on Bobby startup (to populate the
     queue of jobs and on the api POST request /job for every new job submitted on the job-tracker/API code to mlflow.
     :return: str return code 200 or 500
     """
     try:
-        job_datas = _get_pending_task_ids_handler()
-        for job_data in job_datas:
+        jobs = SQLAlchemyClient.execute(DatabaseSQL.retrieve_jobs)
+        for job_data in jobs:
             if job_data[0] not in LEDGER:
                 job_id, handler_name = job_data
-                LOGGER.info(f"Found New Job with id #{job_id} --> {handler_name}")
+                logger.info(f"Found New Job with id #{job_id} --> {handler_name}")
                 LEDGER.record(job_id)
-                WORKER_POOL.put(Runner(SPARK_CONTEXT, HC, job_id, handler_name))
+                WORKER_POOL.put(Runner(job_id, handler_name))
     except Exception:
-        LOGGER.exception("Error: Encountered Fatal Error while locating and executing jobs")
-        raise Exception()
+        logger.exception("Error: Encountered Fatal Error while locating and executing jobs")
+        raise
+
 
 @APP.route('/job', methods=['POST'])
-def get_new_jobs() -> HTTP:
+@HTTP.generate_json_response
+def get_new_jobs():
     """
     Calls the function to get the new pending jobs via the API endpoint /job
     :return: HTTP response 200 or 500
     """
-    try:
-        get_new_pending_jobs()
-        message: str = f"OK"
-        return HTTP.responses['success'](create_json(status=APIStatuses.success, message=message))
-    except:
-        return HTTP.responses['unexpected'](create_json(status=APIStatuses.error, message=message))
+    check_db_for_jobs()
+    return dict(data="Checked DB for Jobs")
 
 
 def main():
-    LOGGER.info('Registering handlers...')
+    logger.info("Creating Contexts...")
+    create_run_contexts()
+    logger.info("Creating Splice Tables...")
+    create_bobby_tables()
+    logger.info('Registering handlers...')
     register_handlers()
-    LOGGER.info('Populating handlers...')
-    populate_handlers(Session)
-    LOGGER.info('Dispatching master...') # Done by the App
-    LOGGER.info('Waiting for new jobs...')
-    get_new_pending_jobs()
-        # APP.run(host='0.0.0.0', port=2375)
+    logger.info('Populating handlers...')
+    populate_handlers(SQLAlchemyClient.SessionFactory)
+    logger.info('Waiting for new jobs...')
+    check_db_for_jobs()  # get initial set of jobs from the DB
+
+    # APP.run(host='0.0.0.0', port=2375)
+
 
 main()

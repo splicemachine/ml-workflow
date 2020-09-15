@@ -3,11 +3,7 @@ FROM splicemachine/sm_k8_base:$splice_base_image_version
 
 LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@splicemachine.com"
 
-# ml-workflow-lib Configuration
-ARG github_PAT
-
-# so the pyspark drivers use python3.7 instead of python2
-ENV PYSPARK_PYTHON = /usr/local/bin/python3.7
+ENV PYSPARK_PYTHON="/usr/bin/python3"
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
@@ -15,6 +11,9 @@ ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/L
 
 # Spark Configuration
 ARG spark_version='2.4.0'
+
+# File Retriever Configuration
+ARG file_retriever_version='0.0.1'
 
 # Defining Directories
 ENV SRC_HOME=/opt/bobby
@@ -25,32 +24,8 @@ ENV WORKER_HOME=/opt/worker
 ENV LC_ALL en_US.utf-8
 ENV LANG en_US.utf-8
 
-# Add the list of necessary environment packages for development.
+# Add the list of necessary environments packages for development.
 COPY bobby/build $BUILD_HOME
-
-# Install lzma python dependency for python 3.7.3
-RUN yum update -y
-RUN yum install -y xz-devel
-
-# Install python 3.7.3
-RUN yum update -y && \
-    yum install yum-utils -y && \
-    yum groupinstall development -y && \
-    yum -y --enablerepo=extras install epel-release && \
-    yum install -y gcc openssl-devel bzip2-devel libffi-devel && \
-    yum install -y make
-RUN cd /tmp && \
-  wget https://www.python.org/ftp/python/3.7.3/Python-3.7.3.tgz && \
-  tar xzf Python-3.7.3.tgz && \
-  cd Python-3.7.3  && \
-  ./configure --enable-optimizations && \
-  make altinstall && \
-  ln -sfn /usr/local/bin/python3.7 /usr/bin/python3 && \
-  ln -sfn /usr/local/bin/pip3.7 /usr/bin/pip3 && \
-  rm -rf /tmp/Python-3.7.3 && \
-  rm /tmp/rm -rf Python-3.7.3.tgz && \
-  yum remove -y  make gcc openssl-devel bzip2-devel && \
-  rm -rf /var/cache/yum && yum clean all
 
 # Add the repository for docker and IUS Repo fo Python3.
 # Azure forces this ugly code upon us. Any workarounds would be appreciated.
@@ -58,10 +33,13 @@ RUN yum-config-manager --add-repo https://download.docker.com/linux/centos/docke
     rpm --import https://packages.microsoft.com/keys/microsoft.asc && \
     sh -c 'echo -e "[azure-cli]\nname=Azure CLI\nbaseurl=https://packages.microsoft.com/yumrepos/azure-cli\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/azure-cli.repo'
 
-# Install development packages.
+# Install Yum packages.
 RUN yum clean all && \
     rm -rf /var/cache/yum && \
-    yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
+    yum -y update && \
+    yum -y install $(cat /$BUILD_HOME/yum_packages.txt) && \
+    yum -y groupinstall development && \
+    yum -y --enablerepo=extras install epel-release
 
 # Install ODBC Driver
 RUN cd $BUILD_HOME && \
@@ -71,20 +49,70 @@ RUN cd $BUILD_HOME && \
     sh ./install.sh -q
 
 # Install Python dependencies
-#RUN pip3.7 install $ML_WORKFLOW_LIB_PACKAGE && \
-RUN pip3.7 install -r $BUILD_HOME/requirements.txt && \
+RUN cd /tmp && \
+  wget https://www.python.org/ftp/python/3.7.3/Python-3.7.3.tgz && \
+  tar xzf Python-3.7.3.tgz && \
+  cd Python-3.7.3  && \
+  ./configure --enable-shared --enable-optimizations && \
+  make altinstall && \
+  ln -sfn /usr/local/bin/python3.7 /usr/bin/python3 && \
+  ln -sfn /usr/local/bin/pip3.7 /usr/bin/pip3 && \
+  rm -rf /tmp/Python-3.7.3 && \
+  rm /tmp/rm -rf Python-3.7.3.tgz && \
+  ldconfig /usr/local/lib
+
+RUN pip3.7 install --upgrade pip wheel && \
+    pip3.7 install -r $BUILD_HOME/requirements.txt && \
     pip3.7 install 'pyspark=='$spark_version
 
 # Clean up Build Dependencies and setup src directories
 RUN rm -r $BUILD_HOME/* && \
-    rm -rf /spark.tgz && \
     mkdir -p $SRC_HOME && \
     mkdir -p $WORKER_HOME
 
-COPY bobby/src $SRC_HOME
+# Install Helm
+RUN curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
 
-COPY mlmanager_lib /tmp/mlmanager_lib
-RUN pip3.7 install /tmp/mlmanager_lib/.
+# Install Jars
+RUN mkdir -p $SRC_HOME/lib && \
+    curl https://splicemachine.s3.amazonaws.com/artifacts/fileretriever-0.0.2-shaded.jar -o $SRC_HOME/lib/fileretriever.jar
+
+ARG MLEAP_CORE_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-core_2.11/0.15.0/mleap-core_2.11-0.15.0.jar
+ARG MLEAP_RUNTIME_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-runtime_2.11/0.15.0/mleap-runtime_2.11-0.15.0.jar
+ARG MLEAP_BUNDLE_HDFS_URI=https://repo1.maven.org/maven2/ml/combust/bundle/bundle-hdfs_2.11/0.15.0/bundle-hdfs_2.11-0.15.0.jar
+ARG MLEAP_BUNDLE_ML_URI=https://repo1.maven.org/maven2/ml/combust/bundle/bundle-ml_2.11/0.15.0/bundle-ml_2.11-0.15.0.jar
+ARG MLEAP_BASE_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-base_2.11/0.15.0/mleap-base_2.11-0.15.0.jar
+ARG MLEAP_SPARK_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-spark_2.11/0.15.0/mleap-spark_2.11-0.15.0.jar
+ARG MLEAP_SPARK_BASE_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-spark-base_2.11/0.15.0/mleap-spark-base_2.11-0.15.0.jar
+ARG MLEAP_TENSOR_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-tensor_2.11/0.15.0/mleap-tensor_2.11-0.15.0.jar
+ARG SPRAY_JSON_URI=https://repo1.maven.org/maven2/io/spray/spray-json_2.11/1.3.5/spray-json_2.11-1.3.5.jar
+ARG TYPESAFE_CONFIG_URI=https://repo1.maven.org/maven2/com/typesafe/config/1.4.0/config-1.4.0.jar
+ARG SCALAPB_RUNTIME_URI=https://repo1.maven.org/maven2/com/thesamet/scalapb/scalapb-runtime_2.11/0.9.0/scalapb-runtime_2.11-0.9.0.jar
+ARG SCALAPB_LENSES_URI=https://repo1.maven.org/maven2/com/thesamet/scalapb/lenses_2.11/0.9.0/lenses_2.11-0.9.0.jar
+ARG SCALA_ARM_URI=https://repo1.maven.org/maven2/com/jsuereth/scala-arm_2.11/2.0/scala-arm_2.11-2.0.jar
+ARG PROTOBUF_JAVA_URI=https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.11.1/protobuf-java-3.11.1.jar
+RUN \
+  curl -kLs $MLEAP_CORE_URI      -o $SRC_HOME/lib/mleap-core_2.11-0.15.0.jar && \
+  curl -kLs $MLEAP_RUNTIME_URI      -o $SRC_HOME/lib/mleap-runtime_2.11-0.15.0.jar && \
+  curl -kLs $MLEAP_BUNDLE_HDFS_URI      -o $SRC_HOME/lib/bundle-hdfs_2.11-0.15.0.jar && \
+  curl -kLs $MLEAP_BUNDLE_ML_URI        -o $SRC_HOME/lib/bundle-ml_2.11-0.15.0.jar && \
+  curl -kLs $MLEAP_BASE_URI             -o $SRC_HOME/lib/mleap-base_2.11-0.15.0.jar && \
+  curl -kLs $SPRAY_JSON_URI -o $SRC_HOME/lib/spray-json_2.11-1.3.5.jar && \
+  curl -kLs $TYPESAFE_CONFIG_URI -o $SRC_HOME/lib/config-1.4.0.jar && \
+  curl -kLs $SCALAPB_RUNTIME_URI -o  $SRC_HOME/lib/scalapb-runtime_2.11-0.9.0.jar && \
+  curl -kLs $SCALAPB_LENSES_URI -o $SRC_HOME/lib/lenses_2.11-0.9.0.jar && \
+  curl -kLs $MLEAP_TENSOR_URI -o $SRC_HOME/lib/mleap-tensor_2.11-0.15.0.jar && \
+  curl -kLs $SCALA_ARM_URI -o $SRC_HOME/lib/scala-arm_2.11-2.0.jar && \
+  curl -kLs $PROTOBUF_JAVA_URI -o $SRC_HOME/lib/protobuf-java-3.11.1.jar && \
+  curl -kLs $MLEAP_SPARK_URI -o $SRC_HOME/lib/mleap-spark_2.11-0.15.0.jar && \
+  curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_2.11-0.15.0.jar
+
+# Install Shared Lib
+COPY shared /tmp/shared
+RUN pip3 install /tmp/shared && \
+    rm -rf /tmp/shared
+
+COPY bobby/src $SRC_HOME
 
 # make the entrypoint executable by all users
 RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh
