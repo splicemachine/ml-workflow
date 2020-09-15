@@ -20,7 +20,7 @@ class HandlerNames:
         """
         Get handlers that can run operations
         """
-        run_handlers = [HandlerNames.deploy_k8s, HandlerNames.deploy_database]
+        run_handlers = [HandlerNames.deploy_database] # TODO: Add back HandlerNames.deploy_k8s once it works
 
         if HandlerNames.deploy_csp:
             run_handlers.append(HandlerNames.deploy_csp)
