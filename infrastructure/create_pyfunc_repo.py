@@ -2,14 +2,14 @@ import base64
 import json
 import logging
 import os
-from subprocess import Popen
-
+from subprocess import Popen,check_output
+from time import sleep, time
 import boto3
 import docker
 
 # define vars and functions
 REPO_NAME = 'mlflow-pyfunc'
-IMAGE_TAG = '1.1.0'
+IMAGE_TAG = '1.8.0'
 ACCESS_KEY = os.environ['AWS_ACCESS_KEY_ID']
 SECRET_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
 LOGGER = logging.getLogger(__name__)
@@ -74,10 +74,21 @@ def ecr_docker_login(client, docker_client):
     return auth_config
 
 
+def wait_for_docker():
+    t0 = time()
+    while time() - t0 < 60: # Try this for 1 minute
+        try:
+            check_output('docker ps', shell=True)
+            return # If it gets here docker is running
+        except:
+            sleep(1)
+    raise Exception("Docker could not start")
+
 def main():
     # start the docker deamon
     Popen(['dockerd'])
-
+    wait_for_docker()
+  
     full_image = 'splicemachine/{}:{}'.format(REPO_NAME, IMAGE_TAG)
 
     # read config file
