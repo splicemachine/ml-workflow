@@ -76,8 +76,8 @@ def ecr_docker_login(client, docker_client):
 
 def main():
     # start the docker deamon
-#    Popen(['dockerd'])
-
+    Popen(['dockerd'])
+    print('is docker running?', os.popen('docker ps').read())
     full_image = 'splicemachine/{}:{}'.format(REPO_NAME, IMAGE_TAG)
 
     # read config file
