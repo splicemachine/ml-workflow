@@ -9,7 +9,7 @@ import docker
 
 # define vars and functions
 REPO_NAME = 'mlflow-pyfunc'
-IMAGE_TAG = '1.1.0'
+IMAGE_TAG = '1.8.0'
 ACCESS_KEY = os.environ['AWS_ACCESS_KEY_ID']
 SECRET_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
 LOGGER = logging.getLogger(__name__)
