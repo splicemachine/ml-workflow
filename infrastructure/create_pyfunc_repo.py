@@ -76,7 +76,7 @@ def ecr_docker_login(client, docker_client):
 
 def main():
     # start the docker deamon
-    Popen(['dockerd'])
+#    Popen(['dockerd'])
 
     full_image = 'splicemachine/{}:{}'.format(REPO_NAME, IMAGE_TAG)
 
