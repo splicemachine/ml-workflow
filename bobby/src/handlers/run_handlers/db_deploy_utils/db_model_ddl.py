@@ -122,7 +122,7 @@ class DatabaseModelDDL:
         return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
 
     @staticmethod
-    def _get_feature_vector_sql(model_columns: List[str], schema_types: Dict[str,str]):
+    def _get_feature_vector_sql(table_name, model_columns: List[str], schema_types: Dict[str,str]):
         model_cols = [i.upper() for i in model_columns]
         stypes = {i.upper():j.upper() for i,j in schema_types.items()}
 
@@ -130,10 +130,10 @@ class DatabaseModelDDL:
         for index, col in enumerate(model_cols):
             sql_vector += '||' if index != 0 else ''
             if stypes[str(col)] == 'VARCHAR(5000)':
-                sql_vector += f'NEWROW.{col}||\',\''
+                sql_vector += f'{table_name} .{col}||\',\''
             else:
-                inner_cast = f'CAST(NEWROW.{col} as DECIMAL(38,10))' if \
-                    stypes[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
+                inner_cast = f'CAST({table_name} .{col} as DECIMAL(38,10))' if \
+                    stypes[str(col)] in {'FLOAT', 'DOUBLE'} else f'{table_name} .{col}'
                 sql_vector += f'TRIM(CAST({inner_cast} as CHAR(41)))||\',\''
         return sql_vector
 
@@ -246,7 +246,7 @@ class DatabaseModelDDL:
         prediction_call += ')'  # Close the prediction call
 
         trigger_sql = f"""CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id} 
-                        AFTER INSERT ON {self.schema_table_name} REFERENCING NEW AS NEWROW FOR EACH ROW
+                        AFTER INSERT ON {self.schema_table_name} REFERENCING NEW TABLE AS {self.table_name} FOR EACH STATEMENT
                         UPDATE {self.schema_table_name} SET ("""
 
         output_column_names = ''  # Names of the output columns from the model
@@ -257,7 +257,7 @@ class DatabaseModelDDL:
             output_cols_vti_reference += f'b."{cls}",'
             output_cols_schema += f'"{cls}" DOUBLE,' if cls != 'prediction' else f'"{cls}" INT,'  # sk predict_proba
 
-        raw_data = DatabaseModelDDL._get_feature_vector_sql(self.model_columns, schema_types)
+        raw_data = DatabaseModelDDL._get_feature_vector_sql(self.table_name, self.model_columns, schema_types)
 
         # Cleanup (remove concatenation SQL from last variable) + schema for PREDICT call
         raw_data = raw_data[:-5].lstrip('||')
@@ -271,7 +271,7 @@ class DatabaseModelDDL:
         # 1=1 because of a DB bug that requires a where clause
 
         trigger_sql += ' AND '.join([f'{index} = NEWROW.{index}' for index in self.primary_key])
-        # TODO - use the above syntax for other queries
+        # TODO - use VTI for all models
         self.logger.info(f"Executing\n{trigger_sql}", send_db=True)
         self.session.execute(trigger_sql)
 
@@ -317,10 +317,10 @@ class DatabaseModelDDL:
         prediction_call = self.prediction_data['prediction_call']
 
         pred_trigger = f"""CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}
-                           BEFORE INSERT ON {self.schema_table_name} REFERENCING NEW AS NEWROW 
-                           FOR EACH ROW SET NEWROW.PREDICTION={prediction_call}(\'{self.run_id}\',"""
+                           AFTER INSERT ON {self.schema_table_name} REFERENCING NEW TABLE AS {self.table_name} 
+                           FOR EACH STATEMENT UPDATE {self.schema_table_name} SET {self.table_name} .PREDICTION={prediction_call}(\'{self.run_id}\',"""
 
-        pred_trigger += DatabaseModelDDL._get_feature_vector_sql(self.model_columns, schema_types)
+        pred_trigger += DatabaseModelDDL._get_feature_vector_sql(self.table_name, self.model_columns, schema_types)
 
         # Cleanup + schema for PREDICT call
         pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(Metadata.MODEL_VECTOR_STR).replace(
@@ -337,14 +337,14 @@ class DatabaseModelDDL:
         """
         self.logger.info("Creating parsing trigger...", send_db=True)
         sql_parse_trigger = f"""CREATE TRIGGER {self.schema_name}.PARSERESULT_{self.table_name}_{self.run_id}
-                                BEFORE INSERT ON {self.schema_table_name} REFERENCING NEW AS NEWROW
-                                FOR EACH ROW set """
-        set_prediction_case_str = 'NEWROW.PREDICTION=\n\t\tCASE\n'
+                                AFTER INSERT ON {self.schema_table_name} REFERENCING NEW TABLE AS {self.table_name}
+                                FOR EACH STATEMENT UPDATE TABLE {self.schema_table_name} set """
+        set_prediction_case_str = f'{self.table_name}.PREDICTION=\n\t\tCASE\n'
         for i, c in enumerate(self.model.get_metadata(Metadata.CLASSES)):
-            sql_parse_trigger += f'NEWROW."{c}"=MLMANAGER.PARSEPROBS(NEWROW.prediction,{i}),'
-            set_prediction_case_str += f'\t\tWHEN MLMANAGER.GETPREDICTION(NEWROW.prediction)={i} then \'{c}\'\n'
+            sql_parse_trigger += f'{self.table_name}."{c}"=MLMANAGER.PARSEPROBS({self.table_name}.prediction,{i}),'
+            set_prediction_case_str += f'\t\tWHEN MLMANAGER.GETPREDICTION({self.table_name}.prediction)={i} then \'{c}\'\n'
 
-        set_prediction_case_str += '\t\tEND;'
+        set_prediction_case_str += '\t\tEND'
         if self.model.get_metadata(Metadata.GENERIC_TYPE) == DeploymentModelType.MULTI_PRED_DOUBLE:
             # These models don't have an actual prediction
             sql_parse_trigger = sql_parse_trigger[:-1]
