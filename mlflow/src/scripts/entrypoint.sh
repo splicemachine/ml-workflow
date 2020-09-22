@@ -54,7 +54,8 @@ then
 elif [[ "$ENVIRONMENT" == "gcp" ]] || [[ "$ENVIRONMENT" == "GCP" ]]
 then
     export ENVIRONMENT="gcp"
-
+else
+    export ENVIRONMENT="default"
 fi
 
 if [[ "$GUI_PORT" == "" ]]; then
