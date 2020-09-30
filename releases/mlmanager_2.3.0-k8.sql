@@ -13,7 +13,7 @@ SELECT mm.run_uuid,
                WHEN ((sta.tableid IS NULL
                       OR st.triggerid IS NULL
                       OR (mm.triggerid_2 IS NOT NULL
-                          AND st2.triggerid IS NULL))
+                          AND mm.triggerid IS NULL))
                      AND mm.action = 'DEPLOYED') THEN 'Table or Trigger Missing'
                ELSE mm.action
            END AS deployment_status,
