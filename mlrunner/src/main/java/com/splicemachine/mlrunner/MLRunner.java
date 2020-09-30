@@ -98,9 +98,20 @@ public class MLRunner implements DatasetProvider, VTICosting {
         return runner;
     }
 
+    public static boolean checkVals(final String modelID, final String rawData, final String schema){
+        return (modelID == null || rawData == null || schema == null);
+    }
+    public static boolean checkVals(final String str){
+        return (str == null);
+    }
+
     public static String predictClassification(final String modelID, final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
             UnsupportedLibraryExcetion, ClassNotFoundException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+        // Defensive in case no values are passed into the function
+        if (checkVals(modelID, rawData, schema)){
+            return null;
+        }
 
         AbstractRunner runner = getRunner(modelID);
         return runner.predictClassification(rawData, schema);
@@ -109,6 +120,11 @@ public class MLRunner implements DatasetProvider, VTICosting {
     public static Double predictRegression(final String modelID, final String rawData, final String schema)
             throws ClassNotFoundException, UnsupportedLibraryExcetion, SQLException, IOException,
             InvocationTargetException, IllegalAccessException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+        // Defensive in case no values are passed into the function
+        if (checkVals(modelID, rawData, schema)){
+            return null;
+        }
+
         //TODO: Add defensive code in case the model returns nothing (ie if a stringindexer skips the row)
         AbstractRunner runner = getRunner(modelID);
         return runner.predictRegression(rawData, schema);
@@ -116,6 +132,11 @@ public class MLRunner implements DatasetProvider, VTICosting {
 
     public static String predictClusterProbabilities(final String modelID, final String rawData, final String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException,
             UnsupportedLibraryExcetion, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+        // Defensive in case no values are passed into the function
+        if (checkVals(modelID, rawData, schema)){
+            return null;
+        }
+
         AbstractRunner runner = getRunner(modelID);
         return runner.predictClusterProbabilities(rawData, schema);
     }
@@ -123,21 +144,39 @@ public class MLRunner implements DatasetProvider, VTICosting {
     public static int predictCluster(final String modelID, final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
             ClassNotFoundException, UnsupportedLibraryExcetion, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+        // Defensive in case no values are passed into the function
+        if (checkVals(modelID, rawData, schema)){
+            return -1;
+        }
+
         AbstractRunner runner = getRunner(modelID);
         return runner.predictCluster(rawData, schema);
     }
 
     public static double[] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+        // Defensive in case no values are passed into the function
+        if (checkVals(modelID, rawData, schema)){
+            return null;
+        }
+
         AbstractRunner runner = getRunner(modelID);
         return runner.predictKeyValue(rawData, schema, null, null, -1);
     }
 
     public static Double splitResult(final String str, final int index) {
+        if (checkVals(str)){
+            return null;
+        }
+
         final String v = str.split(";")[index];
         return (Double.valueOf(v.split("=")[1]));
     }
 
     public static int getPrediction(final String str) {
+        if (checkVals(str)){
+            return -1;
+        }
+
         final String[] values = str.split(";");
         int maxIndex = 0;
         Double maxVal = 0.0;
