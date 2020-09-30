@@ -24,7 +24,7 @@ SELECT mm.run_uuid,
            mm.db_env,
            mm.db_user,
            mm.action_date
-    FROM DATABASE_DEPLOYED_METADATA mm
+    FROM MLMANAGER.DATABASE_DEPLOYED_METADATA mm
     LEFT OUTER JOIN sys.systables sta USING (tableid)
     LEFT OUTER JOIN sys.systriggers st ON (mm.triggerid = st.triggerid)
     LEFT OUTER JOIN sys.systriggers st2 ON (mm.triggerid_2 = st2.triggerid);
