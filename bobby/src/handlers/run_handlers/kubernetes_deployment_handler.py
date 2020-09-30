@@ -17,7 +17,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
     """
     Handler for processing deployment to Kubernetes
     """
-    DEFAULT_RETRIEVER_TAG = '0.0.12'
+    DEFAULT_RETRIEVER_TAG = '0.0.13'
     DEFAULT_SERVING_TAG = '0.0.15'
 
     def __init__(self, task_id: int):

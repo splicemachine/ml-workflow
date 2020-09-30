@@ -11,7 +11,7 @@ COPY requirements.txt $BUILD_HOME/requirements.txt
 
 # Install Apk Packages
 RUN yum -y update && \
-    yum install -y gcc gcc-c++ unixODBC-devel unixODBC git curl python3 python3-devel python3-pip
+    yum install -y gcc gcc-c++ unixODBC-devel unixODBC python3 python3-devel python3-pip
 
 # Install Python Package
 RUN pip3 install --upgrade wheel pip && \

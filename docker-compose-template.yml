@@ -50,3 +50,9 @@ services:
         splice_base_image_version: 0.0.2
       context: ./
       dockerfile: ./mlflow/Dockerfile
+  retriever:
+    build:
+      args:
+        splice_base_image_version: 0.0.2
+      context: ./infrastructure/model_deployment/init
+    image: splicemachine/sm_k8_model_serving-init:0.0.13
