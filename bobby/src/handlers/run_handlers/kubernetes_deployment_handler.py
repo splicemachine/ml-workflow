@@ -8,6 +8,11 @@ from tempfile import NamedTemporaryFile
 
 from yaml import dump as dump_yaml
 
+import requests
+from requests.exceptions import ConnectionError
+
+from retrying import retry
+
 from shared.services.kubernetes_api import KubernetesAPIService
 
 from .base_deployment_handler import BaseDeploymentHandler
@@ -17,7 +22,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
     """
     Handler for processing deployment to Kubernetes
     """
-    DEFAULT_RETRIEVER_TAG = '0.0.12'
+    DEFAULT_RETRIEVER_TAG = '0.0.13'
     DEFAULT_SERVING_TAG = '0.0.15'
 
     def __init__(self, task_id: int):
@@ -72,6 +77,25 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
 
             KubernetesAPIService.add_from_yaml(data=rendered_templates)
 
+    def _retry_on_cnx_err(exc):
+        return isinstance(exc, ConnectionError)
+
+    @retry(retry_on_exception=_retry_on_cnx_err, wait_exponential_multiplier=1000,
+           wait_exponential_max=10000, stop_max_delay=600000) # Max 10 min
+    def _try_to_connect(self):
+        self.logger.info('Endpoint not yet ready...', send_db=True)
+        rid = self.task.parsed_payload['run_id']
+        requests.post(f'http://model-{rid}/invocations')
+        self.logger.info("Endpoint ready!", send_db=True)
+
+    def _wait_for_endpoint(self):
+        self.logger.info("Waiting for Endpoint to be Available... This may take several minutes if "
+                         "this is your first k8s deployment", send_db=True)
+        self._try_to_connect()
+
+
+
+
     def execute(self):
         """
         Deploy Job to Kubernetes
@@ -79,6 +103,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
         """
         steps: tuple = (
             self._create_kubernetes_manifests,
+            self._wait_for_endpoint
         )
 
         for execute_step in steps:

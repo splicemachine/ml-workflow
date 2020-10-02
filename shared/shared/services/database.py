@@ -34,8 +34,8 @@ class DatabaseEngineConfig:
     """
     Database Engine Connection Configuration
     """
-    pool_size: int = 6
-    max_overflow: int = 0
+    pool_size: int = 20
+    max_overflow: int = 20
     echo: bool = env_vars['MODE'] == 'development'
     pool_pre_ping: bool = True
 
@@ -180,7 +180,7 @@ class DatabaseSQL:
         """
         SELECT MONTH(INNER_TABLE.parsed_date) AS month_1, COUNT(*) AS count_1, user_1
         FROM (
-            SELECT TIMESTAMP("timestamp") AS parsed_date, "user" as user_1
+            SELECT "timestamp" AS parsed_date, "user" as user_1
             FROM JOBS
         ) AS INNER_TABLE
         WHERE YEAR(INNER_TABLE.parsed_date) = YEAR(CURRENT_TIMESTAMP)
@@ -205,6 +205,17 @@ class DatabaseSQL:
         UPDATE ARTIFACTS SET database_binary=:binary
         WHERE run_uuid='{run_uuid}' AND name='{name}'
         """
+
+    get_k8s_deployments_on_restart = \
+    """
+    SELECT "user",payload FROM MLManager.Jobs
+    INNER JOIN 
+       ( SELECT MLFlow_URL, max("timestamp") "timestamp" 
+         FROM MLManager.Jobs 
+         where HANDLER_NAME in ('DEPLOY_KUBERNETES','UNDEPLOY_KUBERNETES')  
+         group by 1 ) LatestEvent using ("timestamp",MLFLOW_URL)
+    where HANDLER_NAME='DEPLOY_KUBERNETES'
+    """
 
 
 class Converters:

@@ -38,7 +38,7 @@
                                     <!-- governance -->
                                     <input type="hidden" name="user" value="{{ current_user.id }}"/>
                                     <input type="hidden" name="handler_name"
-                                           value="{{ handler_names.deploy_kubernetes }}"/>
+                                           value="{{ handler_names.deploy_k8s }}"/>
                                     <div class='form--inputContainer js-input'>
                                         <label for='input_run_uuid' class='form--label'>Run ID *</label>
                                         <input id='input_run_uuid' class='js-input-fullName' type='text'
@@ -99,7 +99,7 @@
                                         <label for='input_cpu_thresh' class='form--label'>Target CPU
                                             Utilization*</label>
                                         <input id='input_cpu_thresh' class='js-input-fullName' type='number'
-                                               value="2" name="target_cpu_utilization" required>
+                                               value="50" name="target_cpu_utilization" required>
                                     </div>
                                 </div>
                             </div>
