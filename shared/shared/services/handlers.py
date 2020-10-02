@@ -21,7 +21,7 @@ class HandlerNames:
         """
         Get handlers that can run operations
         """
-        run_handlers = [HandlerNames.deploy_database, HandlerNames.deploy_k8s] # TODO: Add back HandlerNames.deploy_k8s once it works
+        run_handlers = [HandlerNames.deploy_database, HandlerNames.deploy_k8s]
 
         if HandlerNames.deploy_csp:
             run_handlers.append(HandlerNames.deploy_csp)
@@ -82,7 +82,7 @@ class KnownHandlers:
                 Field('run_id'),
                 Field('service_port', use_default=True, default=80),
                 Field('base_replicas', use_default=True, default=1),
-                Field('autoscaling_enabled', use_default=True, default=False, callback=str, callback_on=bool),
+                Field('autoscaling_enabled', use_default=True, default="False", callback=str, callback_on=bool),
                 Field('max_replicas', use_default=True, default=2),
                 Field('target_cpu_utilization', use_default=True, default=50),
                 Field('disable_nginx', default="false", use_default=True, callback=str, callback_on=bool),
