@@ -12,6 +12,7 @@ class HandlerNames:
     enable_service: str = 'ENABLE_SERVICE'
     disable_service: str = 'DISABLE_SERVICE'
     deploy_k8s: str = 'DEPLOY_KUBERNETES'
+    undeploy_k8s: str = 'UNDEPLOY_KUBERNETES'
     deploy_database: str = 'DEPLOY_DATABASE'
     deploy_csp: str = CloudEnvironments.get_current().handler_mapping.get('deploy')
 
@@ -20,7 +21,7 @@ class HandlerNames:
         """
         Get handlers that can run operations
         """
-        run_handlers = [HandlerNames.deploy_database] # TODO: Add back HandlerNames.deploy_k8s once it works
+        run_handlers = [HandlerNames.deploy_database, HandlerNames.deploy_k8s] # TODO: Add back HandlerNames.deploy_k8s once it works
 
         if HandlerNames.deploy_csp:
             run_handlers.append(HandlerNames.deploy_csp)
