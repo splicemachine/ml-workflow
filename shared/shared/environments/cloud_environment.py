@@ -73,6 +73,13 @@ class CloudEnvironments:
         can_deploy=False
     )
 
+    default: CloudEnvironment = CloudEnvironment(
+        name='Default',
+        fullname='Unknown Environment',
+        handler_mapping={},
+        can_deploy=False
+    )
+
     @staticmethod
     def get_valid() -> tuple:
         """
@@ -83,7 +90,8 @@ class CloudEnvironments:
             CloudEnvironments.aws,
             CloudEnvironments.azure,
             CloudEnvironments.gcp,
-            CloudEnvironments.openstack
+            CloudEnvironments.openstack,
+            CloudEnvironments.default
         )
 
     @staticmethod
