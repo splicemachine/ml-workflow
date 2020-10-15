@@ -52,13 +52,13 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
                                                    KubernetesDeploymentHandler.DEFAULT_RETRIEVER_TAG),
                          'server': env_vars.get('SERVER_IMAGE_TAG',
                                                 KubernetesDeploymentHandler.DEFAULT_SERVING_TAG)},
-            'serving': {'gunicornWorkers': payload['gunicorn_workers'], 'disableNginx': payload['disable_nginx'],
+            'serving': {'gunicornWorkers': payload['gunicorn_workers'], 'disableNginx': payload['disable_nginx'].lower(),
                         'exposePort': payload['service_port']},
-            'resourceRequests': {'enabled': payload['resource_requests_enabled'],
+            'resourceRequests': {'enabled': payload['resource_requests_enabled'].lower(),
                                  'cpu_request': payload['cpu_request'], 'memory_request': payload['memory_request']},
-            'resourceLimits': {'enabled': payload['resource_limits_enabled'],
+            'resourceLimits': {'enabled': payload['resource_limits_enabled'].lower(),
                                'cpu_limit': payload['cpu_limit'], 'memory_limit': payload['memory_limit']},
-            'autoscaling': {'enabled': payload['autoscaling_enabled'], 'maxReplicas': payload['max_replicas'],
+            'autoscaling': {'enabled': payload['autoscaling_enabled'].lower(), 'maxReplicas': payload['max_replicas'],
                             'targetCPULoad': payload['target_cpu_utilization']}
         }
 
