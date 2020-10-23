@@ -57,4 +57,5 @@ class Field:
         :param value: value to convert
         :return: converted value
         """
-        return True if value == "true" else False if value == "false" else None
+        return True if value.lower() == "true" else False if value.lower() == "false" else None
+
