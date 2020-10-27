@@ -158,7 +158,8 @@ class DatabaseModelDDL:
         pk_cols = ''
         for key in self.primary_key:
             # If pk is already in the schema_string, don't add another column. PK may be an existing value
-            if key.lower() not in schema_str.lower():
+            if key.lower() not in schema_str.lower() and \
+                    key.upper() not in self.model.get_metadata(Metadata.RESERVED_COLUMNS):
                 table_create_sql += f'{key} {self.primary_key[key]},'
             pk_cols += f'{key},'
 
@@ -186,7 +187,7 @@ class DatabaseModelDDL:
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         table_cols = [col['name'] for col in inspector.get_columns(self.table_name, schema=self.schema_name)]
         reserved_fields = set(
-            ['CUR_USER', 'EVAL_TIME', 'RUN_ID', 'PREDICTION'] + (self.model.get_metadata(Metadata.CLASSES) or [])
+            self.model.get_metadata(Metadata.RESERVED_COLUMNS) + (self.model.get_metadata(Metadata.CLASSES) or [])
         )
         for col in table_cols:
             if col in reserved_fields:

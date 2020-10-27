@@ -54,6 +54,8 @@ class DatabaseModelMetadataPreparer:
         self.model.add_metadata(Metadata.CLASSES, self._classes)
         self.model.add_metadata(Metadata.TYPE, self.model_type)
         self.model.add_metadata(Metadata.GENERIC_TYPE, ModelTypeMapper.get_model_type(self.model_type))
+        # Constant for every model
+        self.model.add_metadata(Metadata.RESERVED_COLUMNS, ['EVAL_TIME', 'CUR_USER', 'RUN_ID', 'PREDICTION'])
 
     def _prepare_spark(self):
         """
