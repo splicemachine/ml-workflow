@@ -90,6 +90,10 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.model.add_metadata(Metadata.SQL_SCHEMA,
                                 {field.name: Converters.SPARK_DB_CONVERSIONS[str(field.dataType).split('(')[0]]
                                  for field in struct_schema})
+        # The database
+        self.model.add_metadata(Metadata.SCHEMA_STR,
+                                ', '.join([f"{field.name.upper()} {Converters.SPARK_DB_CONVERSIONS[str(field.dataType)].upper()}"
+                                 for field in struct_schema]) + ',')
         self.logger.info("Done.")
 
     def _add_model_examples_from_db(self, table_name: str, schema_name: str):
@@ -102,6 +106,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         struct_type = StructType()
         schema_dict = {}
+        schema_str = []
         columns = inspector.get_columns(table_name, schema=schema_name)
 
         if len(columns) == 0:
@@ -116,9 +121,12 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
             # TODO @ben or @amrit: case-sensitity
             struct_type.add(StructField(name=field['name'].upper(), dataType=spark_d_type()))
 
+            schema_str.append(f"{field['name'].upper()} {str(field['type']).upper()}")
+
         self.model.add_metadata(Metadata.DATAFRAME_EXAMPLE,
                                 self.spark_session.createDataFrame(data=[], schema=struct_type))
         self.model.add_metadata(Metadata.SQL_SCHEMA, schema_dict)
+        self.model.add_metadata(Metadata.SCHEMA_STR, ', '.join([i for i in schema_str]) + ',')
 
     def _get_model_schema(self):
         """
