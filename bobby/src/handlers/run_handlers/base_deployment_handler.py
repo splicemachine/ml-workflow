@@ -139,7 +139,11 @@ class BaseDeploymentHandler(BaseHandler):
 
             self.logger.info(f"Retrieved MLFlow Run", send_db=True)
 
-            self.model_dir: str = self.mlflow_run.data.tags['splice.model_name']
+            self.model_dir: str = self.mlflow_run.data.tags.get('splice.model_name')
+            if not self.model_dir:
+                self.logger.exception(f"No model was found for run {self.mlflow_run.info.run_uuid}. Ensure that"
+                                      f"the splice.model_name tag is available for this model", send_db=True)
+                raise Exception(f'No model was found for run {self.mlflow_run.info.run_uuid}')
 
             # populates a link to the associated Mlflow run that opens in a new tab.
             self.logger.info("Updating MLFlow Run for the UI", send_db=True)
