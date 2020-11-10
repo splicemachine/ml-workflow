@@ -67,11 +67,6 @@ class DatabaseModelDDL:
         # Create the schema of the table (we use this a few times)
         self.logger.info("Adding Schema String to model metadata...", send_db=True)
 
-        self.model.add_metadata(
-            Metadata.SCHEMA_STR, ', '.join([f'{name} {col_type}' for name, col_type in self.model.get_metadata(
-                Metadata.SQL_SCHEMA).items()]) + ','
-        )
-
         mcols = [m.upper() for m in self.model_columns]
         self.model.add_metadata(
             Metadata.MODEL_VECTOR_STR, ', '.join([f'{name} {col_type}' for name, col_type in self.model.get_metadata(
@@ -129,7 +124,7 @@ class DatabaseModelDDL:
         sql_vector = ''
         for index, col in enumerate(model_cols):
             sql_vector += '||' if index != 0 else ''
-            if stypes[str(col)] == 'VARCHAR(5000)':
+            if 'VARCHAR' in stypes[str(col)].upper() or 'CLOB' in stypes[str(col)].upper():
                 sql_vector += f'NEWROW.{col}||\',\''
             else:
                 inner_cast = f'CAST(NEWROW.{col} as DECIMAL(38,10))' if \
