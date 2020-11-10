@@ -19,8 +19,6 @@ import hex.genmodel.easy.exception.PredictException;
 import hex.genmodel.easy.EasyPredictModelWrapper;
 import hex.genmodel.easy.prediction.*;
 
-import static hex.ModelCategory.Unknown;
-
 public class H2ORunner extends AbstractRunner {
     EasyPredictModelWrapper model;
 
@@ -50,8 +48,7 @@ public class H2ORunner extends AbstractRunner {
     }
 
     private List<RowData> parseDataToFrame(Queue<ExecRow> unprocessedRows, List<Integer> modelFeaturesIndexes,
-                                           List<String> featureColumnNames)
-            throws StandardException, InvocationTargetException, IllegalAccessException {
+                                           List<String> featureColumnNames) {
 
         // MOJOs don't support "frames", so we'll store it in a list
         List<RowData> frameRows = new ArrayList<>();
@@ -149,7 +146,7 @@ public class H2ORunner extends AbstractRunner {
     }
 
     @Override
-    public Queue<ExecRow> predictRegression(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException, PredictException {
+    public Queue<ExecRow> predictRegression(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws StandardException, PredictException {
         Queue<ExecRow> transformedRows = new LinkedList<>();
         final List<RowData> frameRows = parseDataToFrame(rows,modelFeaturesIndexes,featureColumnNames);
         AbstractPrediction p = null;
@@ -174,12 +171,12 @@ public class H2ORunner extends AbstractRunner {
     }
 
     @Override
-    public Queue<ExecRow> predictClusterProbabilities(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException {
+    public Queue<ExecRow> predictClusterProbabilities(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) {
         return null;
     }
 
     @Override
-    public Queue<ExecRow> predictCluster(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException, PredictException {
+    public Queue<ExecRow> predictCluster(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws StandardException, PredictException {
         Queue<ExecRow> transformedRows = new LinkedList<>();
         final List<RowData> frameRows = parseDataToFrame(rows,modelFeaturesIndexes,featureColumnNames);
         AbstractPrediction p = null;
@@ -204,7 +201,7 @@ public class H2ORunner extends AbstractRunner {
     }
 
     @Override
-    public Queue<ExecRow> predictKeyValue(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, List<String> predictionLabelIndexes, List<String> featureColumnNames, final String predictCall, final String predictArgs, double threshold) throws PredictException, IllegalAccessException, StandardException, InvocationTargetException {
+    public Queue<ExecRow> predictKeyValue(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames, final String predictCall, final String predictArgs, double threshold) throws PredictException, StandardException {
         Queue<ExecRow> transformedRows = new LinkedList<>();
         final List<RowData> frameRows = parseDataToFrame(rows,modelFeaturesIndexes,featureColumnNames);
         AbstractPrediction p;
@@ -289,6 +286,8 @@ public class H2ORunner extends AbstractRunner {
         return transformedRows;
     }
 
+
+
     @Override
     @Deprecated public String predictClassification(final String rawData, final String schema) throws PredictException {
         final RowData row = parseDataToFrame(rawData, schema);
@@ -319,9 +318,8 @@ public class H2ORunner extends AbstractRunner {
         return builder.substring(0, builder.length() - 1);
     }
 
-    @Deprecated
     @Override
-    public Double predictRegression(final String rawData, final String schema) throws PredictException {
+    @Deprecated public Double predictRegression(final String rawData, final String schema) throws PredictException {
         final RowData row = parseDataToFrame(rawData, schema);
         double value = 0.0;
         AbstractPrediction p = null;
@@ -339,15 +337,13 @@ public class H2ORunner extends AbstractRunner {
         return value;
     }
 
-    @Deprecated
     @Override
-    public String predictClusterProbabilities(final String rawData, final String schema) {
+    @Deprecated public String predictClusterProbabilities(final String rawData, final String schema) {
         return null;
     }
 
-    @Deprecated
     @Override
-    public int predictCluster(final String rawData, final String schema) throws PredictException {
+    @Deprecated public int predictCluster(final String rawData, final String schema) throws PredictException {
         ClusteringModelPrediction p = null;
         final RowData row = parseDataToFrame(rawData, schema);
         int cluster = -1;
@@ -365,7 +361,7 @@ public class H2ORunner extends AbstractRunner {
     }
 
     @Override
-    public double[] predictKeyValue(final String rawData, final String schema, final String predictCall, final String predictArgs, double threshold) throws PredictException {
+    @Deprecated public double[] predictKeyValue(final String rawData, final String schema, final String predictCall, final String predictArgs, double threshold) throws PredictException {
         final RowData row = parseDataToFrame(rawData, schema);
         double [] result;
         AbstractPrediction p = null;

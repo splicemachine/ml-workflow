@@ -276,6 +276,11 @@ public class MLeapRunner extends AbstractRunner {
     }
 
     @Override
+    public Queue<ExecRow> predictKeyValue(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabelIndexes, List<String> featureColumnNames, String predictCall, String predictArgs, double threshold) throws StandardException, SQLException {
+        return null;
+    }
+
+    @Override
     @Deprecated public String predictClassification(final String rawData, final String schema) throws InvocationTargetException,
             IllegalAccessException, SQLException, IOException, ClassNotFoundException {
         final DefaultLeapFrame frame = parseDataToFrame(rawData, schema);
