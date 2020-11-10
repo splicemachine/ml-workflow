@@ -1,5 +1,10 @@
 package com.splicemachine.mlrunner;
 
+import com.splicemachine.db.iapi.error.StandardException;
+import com.splicemachine.db.iapi.sql.execute.ExecRow;
+import com.splicemachine.db.iapi.types.DataValueDescriptor;
+import com.splicemachine.db.iapi.types.SQLDouble;
+import com.splicemachine.db.iapi.types.SQLVarchar;
 import ml.combust.mleap.core.types.StructField;
 import ml.combust.mleap.core.types.StructType;
 import ml.combust.mleap.core.types.DataType;
@@ -24,6 +29,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 import hex.genmodel.easy.exception.PredictException;
+import shapeless.Default;
 
 /**
  * Scalar function for making predictions via mleap
@@ -88,31 +94,24 @@ public class MLeapRunner extends AbstractRunner {
     public static Double toDouble(final String d) {
         return Double.valueOf(d);
     }
-
     public static Float toFloat(final String d) {
         return Float.valueOf(d);
     }
-
     public static Long toLong(final String d) {
         return Long.valueOf(d);
     }
-
     public static Integer toInt(final String d) {
         return Integer.valueOf(d);
     }
-
     public static Short toShort(final String d) {
         return Short.valueOf(d);
     }
-
     public static Byte toByte(final String d) {
         return Byte.valueOf(d);
     }
-
     public static Boolean toBool(final String d) {
         return Boolean.valueOf(d);
     }
-
     public static String toStr(final String d) {
         return d;
     }
@@ -121,7 +120,36 @@ public class MLeapRunner extends AbstractRunner {
         return JavaConverters.collectionAsScalaIterableConverter(javaList).asScala().toSeq();
     }
 
+
+    private DefaultLeapFrame parseDataToFrame(Queue<ExecRow> unprocessedRows, List<Integer> modelFeaturesIndexes,
+                                              List<String> featureColumnNames)
+            throws StandardException, InvocationTargetException, IllegalAccessException {
+
+        List <Row> frameRows = new ArrayList<>();
+        int numFeatures = modelFeaturesIndexes.size();
+        Object [] rowData = new Object[numFeatures]; // The rows' datum
+        final StructField[] structFields = new StructField[numFeatures];
+        StructType schemaStruct = null; // The row's schema
+
+        for(ExecRow row : unprocessedRows){
+            for(int ind = 0; ind < numFeatures; ind ++){
+                DataValueDescriptor column = row.getColumn(modelFeaturesIndexes.get(ind));
+                String dataType = column.getTypeName();
+                // Create the structField for the given column of the row
+                // Only 1 StructType per LeapFrame
+                if(schemaStruct == null)    structFields[ind] = frameBuilder.createField(featureColumnNames.get(ind), typeConversions.get(dataType));
+                // TODO: Is this the best way? Should we use a switch?
+                rowData[ind] = converters.get(column.getString()).invoke(null, dataType);
+            }
+            if(schemaStruct == null)    schemaStruct = frameBuilder.createSchema(Arrays.asList(structFields));
+            frameRows.add(frameBuilder.createRowFromIterable(Arrays.asList(rowData)));
+        }
+        final DefaultLeapFrame frame = frameBuilder.createFrame(schemaStruct, frameRows);
+        return frame;
+    }
+
     /**
+     * @deprecated as of 2.4.0-k8, replaced by {@link #parseDataToFrame(Queue, List, List)}
      * Function to create a LeapFrame given the features in String format and the
      * schema of the dataset in String format Function will properly convert values
      * to String/Float/Double etc based on the provided schema
@@ -132,7 +160,7 @@ public class MLeapRunner extends AbstractRunner {
      * @return DefaultLeapFrame reconstructed from the strings
      */
 
-    private DefaultLeapFrame parseDataToFrame(final String rawData, final String schema)
+    @Deprecated private DefaultLeapFrame parseDataToFrame(final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException {
         // Schema parsing setup
         final Pattern p = Pattern.compile("[^A-Za-z]");
@@ -161,7 +189,94 @@ public class MLeapRunner extends AbstractRunner {
     }
 
     @Override
-    public String predictClassification(final String rawData, final String schema) throws InvocationTargetException,
+    public Queue<ExecRow> predictClassification(final Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes,
+                                        int predictionColIndex, List<String> predictionLabels,
+                                        List<Integer> predictionLabelIndexes, List<String> featureColumnNames)
+            throws IllegalAccessException, StandardException, InvocationTargetException {
+
+        Queue<ExecRow> transformedRows = new LinkedList<>();
+        final DefaultLeapFrame frame = parseDataToFrame(rows, modelFeaturesIndexes, featureColumnNames);
+        final ArrayList<String> outputCols = new ArrayList<String>(Collections.singletonList("probability"));
+        final DefaultLeapFrame output = this.model.transform(frame).get();
+        Iterator<Row> predictedRows = output.select(createScalaSequence(outputCols)).get().dataset().iterator();
+        while(predictedRows.hasNext()){ // Loop through the predicted rows
+            final Tensor probs = predictedRows.next().getTensor(0);
+            final Iterator tensorIterator = probs.rawValuesIterator();
+            ExecRow nextRow = rows.remove().getClone();
+
+            int predCol = 0;
+            Double maxValue = 0.0; // the max probability (for prediction set)
+            int maxIndex = -1;   // index of max probability
+            while(tensorIterator.hasNext()){ // Loop through the probabilities of the given row
+                // Alter the original row and set the probabilities
+                Double prob = (Double) tensorIterator.next();
+                nextRow.setColumn(predictionLabelIndexes.get(predCol), new SQLDouble(prob));
+
+                // Compare to current max
+                if(prob > maxValue){
+                    maxValue = prob;
+                    maxIndex = predCol;
+                }
+                predCol ++;
+
+            }
+            nextRow.setColumn(predictionColIndex, new SQLVarchar(predictionLabels.get(maxIndex)));
+            transformedRows.add(nextRow);
+        }
+        return transformedRows;
+    }
+
+    @Override
+    public Queue<ExecRow> predictRegression(final Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes,
+                                            int predictionColIndex,List<String> featureColumnNames)
+            throws IllegalAccessException, StandardException, InvocationTargetException {
+
+        Queue<ExecRow> transformedRows = new LinkedList<>();
+        final DefaultLeapFrame frame = parseDataToFrame(rows, modelFeaturesIndexes, featureColumnNames);
+        // Define out desired output column(s)
+        final ArrayList<String> outputCols = new ArrayList<String>(Collections.singletonList("prediction"));
+        final DefaultLeapFrame output = this.model.transform(frame).get();
+        Iterator<Row> predictedRows = output.select(createScalaSequence(outputCols)).get().dataset().iterator();
+        while(predictedRows.hasNext()) { // Loop through the predicted rows
+            double pred = predictedRows.next().getDouble(0);
+            ExecRow row = rows.remove().getClone();
+            row.setColumn(predictionColIndex, new SQLDouble(pred));
+            transformedRows.add(row);
+        }
+        return transformedRows;
+    }
+
+    @Override
+    public Queue<ExecRow> predictClusterProbabilities(final Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes,
+                                                int predictionColIndex, List<String> predictionLabels,
+                                                List<Integer> predictionLabelIndexes, List<String> featureColumnNames)
+            throws IllegalAccessException, StandardException, InvocationTargetException {
+
+        return predictClassification(rows, modelFeaturesIndexes, predictionColIndex, predictionLabels,
+                predictionLabelIndexes, featureColumnNames);
+    }
+
+    @Override
+    public Queue<ExecRow> predictCluster(final Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes,
+                                         int predictionColIndex,List<String> featureColumnNames)
+            throws IllegalAccessException, StandardException, InvocationTargetException {
+
+        Queue<ExecRow> transformedRows = new LinkedList<>();
+        final DefaultLeapFrame frame = parseDataToFrame(rows, modelFeaturesIndexes, featureColumnNames);
+        final ArrayList<String> outputCols = new ArrayList<String>(Collections.singletonList("prediction"));
+        final DefaultLeapFrame output = this.model.transform(frame).get();
+        Iterator<Row> predictedRows = output.select(createScalaSequence(outputCols)).get().dataset().iterator();
+        while(predictedRows.hasNext()) { // Loop through the predicted rows
+            int pred = ((Number)predictedRows.next().get(0)).intValue();
+            ExecRow row = rows.remove().getClone();
+            row.setColumn(predictionColIndex, new SQLDouble(pred));
+            transformedRows.add(row);
+        }
+        return transformedRows;
+    }
+
+    @Override
+    @Deprecated public String predictClassification(final String rawData, final String schema) throws InvocationTargetException,
             IllegalAccessException, SQLException, IOException, ClassNotFoundException {
         final DefaultLeapFrame frame = parseDataToFrame(rawData, schema);
         // Define out desired output column(s)
@@ -180,7 +295,7 @@ public class MLeapRunner extends AbstractRunner {
     }
 
     @Override
-    public Double predictRegression(final String rawData, final String schema) throws InvocationTargetException,
+    @Deprecated public Double predictRegression(final String rawData, final String schema) throws InvocationTargetException,
             IllegalAccessException, SQLException, IOException, ClassNotFoundException {
         final DefaultLeapFrame frame = parseDataToFrame(rawData, schema);
         // Define out desired output column(s)
@@ -192,7 +307,7 @@ public class MLeapRunner extends AbstractRunner {
     }
 
     @Override
-    public String predictClusterProbabilities(final String rawData, final String schema)
+    @Deprecated public String predictClusterProbabilities(final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
             ClassNotFoundException {
         final DefaultLeapFrame frame = parseDataToFrame(rawData, schema);
@@ -212,7 +327,7 @@ public class MLeapRunner extends AbstractRunner {
         return res.substring(0, res.length() - 1);
     }
 
-    public int predictCluster(final String rawData, final String schema) throws InvocationTargetException,
+    @Deprecated public int predictCluster(final String rawData, final String schema) throws InvocationTargetException,
             IllegalAccessException, SQLException, IOException, ClassNotFoundException {
         final DefaultLeapFrame frame = parseDataToFrame(rawData, schema);
         // Run the model

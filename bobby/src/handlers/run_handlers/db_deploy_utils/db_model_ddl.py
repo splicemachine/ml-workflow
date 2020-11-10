@@ -129,11 +129,11 @@ class DatabaseModelDDL:
         sql_vector = ''
         for index, col in enumerate(model_cols):
             sql_vector += '||' if index != 0 else ''
-            if stypes[str(col)] == 'VARCHAR(5000)':
-                sql_vector += f'NEWROW.{col}||\',\''
+            if 'VARCHAR' in stypes[str(col)].upper() or 'CLOB' in stypes[str(col)].upper():
+                sql_vector += f'NT.{col}||\',\''
             else:
-                inner_cast = f'CAST(NEWROW.{col} as DECIMAL(38,10))' if \
-                    stypes[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
+                inner_cast = f'CAST(NT.{col} as DECIMAL(38,10))' if \
+                    stypes[str(col)] in {'FLOAT', 'DOUBLE'} else f'NT.{col}'
                 sql_vector += f'TRIM(CAST({inner_cast} as CHAR(41)))||\',\''
         return sql_vector
 
@@ -317,14 +317,25 @@ class DatabaseModelDDL:
         prediction_call = self.prediction_data['prediction_call']
 
         pred_trigger = f"""CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}
-                           BEFORE INSERT ON {self.schema_table_name} REFERENCING NEW AS NEWROW 
-                           FOR EACH ROW SET NEWROW.PREDICTION={prediction_call}(\'{self.run_id}\',"""
+                           AFTER INSERT ON {self.schema_table_name} REFERENCING NEW TABLE AS NT 
+                           FOR EACH STATEMENT UPDATE {self.schema_table_name}
+                           SET """
+
+        pred_trigger += "( PREDICTION ) = ( SELECT PREDICTION FROM (" if self.model.get_metadata(Metadata.TYPE) \
+                                             not in {SparkModelType.MULTI_PRED_INT, H2OModelType.MULTI_PRED_INT} \
+                                             else self.create_parsing_trigger()
+
+        # SELECT NT.pk1, NT.pk2.... , MANAGER.PREDICT(run_id,
+        pred_trigger += 'SELECT ' + ','.join([f'NT.{k}' for k in self.primary_key]) + f', {prediction_call}(\'{self.run_id}\','
 
         pred_trigger += DatabaseModelDDL._get_feature_vector_sql(self.model_columns, schema_types)
 
         # Cleanup + schema for PREDICT call
         pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(Metadata.MODEL_VECTOR_STR).replace(
-            '\t', '').replace('\n', '').rstrip(',') + '\')'
+            '\t', '').replace('\n', '').rstrip(',') + '\') PREDICTION from NT) \n temp_tbl\n WHERE\n'
+
+        # Add the where clause on the primary keys for the STATEMENT trigger
+        pred_trigger += 'AND '.join([f'temp_tbl.{k}={self.schema_table_name}.{k}' for k in self.primary_key]) + ')'
 
         self.logger.info(f"Executing\n{pred_trigger}", send_db=True)
         self.session.execute(pred_trigger)
@@ -335,26 +346,25 @@ class DatabaseModelDDL:
         row populating the relevant columns.
         TO be removed when we move to VTI only
         """
-        self.logger.info("Creating parsing trigger...", send_db=True)
-        sql_parse_trigger = f"""CREATE TRIGGER {self.schema_name}.PARSERESULT_{self.table_name}_{self.run_id}
-                                BEFORE INSERT ON {self.schema_table_name} REFERENCING NEW AS NEWROW
-                                FOR EACH ROW set """
-        set_prediction_case_str = 'NEWROW.PREDICTION=\n\t\tCASE\n'
-        for i, c in enumerate(self.model.get_metadata(Metadata.CLASSES)):
-            sql_parse_trigger += f'NEWROW."{c}"=MLMANAGER.PARSEPROBS(NEWROW.prediction,{i}),'
-            set_prediction_case_str += f'\t\tWHEN MLMANAGER.GETPREDICTION(NEWROW.prediction)={i} then \'{c}\'\n'
+        #self.logger.info("Creating parsing trigger...", send_db=True)
 
-        set_prediction_case_str += '\t\tEND;'
+        # SET("class1", "class2"... , PREDICTION) = ( SELECT
+        case_sensitive_classes = [f'"{c}"' for c in self.model.get_metadata(Metadata.CLASSES)]
+        sql_inner_parse = '(' + ','.join(case_sensitive_classes) + ', PREDICTION ) = ( SELECT '
+        set_prediction_case_str = '\n\t\tCASE\n'
+        for i, c in enumerate(self.model.get_metadata(Metadata.CLASSES)):
+            sql_inner_parse += f'MLMANAGER.PARSEPROBS(temp_tbl.prediction,{i}),'
+            set_prediction_case_str += f'\t\tWHEN MLMANAGER.GETPREDICTION(temp_tbl.prediction)={i} then \'{c}\'\n'
+        set_prediction_case_str += '\t\tEND '
+
         if self.model.get_metadata(Metadata.GENERIC_TYPE) == DeploymentModelType.MULTI_PRED_DOUBLE:
             # These models don't have an actual prediction
-            sql_parse_trigger = sql_parse_trigger[:-1]
+            sql_inner_parse = sql_inner_parse[:-1]
         else:
-            sql_parse_trigger += set_prediction_case_str
+            sql_inner_parse += set_prediction_case_str
 
-        formatted_sql_parse_trigger = sql_parse_trigger.replace('\n', ' ').replace('\t', ' ')
-
-        self.logger.info(f"Executing\n{formatted_sql_parse_trigger}", send_db=True)
-        self.session.execute(formatted_sql_parse_trigger)
+        sql_inner_parse += ' FROM ('
+        return sql_inner_parse
 
     def create(self):
         """
