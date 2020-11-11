@@ -35,7 +35,7 @@ class DatabaseEngineConfig:
     Database Engine Connection Configuration
     """
     pool_size: int = 20
-    max_overflow: int = 20
+    max_overflow: int = env_vars.get('MAX_OVERFLOW',-1)
     echo: bool = env_vars['MODE'] == 'development'
     pool_pre_ping: bool = True
 
