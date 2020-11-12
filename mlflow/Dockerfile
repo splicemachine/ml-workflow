@@ -2,13 +2,13 @@ ARG splice_base_image_version
 FROM splicemachine/sm_k8_base:$splice_base_image_version
 
 # Shiro config
-ARG sm_version=3.0.0.1944
+ARG sm_version=3.0.1.1984
 ARG shiro_core_version=shiro-core-1.2.3
 ARG shiro_web_version=shiro-web-1.2.3
 ARG splice_shiro_version=splice-shiro-$sm_version
 ARG SHIRO_CORE_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_core_version.jar
 ARG SHIRO_WEB_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_web_version.jar
-ARG SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shiro-2.7.0.1915.jar
+ARG SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shiro-3.0.1.1984.jar
 
 # ODBC Driver Configuration
 ARG odbc_driver_version='2.7.63.0'
