@@ -2,9 +2,7 @@ package com.splicemachine.mlrunner;
 
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.sql.Activation;
-import com.splicemachine.db.iapi.sql.dictionary.DataDictionary;
-import com.splicemachine.db.iapi.sql.dictionary.SchemaDescriptor;
-import com.splicemachine.db.iapi.sql.dictionary.TableDescriptor;
+import com.splicemachine.db.iapi.sql.ResultColumnDescriptor;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.vti.VTICosting;
 import com.splicemachine.db.vti.VTIEnvironment;
@@ -39,7 +37,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     // For VTI Implementation
     private final String modelCategory, modelID, predictCall, predictArgs, schema, table; //, rawData, schema;
     final List<String> featureColumnNames, predictionLabels;
-    final int predictionColIndex, maxBufferSize;
+    final int maxBufferSize;
     private final double threshold;
     TriggerNewTransitionRows newTransitionRows;
 
@@ -210,24 +208,44 @@ public class MLRunner implements DatasetProvider, VTICosting {
 
         if (spliceOperation != null)
             operationContext = dataSetProcessor.createOperationContext(spliceOperation);
-        else // this call works even if activation is null
+        else { // this call works even if activation is null
+            LOG.warn("Activation is null!");
             operationContext = dataSetProcessor.createOperationContext((Activation) null);
-        ArrayList<ExecRow> items = new ArrayList<ExecRow>();
+        }
 
-        
         // Get row indexes of each model/feature column from tabledescriptor so it's always correct even if columns are modified
         List<Integer> modelFeaturesIndexes = new ArrayList<>();
         List<Integer> predictionLabelIndexes = new ArrayList<>();
+        /*
+        List<Integer> modelFeaturesIndexes = new ArrayList<>(Arrays.asList(4,5,6,7));
+        List<Integer> predictionLabelIndexes = new ArrayList<>(Arrays.asList(11,12,13));
         DataDictionary dd = operationContext.getActivation().getLanguageConnectionContext().getDataDictionary();
-        SchemaDescriptor sd = dd.getSchemaDescriptor(this.schema, operationContext.getActivation().getLanguageConnectionContext().getTransactionCompile(), true);
-        TableDescriptor td = dd.getTableDescriptor(this.table, sd, operationContext.getActivation().getLanguageConnectionContext().getTransactionCompile());
-        for(String col : this.featureColumnNames) modelFeaturesIndexes.add(td.getColumnDescriptor(col).getPosition());
-        for(String col : this.predictionLabels)   predictionLabelIndexes.add(td.getColumnDescriptor(col).getPosition());
+        LOG.warn("Data Dictionary is null " +(dd==null));
+        assert dd != null;
+        LOG.warn("Trying new way");
+        SchemaDescriptor sd = dd.getSchemaDescriptor(this.schema, operationContext.getActivation().getLanguageConnectionContext().getTransactionExecute(), true);
+        TableDescriptor td = dd.getTableDescriptor(this.table, sd, operationContext.getActivation().getLanguageConnectionContext().getTransactionExecute());
+        */
+
+        ResultColumnDescriptor[] cd = spliceOperation.getActivation().getLanguageConnectionContext().getTriggerExecutionContext().getTemporaryRowHolder().getResultSet().getResultDescription().getColumnInfo();
+        HashMap<String, Integer> colIndexes= new HashMap<>();
+        for(ResultColumnDescriptor rcd : cd)    colIndexes.put(rcd.getName(), rcd.getColumnPosition());
+
+        for(String col : this.featureColumnNames) {
+            modelFeaturesIndexes.add(colIndexes.get(col.toUpperCase()));
+        }
+        for(String col : this.predictionLabels){
+            if(!col.toUpperCase().equals("PREDICTION")) { // Keep prediction col separate
+                predictionLabelIndexes.add(colIndexes.get(col.toUpperCase()));
+            }
+        }
+        int predictionColIndex = colIndexes.get("PREDICTION");
+
 
         // Initialize runner
         AbstractRunner runner = null;
         try {
-            runner = this.modelCategory.equals("endpoint") ? getRunner(this.modelID) : null;
+            runner = this.modelCategory.equals("endpoint") ? null : getRunner(this.modelID);
             
         } catch (SQLException e) {
             LOG.error("Unexpected SQLException: ", e);
@@ -259,10 +277,10 @@ public class MLRunner implements DatasetProvider, VTICosting {
     public static DatasetProvider getMLRunner(final String modelCategory, final String modelID, final TriggerNewTransitionRows newTransitionRows,
                                               final String schema, final String table,
                                               final String predictCall, final String predictArgs, final double threshold,
-                                              final List<String> featureColumnNames, final int predictionColIndex,
-                                              final List<String> predictionLabels, final int maxBufferSize) {
-        return new MLRunner(modelCategory, modelID, newTransitionRows, schema, table, predictCall, predictArgs, 
-                threshold, featureColumnNames, predictionColIndex, predictionLabels, maxBufferSize);
+                                              final String featureColumnNames,
+                                              final String predictionLabels, final int maxBufferSize) {
+        return new MLRunner(modelCategory, modelID, newTransitionRows, schema, table, predictCall, predictArgs,
+                threshold, featureColumnNames, predictionLabels, maxBufferSize);
     }
 
 
@@ -282,7 +300,6 @@ public class MLRunner implements DatasetProvider, VTICosting {
      * @param threshold: Optional keras arg for the threshold of a leaf node for models with 1 leaf node. Will be set
      *                 to null if not relevant
      * @param featureColumnNames: List of column names that are fed into the model
-     * @param predictionColIndex: The column in the row of the prediction column.
      * @param predictionLabels: The labels of the model predictions
      * @param maxBufferSize: The max size of the buffers for model evaluation. Will default to 10000 from the generated
      *                     trigger
@@ -290,21 +307,19 @@ public class MLRunner implements DatasetProvider, VTICosting {
     public MLRunner(final String modelCategory, final String modelID, final TriggerNewTransitionRows newTransitionRows,
                     final String schema, final String table,
                     final String predictCall, final String predictArgs, final double threshold,
-                    final List<String> featureColumnNames, final int predictionColIndex, final List<String> predictionLabels,
+                    final String featureColumnNames, final String predictionLabels,
                     final int maxBufferSize){
         this.modelCategory = modelCategory;
         this.modelID = modelID;
         this.newTransitionRows = newTransitionRows;
         this.schema = schema;
         this.table = table;
-        this.predictCall = predictCall;
-        this.predictArgs = predictArgs;
+        this.predictCall = (predictCall != "NULL") ? predictCall  : null;
+        this.predictArgs = (predictArgs != "NULL") ? predictArgs  : null;
         this.threshold = threshold;
-        this.featureColumnNames = featureColumnNames;
-        this.predictionColIndex = predictionColIndex;
-        this.predictionLabels = predictionLabels;
+        this.featureColumnNames = Arrays.asList(featureColumnNames.split(","));
+        this.predictionLabels = Arrays.asList(predictionLabels.split(","));
         this.maxBufferSize = maxBufferSize;
-
     }
 
     @Override

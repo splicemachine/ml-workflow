@@ -6,20 +6,22 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.sql.Blob;
 import java.sql.SQLException;
-import java.util.ArrayList;
+import java.util.*;
 
+import com.splicemachine.db.iapi.error.StandardException;
+import com.splicemachine.db.iapi.sql.execute.ExecRow;
+import com.splicemachine.db.iapi.types.*;
 import hex.genmodel.easy.exception.PredictException;
+import io.airlift.log.Logger;
 import jep.*;
 import jep.SharedInterpreter;
 import jep.JepException;
-import org.python.antlr.ast.Num;
-
 
 import static java.nio.ByteBuffer.allocateDirect;
-
 public class SKRunner extends AbstractRunner {
 
     ByteBuffer model;
+    private static final Logger LOG = Logger.get(MLRunner.class);
 
     public SKRunner(final Blob modelBlob) throws SQLException, IOException {
         InputStream is = modelBlob.getBinaryStream();
@@ -28,6 +30,220 @@ public class SKRunner extends AbstractRunner {
         is.read(allBytes);
         this.model = allocateDirect(fileSize).put(allBytes);
     }
+
+    private Object[][] parseData(LinkedList<ExecRow> unprocessedRows, List<Integer> modelFeaturesIndexes) throws StandardException {
+        int numCols = modelFeaturesIndexes.size();
+        Object [][] rows = new Object[unprocessedRows.size()][numCols];
+        // For each ExecRow, grab all of the model columns and put then in the H2O Row
+        int rowNum = 0;
+        Iterator<ExecRow> unpr = unprocessedRows.descendingIterator();
+        while(unpr.hasNext()){
+            ExecRow dbRow = unpr.next();
+            for(int col = 0; col < numCols; col++){
+                //TODO: I'm betting there is a better way to do this
+                try{
+                    rows[rowNum][col] = Double.parseDouble(dbRow.getColumn(modelFeaturesIndexes.get(col)).getString());
+                }
+                catch(Exception e){
+                    rows[rowNum][col] = dbRow.getColumn(modelFeaturesIndexes.get(col)).getString();
+                }
+                LOG.warn("Adding value "+rows[rowNum][col] + " to row");
+            }
+
+        }
+        return rows;
+    }
+
+    @Override
+    public Queue<ExecRow> predictClassification(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException, PredictException {
+        return null;
+    }
+
+    @Override
+    public Queue<ExecRow> predictRegression(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws Exception {
+        Queue<ExecRow> transformedRows = new LinkedList<>();
+        Object [][] features = parseData(rows, modelFeaturesIndexes);
+        try (SharedInterpreter interp = new SharedInterpreter()) {
+
+            DirectNDArray<ByteBuffer> javaModel = new DirectNDArray<>(this.model, true);
+
+            interp.eval("import pickle,re");
+            interp.set("X", features);
+            interp.set("jmodel", javaModel);
+
+            interp.eval("model = pickle.loads(jmodel)");
+            interp.eval("pred = model.predict(X)");
+
+
+            Object result = ((NDArray<Number[]>)interp.getValue("preds")).getData();
+
+            if(result instanceof double[]){
+                for (double p : (double[]) result) {
+                    ExecRow transformedRow = rows.remove();
+                    transformedRow.setColumnValue(predictionColIndex,new SQLDouble(p));
+                    transformedRows.add(transformedRow);
+                }
+            }
+            else if(result instanceof float[]){
+                for (float p : (float[]) result) {
+                    ExecRow transformedRow = rows.remove();
+                    transformedRow.setColumnValue(predictionColIndex,new SQLReal(p));
+                    transformedRows.add(transformedRow);
+                }
+            }
+
+            return transformedRows;
+        } catch (JepException e) {
+            e.printStackTrace();
+            throw new Exception(e.getMessage());
+        }
+
+    }
+
+    @Override
+    public Queue<ExecRow> predictClusterProbabilities(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException {
+        return null;
+    }
+
+    @Override
+    public Queue<ExecRow> predictCluster(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws Exception {
+        Queue<ExecRow> transformedRows = new LinkedList<>();
+        Object [][] features = parseData(rows, modelFeaturesIndexes);
+        try (SharedInterpreter interp = new SharedInterpreter()) {
+
+            DirectNDArray<ByteBuffer> javaModel = new DirectNDArray<>(this.model, true);
+
+            interp.eval("import pickle,re");
+            interp.set("X", features);
+            interp.set("jmodel", javaModel);
+
+            interp.eval("model = pickle.loads(jmodel)");
+            interp.eval("preds = model.predict(X)");
+
+            NDArray<long[]> preds = (NDArray<long[]>) interp.getValue("preds");
+
+            for (long p : preds.getData()) {
+                ExecRow transformedRow = rows.remove();
+                LOG.warn("Setting prediction to " + (int)p);
+                transformedRow.setColumnValue(predictionColIndex,new SQLInteger((int) p));
+                LOG.warn("Row has prediction value " + transformedRow.getColumn(predictionColIndex).getInt());
+                transformedRows.add(transformedRow);
+            }
+            return transformedRows;
+        } catch (JepException e) {
+            e.printStackTrace();
+            throw new Exception(e.getMessage());
+        }
+    }
+
+    @Override
+    public Queue<ExecRow> predictKeyValue(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames, String predictCall, String predictArgs, double threshold) throws Exception {
+        Queue<ExecRow> transformedRows = new LinkedList<>();
+        Object [][] features = parseData(rows, modelFeaturesIndexes);
+
+        try (SharedInterpreter interp = new SharedInterpreter())
+        {
+            DirectNDArray<ByteBuffer> javaModel = new DirectNDArray<>(this.model, true);
+
+            interp.eval("import pickle");
+            interp.eval("import re");
+            interp.set("X", features);
+            interp.set("jmodel", javaModel);
+
+            interp.eval("model = pickle.loads(jmodel)");
+            if(predictCall.equals("predict")){
+                Object preds;
+                Object extras; //covariance or std
+                if(predictArgs.equals("return_std")){
+                    interp.eval("res = model.predict([X], return_std=True)");
+                    preds = ((NDArray<?>)interp.getValue("preds[0]")).getData();
+                    extras = ((NDArray<?>)interp.getValue("preds[1]")).getData();
+                }
+                else{ //return_cov
+                    interp.eval("res = model.predict(X, return_cov=True)");
+                    preds = ((NDArray<?>)interp.getValue("preds[0]")).getData();
+                    extras = ((NDArray<?>)interp.getValue("preds[1].diagonal()")).getData();
+                }
+                // Because Java can't deal with a single structure for floats and doubles, and we don't know what will
+                // be returned
+                if(preds instanceof double[]) {
+                    double [] p = (double[])preds;
+                    double [] e = (double[])extras;
+                    for(int i = 0; i < p.length; i++) {
+                        ExecRow dbRow = rows.remove();
+                        dbRow.setColumnValue(predictionColIndex, new SQLDouble(p[i]));
+                        dbRow.setColumnValue(predictionColIndex+1, new SQLDouble(e[i]));
+                        transformedRows.add(dbRow);
+                    }
+                }
+                else if(preds instanceof float[]){
+                    float [] p = (float[])preds;
+                    float [] e = (float[])extras;
+                    for(int i = 0; i < p.length; i++) {
+                        ExecRow dbRow = rows.remove();
+                        dbRow.setColumnValue(predictionColIndex, new SQLReal(p[i]));
+                        dbRow.setColumnValue(predictionColIndex+1, new SQLReal(e[i]));
+                        transformedRows.add(dbRow);
+                    }
+                }
+                else {throw new Exception("The datatype of the output was not float or double!");}
+            }
+            else if(predictCall.equals("predict_proba")) {
+
+                interp.eval("preds = model.predict_proba(X)");
+                Object result = ((NDArray<?>) interp.getValue("preds")).getData();
+                if(!(result instanceof double[])){
+                    throw new Exception("Your model is returning Java floats instead of Doubles! Use a Pipeline to cast" +
+                            "the output to a double: ie `('postprocessor', FunctionTransformer(lambda X: X.astype('double'), validate=True)`");
+                }
+                double[] res = (double[])result;
+                LOG.warn("we have " + res.length + " values from this batch");
+                int numRows = res.length/predictionLabels.size();
+                LOG.warn("we have " + numRows + " rows from this batch");
+                for(int row=0; row < numRows; row ++){
+                    ExecRow dbRow = rows.remove();
+                    double max = 0.0;
+                    int maxIndex = 0;
+                    for(int col=0; col < predictionLabels.size(); col++){
+                        double v = res[row+col];
+                        dbRow.setColumnValue(predictionLabelIndexes.get(col), new SQLDouble(v));
+                        if(v>max){
+                            max=v;
+                            maxIndex=col;
+                        }
+                    }
+                    dbRow.setColumnValue(predictionColIndex, new SQLVarchar(predictionLabels.get(maxIndex)));
+                    transformedRows.add(dbRow);
+                }
+            }
+            else { // transform
+                interp.eval("preds = model.transform(X)");
+                // We don't know if this will be a double or float so we need to be careful
+                Object result = ((NDArray<?>) interp.getValue("preds")).getData();
+                if(!(result instanceof double[])){
+                    throw new Exception("Your model is returning Java floats instead of Doubles! Use a Pipeline to cast" +
+                            "the output to a double: ie `('postprocessor', FunctionTransformer(lambda X: X.astype('double'), validate=True)`");
+                }
+                double[] res = (double[])result;
+                int numRows = res.length/predictionLabels.size();
+                for(int row=0; row < numRows; row ++){
+                    ExecRow dbRow = rows.remove();
+                    for(int col=0; col < predictionLabels.size(); col++){
+                        double v = res[row+col];
+                        dbRow.setColumnValue(predictionLabelIndexes.get(col), new SQLDouble(v));
+                    }
+                    transformedRows.add(dbRow);
+                }
+            }
+            return transformedRows;
+        }
+        catch (JepException e) {
+            e.printStackTrace();
+            throw new Exception(e.getMessage());
+            //FIXME: Not sure what exception to throw
+        }
+    }
+
 
     @Override
     public String predictClassification(String rawData, String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException, PredictException {

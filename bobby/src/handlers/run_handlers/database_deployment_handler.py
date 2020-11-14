@@ -76,6 +76,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.model = self.creator.model
         self.logger.info("Done.", send_db=True)
 
+
     def _add_model_examples_from_df(self):
         """
         Add model examples from a dataframe
@@ -105,7 +106,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         columns = inspector.get_columns(table_name, schema=schema_name)
 
         if len(columns) == 0:
-            raise Exception("Either the table has no columns, or the table cannot be found.")
+            raise Exception("Either the table provided has no columns, or the table cannot be found.")
 
         for field in columns:
             # FIXME: Sqlalchemy assumes lowercase and Splice assumes uppercase. Quoted cols in DB don't translate
@@ -129,6 +130,9 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         reference_table = self.task.parsed_payload['reference_table']
         reference_schema = self.task.parsed_payload['reference_schema']
 
+        if self.task.parsed_payload['model_cols']:
+            self.model.add_metadata(Metadata.MODEL_COLUMNS, self.task.parsed_payload['model_cols'])
+
         if self.task.parsed_payload['create_model_table']:
             self.logger.info("Adding Model Schema and DF...", send_db=True)
             if reference_table and reference_schema:
@@ -138,7 +142,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
             elif specified_df_schema:
                 self._add_model_examples_from_df()
             else:
-                raise Exception("Either db schema or reference table+schema must be specified")
+                raise Exception("Either reference dataframe or reference schema&table must be specified")
         else:
             self._add_model_examples_from_db(table_name=self.task.parsed_payload['db_table'],
                                              schema_name=self.task.parsed_payload['db_schema'])
@@ -181,16 +185,22 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         payload = self.task.parsed_payload
         ddl_creator = DatabaseModelDDL(session=self.Session, model=self.model, run_id=payload['run_id'],
                                        primary_key=payload['primary_key'], schema_name=payload['db_schema'],
-                                       table_name=payload['db_table'], model_columns=payload['model_cols'],
-                                       create_model_table=payload['create_model_table'],
-                                       library_specific_args=payload['library_specific'], logger=self.logger,
-                                       request_user=self.task.user)
+                                       table_name=payload['db_table'], model_columns=self.model.get_metadata(Metadata.MODEL_COLUMNS),
+                                       create_model_table=payload['create_model_table'],logger=self.logger,
+                                       library_specific_args=payload['library_specific'], request_user=self.task.user,
+                                       max_batch_size=payload.get('max_batch_size',10000))
         ddl_creator.create()
         self.logger.info("Flushing", send_db=True)
         self.Session.flush()
         self.logger.warning("Committing Transaction to Database", send_db=True)
         self.Session.commit()
         self.logger.info("Committed.", send_db=True)
+
+    def exception_handler(self, exc: Exception):
+        self.logger.info("Rolling back...",send_db=True)
+        self.Session.rollback()
+        self._cleanup()  # always run cleanup, regardless of success or failure
+        raise exc
 
     def execute(self) -> None:
         """

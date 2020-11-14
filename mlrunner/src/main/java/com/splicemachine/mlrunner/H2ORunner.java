@@ -2,7 +2,6 @@ package com.splicemachine.mlrunner;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.sql.Blob;
 import java.sql.SQLException;
 import java.util.*;
@@ -47,16 +46,18 @@ public class H2ORunner extends AbstractRunner {
         return row;
     }
 
-    private List<RowData> parseDataToFrame(Queue<ExecRow> unprocessedRows, List<Integer> modelFeaturesIndexes,
-                                           List<String> featureColumnNames) {
+    private List<RowData> parseDataToFrame(LinkedList<ExecRow> unprocessedRows, List<Integer> modelFeaturesIndexes,
+                                           List<String> featureColumnNames) throws StandardException {
 
         // MOJOs don't support "frames", so we'll store it in a list
         List<RowData> frameRows = new ArrayList<>();
         // For each ExecRow, grab all of the model columns and put then in the H2O Row
-        for(ExecRow dbRow : unprocessedRows){
+        Iterator<ExecRow> unpr = unprocessedRows.descendingIterator();
+        while(unpr.hasNext()){
+            ExecRow dbRow = unpr.next(); // The DB row
             RowData row = new RowData(); // The H2O Row
             for(int ind = 0; ind < featureColumnNames.size(); ind++){
-                row.put(featureColumnNames.get(ind), dbRow.getString(modelFeaturesIndexes.get(ind)));
+                row.put(featureColumnNames.get(ind), dbRow.getColumn(modelFeaturesIndexes.get(ind)).getString());
             }
             frameRows.add(row);
         }
@@ -64,16 +65,16 @@ public class H2ORunner extends AbstractRunner {
     }
 
     @Override
-    public Queue<ExecRow> predictClassification(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException, PredictException {
+    public Queue<ExecRow> predictClassification(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) throws StandardException, PredictException {
         Queue<ExecRow> transformedRows = new LinkedList<>();
         final List<RowData> frameRows = parseDataToFrame(rows,modelFeaturesIndexes,featureColumnNames);
-        AbstractPrediction p = null;
+        AbstractPrediction p;
         // Get model category
         // Loop through available H2O Rows, Make Prediction, Modify dbRow, add to transformedRows
         switch(model.getModelCategory()){
             case Ordinal:
                 for(RowData rowData : frameRows){
-                    ExecRow transformedRow = rows.remove().getClone();
+                    ExecRow transformedRow = rows.remove();
                     p = model.predictOrdinal(rowData);
                     // Set all probabilities and the prediction column
                     int predCol = 0;
@@ -95,7 +96,7 @@ public class H2ORunner extends AbstractRunner {
                 break;
             case Binomial:
                 for(RowData rowData : frameRows){
-                    ExecRow transformedRow = rows.remove().getClone();
+                    ExecRow transformedRow = rows.remove();
                     p = model.predictBinomial(rowData);
                     // Set all probabilities and the prediction column
                     int predCol = 0;
@@ -117,7 +118,7 @@ public class H2ORunner extends AbstractRunner {
                 break;
             case Multinomial:
                 for(RowData rowData : frameRows){
-                    ExecRow transformedRow = rows.remove().getClone();
+                    ExecRow transformedRow = rows.remove();
                     p = model.predictMultinomial(rowData);
                     // Set all probabilities and the prediction column
                     int predCol = 0;
@@ -146,18 +147,18 @@ public class H2ORunner extends AbstractRunner {
     }
 
     @Override
-    public Queue<ExecRow> predictRegression(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws StandardException, PredictException {
+    public Queue<ExecRow> predictRegression(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws StandardException, PredictException {
         Queue<ExecRow> transformedRows = new LinkedList<>();
         final List<RowData> frameRows = parseDataToFrame(rows,modelFeaturesIndexes,featureColumnNames);
-        AbstractPrediction p = null;
+        RegressionModelPrediction p;
         double value;
         switch(model.getModelCategory()){
             case Regression:
             case HGLMRegression:
                 for(RowData rowData : frameRows){
-                    ExecRow transformedRow = rows.remove().getClone();
+                    ExecRow transformedRow = rows.remove();
                     p = model.predictRegression(rowData);
-                    value = ((RegressionModelPrediction)p).value;
+                    value = p.value;
                     transformedRow.setColumnValue(predictionColIndex, new SQLDouble(value));
                     transformedRows.add(transformedRow);
                 }
@@ -171,23 +172,22 @@ public class H2ORunner extends AbstractRunner {
     }
 
     @Override
-    public Queue<ExecRow> predictClusterProbabilities(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) {
+    public Queue<ExecRow> predictClusterProbabilities(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) {
         return null;
     }
 
     @Override
-    public Queue<ExecRow> predictCluster(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws StandardException, PredictException {
+    public Queue<ExecRow> predictCluster(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws StandardException, PredictException {
         Queue<ExecRow> transformedRows = new LinkedList<>();
         final List<RowData> frameRows = parseDataToFrame(rows,modelFeaturesIndexes,featureColumnNames);
-        AbstractPrediction p = null;
-        int cluster = -1;
+        ClusteringModelPrediction p;
+        int cluster;
         switch(model.getModelCategory()){
-            case Regression:
-            case HGLMRegression:
+            case Clustering:
                 for(RowData rowData : frameRows){
-                    ExecRow transformedRow = rows.remove().getClone();
+                    ExecRow transformedRow = rows.remove();
                     p = model.predictClustering(rowData);
-                    cluster = ((ClusteringModelPrediction)p).cluster;
+                    cluster = p.cluster;
                     transformedRow.setColumnValue(predictionColIndex, new SQLInteger(cluster));
                     transformedRows.add(transformedRow);
                 }
@@ -201,14 +201,14 @@ public class H2ORunner extends AbstractRunner {
     }
 
     @Override
-    public Queue<ExecRow> predictKeyValue(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames, final String predictCall, final String predictArgs, double threshold) throws PredictException, StandardException {
+    public Queue<ExecRow> predictKeyValue(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames, final String predictCall, final String predictArgs, double threshold) throws PredictException, StandardException {
         Queue<ExecRow> transformedRows = new LinkedList<>();
         final List<RowData> frameRows = parseDataToFrame(rows,modelFeaturesIndexes,featureColumnNames);
         AbstractPrediction p;
         switch(model.getModelCategory()){
             case AutoEncoder:
                 for(RowData rowData : frameRows){
-                    ExecRow transformedRow = rows.remove().getClone();
+                    ExecRow transformedRow = rows.remove();
                     p = model.predictAutoEncoder(rowData);
 
                     // Set the dbRow columns for the predictions
@@ -225,7 +225,7 @@ public class H2ORunner extends AbstractRunner {
                 break;
             case WordEmbedding:
                 for(RowData rowData : frameRows){
-                    ExecRow transformedRow = rows.remove().getClone();
+                    ExecRow transformedRow = rows.remove();
                     p = model.predictWord2Vec(rowData);
                     // Word2Vec returns a hashmap but we need order, so we also get the list of words in order
                     final HashMap<String, float[]> embeddings = ((Word2VecPrediction) p).wordEmbeddings;
@@ -240,7 +240,7 @@ public class H2ORunner extends AbstractRunner {
                 break;
             case DimReduction:
                 for(RowData rowData : frameRows){
-                    ExecRow transformedRow = rows.remove().getClone();
+                    ExecRow transformedRow = rows.remove();
                     p = model.predictDimReduction(rowData);
 
                     // Set the dbRow columns for the predictions
@@ -254,7 +254,7 @@ public class H2ORunner extends AbstractRunner {
                 break;
             case AnomalyDetection:
                 for(RowData rowData : frameRows){
-                    ExecRow transformedRow = rows.remove().getClone();
+                    ExecRow transformedRow = rows.remove();
                     p = model.predictAnomalyDetection(rowData);
 
                     final double score = ((AnomalyDetectionPrediction) p).score;
@@ -267,7 +267,7 @@ public class H2ORunner extends AbstractRunner {
                 break;
             case TargetEncoder:
                 for(RowData rowData : frameRows){
-                    ExecRow transformedRow = rows.remove().getClone();
+                    ExecRow transformedRow = rows.remove();
                     p = model.transformWithTargetEncoding(rowData);
 
                     // Set the dbRow columns for the predictions
@@ -344,9 +344,9 @@ public class H2ORunner extends AbstractRunner {
 
     @Override
     @Deprecated public int predictCluster(final String rawData, final String schema) throws PredictException {
-        ClusteringModelPrediction p = null;
+        ClusteringModelPrediction p;
         final RowData row = parseDataToFrame(rawData, schema);
-        int cluster = -1;
+        int cluster;
         switch(model.getModelCategory()){
             case Clustering:
                 p = model.predictClustering(row);

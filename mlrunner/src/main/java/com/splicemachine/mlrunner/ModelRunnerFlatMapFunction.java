@@ -1,16 +1,15 @@
 package com.splicemachine.mlrunner;
 
-import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
-import com.splicemachine.db.iapi.types.SQLInteger;
 import com.splicemachine.derby.iapi.sql.execute.SpliceOperation;
 import com.splicemachine.derby.stream.function.SpliceFlatMapFunction;
 import com.splicemachine.derby.stream.iapi.OperationContext;
+import io.airlift.log.Logger;
 
 import java.util.*;
 
 public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOperation, Iterator<ExecRow>, ExecRow> implements Iterator<ExecRow> {
-
+    private static final Logger LOG = Logger.get(MLRunner.class);
     final AbstractRunner runner;
     final String modelCategory, predictCall, predictArgs;
     final List<Integer> modelFeaturesIndexes, predictionLabelIndexes;
@@ -18,7 +17,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     final double threshold;
     int maxBufferSize, remainingBufferAvailability, predictionColIndex;
 
-    Queue<ExecRow> unprocessedRows;
+    LinkedList<ExecRow> unprocessedRows;
     Queue<ExecRow> processedRows;
     Iterator<ExecRow> execRowIterator;
 
@@ -63,6 +62,22 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
         this.unprocessedRows = new LinkedList<>();
         this.processedRows = new LinkedList<>();
     }
+    public ModelRunnerFlatMapFunction(){
+        super();
+        this.runner = null;
+        this.modelCategory = null;
+        this.predictCall = null;
+        this.predictArgs = null;
+        this.threshold = -1;
+        this.modelFeaturesIndexes = null;
+        this.predictionColIndex = -1;
+        this.predictionLabels = null;
+        this.predictionLabelIndexes = null;
+        this.featureColumnNames = null;
+        this.maxBufferSize = 10000;
+        this.unprocessedRows = new LinkedList<>();
+        this.processedRows = new LinkedList<>();
+    }
 
     @Override
     public boolean hasNext() {
@@ -70,28 +85,50 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     }
 
     @Override
-    public ExecRow next(){
-
+    public ExecRow next() {
         // If we have any processed rows available, return the first one
         if(this.processedRows.isEmpty()) {
-
             // Fill the buffer until either there are no more rows or we hit our max buffer size
-            while (this.execRowIterator.hasNext() && this.remainingBufferAvailability != 0) {
-                this.unprocessedRows.add(this.execRowIterator.next());
+            do{
+                this.unprocessedRows.add(this.execRowIterator.next().getClone());
                 remainingBufferAvailability--;
-            }
+            } while(this.execRowIterator.hasNext() && this.remainingBufferAvailability != 0);
         }
         // transform all rows in buffer
         // return first row
         //TODO: this.processedRows = this.runner.predictClassification(this.unprocessedRows)
-        this.unprocessedRows.clear();
-        return this.processedRows.remove();
-
-//        batchRows.add(this.execRowIterator.next().getClone());
-//        ExecRow input = this.execRowIterator.next().getClone();
-//        SQLInteger newVal = new SQLInteger(input.getInt(1)+ 1) ;
-//        input.setColumn(1, newVal);
-//        return input;
+        try {
+            switch (this.modelCategory) {
+                case "key_value":
+                    this.processedRows = this.runner.predictKeyValue(unprocessedRows, this.modelFeaturesIndexes,
+                            this.predictionColIndex, this.predictionLabels, this.predictionLabelIndexes,
+                            this.featureColumnNames, this.predictCall, this.predictArgs, this.threshold);
+//                    LOG.warn("ProcessedRows has "+this.processedRows.size() + " rows");
+                    break;
+                case "classification":
+                    this.processedRows = this.runner.predictClassification(unprocessedRows, this.modelFeaturesIndexes,
+                            this.predictionColIndex, this.predictionLabels, this.predictionLabelIndexes,
+                            this.featureColumnNames);
+                    for(ExecRow r : this.processedRows){
+//                        LOG.warn("Prediction is " + r.getColumn(predictionColIndex).getString());
+                    }
+                    break;
+                case "regression":
+                    this.processedRows = this.runner.predictRegression(unprocessedRows, this.modelFeaturesIndexes,
+                            this.predictionColIndex, this.featureColumnNames);
+                    break;
+                case "cluster":
+                    this.processedRows = this.runner.predictCluster(unprocessedRows, this.modelFeaturesIndexes,
+                            this.predictionColIndex, this.featureColumnNames);
+                    break;
+            }
+            this.unprocessedRows.clear();
+            return this.processedRows.remove();
+        }
+        catch (Exception e){
+            e.printStackTrace();
+            throw new NoSuchElementException("Could not retrieve next row due to error: " + e.getMessage());
+        }
     }
 
     @Override

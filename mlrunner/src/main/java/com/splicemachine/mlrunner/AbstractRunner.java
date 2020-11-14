@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
@@ -18,11 +19,11 @@ import jep.JepException;
 
 public abstract class AbstractRunner {
 
-    public abstract Queue<ExecRow> predictClassification(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException, PredictException;
-    public abstract Queue<ExecRow> predictRegression(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes,int predictionColIndex, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException, PredictException, SQLException;
-    public abstract Queue<ExecRow> predictClusterProbabilities(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException;
-    public abstract Queue<ExecRow> predictCluster(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes,int predictionColIndex, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException, PredictException;
-    public abstract Queue<ExecRow> predictKeyValue(Queue<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames, String predictCall, String predictArgs, double threshold) throws StandardException, SQLException, PredictException;
+    public abstract Queue<ExecRow> predictClassification(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException, PredictException;
+    public abstract Queue<ExecRow> predictRegression(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws Exception;
+    public abstract Queue<ExecRow> predictClusterProbabilities(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException;
+    public abstract Queue<ExecRow> predictCluster(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws Exception;
+    public abstract Queue<ExecRow> predictKeyValue(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames, String predictCall, String predictArgs, double threshold) throws Exception;
 
     @Deprecated public abstract String predictClassification(final String rawData, final String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException, PredictException;
     @Deprecated public abstract Double predictRegression(final String rawData, final String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException, PredictException, JepException;
@@ -33,7 +34,7 @@ public abstract class AbstractRunner {
 
 
     
-    public static Object[] getModelBlob(final String modelID) throws SQLException, IOException, ClassNotFoundException {
+    public static Object[] getModelBlob(final String modelID) throws SQLException {
         final Connection conn = EngineDriver.driver().getInternalConnection();
         final PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
         pstmt.setString(1, modelID);
