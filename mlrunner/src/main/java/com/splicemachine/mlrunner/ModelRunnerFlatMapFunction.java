@@ -87,48 +87,49 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     @Override
     public ExecRow next() {
         // If we have any processed rows available, return the first one
-        if(this.processedRows.isEmpty()) {
+        if(this.processedRows.isEmpty()) { // Fill and transform the buffer
             // Fill the buffer until either there are no more rows or we hit our max buffer size
-            do{
+            do {
                 this.unprocessedRows.add(this.execRowIterator.next().getClone());
                 remainingBufferAvailability--;
-            } while(this.execRowIterator.hasNext() && this.remainingBufferAvailability != 0);
-        }
-        // transform all rows in buffer
-        // return first row
-        //TODO: this.processedRows = this.runner.predictClassification(this.unprocessedRows)
-        try {
-            switch (this.modelCategory) {
-                case "key_value":
-                    this.processedRows = this.runner.predictKeyValue(unprocessedRows, this.modelFeaturesIndexes,
-                            this.predictionColIndex, this.predictionLabels, this.predictionLabelIndexes,
-                            this.featureColumnNames, this.predictCall, this.predictArgs, this.threshold);
+            } while (this.execRowIterator.hasNext() && this.remainingBufferAvailability > 0);
+            this.remainingBufferAvailability = (this.remainingBufferAvailability <= 0) ? this.maxBufferSize : this.remainingBufferAvailability;
+
+            // transform all rows in buffer
+            // return first row
+            //TODO: this.processedRows = this.runner.predictClassification(this.unprocessedRows)
+            try {
+                switch (this.modelCategory) {
+                    case "key_value":
+                        this.processedRows = this.runner.predictKeyValue(unprocessedRows, this.modelFeaturesIndexes,
+                                this.predictionColIndex, this.predictionLabels, this.predictionLabelIndexes,
+                                this.featureColumnNames, this.predictCall, this.predictArgs, this.threshold);
 //                    LOG.warn("ProcessedRows has "+this.processedRows.size() + " rows");
-                    break;
-                case "classification":
-                    this.processedRows = this.runner.predictClassification(unprocessedRows, this.modelFeaturesIndexes,
-                            this.predictionColIndex, this.predictionLabels, this.predictionLabelIndexes,
-                            this.featureColumnNames);
-                    for(ExecRow r : this.processedRows){
+                        break;
+                    case "classification":
+                        this.processedRows = this.runner.predictClassification(unprocessedRows, this.modelFeaturesIndexes,
+                                this.predictionColIndex, this.predictionLabels, this.predictionLabelIndexes,
+                                this.featureColumnNames);
+                        for (ExecRow r : this.processedRows) {
 //                        LOG.warn("Prediction is " + r.getColumn(predictionColIndex).getString());
-                    }
-                    break;
-                case "regression":
-                    this.processedRows = this.runner.predictRegression(unprocessedRows, this.modelFeaturesIndexes,
-                            this.predictionColIndex, this.featureColumnNames);
-                    break;
-                case "cluster":
-                    this.processedRows = this.runner.predictCluster(unprocessedRows, this.modelFeaturesIndexes,
-                            this.predictionColIndex, this.featureColumnNames);
-                    break;
+                        }
+                        break;
+                    case "regression":
+                        this.processedRows = this.runner.predictRegression(unprocessedRows, this.modelFeaturesIndexes,
+                                this.predictionColIndex, this.featureColumnNames);
+                        break;
+                    case "cluster":
+                        this.processedRows = this.runner.predictCluster(unprocessedRows, this.modelFeaturesIndexes,
+                                this.predictionColIndex, this.featureColumnNames);
+                        break;
+                }
+                this.unprocessedRows.clear();
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw new NoSuchElementException("Could not retrieve next row due to error: " + e.getMessage());
             }
-            this.unprocessedRows.clear();
-            return this.processedRows.remove();
         }
-        catch (Exception e){
-            e.printStackTrace();
-            throw new NoSuchElementException("Could not retrieve next row due to error: " + e.getMessage());
-        }
+        return this.processedRows.remove();
     }
 
     @Override

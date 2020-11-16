@@ -17,9 +17,12 @@ import hex.genmodel.easy.RowData;
 import hex.genmodel.easy.exception.PredictException;
 import hex.genmodel.easy.EasyPredictModelWrapper;
 import hex.genmodel.easy.prediction.*;
+import io.airlift.log.Logger;
 
 public class H2ORunner extends AbstractRunner {
     EasyPredictModelWrapper model;
+
+    private static final Logger LOG = Logger.get(MLRunner.class);
 
     public H2ORunner(final Blob modelBlob) throws SQLException, IOException, ClassNotFoundException {
         final InputStream bis = modelBlob.getBinaryStream();

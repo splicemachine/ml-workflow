@@ -47,8 +47,8 @@ public class SKRunner extends AbstractRunner {
                 catch(Exception e){
                     rows[rowNum][col] = dbRow.getColumn(modelFeaturesIndexes.get(col)).getString();
                 }
-                LOG.warn("Adding value "+rows[rowNum][col] + " to row");
             }
+            rowNum++;
 
         }
         return rows;
@@ -124,9 +124,9 @@ public class SKRunner extends AbstractRunner {
 
             for (long p : preds.getData()) {
                 ExecRow transformedRow = rows.remove();
-                LOG.warn("Setting prediction to " + (int)p);
+//                LOG.warn("Setting prediction to " + (int)p);
                 transformedRow.setColumnValue(predictionColIndex,new SQLInteger((int) p));
-                LOG.warn("Row has prediction value " + transformedRow.getColumn(predictionColIndex).getInt());
+//                LOG.warn("Row has prediction value " + transformedRow.getColumn(predictionColIndex).getInt());
                 transformedRows.add(transformedRow);
             }
             return transformedRows;

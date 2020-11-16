@@ -282,6 +282,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         return new MLRunner(modelCategory, modelID, newTransitionRows, schema, table, predictCall, predictArgs,
                 threshold, featureColumnNames, predictionLabels, maxBufferSize);
     }
+    public static DatasetProvider getMLRunner(){return new MLRunner();}
 
 
     // New VTI only
@@ -320,6 +321,20 @@ public class MLRunner implements DatasetProvider, VTICosting {
         this.featureColumnNames = Arrays.asList(featureColumnNames.split(","));
         this.predictionLabels = Arrays.asList(predictionLabels.split(","));
         this.maxBufferSize = maxBufferSize;
+    }
+
+    public MLRunner(){
+        this.modelCategory = null;
+        this.modelID = null;
+        this.newTransitionRows = null;
+        this.schema = null;
+        this.table = null;
+        this.predictCall =  null;
+        this.predictArgs = null;
+        this.threshold = -1;
+        this.featureColumnNames = null;
+        this.predictionLabels = null;
+        this.maxBufferSize = -1;
     }
 
     @Override

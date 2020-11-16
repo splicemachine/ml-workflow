@@ -192,10 +192,12 @@ public class MLeapRunner extends AbstractRunner {
                                                 List<Integer> predictionLabelIndexes, List<String> featureColumnNames)
             throws IllegalAccessException, StandardException, InvocationTargetException {
 
+        LOG.warn("Classification called");
         Queue<ExecRow> transformedRows = new LinkedList<>();
         final DefaultLeapFrame frame = parseDataToFrame(rows, modelFeaturesIndexes, featureColumnNames);
         final ArrayList<String> outputCols = new ArrayList<>(Collections.singletonList("probability"));
         final DefaultLeapFrame output = this.model.transform(frame).get();
+        LOG.warn("A prediction has been made on " + rows.size() + " rows!");
         Iterator<Row> predictedRows = output.select(createScalaSequence(outputCols)).get().dataset().iterator();
         while(predictedRows.hasNext()){ // Loop through the predicted rows
             final Tensor probs = predictedRows.next().getTensor(0);
@@ -220,6 +222,7 @@ public class MLeapRunner extends AbstractRunner {
             nextRow.setColumn(predictionColIndex, new SQLVarchar(predictionLabels.get(maxIndex)));
             transformedRows.add(nextRow);
         }
+        LOG.warn("Done transforming " + transformedRows.size() + " rows");
         return transformedRows;
     }
 

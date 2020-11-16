@@ -100,8 +100,8 @@ class DatabaseModelDDL:
         if model_generic_type == DeploymentModelType.MULTI_PRED_INT:
             self.prediction_data.update({
                 'model_cat': 'classification',
-                'column_vals': ['PREDICTION VARCHAR(5000)'] + [f'{cls.upper()} DOUBLE' for cls in
-                                                               self.model.get_metadata(Metadata.CLASSES)]
+                'column_vals': [f'{cls.upper()} DOUBLE' if cls != 'PREDICTION'
+                                else f'{cls} VARCHAR(5000)' for cls in self.model.get_metadata(Metadata.CLASSES)]
             })
         elif model_generic_type == DeploymentModelType.SINGLE_PRED_DOUBLE:
             self.prediction_data.update({

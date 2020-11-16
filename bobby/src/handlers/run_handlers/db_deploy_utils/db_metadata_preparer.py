@@ -9,7 +9,7 @@ from shared.logger.logging_config import logger
 from shared.models.enums import FileExtensions
 from shared.models.model_types import (H2OModelType, KerasModelType,
                                               Metadata, ModelTypeMapper,
-                                              Representations,
+                                              Representations, DeploymentModelType,
                                               SklearnModelType, SparkModelType)
 
 from .preparation.h2o_utils import H2OUtils
@@ -51,9 +51,14 @@ class DatabaseModelMetadataPreparer:
         self.logger.info("Preparing Model Metadata for Deployment...", send_db=True)
         self.preparer()
         # Register Model Metadata
-        self.model.add_metadata(Metadata.CLASSES, self._classes)
         self.model.add_metadata(Metadata.TYPE, self.model_type)
         self.model.add_metadata(Metadata.GENERIC_TYPE, ModelTypeMapper.get_model_type(self.model_type))
+
+        # MULTI_PRED_INT model type needs an extra "class" for the actual PREDICTION (applied to H2O and Spark)
+        if self.model.get_metadata(Metadata.GENERIC_TYPE) == DeploymentModelType.MULTI_PRED_INT:
+            self._classes = ["PREDICTION"] + self._classes
+        self.model.add_metadata(Metadata.CLASSES, self._classes)
+
 
     def _prepare_spark(self):
         """
@@ -87,7 +92,6 @@ class DatabaseModelMetadataPreparer:
             if self.model_type in {SparkModelType.SINGLE_PRED_INT, SparkModelType.MULTI_PRED_INT}:
                 self._classes = [f'C{label_idx}' for label_idx in range(SparkUtils.get_num_classes(model_stage))]
                 self.logger.warning(f"No classes were specified, so using {self._classes} as fallback...", send_db=True)
-        self._classes = ["PREDICTION"] + self._classes if self._classes else self._classes
 
     def _prepare_keras(self):
         """
@@ -213,3 +217,4 @@ class DatabaseModelMetadataPreparer:
 
                 }[model_category]()
             self.logger.info(f"Using Classes: {self._classes}")
+
