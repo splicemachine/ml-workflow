@@ -239,7 +239,11 @@ public class MLRunner implements DatasetProvider, VTICosting {
                 predictionLabelIndexes.add(colIndexes.get(col.toUpperCase()));
             }
         }
-        int predictionColIndex = colIndexes.get("PREDICTION");
+        int predictionColIndex;
+        try{  predictionColIndex = colIndexes.get("PREDICTION"); }
+        catch (Exception e){
+            predictionColIndex=-1;
+        }
 
 
         // Initialize runner

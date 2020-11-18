@@ -50,12 +50,17 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         primary_key = self.task.parsed_payload['primary_key']
 
         if create_model_table and not primary_key:
-            raise Exception("A deployed model table must have primary_key parameter specified")
+            raise Exception("A deployed model table must have primary_key parameter specified. You've specified to "
+                            "create a model table, so you must pass in a primary_key parameter, like 'primary_key={'ID':'INT'}'")
 
         if not create_model_table:
-            primary_keys = inspector.get_primary_keys(self.task.parsed_payload['db_table'],
-                                                      schema=self.task.parsed_payload['db_schema'])
-            assert primary_keys, "No primary keys were found for the specified table"
+            s = self.task.parsed_payload['db_schema']
+            t = self.task.parsed_payload['db_table']
+            primary_keys = inspector.get_primary_keys(t, schema=s)
+            assert primary_keys, "You've specified to deploy your model to an existing table, but either that table does " \
+                                 "not exist or there are no primary keys associated to it. Either pass " \
+                                 "create_model_table=True and a primary_key to the deploy function, or alter the " \
+                                 "existing table {s}.{t} and add a primary key.".format(s=s, t=t)
             self.task.parsed_payload['primary_key'] = {pk: None for pk in primary_keys}
 
         if primary_key:

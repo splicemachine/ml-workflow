@@ -10,11 +10,11 @@ import java.util.*;
 
 public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOperation, Iterator<ExecRow>, ExecRow> implements Iterator<ExecRow> {
     private static final Logger LOG = Logger.get(MLRunner.class);
-    final AbstractRunner runner;
-    final String modelCategory, predictCall, predictArgs;
-    final List<Integer> modelFeaturesIndexes, predictionLabelIndexes;
-    final List<String> predictionLabels, featureColumnNames;
-    final double threshold;
+    AbstractRunner runner;
+    String modelCategory, predictCall, predictArgs;
+    List<Integer> modelFeaturesIndexes, predictionLabelIndexes;
+    List<String> predictionLabels, featureColumnNames;
+    double threshold;
     int maxBufferSize, remainingBufferAvailability, predictionColIndex;
 
     LinkedList<ExecRow> unprocessedRows;
@@ -64,19 +64,8 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     }
     public ModelRunnerFlatMapFunction(){
         super();
-        this.runner = null;
-        this.modelCategory = null;
-        this.predictCall = null;
-        this.predictArgs = null;
-        this.threshold = -1;
-        this.modelFeaturesIndexes = null;
-        this.predictionColIndex = -1;
-        this.predictionLabels = null;
-        this.predictionLabelIndexes = null;
-        this.featureColumnNames = null;
-        this.maxBufferSize = 10000;
-        this.unprocessedRows = new LinkedList<>();
         this.processedRows = new LinkedList<>();
+
     }
 
     @Override
@@ -97,22 +86,17 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
 
             // transform all rows in buffer
             // return first row
-            //TODO: this.processedRows = this.runner.predictClassification(this.unprocessedRows)
             try {
                 switch (this.modelCategory) {
                     case "key_value":
                         this.processedRows = this.runner.predictKeyValue(unprocessedRows, this.modelFeaturesIndexes,
                                 this.predictionColIndex, this.predictionLabels, this.predictionLabelIndexes,
                                 this.featureColumnNames, this.predictCall, this.predictArgs, this.threshold);
-//                    LOG.warn("ProcessedRows has "+this.processedRows.size() + " rows");
                         break;
                     case "classification":
                         this.processedRows = this.runner.predictClassification(unprocessedRows, this.modelFeaturesIndexes,
                                 this.predictionColIndex, this.predictionLabels, this.predictionLabelIndexes,
                                 this.featureColumnNames);
-                        for (ExecRow r : this.processedRows) {
-//                        LOG.warn("Prediction is " + r.getColumn(predictionColIndex).getString());
-                        }
                         break;
                     case "regression":
                         this.processedRows = this.runner.predictRegression(unprocessedRows, this.modelFeaturesIndexes,
