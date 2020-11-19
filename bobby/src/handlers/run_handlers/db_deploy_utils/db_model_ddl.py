@@ -290,14 +290,14 @@ class DatabaseModelDDL:
         prediction_label_str = ','.join([f'{i.upper()}' for i in classes if i != 'PREDICTION'])
 
         prediction_call = f"""new "com.splicemachine.mlrunner.MLRunner"('{model_cat}', '{self.run_id}',
-        new com.splicemachine.derby.catalog.TriggerNewTransitionRows(),'{self.schema_name.upper()}', 
+        new "com.splicemachine.derby.catalog.TriggerNewTransitionRows"(),'{self.schema_name.upper()}', 
         '{self.table_name.upper()}', '{predict_call}', '{predict_args}', 
         cast({pred_threshold} as float), '{feature_column_str}', '{prediction_label_str}', {self.max_batch_size})
         """
 
         trigger_sql = f"""CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id} 
                         AFTER INSERT ON {self.schema_table_name} REFERENCING NEW TABLE AS NT FOR EACH STATEMENT
-                        UPDATE {self.schema_table_name} SET ("""
+                        UPDATE {self.schema_table_name} --splice-properties useSpark=False \nSET ("""
 
         # Names with their datatypes as the output of the VTI " as b (...)"
         output_cols_schema_str = self._get_table_schema_str()

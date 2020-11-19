@@ -45,7 +45,7 @@ public abstract class AbstractRunner {
             final String library = rs.getString(2);
             obj = new Object[]{blobModel, library};
         }
-        rs.close();
+//        rs.close();
         if(obj == null){
             throw new SQLException("Model not found in Database!");
         }

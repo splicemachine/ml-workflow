@@ -227,7 +227,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         TableDescriptor td = dd.getTableDescriptor(this.table, sd, operationContext.getActivation().getLanguageConnectionContext().getTransactionExecute());
         */
 
-        ResultColumnDescriptor[] cd = spliceOperation.getActivation().getLanguageConnectionContext().getTriggerExecutionContext().getTemporaryRowHolder().getResultSet().getResultDescription().getColumnInfo();
+        ResultColumnDescriptor[] cd = operationContext.getActivation().getLanguageConnectionContext().getTriggerExecutionContext().getTemporaryRowHolder().getResultSet().getResultDescription().getColumnInfo();
         HashMap<String, Integer> colIndexes= new HashMap<>();
         for(ResultColumnDescriptor rcd : cd)    colIndexes.put(rcd.getName(), rcd.getColumnPosition());
 
