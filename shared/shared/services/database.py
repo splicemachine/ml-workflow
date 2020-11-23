@@ -217,6 +217,15 @@ class DatabaseSQL:
     where HANDLER_NAME='DEPLOY_KUBERNETES'
     """
 
+    deployment_feature_historian = \
+    """
+    CREATE TRIGGER FeatureStore.deployment_historian
+    AFTER UPDATE ON FeatureStore.deployment
+    REFERENCING OLD AS od
+    FOR EACH ROW
+    INSERT INTO deployment_history ( model_schema_name, model_table_name, asof_ts, training_set_id, training_set_start_ts, training_set_end_ts, run_id, last_update_ts, last_update_username)
+    VALUES ( od.model_schema_name, od.model_table_name, CURRENT_TIMESTAMP, od.training_set_id, od.training_set_start_ts, od.training_set_end_ts, od.run_id, od.last_update_ts, od.last_update_username)
+    """
 
 class Converters:
     """
