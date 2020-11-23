@@ -5,9 +5,12 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.splicemachine</groupId>
     <artifactId>mlrunner</artifactId>
-    <version>0.1.6_dev1</version>
+    <version>0.1.6_dev2</version>
     <properties>
-        <scala.binary.version>2.11</scala.binary.version>
+        <scala.binary.version>2.12</scala.binary.version>
+        <scala.version>2.12.12</scala.version>
+        <spark.version>3.0.0</spark.version>
+        <spark.major.version>spark3.0</spark.major.version>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
@@ -223,10 +226,6 @@
         <repository>
             <id>splicemachine</id>
             <url>http://nexus.splicemachine.com/nexus/content/groups/developers</url>
-        </repository>
-        <repository>
-            <id>mleap-repo</id>
-            <url>https://maven.iais.fraunhofer.de/artifactory/remote-repos</url>
         </repository>
     </repositories>
     <distributionManagement>
