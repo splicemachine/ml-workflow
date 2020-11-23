@@ -223,7 +223,6 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
     # Format Payload
     payload: dict = {field.name: field.get_value(request_payload.get(field.name) or None) for field in handler.payload_args
                      if field.name != 'payload'}
-    if 'timestamp' in payload: payload.pop('timestamp') # Use the database default
 
     job: Job = Job(handler_name=handler.name,
                    user=user,
