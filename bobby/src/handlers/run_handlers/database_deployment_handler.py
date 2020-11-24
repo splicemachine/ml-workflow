@@ -92,7 +92,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
                                  for field in struct_schema})
         # The database
         self.model.add_metadata(Metadata.SCHEMA_STR,
-                                ', '.join([f"{field.name.upper()} {Converters.SPARK_DB_CONVERSIONS[str(field.dataType)].upper()}"
+                                ', '.join([f"{field.name.upper()} {Converters.SPARK_DB_CONVERSIONS[str(field.dataType).split('(')[0]].upper()}"
                                  for field in struct_schema]) + ',')
         self.logger.info("Done.")
 
