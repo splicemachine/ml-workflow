@@ -1,4 +1,4 @@
-splicemachinesa==0.1.7.1.dev0
+splicemachinesa==0.3.1
 workerpool==0.9.4
 mlflow==1.8.0
 pyyaml==5.1.1

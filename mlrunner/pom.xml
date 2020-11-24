@@ -5,9 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.splicemachine</groupId>
     <artifactId>mlrunner</artifactId>
-    <version>0.1.6</version>
+    <version>0.1.6_spark3_001</version>
     <properties>
-        <scala.binary.version>2.11</scala.binary.version>
+        <scala.binary.version>2.12</scala.binary.version>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
