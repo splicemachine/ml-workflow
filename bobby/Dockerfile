@@ -121,9 +121,7 @@ RUN \
   curl -kLs $PROTOBUF_JAVA_URI -o $SRC_HOME/lib/protobuf-java-3.11.1.jar && \
   curl -kLs $MLEAP_SPARK_URI -o $SRC_HOME/lib/mleap-spark_$SCALA_VERSION-$MLEAP_VERSION.jar && \
   curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_$SCALA_VERSION-$MLEAP_VERSION.jar && \
-  curl -kLs https://repo1.maven.org/maven2/ai/h2o/h2o-genmodel-ext-xgboost/3.32.0.2/h2o-genmodel-ext-xgboost-3.32.0.2.jar -o $SRC_HOME/lib/h2o-genmodel-ext-xgboost-3.32.0.2.jar && \
-  curl -kLs https://repo1.maven.org/maven2/ai/h2o/h2o-genmodel/3.32.0.2/h2o-genmodel-3.32.0.2.jar -o $SRC_HOME/lib/h2o-genmodel-3.32.0.2.jar && \
-  curl -kLs https://repo1.maven.org/maven2/ai/h2o/h2o-logger/3.32.0.2/h2o-logger-3.32.0.2.jar -o $SRC_HOME/lib/h2o-logger-3.32.0.2.jar
+  curl -kLs https://splice-demo.s3.amazonaws.com/mlrunner-0.1.6_dev4-shaded.jar -o $SRC_HOME/lib/mlrunner-0.1.6_dev4-shaded.jar
 
 # Install Shared Lib
 COPY shared /tmp/shared
