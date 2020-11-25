@@ -52,94 +52,6 @@ class DatabaseEngineConfig:
             'pool_pre_ping': DatabaseEngineConfig.pool_pre_ping
         }
 
-
-class SQLAlchemyClient:
-    """
-    Database configuration constants
-    """
-    engine = None  # SQLAlchemy Engine
-
-    logging_connection = None  # Logging Connection the database
-
-    reflector = None  # Inspector for DB reflection
-
-    SessionMaker = None  # Session Maker
-    SessionFactory = None  # Thread-safe session factory issuer
-
-    LoggingSessionMaker = None  # Logging Session Maker
-    LoggingSessionFactory = None  # Thread-safe session factory issuer
-
-    # We have two bases because there are two different types of tables to create.
-    # There are MLFlow tables (created by their code, such as Experiment
-    SpliceBase = declarative_base()
-    MlflowBase = MLFlowBase
-
-    _created = False
-    _job_manager_created = False
-
-    @staticmethod
-    def create_job_manager():
-        """
-        Create Job Manager Connection (only runs if Job Manager is used)
-        """
-        if not SQLAlchemyClient._created:
-            raise Exception("Cannot create SQLAlchemy Job Manager Resources as `create()` has not been run")
-
-        if SQLAlchemyClient._job_manager_created:
-            logger.info("Using existing Job Manager SQLAlchemy Resources")
-        else:
-            logger.info("Creating Job Manager Database Connection")
-            SQLAlchemyClient.logging_connection = SQLAlchemyClient.engine.connect()
-            logger.info("Creating Job Manager Session Maker")
-            SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection,
-                                                                expire_on_commit=False)
-            logger.info("Creating Logging Factory")
-            SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
-            logger.info("Done.")
-            SQLAlchemyClient._job_manager_created = True
-
-    @staticmethod
-    def create():
-        """
-        Connect to the Splice Machine Database
-        :return: sqlalchemy engine
-        """
-        # if there are multiple writers, setting var before
-        # will ensure that only one engine is created
-        if not SQLAlchemyClient._created:
-            logger.info("SQLAlchemy Engine has not been created... creating SQLAlchemy Client...")
-            SQLAlchemyClient.engine = create_engine(
-                DatabaseConnectionConfig.connection_string(),
-                **DatabaseEngineConfig.as_dict()
-            )
-            SQLAlchemyClient.SpliceBase.metadata.bind = SQLAlchemyClient.engine
-            logger.debug("Created engine...")
-            SQLAlchemyClient.SessionMaker = sessionmaker(bind=SQLAlchemyClient.engine, expire_on_commit=False)
-            logger.debug("Created session maker")
-            SQLAlchemyClient.SessionFactory = scoped_session(SQLAlchemyClient.SessionMaker)
-            logger.debug("created session factory")
-            SQLAlchemyClient._created = True
-            logger.debug("Created SQLAlchemy Client...")
-        else:
-            logger.debug("Using existing SQLAlchemy Client...")
-        return SQLAlchemyClient.engine
-
-    @staticmethod
-    def execute(sql: str) -> list:
-        """
-        Directly Execute SQL on the
-        SQLAlchemy ENGINE without
-        using the ORM (more performant).
-
-        *WARNING: Is NOT Thread Safe-- Use SessionFactory for thread-safe
-        SQLAlchemy Sessions*
-
-        :param sql: (str) the SQL to execute
-        :return: (list) returned result set
-        """
-        return SQLAlchemyClient.engine.execute(sql)
-
-
 class DatabaseSQL:
     """
     Namespace for SQL Commands
@@ -275,5 +187,90 @@ class Converters:
         'CHAR': 'StringType'
     }
 
+class SQLAlchemyClient:
+    """
+    Database configuration constants
+    """
+    engine = None  # SQLAlchemy Engine
+
+    logging_connection = None  # Logging Connection the database
+
+    reflector = None  # Inspector for DB reflection
+
+    SessionMaker = None  # Session Maker
+    SessionFactory = None  # Thread-safe session factory issuer
+
+    LoggingSessionMaker = None  # Logging Session Maker
+    LoggingSessionFactory = None  # Thread-safe session factory issuer
+
+    # We have two bases because there are two different types of tables to create.
+    # There are MLFlow tables (created by their code, such as Experiment
+    SpliceBase = declarative_base()
+    MlflowBase = MLFlowBase
+
+    _created = False
+    _job_manager_created = False
+
+    @staticmethod
+    def create_job_manager():
+        """
+        Create Job Manager Connection (only runs if Job Manager is used)
+        """
+        if not SQLAlchemyClient._created:
+            raise Exception("Cannot create SQLAlchemy Job Manager Resources as `create()` has not been run")
+
+        if SQLAlchemyClient._job_manager_created:
+            logger.info("Using existing Job Manager SQLAlchemy Resources")
+        else:
+            logger.info("Creating Job Manager Database Connection")
+            SQLAlchemyClient.logging_connection = SQLAlchemyClient.engine.connect()
+            logger.info("Creating Job Manager Session Maker")
+            SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection,
+                                                                expire_on_commit=False)
+            logger.info("Creating Logging Factory")
+            SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
+            logger.info("Done.")
+            SQLAlchemyClient._job_manager_created = True
+
+    @staticmethod
+    def create():
+        """
+        Connect to the Splice Machine Database
+        :return: sqlalchemy engine
+        """
+        # if there are multiple writers, setting var before
+        # will ensure that only one engine is created
+        if not SQLAlchemyClient._created:
+            logger.info("SQLAlchemy Engine has not been created... creating SQLAlchemy Client...")
+            SQLAlchemyClient.engine = create_engine(
+                DatabaseConnectionConfig.connection_string(),
+                **DatabaseEngineConfig.as_dict()
+            )
+            SQLAlchemyClient.SpliceBase.metadata.bind = SQLAlchemyClient.engine
+            logger.debug("Created engine...")
+            SQLAlchemyClient.SessionMaker = sessionmaker(bind=SQLAlchemyClient.engine, expire_on_commit=False)
+            logger.debug("Created session maker")
+            SQLAlchemyClient.SessionFactory = scoped_session(SQLAlchemyClient.SessionMaker)
+            logger.debug("created session factory")
+            SQLAlchemyClient._created = True
+            logger.debug("Created SQLAlchemy Client...")
+        else:
+            logger.debug("Using existing SQLAlchemy Client...")
+        return SQLAlchemyClient.engine
+
+    @staticmethod
+    def execute(sql: str) -> list:
+        """
+        Directly Execute SQL on the
+        SQLAlchemy ENGINE without
+        using the ORM (more performant).
+
+        *WARNING: Is NOT Thread Safe-- Use SessionFactory for thread-safe
+        SQLAlchemy Sessions*
+
+        :param sql: (str) the SQL to execute
+        :return: (list) returned result set
+        """
+        return SQLAlchemyClient.engine.execute(sql)
 
 SQLAlchemyClient.create()
