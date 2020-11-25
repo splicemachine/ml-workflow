@@ -61,7 +61,7 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
 COPY shared /tmp/shared
-RUN pip3 install /tmp/shared/.
+RUN pip3 install /tmp/shared/. --user
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 
