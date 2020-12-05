@@ -5,14 +5,13 @@ used for the Queue
 from time import sleep
 
 from shared.logger.logging_config import logger
-from shared.services.database import SQLAlchemyClient
-from sqlalchemy import event, ForeignKeyConstraint
+from shared.services.database import SQLAlchemyClient, DatabaseSQL
+from sqlalchemy import event, ForeignKeyConstraint, DDL
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String, Text, DateTime, Numeric)
+from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.sql.functions import now as db_current_timestamp
 from mlflow.store.tracking.dbmodels.models import SqlRun
-
-
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -25,9 +24,6 @@ __email__: str = "bepstein@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
 
-
-
-
 class FeatureSet(SQLAlchemyClient.SpliceBase):
     """
     Feature Set is a collection of related features that are stored in a single table which is managed by the feature store
@@ -35,14 +31,15 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     """
     __tablename__: str = "feature_set"
     __table_args__ = {'schema': 'featurestore'}
-    feature_set_id: Column = Column(Integer,  primary_key=True, autoincrement=True)
+    feature_set_id: Column = Column(Integer, primary_key=True, autoincrement=True)
     schema_name: Column = Column(String(128), nullable=False)
     table_name: Column = Column(String(128), nullable=False)
     description: Column = Column(String(500), nullable=True)
-    last_update_ts: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
-    last_update_username: Column = Column(String(128), nullable=False, server_default="CURRENT USER")
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
     deployed: Column = Column(Boolean)
-        
+
+
 class FeatureSetKey(SQLAlchemyClient.SpliceBase):
     """
     Feature Set Key contains the keys of a given Feature Set table. This is bottom level metadata that a 
@@ -53,8 +50,8 @@ class FeatureSetKey(SQLAlchemyClient.SpliceBase):
     feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id), primary_key=True)
     key_column_name: Column = Column(String(128), primary_key=True)
     key_column_data_type: Column = Column(String(128))
-    last_update_ts: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
-    last_update_username: Column = Column(String(128), nullable=False, server_default="CURRENT USER")
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
 
 class Feature(SQLAlchemyClient.SpliceBase):
@@ -64,26 +61,27 @@ class Feature(SQLAlchemyClient.SpliceBase):
     a user will interact with
     """
     __tablename__: str = "feature"
-    feature_id: Column = Column(Integer,  primary_key=True, autoincrement=True)
+    feature_id: Column = Column(Integer, primary_key=True, autoincrement=True)
     feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id))
-    name: Column = Column(String(128), index=True)
+    name: Column = Column(String(128), index=True, unique=True)
     description: Column = Column(String(500), nullable=True)
     feature_data_type: Column = Column(String(255))
-    feature_type: Column = Column(String(1)) # 'O'rdinal, 'C'ontinuous, 'N'ominal
-    cardinality: Column = Column(Integer) # Number of distint values, -1 if undefined
+    feature_type: Column = Column(String(1))  # 'O'rdinal, 'C'ontinuous, 'N'ominal
+    cardinality: Column = Column(Integer)  # Number of distint values, -1 if undefined
     tags: Column = Column(String(5000), nullable=True)
     compliance_level: Column = Column(Integer)
-    last_update_ts: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
-    last_update_username: Column = Column(String(128), nullable=False, server_default="CURRENT USER")
-    
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
     # Table Options Configuration
     __table_args__: tuple = (
         CheckConstraint(
-            feature_type.in_(('C','O','N'))  # no funny business allowed!
+            feature_type.in_(('C', 'O', 'N'))  # no funny business allowed!
         ),
         {'schema': 'featurestore'}
     )
-        
+
+
 class TrainingContext(SQLAlchemyClient.SpliceBase):
     """
     Training Context is a definition of features and (optionally) a label for use in modeling. This contains SQL
@@ -94,12 +92,15 @@ class TrainingContext(SQLAlchemyClient.SpliceBase):
     """
     __tablename__: str = "training_context"
     __table_args__ = {'schema': 'featurestore'}
-    context_id: Column = Column(Integer,  primary_key=True, autoincrement=True)
-    name: Column = Column(String(128), nullable=False, index=True)
-    description: Column = Column(Text, nullable=True)
+    context_id: Column = Column(Integer, primary_key=True, autoincrement=True)
+    name: Column = Column(String(128), nullable=False, index=True, unique=True)
+    description: Column = Column(String(500), nullable=True)
+    sql_text:Column = Column(Text)
+    label_column: Column = Column(String(128))
     ts_column: Column = Column(String(128))
-    last_update_ts: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
-    last_update_username: Column = Column(String(128), nullable=False, server_default="CURRENT USER")
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
 
 class TrainingContextKey(SQLAlchemyClient.SpliceBase):
     """
@@ -108,20 +109,21 @@ class TrainingContextKey(SQLAlchemyClient.SpliceBase):
     with their feature sets. This is bottom level metadata that a user will NOT interact with.
     """
     __tablename__: str = "training_context_key"
-    context_id: Column = Column(Integer, ForeignKey(TrainingContext.context_id), primary_key=True,)
+    context_id: Column = Column(Integer, ForeignKey(TrainingContext.context_id), primary_key=True )
     key_column_name: Column = Column(String(128), primary_key=True)
-    key_type: Column = Column(String(1), primary_key=True) # 'P'rimary key, 'C'ontext key
-    last_update_ts: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
-    last_update_username: Column = Column(String(128), nullable=False, server_default="CURRENT USER")
-    
+    key_type: Column = Column(String(1), primary_key=True)  # 'P'rimary key, 'C'ontext key
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
     # Table Options Configuration
     __table_args__: tuple = (
         CheckConstraint(
-            key_type.in_(('C','P'))  # no funny business allowed!
+            key_type.in_(('C', 'P'))  # no funny business allowed!
         ),
         {'schema': 'featurestore'}
     )
-        
+
+
 class TrainingSet(SQLAlchemyClient.SpliceBase):
     """
     A Training Set is a Training Context with a subset of desired Features
@@ -133,13 +135,13 @@ class TrainingSet(SQLAlchemyClient.SpliceBase):
     """
     __tablename__: str = "training_set"
     __table_args__ = {'schema': 'featurestore'}
-    training_set_id: Column = Column(Integer,  primary_key=True, autoincrement=True)
-    name: Column = Column(String(255), nullable=False, index=True)
+    training_set_id: Column = Column(Integer, primary_key=True, autoincrement=True)
+    name: Column = Column(String(255))
     context_id: Column = Column(Integer, ForeignKey(TrainingContext.context_id), primary_key=True)
-    last_update_ts: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
-    last_update_username: Column = Column(String(128), nullable=False, server_default="CURRENT USER")
-        
-        
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
+
 class TrainingSetFeature(SQLAlchemyClient.SpliceBase):
     """
     A Training Set Feature is a reference to every feature in a given Training Set. These Features are 
@@ -147,13 +149,13 @@ class TrainingSetFeature(SQLAlchemyClient.SpliceBase):
     within that Training Set. This is bottom level metadata that a user will NOT interact with.
     """
     __tablename__: str = "training_set_feature"
-    __table_args__ = {'schema': 'featurestore'}#, ForeignKey(TrainingSet.training_set_id)
+    __table_args__ = {'schema': 'featurestore'}  # , ForeignKey(TrainingSet.training_set_id)
     training_set_id: Column = Column(Integer, primary_key=True)
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True,)
-    last_update_ts: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
-    last_update_username: Column = Column(String(128), nullable=False, server_default="CURRENT USER")
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True )
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
-        
+
 class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     """
     This table holds statistics about a Training Set when a model using that particular Training Set 
@@ -162,7 +164,7 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     This information will be available for a user post deployment for model/feature tracking and governance
     """
     __tablename__: str = "training_set_feature_stats"
-    __table_args__ = {'schema': 'featurestore'} #  ForeignKey(TrainingSet.training_set_id)
+    __table_args__ = {'schema': 'featurestore'}  # ForeignKey(TrainingSet.training_set_id)
     training_set_id: Column = Column(Integer, primary_key=True)
     feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True)
     training_set_start_ts: Column = Column(DateTime, primary_key=True)
@@ -173,9 +175,10 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     feature_median: Column = Column(Numeric)
     feature_count: Column = Column(Integer)
     feature_stddev: Column = Column(Numeric)
-    last_update_ts: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
-    last_update_username: Column = Column(String(128), nullable=False, server_default="CURRENT USER")
-    
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
+
 class Deployment(SQLAlchemyClient.SpliceBase):
     """
     A Deployment is the capturing of a ML Model that was trained with a Training Set and is then deployed. This
@@ -185,15 +188,15 @@ class Deployment(SQLAlchemyClient.SpliceBase):
     __tablename__: str = "deployment"
     __table_args__ = {'schema': 'featurestore'}
     model_schema_name: Column = Column(String(128), primary_key=True)
-    model_table_name: Column = Column(String(128), primary_key=True )
-    training_set_id: Column = Column(Integer)#,ForeignKey(TrainingSet.training_set_id)
+    model_table_name: Column = Column(String(128), primary_key=True)
+    training_set_id: Column = Column(Integer)  # ,ForeignKey(TrainingSet.training_set_id)
     training_set_start_ts: Column = Column(DateTime)
     training_set_end_ts: Column = Column(DateTime)
     run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
-    last_update_ts: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
-    last_update_username: Column = Column(String(128), nullable=False, server_default="CURRENT USER")
-        
-        
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
+
 class DeploymentHistory(SQLAlchemyClient.SpliceBase):
     """
     This table keeps track of deployments by managing new (replacement) deployments to particular tables. 
@@ -202,54 +205,24 @@ class DeploymentHistory(SQLAlchemyClient.SpliceBase):
     """
     __tablename__: str = "deployment_history"
     model_schema_name: Column = Column(String(128), primary_key=True)
-    model_table_name: Column = Column(String(128),  primary_key=True)
+    model_table_name: Column = Column(String(128), primary_key=True)
     asof_ts: Column = Column(DateTime, primary_key=True)
-    training_set_id: Column = Column(Integer) 
+    training_set_id: Column = Column(Integer)
     training_set_start_ts: Column = Column(DateTime)
-    training_set_end_ts: Column = Column(DateTime) 
-    run_id: Column = Column(String(32) ,ForeignKey(SqlRun.run_uuid))
-    last_update_ts: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
-    last_update_username: Column = Column(String(128), nullable=False, server_default="CURRENT USER")
-        
+    training_set_end_ts: Column = Column(DateTime)
+    run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
     __table_args__ = (
         ForeignKeyConstraint(
-            [
-                model_schema_name,       
-                model_table_name,         
-                #training_set_id,          
-                #training_set_start_ts,    
-                #training_set_end_ts
-            ],
-            [
-                Deployment.model_schema_name,
-                Deployment.model_table_name,
-                #Deployment.training_set_id,
-                #Deployment.training_set_end_ts,
-                #Deployment.training_set_end_ts
-            ]
+            (model_schema_name, model_table_name),
+            [Deployment.model_schema_name, Deployment.model_table_name]
         ),
         {'schema': 'featurestore'}
     )
 
 
-        
-deployment_feature_historian = \
-    """
-    CREATE TRIGGER FeatureStore.deployment_historian
-    AFTER UPDATE ON FeatureStore.deployment
-    REFERENCING OLD AS od
-    FOR EACH ROW
-    INSERT INTO FeatureStore.deployment_history ( model_schema_name, model_table_name, asof_ts, training_set_id, training_set_start_ts, training_set_end_ts, run_id, last_update_ts, last_update_username)
-    VALUES ( od.model_schema_name, od.model_table_name, CURRENT_TIMESTAMP, od.training_set_id, od.training_set_start_ts, od.training_set_end_ts, od.run_id, od.last_update_ts, od.last_update_username)
-    """
-
-
-@event.listens_for(DeploymentHistory.__table__, 'after_create')
-def receive_after_create(target, connection, **kw):
-    connection.execute(
-        deployment_feature_historian
-    )
-        
 class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
     """
     This table keeps track of feature statistics in a particular deployment. This is dynamic information and will
@@ -257,27 +230,34 @@ class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
     stats are in progress.
     """
     __tablename__: str = "deployment_feature_stats"
-    
+
     model_schema_name: Column = Column(String(128), primary_key=True)
     model_table_name: Column = Column(String(128), primary_key=True)
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True,)
-    model_start_ts: Column = Column(DateTime) # The start time of the window of calculation for statistics
-    model_end_ts: Column = Column(DateTime)   # The end time of the window of calculation for statistics
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True, )
+    model_start_ts: Column = Column(DateTime)  # The start time of the window of calculation for statistics
+    model_end_ts: Column = Column(DateTime)  # The end time of the window of calculation for statistics
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
     feature_mean: Column = Column(Numeric)
     feature_median: Column = Column(Numeric)
     feature_count: Column = Column(Integer)
-    feature_stddev: Column = Column(Numeric) 
-                                                                  
+    feature_stddev: Column = Column(Numeric)
+
     __table_args__ = (
         ForeignKeyConstraint(
-            [model_schema_name,model_table_name],
+            (model_schema_name, model_table_name),
             [Deployment.model_schema_name, Deployment.model_table_name]
         ),
         {'schema': 'featurestore'}
     )
-        
+
+
+@event.listens_for(DeploymentHistory.__table__, 'after_create')
+def create_feature_hisorian_trigger(*args, **kwargs):
+    logger.warning("Creating historian trigger for feature store")
+    SQLAlchemyClient.execute(
+        DatabaseSQL.deployment_feature_historian  # Record the old feature in the feature store history table
+    )
 
 
 def create_feature_store_tables(_sleep_secs=1) -> None:
@@ -292,6 +272,10 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
     # noinspection PyBroadException
     try:
         logger.warning("Creating Feature Store Splice Tables inside Splice DB...")
+        # event.listen(DeploymentHistory.__table__, 'after_create', SQLAlchemyClient.execute(
+        #     DatabaseSQL.deployment_feature_historian
+        # )# Record the old feature in the feature store history table
+        #              )
         SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
         logger.info("Created Tables")
     except Exception:
