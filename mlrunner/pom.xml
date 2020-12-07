@@ -5,10 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.splicemachine</groupId>
     <artifactId>mlrunner</artifactId>
-    <version>0.1.6_dev1</version>
+    <version>0.1.6_dev5</version>
     <properties>
         <scala.binary.version>2.12</scala.binary.version>
-        <spark.version>3.0.0</spark.version>
+        <scala.version>2.12.12</scala.version>
+        <spark.version>3.0.1</spark.version>
         <spark.major.version>spark3.0</spark.major.version>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
@@ -50,7 +51,7 @@
         <dependency>
             <groupId>com.splicemachine</groupId>
             <artifactId>splice_machine</artifactId>
-            <version>3.0.1.1985</version>
+            <version>3.2.0.1988-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

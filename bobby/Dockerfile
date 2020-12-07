@@ -10,7 +10,7 @@ ARG odbc_driver_version='2.7.63.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Spark Configuration
-ARG spark_version='3.0.0'
+ARG spark_version='3.0.1'
 
 # File Retriever Configuration
 ARG file_retriever_version='0.0.3'
@@ -121,7 +121,7 @@ RUN \
   curl -kLs $PROTOBUF_JAVA_URI -o $SRC_HOME/lib/protobuf-java-3.11.1.jar && \
   curl -kLs $MLEAP_SPARK_URI -o $SRC_HOME/lib/mleap-spark_$SCALA_VERSION-$MLEAP_VERSION.jar && \
   curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_$SCALA_VERSION-$MLEAP_VERSION.jar && \
-  curl -kLs https://splice-demo.s3.amazonaws.com/mlrunner-0.1.6_dev4-shaded.jar -o $SRC_HOME/lib/mlrunner-0.1.6_dev4-shaded.jar
+  curl -kLs https://splice-demo.s3.amazonaws.com/mlrunner-0.1.6_dev4-shaded.jar -o $SRC_HOME/lib/mlrunner-0.1.6_dev5-shaded.jar
 
 # Install Shared Lib
 COPY shared /tmp/shared

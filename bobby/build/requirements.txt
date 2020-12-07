@@ -18,6 +18,6 @@ tensorboard==2.2.0
 tensorflow-estimator==2.2.0
 scikit-learn==0.21.3
 loguru==0.5.1
-mleap==0.15.0
+mleap==0.16.0
 gensim==3.8.3
 cloudpickle==1.6.0
