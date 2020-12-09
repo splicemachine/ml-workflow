@@ -24,6 +24,7 @@ from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
 from shared.models.splice_models import create_bobby_tables, Job
+from shared.models.feature_store_models import create_feature_store_tables
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import (HandlerNames, KnownHandlers,
                                       populate_handlers)
@@ -180,6 +181,8 @@ def main():
     create_run_contexts()
     logger.info("Creating Splice Tables...")
     create_bobby_tables()
+    logger.info("Creating Feature Store Tables...")
+    create_feature_store_tables()
     logger.info('Registering handlers...')
     register_handlers()
     logger.info('Populating handlers...')

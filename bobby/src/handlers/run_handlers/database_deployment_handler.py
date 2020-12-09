@@ -7,6 +7,7 @@ from typing import Optional
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructField, StructType
 from sqlalchemy import inspect as peer_into_splice_db, text
+from mlflow.store.tracking.dbmodels.models import SqlParam
 
 from shared.models.model_types import Metadata, Representations
 from shared.services.database import Converters, SQLAlchemyClient, DatabaseSQL

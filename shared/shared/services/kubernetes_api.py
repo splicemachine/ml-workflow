@@ -26,7 +26,7 @@ class KubernetesAPIService:
     try:
         config.load_incluster_config()  # load config from service account inside cluster
     except config.config_exception.ConfigException:
-        logger.error(
+        logger.warning(
             "Cannot load K8s config... KUBERNETES DEPLOYMENT WILL *NOT* RUN SUCCESSFULLY FROM THIS ENVIRONMENT."
         )
         OPS_ENABLED = False
