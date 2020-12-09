@@ -272,10 +272,6 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
     # noinspection PyBroadException
     try:
         logger.warning("Creating Feature Store Splice Tables inside Splice DB...")
-        # event.listen(DeploymentHistory.__table__, 'after_create', SQLAlchemyClient.execute(
-        #     DatabaseSQL.deployment_feature_historian
-        # )# Record the old feature in the feature store history table
-        #              )
         SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
         logger.info("Created Tables")
     except Exception:
