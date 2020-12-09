@@ -356,6 +356,91 @@ class DatabaseModelDDL:
         )
         self.logger.info("Done executing.", send_db=True)
 
+    def _register_training_set(self, key_vals: Dict[str,str]):
+        """
+        Registers training set for the deployment
+        :param key_vals: Dictionary containing the relevant keys for the training set
+        :return: TrainingSet
+        """
+
+        self.logger.info(f"Dictionary of params {str(key_vals)}")
+        tcx: TrainingContext = self.session.query(TrainingContext)\
+            .filter_by(name=key_vals['splice.feature_store.training_set']).one()
+        self.logger.info(f"Found training context with ID {tcx.context_id}")
+        self.logger.info(f"Registering new training set for context {key_vals['splice.feature_store.training_set']}", send_db=True)
+
+        # Create training set
+        ts = TrainingSet(
+            context_id=tcx.context_id,
+            name=key_vals['splice.feature_store.training_set'],
+            last_update_username=self.request_user
+        )
+        self.session.add(ts)
+        self.session.merge(ts) # Get the training_set_id
+        return ts
+
+    def _register_training_set_features(self, ts: TrainingSet):
+        """
+        Registers the features of a training set for a deployment
+        :param ts: The TrainingSet
+        :return:
+        """
+
+        # Create an entry for each feature
+        training_set_features: List[SqlParam] = self.session.query(SqlParam).filter_by(run_uuid=self.run_id) \
+            .filter(SqlParam.key.like('splice.feature_store.training_set_feature%')).all()
+        self.logger.info("Done. Getting feature IDs for each feature...")
+        features: List[Feature] =  self.session.query(Feature)\
+            .filter(Feature.name.in_([feat.value for feat in training_set_features])).all()
+
+        self.logger.info(f"Done. Registering all {len(features)} features")
+        for feat in features:
+            self.session.add(
+                TrainingSetFeature(
+                    training_set_id=ts.training_set_id,
+                    feature_id=feat.feature_id, # The mlflow param's value is the feature name
+                    last_update_username=self.request_user
+                )
+            )
+    def _register_model_deployment(self, ts: TrainingSet, key_vals: Dict[str,str]):
+        """
+        Registers the model deployment with the TrainingSet
+        :param ts: The TrainingSet
+        :param key_vals: Dictionary containing the relevant keys for the training set
+        :return:
+        """
+        # Add the model deployment
+        # Splice PyODBC cannot take string representation of datetime, so we need to use raw SQL :(
+        # Check if deployment exists (schema.table name)
+        table_exists = self.session.query(Deployment)\
+            .filter_by(model_schema_name=self.schema_name)\
+            .filter_by(model_table_name=self.table_name)\
+            .all()
+
+        deployment = dict(
+            model_schema_name=self.schema_name,
+            model_table_name=self.table_name,
+            training_set_id=ts.training_set_id,
+            training_set_start_ts=key_vals['splice.feature_store.training_set_start_time'],
+            training_set_end_ts=key_vals['splice.feature_store.training_set_end_time'],
+            run_id=self.run_id,
+            last_update_username=self.request_user
+        )
+        # Can't do splice upsert because Splice Machine considers an an upsert as an insert,
+        # so our update trigger won't ever fire.
+        if table_exists: # Update
+            self.logger.info("Updating deployment in Feature Store metadata", send_db=True)
+            self.session.execute(
+                DatabaseSQL.update_feature_store_deployment.format(**deployment)
+            )
+        else: # Insert
+            self.logger.info("Adding new deployment to Feature Store metadata", send_db=True)
+            self.session.execute(
+                DatabaseSQL.add_feature_store_deployment.format(**deployment)
+            )
+
+
+
     def register_feature_store_deployment(self):
         """
         On deployment, if the model has an associated training set, we want to log this deployment in the
@@ -368,7 +453,7 @@ class DatabaseModelDDL:
         on the FeatureStore.Deployment table.
         :return:
         """
-        logger.info("Checking if run was created with Feature Store training set", send_db=True)
+        self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
         training_set_params = [f'splice.feature_store.{i}' for i in ['training_set','training_set_start_time',
                                                                     'training_set_end_time']]
@@ -378,75 +463,14 @@ class DatabaseModelDDL:
             .all()
 
         if len(params)==len(training_set_params): # Run has associated training set
-            logger.info("Training set found! Registering...", send_db=True)
             key_vals = {param.key:param.value for param in params}
-            logger.info(f"Dictionary of params {str(key_vals)}")
-            tcx: TrainingContext = self.session.query(TrainingContext)\
-                .filter_by(name=key_vals['splice.feature_store.training_set']).one()
-            logger.info(f"Found training context with ID {tcx.context_id}")
-            logger.info(f"Registering new training set for context {key_vals['splice.feature_store.training_set']}", send_db=True)
-
-            # Create training set
-            ts = TrainingSet(
-                context_id=tcx.context_id,
-                name=key_vals['splice.feature_store.training_set'],
-                last_update_username=self.request_user
-            )
-            self.session.add(ts)
-            self.session.merge(ts) # Get the training_set_id
-            logger.info(f"Done. Gathering individual features...", send_db=True)
-
-            # Create an entry for each feature
-            training_set_features: List[SqlParam] = self.session.query(SqlParam).filter_by(run_uuid=self.run_id) \
-                .filter(SqlParam.key.like('splice.feature_store.training_set_feature%')).all()
-            logger.info("Done. Getting feature IDs for each feature...")
-            features: List[Feature] =  self.session.query(Feature)\
-                .filter(Feature.name.in_([feat.value for feat in training_set_features])).all()
-
-            logger.info(f"Done. Registering all {len(features)} features")
-            for feat in features:
-                self.session.add(
-                    TrainingSetFeature(
-                        training_set_id=ts.training_set_id,
-                        feature_id=feat.feature_id, # The mlflow param's value is the feature name
-                        last_update_username=self.request_user
-                    )
-                )
-
-            logger.info("Done. Registering deployment with Feature Store")
-
-            # Add the model deployment
-            # Splice PyODBC cannot take string representation of datetime, so we need to use raw SQL :(
-
-            # Check if deployment exists (schema.table name)
-            table_exists = self.session.query(Deployment)\
-                .filter_by(model_schema_name=self.schema_name)\
-                .filter_by(model_table_name=self.table_name)\
-                .all()
-
-            deployment = dict(
-                model_schema_name=self.schema_name,
-                model_table_name=self.table_name,
-                training_set_id=ts.training_set_id,
-                training_set_start_ts=key_vals['splice.feature_store.training_set_start_time'],
-                training_set_end_ts=key_vals['splice.feature_store.training_set_end_time'],
-                run_id=self.run_id,
-                last_update_username=self.request_user
-            )
-            # Can't do splice upsert because Splice Machine considers an an upsert as an insert,
-            # so our update trigger won't ever fire.
-            if table_exists: # Update
-                logger.info("Updating deployment in Feature Store metadata")
-                self.session.execute(
-                    DatabaseSQL.update_feature_store_deployment.format(**deployment)
-                )
-            else: # Insert
-                logger.info("Adding new deployment to Feature Store metadata")
-                self.session.execute(
-                    DatabaseSQL.add_feature_store_deployment.format(**deployment)
-                )
-
-            logger.info("Done!")
+            self.logger.info("Training set found! Registering...", send_db=True)
+            ts: TrainingSet = self._register_training_set(key_vals)
+            self.logger.info(f"Done. Gathering individual features...", send_db=True)
+            self._register_training_set_features(ts)
+            self.logger.info("Done. Registering deployment with Feature Store")
+            self._register_model_deployment(ts, key_vals)
+            self.logger.info("Done!", send_db=True)
 
     def create(self):
         """
