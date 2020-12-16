@@ -115,7 +115,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
         for field in columns:
             # FIXME: Sqlalchemy assumes lowercase and Splice assumes uppercase. Quoted cols in DB don't translate
-            schema_dict[field['name'].upper()] = str(field['type']).split('(')[0].upper()
+            schema_dict[field['name'].upper()] = str(field['type']).upper()
             # Remove length specification from datatype for backwards conversion
             spark_d_type = getattr(spark_types,
                                    Converters.DB_SPARK_CONVERSIONS[str(field['type']).split('(')[0].upper()])
