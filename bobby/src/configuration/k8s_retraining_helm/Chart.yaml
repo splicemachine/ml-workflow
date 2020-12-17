@@ -1,0 +1,6 @@
+name: k8s-model-retrain
+version: 0.0.1
+home: "https://github.com/splicemachine/dbaas-infrastructure"
+maintainers:
+  - name: "Amrit Baveja"
+    email: "abaveja@splicemachine.com"

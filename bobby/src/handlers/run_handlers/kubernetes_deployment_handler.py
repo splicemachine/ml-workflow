@@ -6,14 +6,11 @@ from os import environ as env_vars
 from subprocess import check_output
 from tempfile import NamedTemporaryFile
 
-from yaml import dump as dump_yaml
-
 import requests
 from requests.exceptions import ConnectionError
-
 from retrying import retry
-
 from shared.services.kubernetes_api import KubernetesAPIService
+from yaml import dump as dump_yaml
 
 from .base_deployment_handler import BaseDeploymentHandler
 
@@ -52,7 +49,8 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
                                                    KubernetesDeploymentHandler.DEFAULT_RETRIEVER_TAG),
                          'server': env_vars.get('SERVER_IMAGE_TAG',
                                                 KubernetesDeploymentHandler.DEFAULT_SERVING_TAG)},
-            'serving': {'gunicornWorkers': payload['gunicorn_workers'], 'disableNginx': payload['disable_nginx'].lower(),
+            'serving': {'gunicornWorkers': payload['gunicorn_workers'],
+                        'disableNginx': payload['disable_nginx'].lower(),
                         'exposePort': payload['service_port']},
             'resourceRequests': {'enabled': payload['resource_requests_enabled'].lower(),
                                  'cpu_request': payload['cpu_request'], 'memory_request': payload['memory_request']},
@@ -81,7 +79,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
         return isinstance(exc, ConnectionError)
 
     @retry(retry_on_exception=_retry_on_cnx_err, wait_exponential_multiplier=1000,
-           wait_exponential_max=10000, stop_max_delay=600000) # Max 10 min
+           wait_exponential_max=10000, stop_max_delay=600000)  # Max 10 min
     def _try_to_connect(self):
         self.logger.info('Endpoint not yet ready...', send_db=True)
         rid = self.task.parsed_payload['run_id']
@@ -92,9 +90,6 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
         self.logger.info("Waiting for Endpoint to be Available... This may take several minutes if "
                          "this is your first k8s deployment", send_db=True)
         self._try_to_connect()
-
-
-
 
     def execute(self):
         """

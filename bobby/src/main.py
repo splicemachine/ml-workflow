@@ -6,7 +6,6 @@ for new jobs and dispatches them to Workers for execution
 from os import environ as env_vars
 
 from flask import Flask
-import json
 from handlers.modifier_handlers import (DisableServiceHandler,
                                         EnableServiceHandler)
 from handlers.run_handlers import (AzureDeploymentHandler,
@@ -15,20 +14,18 @@ from handlers.run_handlers import (AzureDeploymentHandler,
                                    DatabaseDeploymentHandler)
 from pyspark.sql import SparkSession
 from pysparkling import H2OConf, H2OContext
-from workerpool import Job as ThreadedTask
-from workerpool import WorkerPool
-
-
 from shared.api.responses import HTTP
 from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
-from shared.models.splice_models import create_bobby_tables, Job
 from shared.models.feature_store_models import create_feature_store_tables
+from shared.models.splice_models import create_bobby_tables, Job
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import (HandlerNames, KnownHandlers,
                                       populate_handlers)
 from shared.structures.ledger import JobLedger
+from workerpool import Job as ThreadedTask
+from workerpool import WorkerPool
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -147,6 +144,7 @@ def check_db_for_jobs() -> None:
         logger.exception("Error: Encountered Fatal Error while locating and executing jobs")
         raise
 
+
 def check_for_k8s_deployments() -> None:
     """
     When the database pauses or Bobby restarts, all k8s deployed models will be removed as they are children deployments
@@ -154,15 +152,15 @@ def check_for_k8s_deployments() -> None:
     :return:
     """
     k8s_payloads = SQLAlchemyClient.execute(DatabaseSQL.get_k8s_deployments_on_restart)
-    for user,payload in k8s_payloads:
+    for user, payload in k8s_payloads:
         # Create a new job to redeploy the model
         job: Job = Job(handler_name=HandlerNames.deploy_k8s,
-                   user=user,
-                   payload=payload)
+                       user=user,
+                       payload=payload)
 
         SQLAlchemyClient.SessionFactory.add(job)
     SQLAlchemyClient.SessionFactory.commit()
-    check_db_for_jobs() # Add new jobs to the Job Ledger
+    check_db_for_jobs()  # Add new jobs to the Job Ledger
 
 
 @APP.route('/job', methods=['POST'])
