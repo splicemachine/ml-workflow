@@ -150,7 +150,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         :return: (int) the Database transaction timestamp
         """
         with SQLAlchemyClient.engine.begin() as transaction:
-            tid = transaction.execute('CALL SYSCS_UTIL.SYSCS_GET_CURRENT_TRANSACTION()')[0][0]
+            tid = transaction.execute('CALL SYSCS_UTIL.SYSCS_GET_CURRENT_TRANSACTION()').fetchall()[0][0]
         return tid
 
     def create_run(self, experiment_id, user_id, start_time, tags):
@@ -178,7 +178,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                     raise MlflowException("Tag 'mlflow.user' must be specified for governance")
 
                 tags_dict['mlflow.runName'] = run_id
-                tags_dict['DB Transaction ID'] = self._get_current_transaction()
+                tags_dict['DB Transaction ID'] = str(self._get_current_transaction())
 
                 run: SqlRun = SqlRun(name="", artifact_uri=artifact_location, run_uuid=run_id,
                                      experiment_id=experiment_id,
