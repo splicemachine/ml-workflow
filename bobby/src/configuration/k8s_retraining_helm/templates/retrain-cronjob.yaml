@@ -32,8 +32,10 @@ metadata:
             value: {{ .Values.db.host }}
           - name: RUN_ID
             value: {{ .Values.model.runId }}
-          - name: MODEL_NAME
-            value: {{ .Values.model.name }}
+          - name: CONDA_ENV_NAME
+            value: {{ .Values.model.condaEnv}
+          - name: RETRAINING
+            value: {{ .Values.model.retraining }}
         containers:
           - name: retrain-{{ .Values.model.runId }}
             image: splicemachine/sm_k8_jupyter_allspark-3.0.0
