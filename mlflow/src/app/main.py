@@ -8,9 +8,6 @@ from flask import request, url_for, render_template as show_html, redirect, json
 from flask_executor import Executor
 from flask_login import (LoginManager, current_user, login_required,
                          login_user, logout_user)
-from sqlalchemy import text
-from sqlalchemy.orm import load_only
-
 from shared.api.models import APIStatuses, TrackerTableMapping
 from shared.api.responses import HTTP
 from shared.environments.cloud_environment import (CloudEnvironment,
@@ -20,6 +17,8 @@ from shared.models.splice_models import Handler, Job
 from shared.services.authentication import Authentication, User
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import HandlerNames, KnownHandlers
+from sqlalchemy import text
+from sqlalchemy.orm import load_only
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -221,7 +220,8 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
     :return: (Response) JSON payload for success
     """
     # Format Payload
-    payload: dict = {field.name: field.get_value(request_payload.get(field.name) or None) for field in handler.payload_args
+    payload: dict = {field.name: field.get_value(request_payload.get(field.name) or None) for field in
+                     handler.payload_args
                      if field.name != 'payload'}
 
     job: Job = Job(handler_name=handler.name,
@@ -230,7 +230,7 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
 
     Session.add(job)
     Session.commit()
-    Session.merge(job) # get identity col
+    Session.merge(job)  # get identity col
 
     try:
         # Tell bobby there's a new job to process

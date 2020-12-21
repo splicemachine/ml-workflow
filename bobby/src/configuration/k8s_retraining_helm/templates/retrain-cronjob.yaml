@@ -22,7 +22,7 @@ metadata:
           - name: retrain
             emptyDir: {}
         initContainers:
-          - name: retrain-{{ .Values.model.runId }}-init
+          - name: rt-{{ .Values.model.runId }}-{{ .Values.k8s.name }}-init
             env:
               - name: DB_USER
                 value: {{ .Values.db.user }}
@@ -38,7 +38,7 @@ metadata:
                 value: {{ .Values.model.retraining }}
             image: splicemachine/sm_k8_model-init:{{ .Values.versions.retriever }}
           containers:
-          - name: retrain-{{ .Values.model.runId }}
+          - name: rt-{{ .Values.model.runId }}-{{ .Values.k8s.name }}
             image: splicemachine/sm_k8_jupyter_allspark-3.0.0
             env:
               - name: CONDA_ENV_NAME

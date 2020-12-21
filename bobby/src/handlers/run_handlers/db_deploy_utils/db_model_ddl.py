@@ -2,19 +2,18 @@
 Class to prepare database models for deployment
 to Splice Machine
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-from sqlalchemy import inspect as peer_into_splice_db, text
-from sqlalchemy.orm import Session
 from mlflow.store.tracking.dbmodels.models import SqlParam
-
 from shared.logger.logging_config import log_operation_status, logger
+from shared.models.feature_store_models import (Deployment, TrainingContext,
+                                                TrainingSet, TrainingSetFeature, Feature)
 from shared.models.model_types import (DeploymentModelType, H2OModelType,
                                        KerasModelType, Metadata,
                                        SklearnModelType, SparkModelType)
-from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL
-from shared.models.feature_store_models import (Deployment, TrainingContext,
-                                                TrainingSet, TrainingSetFeature, Feature)
+from shared.services.database import SQLAlchemyClient, DatabaseSQL
+from sqlalchemy import inspect as peer_into_splice_db
+from sqlalchemy.orm import Session
 
 from .entities.db_model import Model
 
@@ -56,7 +55,8 @@ class DatabaseModelDDL:
         self.run_id = run_id
         self.schema_name = schema_name
         self.table_name = table_name
-        self.model_columns = model_columns or self.model.get_metadata(Metadata.SQL_SCHEMA).keys()# The model_cols parameter
+        self.model_columns = model_columns or self.model.get_metadata(
+            Metadata.SQL_SCHEMA).keys()  # The model_cols parameter
         self.request_user = request_user
         self.primary_key = primary_key
         self.create_model_table = create_model_table
@@ -75,7 +75,6 @@ class DatabaseModelDDL:
             Metadata.MODEL_VECTOR_STR, ', '.join([f'{name} {col_type}' for name, col_type in self.model.get_metadata(
                 Metadata.SQL_SCHEMA).items() if name.upper() in mcols]) + ','
         )
-
 
     def _create_prediction_data(self):
         """
@@ -120,9 +119,9 @@ class DatabaseModelDDL:
         return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
 
     @staticmethod
-    def _get_feature_vector_sql(model_columns: List[str], schema_types: Dict[str,str]):
+    def _get_feature_vector_sql(model_columns: List[str], schema_types: Dict[str, str]):
         model_cols = [i.upper() for i in model_columns]
-        stypes = {i.upper():j.upper() for i,j in schema_types.items()}
+        stypes = {i.upper(): j.upper() for i, j in schema_types.items()}
 
         sql_vector = ''
         for index, col in enumerate(model_cols):
@@ -134,7 +133,6 @@ class DatabaseModelDDL:
                     stypes[str(col)] in {'FLOAT', 'DOUBLE'} else f'NEWROW.{col}'
                 sql_vector += f'TRIM(CAST({inner_cast} as CHAR(41)))||\',\''
         return sql_vector
-
 
     def create_model_deployment_table(self):
         """
@@ -238,7 +236,7 @@ class DatabaseModelDDL:
             prediction_call += f", '{predict_call}', '{predict_args}'"
 
         elif model_type == DeploymentModelType.MULTI_PRED_DOUBLE and len(classes) == 2 and \
-                self.library_specific_args.get('pred_threshold') and isinstance(specific_type,KerasModelType):
+                self.library_specific_args.get('pred_threshold') and isinstance(specific_type, KerasModelType):
             self.logger.info('Managing Keras prediction args', send_db=True)
             prediction_call += f", '{self.library_specific_args.get('pred_threshold')}'"
 
@@ -262,7 +260,8 @@ class DatabaseModelDDL:
         raw_data = raw_data[:-5].lstrip('||')
         model_vector_str_pred_call = model_vector_str.replace('\t', '').replace('\n', '').rstrip(',')
 
-        prediction_call = prediction_call.format(run_id=self.run_id, raw_data=raw_data, model_vector_str=model_vector_str_pred_call)
+        prediction_call = prediction_call.format(run_id=self.run_id, raw_data=raw_data,
+                                                 model_vector_str=model_vector_str_pred_call)
 
         trigger_sql += f'{output_column_names[:-1]}) = ('
         trigger_sql += f'SELECT {output_cols_vti_reference[:-1]} FROM {prediction_call}' \
@@ -273,7 +272,6 @@ class DatabaseModelDDL:
         # TODO - use the above syntax for other queries
         self.logger.info(f"Executing\n{trigger_sql}", send_db=True)
         self.session.execute(trigger_sql)
-
 
     def create_prediction_trigger(self):
         """
@@ -291,7 +289,8 @@ class DatabaseModelDDL:
         pred_trigger += DatabaseModelDDL._get_feature_vector_sql(self.model_columns, schema_types)
 
         # Cleanup + schema for PREDICT call
-        pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(Metadata.MODEL_VECTOR_STR).replace(
+        pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(
+            Metadata.MODEL_VECTOR_STR).replace(
             '\t', '').replace('\n', '').rstrip(',') + '\')'
 
         self.logger.info(f"Executing\n{pred_trigger}", send_db=True)
@@ -356,7 +355,7 @@ class DatabaseModelDDL:
         )
         self.logger.info("Done executing.", send_db=True)
 
-    def _register_training_set(self, key_vals: Dict[str,str]):
+    def _register_training_set(self, key_vals: Dict[str, str]):
         """
         Registers training set for the deployment
         :param key_vals: Dictionary containing the relevant keys for the training set
@@ -364,10 +363,11 @@ class DatabaseModelDDL:
         """
 
         self.logger.info(f"Dictionary of params {str(key_vals)}")
-        tcx: TrainingContext = self.session.query(TrainingContext)\
+        tcx: TrainingContext = self.session.query(TrainingContext) \
             .filter_by(name=key_vals['splice.feature_store.training_set']).one()
         self.logger.info(f"Found training context with ID {tcx.context_id}")
-        self.logger.info(f"Registering new training set for context {key_vals['splice.feature_store.training_set']}", send_db=True)
+        self.logger.info(f"Registering new training set for context {key_vals['splice.feature_store.training_set']}",
+                         send_db=True)
 
         # Create training set
         ts = TrainingSet(
@@ -376,7 +376,7 @@ class DatabaseModelDDL:
             last_update_username=self.request_user
         )
         self.session.add(ts)
-        self.session.merge(ts) # Get the training_set_id
+        self.session.merge(ts)  # Get the training_set_id
         return ts
 
     def _register_training_set_features(self, ts: TrainingSet):
@@ -390,7 +390,7 @@ class DatabaseModelDDL:
         training_set_features: List[SqlParam] = self.session.query(SqlParam).filter_by(run_uuid=self.run_id) \
             .filter(SqlParam.key.like('splice.feature_store.training_set_feature%')).all()
         self.logger.info("Done. Getting feature IDs for each feature...")
-        features: List[Feature] =  self.session.query(Feature)\
+        features: List[Feature] = self.session.query(Feature) \
             .filter(Feature.name.in_([feat.value for feat in training_set_features])).all()
 
         self.logger.info(f"Done. Registering all {len(features)} features")
@@ -398,11 +398,12 @@ class DatabaseModelDDL:
             self.session.add(
                 TrainingSetFeature(
                     training_set_id=ts.training_set_id,
-                    feature_id=feat.feature_id, # The mlflow param's value is the feature name
+                    feature_id=feat.feature_id,  # The mlflow param's value is the feature name
                     last_update_username=self.request_user
                 )
             )
-    def _register_model_deployment(self, ts: TrainingSet, key_vals: Dict[str,str]):
+
+    def _register_model_deployment(self, ts: TrainingSet, key_vals: Dict[str, str]):
         """
         Registers the model deployment with the TrainingSet
         :param ts: The TrainingSet
@@ -412,9 +413,9 @@ class DatabaseModelDDL:
         # Add the model deployment
         # Splice PyODBC cannot take string representation of datetime, so we need to use raw SQL :(
         # Check if deployment exists (schema.table name)
-        table_exists = self.session.query(Deployment)\
-            .filter_by(model_schema_name=self.schema_name)\
-            .filter_by(model_table_name=self.table_name)\
+        table_exists = self.session.query(Deployment) \
+            .filter_by(model_schema_name=self.schema_name) \
+            .filter_by(model_table_name=self.table_name) \
             .all()
 
         deployment = dict(
@@ -428,18 +429,16 @@ class DatabaseModelDDL:
         )
         # Can't do splice upsert because Splice Machine considers an an upsert as an insert,
         # so our update trigger won't ever fire.
-        if table_exists: # Update
+        if table_exists:  # Update
             self.logger.info("Updating deployment in Feature Store metadata", send_db=True)
             self.session.execute(
                 DatabaseSQL.update_feature_store_deployment.format(**deployment)
             )
-        else: # Insert
+        else:  # Insert
             self.logger.info("Adding new deployment to Feature Store metadata", send_db=True)
             self.session.execute(
                 DatabaseSQL.add_feature_store_deployment.format(**deployment)
             )
-
-
 
     def register_feature_store_deployment(self):
         """
@@ -455,15 +454,15 @@ class DatabaseModelDDL:
         """
         self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
-        training_set_params = [f'splice.feature_store.{i}' for i in ['training_set','training_set_start_time',
-                                                                    'training_set_end_time']]
-        params: List[SqlParam] = self.session.query(SqlParam)\
-            .filter_by(run_uuid=self.run_id)\
-            .filter(SqlParam.key.in_(training_set_params))\
+        training_set_params = [f'splice.feature_store.{i}' for i in ['training_set', 'training_set_start_time',
+                                                                     'training_set_end_time']]
+        params: List[SqlParam] = self.session.query(SqlParam) \
+            .filter_by(run_uuid=self.run_id) \
+            .filter(SqlParam.key.in_(training_set_params)) \
             .all()
 
-        if len(params)==len(training_set_params): # Run has associated training set
-            key_vals = {param.key:param.value for param in params}
+        if len(params) == len(training_set_params):  # Run has associated training set
+            key_vals = {param.key: param.value for param in params}
             self.logger.info("Training set found! Registering...", send_db=True)
             ts: TrainingSet = self._register_training_set(key_vals)
             self.logger.info(f"Done. Gathering individual features...", send_db=True)

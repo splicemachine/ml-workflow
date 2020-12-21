@@ -163,6 +163,15 @@ def check_for_k8s_deployments() -> None:
     check_db_for_jobs()  # Add new jobs to the Job Ledger
 
 
+def check_for_recurring_deployments():
+    """
+    When the database pauses of bobby restarts, all of the recurring deployments
+    will stop. This function resumes them if they should be redepoloyed.
+    :return:
+    """
+    session = SQLAlchemyClient.SessionFactory()
+    recurring_jobs = session.query()
+
 @APP.route('/job', methods=['POST'])
 @HTTP.generate_json_response
 def get_new_jobs():

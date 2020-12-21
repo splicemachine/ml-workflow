@@ -13,6 +13,8 @@ class HandlerNames:
     disable_service: str = 'DISABLE_SERVICE'
     deploy_k8s: str = 'DEPLOY_KUBERNETES'
     undeploy_k8s: str = 'UNDEPLOY_KUBERNETES'
+    start_retrain: str = 'START_RETRAIN'
+    watch_job: str = 'WATCH_JOB'
     deploy_database: str = 'DEPLOY_DATABASE'
     deploy_csp: str = CloudEnvironments.get_current().handler_mapping.get('deploy')
 
@@ -43,6 +45,26 @@ class KnownHandlers:
             name=HandlerNames.enable_service,
             url='/access',
             modifiable=False,
+        ),
+        HandlerNames.start_retrain: Handler(
+            payload_args=[
+                Field('cron_exp'),
+                Field('name'),
+                Field('run_id'),
+                Field('conda_artifact'),
+                Field('retrainer_artifact', use_default=True, default='retrainer.pkl')
+            ],
+            name=HandlerNames.start_retrain,
+            url='/start_retrain',
+            modifiable=True
+        ),
+        HandlerNames.watch_job: Handler(
+            payload_args=[
+                Field('k8s-identifier')
+            ],
+            name=HandlerNames.watch_job,
+            url='/watch_k8s',
+            modifiable=False
         ),
         HandlerNames.disable_service: Handler(
             payload_args=[
