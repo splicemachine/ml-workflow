@@ -23,21 +23,33 @@ metadata:
             emptyDir: {}
         initContainers:
           - name: retrain-{{ .Values.model.runId }}-init
-        env:
-          - name: DB_USER
-            value: {{ .Values.db.user }}
-          - name: DB_PASSWORD
-            value: {{ .Values.db.password }}
-          - name: DB_HOST
-            value: {{ .Values.db.host }}
-          - name: RUN_ID
-            value: {{ .Values.model.runId }}
-          - name: CONDA_ENV_NAME
-            value: {{ .Values.model.condaEnv}
-          - name: RETRAINING
-            value: {{ .Values.model.retraining }}
-        containers:
+            env:
+              - name: DB_USER
+                value: {{ .Values.db.user }}
+              - name: DB_PASSWORD
+                value: {{ .Values.db.password }}
+              - name: DB_HOST
+                value: {{ .Values.db.host }}
+              - name: RUN_ID
+                value: {{ .Values.model.runId }}
+              - name: CONDA_ENV_NAME
+                value: {{ .Values.model.condaEnv }}
+              - name: RETRAINING
+                value: {{ .Values.model.retraining }}
+            image: splicemachine/sm_k8_model-init:{{ .Values.versions.retriever }}
+          containers:
           - name: retrain-{{ .Values.model.runId }}
             image: splicemachine/sm_k8_jupyter_allspark-3.0.0
+            env:
+              - name: CONDA_ENV_NAME
+                value: {{ .Values.model.condaEnv }}
+              - name: MOUNT_PATH
+                value: /opt/ml/model
+              - name: BEAKERX_SQL_DEFAULT_JDBC
+                value: {{ .Values.db.jdbc_url }}
+              - name: SPLICE_JUPYTER_USER
+                value: {{ .Values.db.user}}
+              - name: SPLICE_JUPYTER_PASSWORD
+                value: {{ .Values.db.password }}
             imagePullPolicy: IfNotPresent
         retartPolicy: OnFailure

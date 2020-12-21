@@ -5,15 +5,15 @@ used for the Queue
 from datetime import datetime
 from json import loads as parse_dict
 from time import sleep
+from typing import Optional
 
+from shared.logger.logging_config import logger
+from shared.models.enums import JobStatuses, RecurringJobStatuses
+from shared.services.database import SQLAlchemyClient
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String, Text, DateTime)
 from sqlalchemy.orm import relationship, deferred
-from sqlalchemy.sql.functions import now as db_current_timestamp
-
-from shared.logger.logging_config import logger
-from shared.models.enums import JobStatuses
-from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from sqlalchemy.sql.elements import TextClause
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -24,6 +24,10 @@ __version__: str = "2.0"
 __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
+
+SHORT_VARCHAR_SIZE: int = 100
+LONG_VARCHAR_SIZE: int = 5000
+EXTRA_LONG_VARCHAR_SIZE: int = 30000
 
 
 def format_timestamp() -> str:
@@ -105,17 +109,12 @@ class Job(SQLAlchemyClient.SpliceBase):
     # Table Configuration
     __tablename__: str = "JOBS"
 
-    # Sizes for Truncation
-    SHORT_VARCHAR_SIZE: int = 100
-    LONG_VARCHAR_SIZE: int = 5000
-    EXTRA_LONG_VARCHAR_SIZE: int = 30000
-
     # TBA (To-Be-Assigned later) when JSON is parsed by structures
-    parsed_payload: dict or None = None
+    parsed_payload: Optional[dict] = None
 
     # Columns Definition
     id: Column = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp: Column = Column(DateTime, default=db_current_timestamp(), nullable=False)
+    timestamp: Column = Column(DateTime, server_default=TextClause("CURRENT_TIMESTAMP"), nullable=False)
     handler_name: Column = Column(String(SHORT_VARCHAR_SIZE), ForeignKey(Handler.name),
                                   nullable=False)
 
@@ -152,7 +151,7 @@ class Job(SQLAlchemyClient.SpliceBase):
 
         :param status: (str) the new status to change to
         """
-        self.status: str = status[:self.SHORT_VARCHAR_SIZE]
+        self.status: str = status[:SHORT_VARCHAR_SIZE]
 
     def parse_payload(self) -> None:
         """
@@ -160,6 +159,24 @@ class Job(SQLAlchemyClient.SpliceBase):
         string into a dictionary
         """
         self.parsed_payload = parse_dict(self.payload)
+
+
+class RecurringJob(SQLAlchemyClient.SpliceBase):
+    """
+    A Recurring job, e.g. retraining/feature store statistics in real time
+    """
+    __tablename__: str = "RECURRING_JOBS"
+
+    name: Column = Column(String, primary_key=True, nullable=False)
+    creation_timestamp: Column = Column(DateTime, server_default=TextClause("CURRENT_TIMESTAMP"), nullable=False)
+    status: Column = Column(String(SHORT_VARCHAR_SIZE))
+    job_id: int = Column(Integer, ForeignKey(Job.id), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            status.in_(RecurringJobStatuses.get_valid())
+        )
+    )
 
 
 def create_bobby_tables(_sleep_secs=1) -> None:

@@ -43,8 +43,8 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
                     'ownerUID': env_vars['POD_UID']},
             'model': {'runId': payload['run_id'], 'retraining': 'yes', 'namespace': env_vars['NAMESPACE'],
                       'condaEnv': payload['conda_artifact'], 'schedule': payload['schedule']},
-            'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'],
-                   'host': env_vars['DB_HOST']}
+            'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'], 'host': env_vars['DB_HOST'],
+                   'jdbc_url': f"jdbc:splice://{env_vars['DB_HOST']}:1527/splicedb;user={env_vars['DB_USER']};password={env_vars['DB_PASSWORD']}"}
         }
 
     def _create_kubernetes_manifests(self):

@@ -39,6 +39,23 @@ class JobStatuses:
         return JobStatuses.pending, JobStatuses.success, JobStatuses.running, JobStatuses.failure
 
 
+class RecurringJobStatuses:
+    """
+    Class containing names
+    for recurring jobs
+    """
+    active: str = "ACTIVE"
+    deleted: str = "DELETED"
+
+    @staticmethod
+    def get_valid() -> tuple:
+        """
+        Get valid recurring job statuses
+        :return: valid statuses
+        """
+        return RecurringJobStatuses.active, RecurringJobStatuses.deleted
+
+
 class FileExtensions:
     """
     Class containing names for
