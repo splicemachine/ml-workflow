@@ -153,14 +153,14 @@ def check_for_k8s_deployments() -> None:
     of Bobby. This function checks for k8s models that should be deployed and redeploys them.
     :return:
     """
-    k8s_payloads = SQLAlchemyClient.execute(DatabaseSQL.get_k8s_deployments_on_restart)
-    with SQLAlchemyClient.SessionFactory() as sess:
-        for user, payload in k8s_payloads:
-            # Create a new job to redeploy the model
-            job: Job = Job(handler_name=HandlerNames.deploy_k8s,
-                           user=user,
-                           payload=payload)
-            sess.add(job)
+    session = SQLAlchemyClient.SessionFactory()
+    k8s_payloads = session.execute(DatabaseSQL.get_k8s_deployments_on_restart)
+    for user, payload in k8s_payloads:
+        # Create a new job to redeploy the model
+        job: Job = Job(handler_name=HandlerNames.deploy_k8s,
+                       user=user,
+                       payload=payload)
+        session.add(job)
     check_db_for_jobs()  # Add new jobs to the Job Ledger
 
 
@@ -215,6 +215,8 @@ def main():
     populate_handlers(SQLAlchemyClient.SessionFactory)
     logger.info('Checking for pre-existing k8s deployments')
     check_for_k8s_deployments()
+    logger.info('Checking for pre-existing Scheduled Jobs')
+    check_for_recurring_deployments()
     logger.info('Waiting for new jobs...')
     check_db_for_jobs()  # get initial set of jobs from the DB
 

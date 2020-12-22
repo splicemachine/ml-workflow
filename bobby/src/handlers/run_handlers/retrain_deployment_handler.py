@@ -48,7 +48,8 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
             'model': {'runId': payload['run_id'], 'retraining': 'yes', 'namespace': env_vars['NAMESPACE'],
                       'condaEnv': payload['conda_artifact'], 'schedule': payload['schedule']},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'], 'host': env_vars['DB_HOST'],
-                   'jdbc_url': f"jdbc:splice://{env_vars['DB_HOST']}:1527/splicedb;user={env_vars['DB_USER']};password={env_vars['DB_PASSWORD']}"
+                   'jdbc_url': f"jdbc:splice://{env_vars['DB_HOST']}:1527/splicedb;user={env_vars['DB_USER']};"
+                               f"password={env_vars['DB_PASSWORD']};impersonate={self.task.user}"
                    },
             'versions': {'retriever': env_vars.get('RETRIEVER_IMAGE_TAG',
                                                    RetrainingDeploymentHandler.DEFAULT_RETRIEVER_TAG),
@@ -75,7 +76,7 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
             # If the job already exists, fail (user submitted a job with an already existing job name)
             if current_recurring_job:
                 self.logger.exception(f'Recurring job with name {job_name} for run {entity_id} already exists. '
-                                      f'Recurring Job names must be unique')
+                                      f'Recurring Job names must be unique for a given run/feature set/user')
                 raise
 
             recurring_job = RecurringJob(name=job_name,

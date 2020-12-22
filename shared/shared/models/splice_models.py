@@ -179,7 +179,7 @@ class RecurringJob(SQLAlchemyClient.SpliceBase):
     __table_args__ = (
         CheckConstraint(
             status.in_(RecurringJobStatuses.get_valid())
-        )
+        ),
     )
 
 
