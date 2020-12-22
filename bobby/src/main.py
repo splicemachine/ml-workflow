@@ -12,7 +12,8 @@ from handlers.modifier_handlers import (DisableServiceHandler,
 from handlers.run_handlers import (AzureDeploymentHandler,
                                    KubernetesDeploymentHandler,
                                    SageMakerDeploymentHandler,
-                                   DatabaseDeploymentHandler)
+                                   DatabaseDeploymentHandler,
+                                   RetrainingDeploymentHandler)
 from pyspark.sql import SparkSession
 from pysparkling import H2OConf, H2OContext
 from shared.api.responses import HTTP
@@ -91,6 +92,7 @@ def register_handlers() -> None:
     KnownHandlers.register(HandlerNames.disable_service, DisableServiceHandler)
     KnownHandlers.register(HandlerNames.deploy_k8s, KubernetesDeploymentHandler)
     KnownHandlers.register(HandlerNames.deploy_database, DatabaseDeploymentHandler)
+    KnownHandlers.register(HandlerNames.schedule_retrain, RetrainingDeploymentHandler)
 
 
 class Runner(ThreadedTask):
