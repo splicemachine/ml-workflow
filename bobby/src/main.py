@@ -4,6 +4,7 @@ for new jobs and dispatches them to Workers for execution
 (in threads). This execution happens in parallel.
 """
 from os import environ as env_vars
+from typing import List
 
 from flask import Flask
 from handlers.modifier_handlers import (DisableServiceHandler,
@@ -19,7 +20,8 @@ from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
 from shared.models.feature_store_models import create_feature_store_tables
-from shared.models.splice_models import create_bobby_tables, Job
+from shared.models.splice_models import create_bobby_tables, Job, RecurringJob
+from shared.models.enums import RecurringJobStatuses
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import (HandlerNames, KnownHandlers,
                                       populate_handlers)
@@ -152,14 +154,13 @@ def check_for_k8s_deployments() -> None:
     :return:
     """
     k8s_payloads = SQLAlchemyClient.execute(DatabaseSQL.get_k8s_deployments_on_restart)
-    for user, payload in k8s_payloads:
-        # Create a new job to redeploy the model
-        job: Job = Job(handler_name=HandlerNames.deploy_k8s,
-                       user=user,
-                       payload=payload)
-
-        SQLAlchemyClient.SessionFactory.add(job)
-    SQLAlchemyClient.SessionFactory.commit()
+    with SQLAlchemyClient.SessionFactory() as sess:
+        for user, payload in k8s_payloads:
+            # Create a new job to redeploy the model
+            job: Job = Job(handler_name=HandlerNames.deploy_k8s,
+                           user=user,
+                           payload=payload)
+            sess.add(job)
     check_db_for_jobs()  # Add new jobs to the Job Ledger
 
 
@@ -170,7 +171,25 @@ def check_for_recurring_deployments():
     :return:
     """
     session = SQLAlchemyClient.SessionFactory()
-    recurring_jobs = session.query()
+    recurring_jobs: List[RecurringJob] = session.query(RecurringJob).filter_by(status=RecurringJobStatuses.active).all()
+    # Get all of the payloads in 1 query
+    r_job_ids = [r.job_id for r in recurring_jobs]
+    job_payloads = {j.id: j.payload for j in session.query(Job).filter(Job.id.in_(r_job_ids)).all()}
+    for recurring_job in recurring_jobs:
+        # Add a flag that bobby is recreating this job (after a db pause). This will ensure the job doesn't fail
+        # Due to a PK constraint on the RecurringJobs table (since this job technically already exists there)
+        p = job_payloads[recurring_job.job_id]
+        p['skip_validation'] = True
+        # Create a job to recreate the cron schedule
+        job: Job = Job(
+            handler_name=HandlerNames.schedule_retrain,
+            user=recurring_job.user,
+            payload=p
+        )
+        session.add(job)
+        session.commit()
+        check_db_for_jobs()  # Add new jobs to the Job Ledger
+
 
 @APP.route('/job', methods=['POST'])
 @HTTP.generate_json_response

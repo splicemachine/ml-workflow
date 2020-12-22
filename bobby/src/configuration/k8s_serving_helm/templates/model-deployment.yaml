@@ -37,7 +37,7 @@ spec:
               value: {{ .Values.model.runId }}
             - name: MODEL_NAME
               value: {{ .Values.model.name }}
-          image: splicemachine/sm_k8_model_serving-init:{{ .Values.versions.retriever }}
+          image: splicemachine/sm_k8_model-init:{{ .Values.versions.retriever }}
           volumeMounts:
             - mountPath: "/var/run/model"
               name: model

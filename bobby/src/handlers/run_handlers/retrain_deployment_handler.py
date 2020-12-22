@@ -26,6 +26,8 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
     """
     Deployment handler for retraining
     """
+    DEFAULT_RETRIEVER_TAG = '0.0.13'
+    DEFAULT_RETRAINER_TAG = '0.0.1'
 
     def __init__(self, task_id: int) -> None:
         """
@@ -46,18 +48,42 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
             'model': {'runId': payload['run_id'], 'retraining': 'yes', 'namespace': env_vars['NAMESPACE'],
                       'condaEnv': payload['conda_artifact'], 'schedule': payload['schedule']},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'], 'host': env_vars['DB_HOST'],
-                   'jdbc_url': f"jdbc:splice://{env_vars['DB_HOST']}:1527/splicedb;user={env_vars['DB_USER']};password={env_vars['DB_PASSWORD']}"}
+                   'jdbc_url': f"jdbc:splice://{env_vars['DB_HOST']}:1527/splicedb;user={env_vars['DB_USER']};password={env_vars['DB_PASSWORD']}"
+                   },
+            'versions': {'retriever': env_vars.get('RETRIEVER_IMAGE_TAG',
+                                                   RetrainingDeploymentHandler.DEFAULT_RETRIEVER_TAG),
+                         'server': env_vars.get('RETRAINER_IMAGE_TAG',
+                                                RetrainingDeploymentHandler.DEFAULT_RETRAINER_TAG)},
         }
 
     def _add_scheduled_job(self):
         """
-        Add the retraining Job to the scheduled jobs table
+        Add the retraining Job to the scheduled jobs table if one doesn't already exist and isn't being recreated by
+        Bobby
         """
-        current_recurring_job = self.Session.query(RecurringJob).where
-        recurring_job = RecurringJob(name=self.task.parsed_payload['name'],
-                                     status=RecurringJobStatuses.active,
-                                     job_id=self.task_id)
-        self.Session.merge(recurring_job)
+        # Special flag only sent by Bobby on recreation. If Bobby is sending this in directly, if means the database
+        # was just paused and resumed, so we don't want to add a new record to the recurring_jobs table. Just submit the
+        # CronJob to Kubernetes
+        if self.task.parsed_payload.get('skip_validation'):
+            pass
+        else:
+            job_name = self.task.parsed_payload['name']
+            entity_id = self.task.parsed_payload['entity_id']
+            current_recurring_job = self.Session.query(RecurringJob)\
+                .filter(RecurringJob.entity_id==entity_id)\
+                .filter(RecurringJob.name==job_name).one_or_none()
+            # If the job already exists, fail (user submitted a job with an already existing job name)
+            if current_recurring_job:
+                self.logger.exception(f'Recurring job with name {job_name} for run {entity_id} already exists. '
+                                      f'Recurring Job names must be unique')
+                raise
+
+            recurring_job = RecurringJob(name=job_name,
+                                         status=RecurringJobStatuses.active,
+                                         job_id=self.task_id,
+                                         user=self.task.user,
+                                         entity_id=entity_id)
+            self.Session.merge(recurring_job)
 
     def _create_kubernetes_manifests(self):
         """
@@ -80,4 +106,5 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
         Deploy Retraining Job
         :return:
         """
+        self._add_scheduled_job()
         self._create_kubernetes_manifests()

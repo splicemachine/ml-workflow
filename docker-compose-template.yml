@@ -55,4 +55,11 @@ services:
       args:
         splice_base_image_version: 0.0.2
       context: ./infrastructure/init
-    image: splicemachine/sm_k8_model_serving-init:0.0.13
+    image: splicemachine/sm_k8_model-init:0.0.13
+  retrainer:
+    build:
+      args:
+        splice_jupyter_allspark_version: 0.0.71
+      context: ./
+      dockerfile: ./infrastructure/model_retrainer/Dockerfile
+    image: splicemachine/sm_k8_model_retraining:0.0.1

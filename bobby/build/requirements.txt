@@ -21,3 +21,5 @@ loguru==0.5.1
 mleap==0.15.0
 gensim==3.8.3
 cloudpickle==1.6.0
+elasticsearch>=6.0.0,<7.0.0
+elasticsearch-dsl>=6.0.0,<7.0.0

@@ -170,7 +170,11 @@ class RecurringJob(SQLAlchemyClient.SpliceBase):
     name: Column = Column(String, primary_key=True, nullable=False)
     creation_timestamp: Column = Column(DateTime, server_default=TextClause("CURRENT_TIMESTAMP"), nullable=False)
     status: Column = Column(String(SHORT_VARCHAR_SIZE))
-    job_id: int = Column(Integer, ForeignKey(Job.id), nullable=False)
+    job_id: Column = Column(Integer, ForeignKey(Job.id), nullable=False)
+    user: Column = Column(String(SHORT_VARCHAR_SIZE), nullable=False)
+    # This is the entity that we are scheduling a retrain for. This could be an mlflow run ID or a Feature store
+    # Feature Set Name, or a Training Set ID, or a new entity created in the future
+    entity_id: Column(String(SHORT_VARCHAR_SIZE), nullable=False, primary_key=True)
 
     __table_args__ = (
         CheckConstraint(
