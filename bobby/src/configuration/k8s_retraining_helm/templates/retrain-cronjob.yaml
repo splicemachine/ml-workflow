@@ -11,47 +11,47 @@ metadata:
       kind: Pod
       name: {{ .Values.k8s.ownerPod }}
       uid: {{ .Values.k8s.ownerUID }}
-  spec:
-    selector:
-      matchLabels:
-        identifier: retrain-{{ .Values.model.runId }}
-    schedule: {{ .Values.model.schedule }}
-    jobTemplate:
-      spec:
-        template:
-          spec:
-            volumes:
-              - name: retrain
-                emptyDir: {}
-            initContainers:
-              - name: rt-{{ .Values.model.runId }}-{{ .Values.k8s.name }}-init
-                env:
-                  - name: DB_USER
-                    value: {{ .Values.db.user }}
-                  - name: DB_PASSWORD
-                    value: {{ .Values.db.password }}
-                  - name: DB_HOST
-                    value: {{ .Values.db.host }}
-                  - name: RUN_ID
-                    value: {{ .Values.model.runId }}
-                  - name: CONDA_ENV_NAME
-                    value: {{ .Values.model.condaEnv }}
-                  - name: RETRAINING
-                    value: {{ .Values.model.retraining }}
-                image: splicemachine/sm_k8_model-init:{{ .Values.versions.retriever }}
-            containers:
-            - name: rt-{{ .Values.model.runId }}-{{ .Values.k8s.name }}
-              image: splicemachine/sm_k8_model_retraining:{{ .Values.versions.retrainer }}
+spec:
+  selector:
+    matchLabels:
+      identifier: retrain-{{ .Values.model.runId }}
+  schedule: {{ .Values.model.schedule }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          volumes:
+            - name: retrain
+              emptyDir: {}
+          initContainers:
+            - name: rt-{{ .Values.model.runId }}-{{ .Values.k8s.name }}-init
               env:
+                - name: DB_USER
+                  value: {{ .Values.db.user }}
+                - name: DB_PASSWORD
+                  value: {{ .Values.db.password }}
+                - name: DB_HOST
+                  value: {{ .Values.db.host }}
+                - name: RUN_ID
+                  value: {{ .Values.model.runId }}
                 - name: CONDA_ENV_NAME
                   value: {{ .Values.model.condaEnv }}
-                - name: MOUNT_PATH
-                  value: /opt/ml/model
-                - name: BEAKERX_SQL_DEFAULT_JDBC
-                  value: {{ .Values.db.jdbc_url }}
-                - name: SPLICE_JUPYTER_USER
-                  value: {{ .Values.db.user}}
-                - name: SPLICE_JUPYTER_PASSWORD
-                  value: {{ .Values.db.password }}
-              imagePullPolicy: IfNotPresent
-            restartPolicy: OnFailure
+                - name: RETRAINING
+                  value: {{ .Values.model.retraining }}
+              image: splicemachine/sm_k8_model-init:{{ .Values.versions.retriever }}
+          containers:
+          - name: rt-{{ .Values.model.runId }}-{{ .Values.k8s.name }}
+            image: splicemachine/sm_k8_model_retraining:{{ .Values.versions.retrainer }}
+            env:
+              - name: CONDA_ENV_NAME
+                value: {{ .Values.model.condaEnv }}
+              - name: MOUNT_PATH
+                value: /opt/ml/model
+              - name: BEAKERX_SQL_DEFAULT_JDBC
+                value: {{ .Values.db.jdbc_url }}
+              - name: SPLICE_JUPYTER_USER
+                value: {{ .Values.db.user}}
+              - name: SPLICE_JUPYTER_PASSWORD
+                value: {{ .Values.db.password }}
+            imagePullPolicy: IfNotPresent
+          restartPolicy: OnFailure
