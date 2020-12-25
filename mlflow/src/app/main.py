@@ -178,7 +178,7 @@ def _get_logs(task_id):
     return job.logs.split('\n')
 
 
-@APP.route('/api/ui/initiate/', methods=['POST'])
+@APP.route('/api/ui/initiate', methods=['POST'])
 @HTTP.generate_html_in_home_response
 @login_required
 def initiate_job_ui() -> dict:

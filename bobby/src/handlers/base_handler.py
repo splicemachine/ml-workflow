@@ -27,7 +27,7 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
 
-class BaseHandler(object):
+class BaseHandler:
     """
     Base Class for all Handlers
     """

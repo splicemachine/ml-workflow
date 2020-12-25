@@ -1,57 +1,64 @@
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
-  name: retrain-{{ .Values.model.runId }}
-  namespace: {{ .Values.model.namespace }}
+  name: {{ template "retraining.identifier" . }}
+  namespace: {{ .Values.entity.namespace }}
   labels:
-    identifier: retrain-{{ .Values.model.runId }}
-  ownerReferences:
-    - apiVersion: v1
-      controller: true
-      kind: Pod
-      name: {{ .Values.k8s.ownerPod }}
-      uid: {{ .Values.k8s.ownerUID }}
+    identifier: { template "retraining.identifier" . }}
+  {{ include "retraining.ownerRef" . }}
 spec:
   selector:
     matchLabels:
-      identifier: retrain-{{ .Values.model.runId }}
-  schedule: {{ .Values.model.schedule }}
+      identifier: {{ template "retraining.identifier" . }}
+  schedule: {{ .Values.entity.schedule }}
   jobTemplate:
     spec:
       template:
         spec:
+          serviceAccountName: {{ template "retraining.identifier . }}-serviceaccount
           volumes:
-            - name: retrain
+            - name: {{ template "retraining.identifier" . }}-ephem-vol
               emptyDir: {}
           initContainers:
-            - name: rt-{{ .Values.model.runId }}-{{ .Values.k8s.name }}-init
+            - name: {{ template "retraining.identifier" . }}-watcher
               env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
                 - name: DB_USER
                   value: {{ .Values.db.user }}
-                - name: DB_PASSWORD
-                  value: {{ .Values.db.password }}
-                - name: DB_HOST
-                  value: {{ .Values.db.host }}
+                args:
+
+            - name: {{ template "retraining.identifier" . }}-loader
+              env:
+                {{ include "retraining.dbEnvs" . }}
                 - name: RUN_ID
-                  value: {{ .Values.model.runId }}
+                  value: {{ .Values.entity.entityId }}
                 - name: CONDA_ENV_NAME
-                  value: {{ .Values.model.condaEnv }}
+                  value: {{ .Values.entity.condaEnv }}
                 - name: RETRAINING
-                  value: {{ .Values.model.retraining }}
+                  value: {{ .Values.entity.retraining }}
               image: splicemachine/sm_k8_model-init:{{ .Values.versions.retriever }}
           containers:
-          - name: rt-{{ .Values.model.runId }}-{{ .Values.k8s.name }}
+          - name: {{ template "retraining.identifier" . }}
             image: splicemachine/sm_k8_model_retraining:{{ .Values.versions.retrainer }}
             env:
               - name: CONDA_ENV_NAME
-                value: {{ .Values.model.condaEnv }}
+                value: {{ .Values.entity.condaEnv }}
               - name: MOUNT_PATH
                 value: /opt/ml/model
               - name: BEAKERX_SQL_DEFAULT_JDBC
                 value: {{ .Values.db.jdbc_url }}
               - name: SPLICE_JUPYTER_USER
-                value: {{ .Values.db.user}}
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ template "retraining.identifer . }}-db-secret
+                    key: DB_USER
               - name: SPLICE_JUPYTER_PASSWORD
-                value: {{ .Values.db.password }}
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ template "retraining.identifer . }}-db-secret
+                    key: DB_PASSWORD
             imagePullPolicy: IfNotPresent
           restartPolicy: OnFailure

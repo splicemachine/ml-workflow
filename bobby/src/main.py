@@ -3,6 +3,7 @@ This module has a Master, which polls Splice Machine
 for new jobs and dispatches them to Workers for execution
 (in threads). This execution happens in parallel.
 """
+import json
 from os import environ as env_vars
 from typing import List
 
@@ -14,15 +15,16 @@ from handlers.run_handlers import (AzureDeploymentHandler,
                                    SageMakerDeploymentHandler,
                                    DatabaseDeploymentHandler,
                                    RetrainingDeploymentHandler)
+from handlers.utility_handlers import WatchElasticSearchHandler
 from pyspark.sql import SparkSession
 from pysparkling import H2OConf, H2OContext
 from shared.api.responses import HTTP
 from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
+from shared.models.enums import RecurringJobStatuses
 from shared.models.feature_store_models import create_feature_store_tables
 from shared.models.splice_models import create_bobby_tables, Job, RecurringJob
-from shared.models.enums import RecurringJobStatuses
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import (HandlerNames, KnownHandlers,
                                       populate_handlers)
@@ -93,6 +95,7 @@ def register_handlers() -> None:
     KnownHandlers.register(HandlerNames.deploy_k8s, KubernetesDeploymentHandler)
     KnownHandlers.register(HandlerNames.deploy_database, DatabaseDeploymentHandler)
     KnownHandlers.register(HandlerNames.schedule_retrain, RetrainingDeploymentHandler)
+    KnownHandlers.register(HandlerNames.watch_elasticsearch, WatchElasticSearchHandler)
 
 
 class Runner(ThreadedTask):
@@ -174,19 +177,16 @@ def check_for_recurring_deployments():
     """
     session = SQLAlchemyClient.SessionFactory()
     recurring_jobs: List[RecurringJob] = session.query(RecurringJob).filter_by(status=RecurringJobStatuses.active).all()
-    # Get all of the payloads in 1 query
-    r_job_ids = [r.job_id for r in recurring_jobs]
-    job_payloads = {j.id: j.payload for j in session.query(Job).filter(Job.id.in_(r_job_ids)).all()}
     for recurring_job in recurring_jobs:
         # Add a flag that bobby is recreating this job (after a db pause). This will ensure the job doesn't fail
         # Due to a PK constraint on the RecurringJobs table (since this job technically already exists there)
-        p = job_payloads[recurring_job.job_id]
-        p['skip_validation'] = True
+        recurring_job.job.parse_payload()
+        recurring_job.job.parsed_payload['skip_validation'] = True
         # Create a job to recreate the cron schedule
         job: Job = Job(
             handler_name=HandlerNames.schedule_retrain,
             user=recurring_job.user,
-            payload=p
+            payload=json.dumps(recurring_job.job.parsed_payload)
         )
         session.add(job)
         session.commit()

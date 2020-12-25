@@ -1,20 +1,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: model-{{ .Values.model.runId }}
+  name: {{ template "kdeploy.identifier" . }}
   namespace: {{ .Values.model.namespace }}
   labels:
-    identifier: model-{{ .Values.model.runId }}
-  ownerReferences:
-    - apiVersion: v1
-      controller: true
-      kind: Pod
-      name: {{ .Values.k8s.ownerPod }}
-      uid: {{ .Values.k8s.ownerUID }}
+    identifier: {{ template "kdeploy.identifier" . }}
+  {{ include "kdeploy.ownerRef" . }}
 spec:
   clusterIP: None
   selector:
-    identifier: model-{{ .Values.model.runId }}
+    identifier: {{ template "kdeploy.identifier" . }}
   ports:
     - port: {{ .Values.serving.exposePort }}
       name: {{ .Values.model.runId }}

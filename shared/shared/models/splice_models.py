@@ -60,6 +60,7 @@ class Handler(SQLAlchemyClient.SpliceBase):
     url: Column = Column(String(SHORT_VARCHAR_SIZE))
     modifiable: Column = Column(Boolean, default=True)
     enabled: Column = Column(Boolean, default=True)
+    internal: Column = Column(Boolean, default=False)
 
     def __init__(self, payload_args: list, *args,
                  **kwargs) -> None:
@@ -131,7 +132,6 @@ class Job(SQLAlchemyClient.SpliceBase):
 
     # Foreign Key Relationships
     handler: relationship = relationship('Handler', foreign_keys='Job.handler_name')
-
     # Table Options Configuration
     __table_args__: tuple = (
         CheckConstraint(
@@ -175,6 +175,7 @@ class RecurringJob(SQLAlchemyClient.SpliceBase):
     # This is the entity that we are scheduling a retrain for. This could be an mlflow run ID or a Feature store
     # Feature Set Name, or a Training Set ID, or a new entity created in the future
     entity_id: Column = Column(String(SHORT_VARCHAR_SIZE), nullable=False, primary_key=True)
+    job: relationship = relationship('Job', foreign_keys='RecurringJob.job_id')
 
     __table_args__ = (
         CheckConstraint(

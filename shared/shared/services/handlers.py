@@ -14,7 +14,7 @@ class HandlerNames:
     deploy_k8s: str = 'DEPLOY_KUBERNETES'
     undeploy_k8s: str = 'UNDEPLOY_KUBERNETES'
     schedule_retrain: str = 'SCHEDULE_RETRAIN'
-    watch_job: str = 'WATCH_JOB'
+    watch_elasticsearch: str = 'WATCH_ELASTICSEARCH'
     deploy_database: str = 'DEPLOY_DATABASE'
     deploy_csp: str = CloudEnvironments.get_current().handler_mapping.get('deploy')
 
@@ -59,13 +59,12 @@ class KnownHandlers:
             url='/schedule_retrain',
             modifiable=True
         ),
-        HandlerNames.watch_job: Handler(
+        HandlerNames.watch_elasticsearch: Handler(
+            internal=True,
             payload_args=[
-                Field('k8s-identifier')
-            ],
-            name=HandlerNames.watch_job,
-            url='/watch_k8s',
-            modifiable=False
+                Field('elasticsearch_filter'),
+                Field('')
+            ]
         ),
         HandlerNames.disable_service: Handler(
             payload_args=[

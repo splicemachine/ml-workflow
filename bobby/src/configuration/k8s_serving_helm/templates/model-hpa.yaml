@@ -2,10 +2,10 @@
 apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: model-{{ .Values.model.runId }}
+  name: {{ template "kdeploy.identifier" . }}
   namespace: {{ .Values.model.namespace }}
   labels:
-    identifier: model-{{ .Values.model.runId }}
+    identifier: {{ template "kdeploy.identifier" . }}
   ownerReferences:
     - apiVersion: v1
       controller: true

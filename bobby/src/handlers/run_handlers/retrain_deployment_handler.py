@@ -5,11 +5,11 @@ from os import environ as env_vars
 from subprocess import check_output
 from tempfile import NamedTemporaryFile
 
+from shared.models.enums import RecurringJobStatuses
+from shared.models.splice_models import RecurringJob
 from shared.services.kubernetes_api import KubernetesAPIService
 from yaml import dump as dump_yaml
 
-from shared.models.enums import RecurringJobStatuses
-from shared.models.splice_models import RecurringJob
 from .base_deployment_handler import BaseDeploymentHandler
 
 __author__: str = "Splice Machine, Inc."
@@ -44,9 +44,9 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
         payload = self.task.parsed_payload
         return {
             'k8s': {'namespace': env_vars['NAMESPACE'], 'ownerPod': env_vars['POD_NAME'],
-                    'ownerUID': env_vars['POD_UID'], 'name': payload['name']},
-            'model': {'runId': payload['run_id'], 'retraining': 'yes', 'namespace': env_vars['NAMESPACE'],
-                      'condaEnv': payload['conda_artifact'], 'schedule': payload['cron_exp']},
+                    'ownerUID': env_vars['POD_UID']},
+            'entity': {'entityId': payload['entity_id'], 'retraining': 'yes', 'namespace': env_vars['NAMESPACE'],
+                       'name': payload['name'], 'condaEnv': payload['conda_artifact'], 'schedule': payload['cron_exp']},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'], 'host': env_vars['DB_HOST'],
                    'jdbc_url': f"jdbc:splice://{env_vars['DB_HOST']}:1527/splicedb;user={env_vars['DB_USER']};"
                                f"password={env_vars['DB_PASSWORD']};impersonate={self.task.user}"
@@ -54,7 +54,7 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
             'versions': {'retriever': env_vars.get('RETRIEVER_IMAGE_TAG',
                                                    RetrainingDeploymentHandler.DEFAULT_RETRIEVER_TAG),
                          'retrainer': env_vars.get('RETRAINER_IMAGE_TAG',
-                                                RetrainingDeploymentHandler.DEFAULT_RETRAINER_TAG)},
+                                                   RetrainingDeploymentHandler.DEFAULT_RETRAINER_TAG)},
         }
 
     def _add_scheduled_job(self):
@@ -70,9 +70,9 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
         else:
             job_name = self.task.parsed_payload['name']
             entity_id = self.task.parsed_payload['entity_id']
-            current_recurring_job = self.Session.query(RecurringJob)\
-                .filter(RecurringJob.entity_id==entity_id)\
-                .filter(RecurringJob.name==job_name).one_or_none()
+            current_recurring_job = self.Session.query(RecurringJob) \
+                .filter(RecurringJob.entity_id == entity_id) \
+                .filter(RecurringJob.name == job_name).one_or_none()
             # If the job already exists, fail (user submitted a job with an already existing job name)
             if current_recurring_job:
                 self.logger.exception(f'Recurring job with name {job_name} for run {entity_id} already exists. '
@@ -107,5 +107,6 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
         Deploy Retraining Job
         :return:
         """
-        self._add_scheduled_job()
-        self._create_kubernetes_manifests()
+        steps = [self._add_scheduled_job, self._create_kubernetes_manifests]
+        for execute_step in steps:
+            execute_step()

@@ -1,38 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: model-{{ .Values.model.runId }}
+  name: {{ template "kdeploy.identifier" . }}
   namespace: {{ .Values.model.namespace }}
   labels:
-    identifier: model-{{ .Values.model.runId }}
-  ownerReferences:
-    - apiVersion: v1
-      controller: true
-      kind: Pod
-      name: {{ .Values.k8s.ownerPod }}
-      uid: {{ .Values.k8s.ownerUID }}
+    identifier: {{ template "kdeploy.identifier" . }}
+  {{ include "kdeploy.ownerRef" . }}
 spec:
   replicas: {{ .Values.baseReplicas }}
   selector:
     matchLabels:
-      identifier: model-{{ .Values.model.runId }}
+      identifier: {{ template "kdeploy.identifier" . }}
   template:
     metadata:
       labels:
-        identifier: model-{{ .Values.model.runId }}
+        identifier: {{ template "kdeploy.identifier" . }}
     spec:
       volumes:
         - name: model
           emptyDir: {}
       initContainers:
-        - name: model-{{ .Values.model.runId }}-it
+        - name: {{ template "kdeploy.identifier" . }}-it
           env:
-            - name: DB_USER
-              value: {{ .Values.db.user }}
-            - name: DB_PASSWORD
-              value: {{ .Values.db.password }}
-            - name: DB_HOST
-              value: {{ .Values.db.host }}
+            {{ include "kdeploy.dbEnvs" . }}
             - name: RUN_ID
               value: {{ .Values.model.runId }}
             - name: MODEL_NAME
@@ -42,7 +32,7 @@ spec:
             - mountPath: "/var/run/model"
               name: model
       containers:
-        - name: model-{{ .Values.model.runId }}
+        - name: {{ template "kdeploy.identifier" . }}
           env:
             - name: GUNICORN_CMD_ARGS
               value: "-w {{ .Values.serving.gunicornWorkers }} -b 0.0.0.0:{{ .Values.serving.exposePort }}"
@@ -69,4 +59,4 @@ spec:
           volumeMounts:
             - mountPath: "/opt/ml/model"
               name: model
-      serviceAccountName: model-{{ .Values.model.runId }}
+      serviceAccountName: {{ template "kdeploy.identifier" . }}
