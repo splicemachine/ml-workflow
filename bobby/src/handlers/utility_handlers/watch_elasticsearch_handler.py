@@ -21,7 +21,6 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
             [env_vars.get('ELASTICSEARCH_URL', 'http://dev-elk-elasticsearch-client:9200')]
         )
         self.searcher = Search(using=self.elasticsearch)
-        self.pod_name = None
 
     def locate_pod_name(self):
         """

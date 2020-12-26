@@ -60,11 +60,16 @@ class KnownHandlers:
             modifiable=True
         ),
         HandlerNames.watch_elasticsearch: Handler(
-            internal=True,
             payload_args=[
-                Field('elasticsearch_filter'),
-                Field('')
-            ]
+                Field('context_name'),
+                Field('entity_id'),
+                Field('completion_msgs'),
+                Field('failure_msgs'),
+                Field('job_name', default=None, use_default=True),
+            ],
+            name=HandlerNames.watch_elasticsearch,
+            url='/watch_elasticsearch',
+            modifiable=False
         ),
         HandlerNames.disable_service: Handler(
             payload_args=[

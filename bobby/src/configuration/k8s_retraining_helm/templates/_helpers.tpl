@@ -1,5 +1,5 @@
 {{- define "retraining.identifier" -}}
-{{- printf "rt-%s-%s" .Values.entity.entityId .Values.entity.name -}}
+{{- printf "retrain-%s-%s" .Values.entity.entityId .Values.entity.name -}}
 {{- end -}}
 
 {{- define "retraining.dbEnvs" -}}
@@ -7,17 +7,17 @@
 - name: DB_USER
   valueFrom:
     secretKeyRef:
-      name: rt-{{ .entityId }}-{{ .name }}-db-secret
+      name: rerain-{{ .entityId }}-{{ .name }}-db-secret
       key: DB_USER
 - name: DB_PASSWORD
   valueFrom:
     secretKeyRef:
-      name: rt-{{ .entityId }}-{{ .name }}-db-secret
+      name: retrain-{{ .entityId }}-{{ .name }}-db-secret
       key: DB_PASSWORD
 - name: DB_HOST
   valueFrom:
     secretKeyRef:
-      name: rt-{{ .entityId }}-{{ .name }}-db-secret
+      name: retrain-{{ .entityId }}-{{ .name }}-db-secret
       key: DB_HOST
 {{- end -}}
 {{ -end -}}
