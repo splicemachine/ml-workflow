@@ -28,7 +28,7 @@ def main():
         retrainer._create_contexts()
         logger.info("Retraining the model")
         retrainer.retrain()
-        logger.info("COMPLETED_RETRAINING_CONTAINER")
+        logger.info("RETRAINING_CONTAINER_COMPLETED")
     except Exception as e:
         logger.exception("RETRAINING_CONTAINER_FAILED")
         raise e from None
