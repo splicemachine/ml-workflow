@@ -20,23 +20,17 @@ spec:
             - name: {{ template "retraining.identifier" . }}-ephem-vol
               emptyDir: {}
           initContainers:
-            - name: {{ template "retraining.identifier" . }}-watcher
-              env:
-                - name: POD_NAME
-                  valueFrom:
-                    fieldRef:
-                      fieldPath: metadata.name
-                - name: DB_USER
-                  value: {{ .Values.db.user }}
-                args:
-
             - name: {{ template "retraining.identifier" . }}-loader
               env:
                 {{ include "retraining.dbEnvs" . }}
+                - name: JOB_NAME
+                  value: {{ .Values.entity.name }}
                 - name: RUN_ID
                   value: {{ .Values.entity.entityId }}
                 - name: CONDA_ENV_NAME
                   value: {{ .Values.entity.condaEnv }}
+                - name: MLFLOW_URL
+                  value: {{ .Values.k8s.mlflow_url }}
                 - name: RETRAINING
                   value: {{ .Values.entity.retraining }}
               image: splicemachine/sm_k8_model-init:{{ .Values.versions.retriever }}

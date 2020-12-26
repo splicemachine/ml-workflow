@@ -60,7 +60,6 @@ class Handler(SQLAlchemyClient.SpliceBase):
     url: Column = Column(String(SHORT_VARCHAR_SIZE))
     modifiable: Column = Column(Boolean, default=True)
     enabled: Column = Column(Boolean, default=True)
-    internal: Column = Column(Boolean, default=False)
 
     def __init__(self, payload_args: list, *args,
                  **kwargs) -> None:

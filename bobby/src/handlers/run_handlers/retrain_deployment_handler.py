@@ -44,7 +44,7 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
         payload = self.task.parsed_payload
         return {
             'k8s': {'namespace': env_vars['NAMESPACE'], 'ownerPod': env_vars['POD_NAME'],
-                    'ownerUID': env_vars['POD_UID']},
+                    'ownerUID': env_vars['POD_UID'], 'mlflow_url': env_vars['MLFLOW_URL']},
             'entity': {'entityId': payload['entity_id'], 'retraining': 'yes', 'namespace': env_vars['NAMESPACE'],
                        'name': payload['name'], 'condaEnv': payload['conda_artifact'], 'schedule': payload['cron_exp']},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'], 'host': env_vars['DB_HOST'],
