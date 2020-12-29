@@ -50,7 +50,6 @@ class KnownHandlers:
             payload_args=[
                 Field('cron_exp'),
                 Field('name'),
-                Field('run_id'),
                 Field('conda_artifact'),
                 Field('entity_id'),
                 Field('retrainer_artifact', use_default=True, default='retrainer.pkl')

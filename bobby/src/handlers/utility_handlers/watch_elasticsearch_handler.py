@@ -2,6 +2,7 @@
 Contains code pertaining to watching scheduled jobs
 that interact with ElasticSearch
 """
+import re
 from os import environ as env_vars
 
 from elasticsearch import Elasticsearch
@@ -14,6 +15,7 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
     """
     Watch a job from Elastic Search
     """
+    DB_PASSWORD_REGEX = re.compile(env_vars['DB_PASSWORD'], flags=re.IGNORECASE)
 
     def __init__(self, task_id: int) -> None:
         BaseUtilityHandler.__init__(self, task_id=task_id)
@@ -21,6 +23,9 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
             [env_vars.get('ELASTICSEARCH_URL', 'http://dev-elk-elasticsearch-client.splice-system.svc.local:9200')]
         )
         self.searcher = Search(using=self.elasticsearch)
+
+        self.completion_regex = re.compile("|".join(self.task.parsed_payload['completion_msgs']))
+        self.failure_regex = re.compile("|".join(self.task.parsed_payload['failure_msgs']))
 
     def locate_pod_name(self):
         """
@@ -32,7 +37,7 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
         if payload.get('job_name'):
             pod_name += f'-{payload["job_name"]}'
 
-        results = self.searcher.query('match', **{'kubernetes.pod.name': pod_name})\
+        results = self.searcher.query('match', **{'kubernetes.pod.name': pod_name}) \
             .sort("-@timestamp").execute()
 
         return results.hits[-1]
@@ -48,24 +53,15 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
             results = self.searcher.query('match', {'kubernetes.pod.name': pod_name}) \
                 .filter('range', **{'@timestamp': {'gte': last_timestamp}}).execute()
             last_timestamp = getattr(results.hits[-1], '@timestamp')
-            messages = []
 
             # Log the job messages
             for hit in results.hits:
-                messages.append(hit.message)
-                self.logger.info(hit.message, send_db=True)
-
-            # Check if the job finished
-            for completion_message in self.task.parsed_payload['completion_msgs']:
-                for message in messages:
-                    if completion_message in message:
-                        break
-
-            # Check if the job failed
-            for failure_message in self.task.parsed_payload['failure_msgs']:
-                for message in messages:
-                    if failure_message in message:
-                        raise Exception("Job did not succeed! Failing...")
+                message = re.sub(WatchElasticSearchHandler.DB_PASSWORD_REGEX, "*****", hit.message)
+                self.logger.info(message, send_db=True)
+                if self.completion_regex.search(message):
+                    break
+                if self.failure_regex.search(message):
+                    raise Exception("Job did not succeed! Failing...")
 
     def execute(self) -> None:
         """

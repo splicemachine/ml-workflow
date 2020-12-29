@@ -101,7 +101,7 @@ class Authentication:
                 return Response('Access Denied. Basic Auth Credentials Denied.',
                                 HTTP.codes['unauthorized'],
                                 {'WWW-Authenticate': 'Basic realm="Login!"'})
-            return f(*args, **kwargs, username=auth.username)
+            return f(*args, **kwargs)
 
         return wrapper
 
