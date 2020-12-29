@@ -18,7 +18,7 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
     def __init__(self, task_id: int) -> None:
         BaseUtilityHandler.__init__(self, task_id=task_id)
         self.elasticsearch = Elasticsearch(
-            [env_vars.get('ELASTICSEARCH_URL', 'http://dev-elk-elasticsearch-client:9200')]
+            [env_vars.get('ELASTICSEARCH_URL', 'http://dev-elk-elasticsearch-client.splice-system.svc.local:9200')]
         )
         self.searcher = Search(using=self.elasticsearch)
 
@@ -33,7 +33,7 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
             pod_name += f'-{payload["job_name"]}'
 
         results = self.searcher.query('match', **{'kubernetes.pod.name': pod_name})\
-            .sort("timestamp", {'order', "desc"}).execute()
+            .sort("-@timestamp").execute()
 
         return results.hits[-1]
 
@@ -48,13 +48,20 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
             results = self.searcher.query('match', {'kubernetes.pod.name': pod_name}) \
                 .filter('range', **{'@timestamp': {'gte': last_timestamp}}).execute()
             last_timestamp = getattr(results.hits[-1], '@timestamp')
-            messages = [results.hits[i].message for i in range(len(results.hits))]
+            messages = []
 
+            # Log the job messages
+            for hit in results.hits:
+                messages.append(hit.message)
+                self.logger.info(hit.message, send_db=True)
+
+            # Check if the job finished
             for completion_message in self.task.parsed_payload['completion_msgs']:
                 for message in messages:
                     if completion_message in message:
                         break
 
+            # Check if the job failed
             for failure_message in self.task.parsed_payload['failure_msgs']:
                 for message in messages:
                     if failure_message in message:
