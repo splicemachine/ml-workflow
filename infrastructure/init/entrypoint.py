@@ -96,7 +96,7 @@ class Retriever:
             failure_msgs=['_CONTAINER_FAILED'],
             completion_msgs=['RETRAINING_CONTAINER_COMPLETED'] if self.retraining else ['Booting worker with pid']
         )
-        requests.post(f'{self.mlflow_url}/api/rest/initiate', json=payload, auth=(self.db_user, self.db_password))
+        requests.post(f'{self.mlflow_url}:5003/api/rest/initiate', json=payload, auth=(self.db_user, self.db_password))
 
 
 def main():
