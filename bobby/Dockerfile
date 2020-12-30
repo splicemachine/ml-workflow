@@ -117,6 +117,14 @@ COPY bobby/src $SRC_HOME
 # make the entrypoint executable by all users
 RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh
 
+# Build env vars for k8s deployments
+ARG retriever_image_tag
+ARG retrainer_image_tag
+ARG server_image_tag
+ENV SERVER_IMAGE_TAG=$server_image_tag
+ENV RETRIEVER_IMAGE_TAG=$retriever_image_tag
+ENV RETRAINER_IMAGE_TAG=$retrainer_image_tag
+
 VOLUME /var/lib/docker
 EXPOSE 2375
 CMD $SRC_HOME"/scripts/entrypoint.sh"
