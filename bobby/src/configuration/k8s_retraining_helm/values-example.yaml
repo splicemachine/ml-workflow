@@ -1,0 +1,19 @@
+k8s:
+  namespace: test
+  ownerUID: 49e94e7d-4b02-41f5-8da0-8d75fcf7bd56
+  ownerPod: splicedb-bobby
+  mlflowUrl: mlflow:5001
+entity:
+  entityId: cs9s093
+  retraining: yes
+  name: hello-world
+  condaEnv: conda-retraining.yaml
+  schedule: "* * * *"
+db:
+  user: splice
+  password: bar
+  host: localhost
+  jdbcUrl: jdbc://splice://localhost:1527/splicedb;user=bloo;password=bar
+versions:
+  retriever: 0.0.1
+  retrainer: 0.0.1

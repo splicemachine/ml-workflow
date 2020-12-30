@@ -4,6 +4,7 @@
 
 {{- define "retraining.dbEnvs" -}}
 {{- with .Values.entity -}}
+
 - name: DB_USER
   valueFrom:
     secretKeyRef:
@@ -20,13 +21,13 @@
       name: retrain-{{ .entityId }}-{{ .name }}-db-secret
       key: DB_HOST
 {{- end -}}
-{{ -end -}}
+{{- end -}}
 
-{{- define "retraining.ownerRef" }}
+{{- define "retraining.ownerRef" -}}
 ownerReferences:
-- apiVersion: v1
-  controller: true
-  kind: Pod
-  name: {{ .Values.k8s.ownerPod }}
-  uid: {{ .Values.k8s.ownerUID }}
-{{- end }}
+  - apiVersion: v1
+    controller: true
+    kind: Pod
+    name: {{ .Values.k8s.ownerPod }}
+    uid: {{ .Values.k8s.ownerUID }}
+{{- end -}}

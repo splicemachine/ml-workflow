@@ -8,7 +8,7 @@ model:
   name: model
 db:
   user: splice
-  password: admin
+  password: blah
   host: localhost
   kafkaUrl: splicedb-kafka:9092
 versions:

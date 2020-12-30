@@ -4,25 +4,25 @@ metadata:
   name: {{ template "retraining.identifier" . }}
   namespace: {{ .Values.entity.namespace }}
   labels:
-    identifier: { template "retraining.identifier" . }}
-  {{ include "retraining.ownerRef" . }}
+    identifier: {{ template "retraining.identifier" . }}
+{{ include "retraining.ownerRef" . | indent 2}}
 spec:
   selector:
     matchLabels:
       identifier: {{ template "retraining.identifier" . }}
-  schedule: {{ .Values.entity.schedule }}
+  schedule: "{{ .Values.entity.schedule }}"
   jobTemplate:
     spec:
       template:
         spec:
-          serviceAccountName: {{ template "retraining.identifier . }}-serviceaccount
+          serviceAccountName: {{ template "retraining.identifier" . }}-serviceaccount
           volumes:
             - name: {{ template "retraining.identifier" . }}-ephem-vol
               emptyDir: {}
           initContainers:
             - name: {{ template "retraining.identifier" . }}-loader
               env:
-                {{ include "retraining.dbEnvs" . }}
+{{ include "retraining.dbEnvs" . | indent 16}}
                 - name: JOB_NAME
                   value: {{ .Values.entity.name }}
                 - name: RUN_ID
@@ -30,7 +30,7 @@ spec:
                 - name: CONDA_ENV_NAME
                   value: {{ .Values.entity.condaEnv }}
                 - name: MLFLOW_URL
-                  value: {{ .Values.k8s.mlflow_url }}
+                  value: {{ .Values.k8s.mlflowUrl }}
                 - name: RETRAINING
                   value: {{ .Values.entity.retraining }}
               image: splicemachine/sm_k8_model-init:{{ .Values.versions.retriever }}
@@ -43,16 +43,16 @@ spec:
               - name: MOUNT_PATH
                 value: /opt/ml/model
               - name: BEAKERX_SQL_DEFAULT_JDBC
-                value: {{ .Values.db.jdbc_url }}
+                value: {{ .Values.db.jdbUrl }}
               - name: SPLICE_JUPYTER_USER
                 valueFrom:
                   secretKeyRef:
-                    name: {{ template "retraining.identifer . }}-db-secret
+                    name: {{ template "retraining.identifier" . }}-db-secret
                     key: DB_USER
               - name: SPLICE_JUPYTER_PASSWORD
                 valueFrom:
                   secretKeyRef:
-                    name: {{ template "retraining.identifer . }}-db-secret
+                    name: {{ template "retraining.identifier" . }}-db-secret
                     key: DB_PASSWORD
             imagePullPolicy: IfNotPresent
           restartPolicy: OnFailure

@@ -22,13 +22,13 @@ spec:
       initContainers:
         - name: {{ template "kdeploy.identifier" . }}-loader
           env:
-            {{ include "kdeploy.dbEnvs" . }}
             - name: RUN_ID
               value: {{ .Values.model.runId }}
             - name: MLFLOW_URL
               value: {{ .Values.k8s.mlflow_url }}
             - name: MODEL_NAME
               value: {{ .Values.model.name }}
+{{ include "kdeploy.dbEnvs" . | indent 12}}
           image: splicemachine/sm_k8_model-init:{{ .Values.versions.retriever }}
           volumeMounts:
             - mountPath: "/var/run/model"
