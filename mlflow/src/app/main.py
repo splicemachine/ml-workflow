@@ -288,7 +288,6 @@ def get_handler_data() -> dict:
 
 
 def get_jobs(request: request) -> dict:
-def get_jobs() -> dict:
     """
     As a temporary workaround,
     we use SQL instead of SQLAlchemy
