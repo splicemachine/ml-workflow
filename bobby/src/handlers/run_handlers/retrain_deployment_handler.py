@@ -44,12 +44,12 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
         payload = self.task.parsed_payload
         return {
             'k8s': {'namespace': env_vars['NAMESPACE'], 'ownerPod': env_vars['POD_NAME'],
-                    'ownerUID': env_vars['POD_UID'], 'mlflow_url': env_vars['MLFLOW_URL']},
-            'entity': {'entityId': payload['run_id'], 'retraining': 'yes', 'namespace': env_vars['NAMESPACE'],
+                    'ownerUID': env_vars['POD_UID'], 'mlflowUrl': env_vars['MLFLOW_URL']},
+            'entity': {'entityId': payload['run_id'], 'retraining': 'yes',
                        'name': payload['name'], 'condaEnv': payload['conda_artifact'], 'schedule': payload['cron_exp']},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'], 'host': env_vars['DB_HOST'],
-                   'jdbc_url': f"jdbc:splice://{env_vars['DB_HOST']}:1527/splicedb;user={env_vars['DB_USER']};"
-                               f"password={env_vars['DB_PASSWORD']};impersonate={self.task.user}"
+                   'jdbcUrl': f"jdbc:splice://{env_vars['DB_HOST']}:1527/splicedb;user={env_vars['DB_USER']};"
+                              f"password={env_vars['DB_PASSWORD']};impersonate={self.task.user}"
                    },
             'versions': {'retriever': env_vars.get('RETRIEVER_IMAGE_TAG',
                                                    RetrainingDeploymentHandler.DEFAULT_RETRIEVER_TAG),

@@ -38,10 +38,10 @@ class Retriever:
         self.db_host = environ['DB_HOST']
 
         self.run_id = environ['RUN_ID']
-        self.model_name = environ.get('MODEL_NAME') # Name of the logged model (if deployment)
-        self.retraining = environ.get('RETRAINING') # Whether we are retraining or deploying a model
-        self.conda_env_name = environ.get('CONDA_ENV_NAME') # Name of the conda file for retraining
-        self.job_name = environ.get('JOB_NAME') # Name of the retraining job (if deployment)
+        self.model_name = environ.get('MODEL_NAME')  # Name of the logged model (if deployment)
+        self.retraining = environ.get('RETRAINING')  # Whether we are retraining or deploying a model
+        self.conda_env_name = environ.get('CONDA_ENV_NAME')  # Name of the conda file for retraining
+        self.job_name = environ.get('JOB_NAME')  # Name of the retraining job (if deployment)
         self.mlflow_url = environ['MLFLOW_URL'].rstrip(':5001')
 
     def _get_and_write_binary(self, cnxn, name, is_zip):
@@ -89,11 +89,12 @@ class Retriever:
         Initiates a job to watch the init and retrainin/deployment job from Bobby
         """
         payload = dict(
-            context_name = 'retrain' if self.retraining else 'model',
-            entity_id = self.run_id,
-            job_name = self.job_name,
-            failure_msgs = ['_CONTAINER_FAILED'],
-            completion_msgs = ['RETRAINING_CONTAINER_COMPLETED'] if self.retraining else ['Booting worker with pid']
+            context_name='retrain' if self.retraining else 'model',
+            entity_id=self.run_id,
+            job_name=self.job_name,
+            handler_name="WATCH_ELASTICSEARCH",
+            failure_msgs=['_CONTAINER_FAILED'],
+            completion_msgs=['RETRAINING_CONTAINER_COMPLETED'] if self.retraining else ['Booting worker with pid']
         )
         requests.post(f'{self.mlflow_url}/api/rest/initiate', json=payload, auth=(self.db_user, self.db_password))
 
