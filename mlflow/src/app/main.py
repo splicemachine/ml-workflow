@@ -286,9 +286,7 @@ def get_handler_data() -> dict:
     results: list = Session.execute(enabled_handlers_query)
     return dict(data=[tuple(res) for res in results])
 
-# create a rest version of this function that uses basic auth rather than cookie
-# create two function in the pysplice
-    #
+
 @APP.route('/api/ui/get_jobs', methods=['POST'])
 @HTTP.generate_json_response
 @login_required
