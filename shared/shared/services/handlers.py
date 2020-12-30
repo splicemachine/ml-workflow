@@ -51,7 +51,7 @@ class KnownHandlers:
                 Field('cron_exp'),
                 Field('name'),
                 Field('conda_artifact'),
-                Field('entity_id'),
+                Field('run_id'),
                 Field('retrainer_artifact', use_default=True, default='retrainer.pkl')
             ],
             name=HandlerNames.schedule_retrain,

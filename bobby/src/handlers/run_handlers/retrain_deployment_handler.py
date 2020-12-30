@@ -45,7 +45,7 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
         return {
             'k8s': {'namespace': env_vars['NAMESPACE'], 'ownerPod': env_vars['POD_NAME'],
                     'ownerUID': env_vars['POD_UID'], 'mlflow_url': env_vars['MLFLOW_URL']},
-            'entity': {'entityId': payload['entity_id'], 'retraining': 'yes', 'namespace': env_vars['NAMESPACE'],
+            'entity': {'entityId': payload['run_id'], 'retraining': 'yes', 'namespace': env_vars['NAMESPACE'],
                        'name': payload['name'], 'condaEnv': payload['conda_artifact'], 'schedule': payload['cron_exp']},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'], 'host': env_vars['DB_HOST'],
                    'jdbc_url': f"jdbc:splice://{env_vars['DB_HOST']}:1527/splicedb;user={env_vars['DB_USER']};"
@@ -69,7 +69,7 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
             pass
         else:
             job_name = self.task.parsed_payload['name']
-            entity_id = self.task.parsed_payload['entity_id']
+            entity_id = self.task.parsed_payload['run_id']
             current_recurring_job = self.Session.query(RecurringJob) \
                 .filter(RecurringJob.entity_id == entity_id) \
                 .filter(RecurringJob.name == job_name).one_or_none()

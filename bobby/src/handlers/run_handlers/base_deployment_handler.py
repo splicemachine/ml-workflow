@@ -126,6 +126,11 @@ class BaseDeploymentHandler(BaseHandler):
         """
         self.logger.error(f"Running Exception Callback because of encountered: '{exc}'", send_db=True)
 
+    def _build_mlflow_url(self):
+        """
+
+        :return:
+        """
     def _handle(self) -> None:
         """
         We add the MLFlow Run URL as a parameter
