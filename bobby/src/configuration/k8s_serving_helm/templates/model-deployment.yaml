@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .Values.model.namespace }}
   labels:
     identifier: {{ template "kdeploy.identifier" . }}
-  {{ include "kdeploy.ownerRef" . }}
+{{ include "kdeploy.ownerRef" . | indent 2 }}
 spec:
   replicas: {{ .Values.baseReplicas }}
   selector:
