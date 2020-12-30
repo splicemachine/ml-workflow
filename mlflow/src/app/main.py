@@ -287,16 +287,15 @@ def get_handler_data() -> dict:
     return dict(data=[tuple(res) for res in results])
 
 
-@APP.route('/api/ui/get_jobs', methods=['POST'])
-@HTTP.generate_json_response
-@login_required
-def get_jobs() -> dict:
+
+def get_jobs(request: request) -> dict:
     """
     As a temporary workaround,
     we use SQL instead of SQLAlchemy
     since driver does not support offset yet.
     Since this is also a fairly complex query--
     SQL is more efficient
+    :param request: the request
     :return: (dict) JSON response rendered in front end
     """
     job_table: str = "JOBS"
@@ -335,6 +334,26 @@ def get_jobs() -> dict:
                 current=int_offset + 1,
                 total=total_rows,
                 rowCount=limit)
+
+@APP.route('/api/ui/get_jobs', methods=['POST'])
+@HTTP.generate_json_response
+@login_required
+def get_jobs_ui() -> dict:
+    """
+    Get jobs from UI
+    :return: (dict) JSON response rendered in front end
+    """
+    return get_jobs(request)
+
+@APP.route('/api/rest/get_jobs', methods=['POST'])
+@Authentication.basic_auth_required
+@HTTP.generate_json_response
+def get_jobs_rest() -> dict:
+    """
+    Get jobs from UI
+    :return: (dict) JSON response rendered in front end
+    """
+    return get_jobs(request)
 
 
 def _preformat_job_row(job_row: list) -> dict:
