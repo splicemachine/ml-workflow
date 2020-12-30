@@ -55,7 +55,7 @@ class Retriever:
 
         with cnxn.cursor() as cursor:
             cursor.execute(f'SELECT "binary" from MLMANAGER.ARTIFACTS WHERE RUN_UUID=\'{self.run_id}\''
-                           f'AND NAME=\'{name}\'')
+                           f' AND NAME=\'{name}\'')
         b = list(cursor.fetchone())[0]
 
         if is_zip:
