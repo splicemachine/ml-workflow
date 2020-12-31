@@ -374,17 +374,17 @@ class DatabaseModelDDL:
 
             # Create training set
             ts = TrainingSet(
-                context_id=tcx.view_id,
+                view_id=tcx.view_id,
                 name=key_vals['splice.feature_store.training_set'],
                 last_update_username=self.request_user
             )
-        # If there is no training context, this means the user called fs.get_feature_dataset, and created a dataframe
-        # for training without using a TrainingContext (think clustering where all features come from FeatureSets).
-        # in this case, the TrainingContext is null, but the TrainingSet is still a valid one, with features, a start
+        # If there is no training view, this means the user called fs.get_feature_dataset, and created a dataframe
+        # for training without using a TrainingView (think clustering where all features come from FeatureSets).
+        # in this case, the view is null, but the TrainingSet is still a valid one, with features, a start
         # time and an end time
         else:
             ts = TrainingSet(
-                context_id=None,
+                view_id=None,
                 name=None,
                 last_update_username=self.request_user
             )
