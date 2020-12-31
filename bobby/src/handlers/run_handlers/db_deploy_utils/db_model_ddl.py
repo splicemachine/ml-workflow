@@ -365,16 +365,28 @@ class DatabaseModelDDL:
 
         self.logger.info(f"Dictionary of params {str(key_vals)}")
         tcx: TrainingContext = self.session.query(TrainingContext)\
-            .filter_by(name=key_vals['splice.feature_store.training_set']).one()
-        self.logger.info(f"Found training context with ID {tcx.context_id}")
-        self.logger.info(f"Registering new training set for context {key_vals['splice.feature_store.training_set']}", send_db=True)
+            .filter_by(name=key_vals['splice.feature_store.training_set']).one_or_none()
 
-        # Create training set
-        ts = TrainingSet(
-            context_id=tcx.context_id,
-            name=key_vals['splice.feature_store.training_set'],
-            last_update_username=self.request_user
-        )
+        if tcx:
+            self.logger.info(f"Found training context with ID {tcx.context_id}")
+            self.logger.info(f"Registering new training set for context {key_vals['splice.feature_store.training_set']}", send_db=True)
+
+            # Create training set
+            ts = TrainingSet(
+                context_id=tcx.context_id,
+                name=key_vals['splice.feature_store.training_set'],
+                last_update_username=self.request_user
+            )
+        # If there is no training context, this means the user called fs.get_feature_dataset, and created a dataframe
+        # for training without using a TrainingContext (think clustering where all features come from FeatureSets).
+        # in this case, the TrainingContext is null, but the TrainingSet is still a valid one, with features, a start
+        # time and an end time
+        else:
+            ts = TrainingSet(
+                context_id=None,
+                name=None,
+                last_update_username=self.request_user
+            )
         self.session.add(ts)
         self.session.merge(ts) # Get the training_set_id
         return ts
