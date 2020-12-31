@@ -364,17 +364,30 @@ class DatabaseModelDDL:
         """
 
         self.logger.info(f"Dictionary of params {str(key_vals)}")
-        tcx: TrainingView = self.session.query(TrainingView)\
-            .filter_by(name=key_vals['splice.feature_store.training_set']).one()
-        self.logger.info(f"Found training view with ID {tcx.view_id}")
-        self.logger.info(f"Registering new training set for training view {key_vals['splice.feature_store.training_set']}", send_db=True)
 
-        # Create training set
-        ts = TrainingSet(
-            view_id=tcx.view_id,
-            name=key_vals['splice.feature_store.training_set'],
-            last_update_username=self.request_user
-        )
+        tcx: TrainingView = self.session.query(TrainingView)\
+            .filter_by(name=key_vals['splice.feature_store.training_set']).one_or_none()
+
+        if tcx:
+            self.logger.info(f"Found training view with ID {tcx.view_id}")
+            self.logger.info(f"Registering new training set for training view {key_vals['splice.feature_store.training_set']}", send_db=True)
+
+            # Create training set
+            ts = TrainingSet(
+                context_id=tcx.view_id,
+                name=key_vals['splice.feature_store.training_set'],
+                last_update_username=self.request_user
+            )
+        # If there is no training context, this means the user called fs.get_feature_dataset, and created a dataframe
+        # for training without using a TrainingContext (think clustering where all features come from FeatureSets).
+        # in this case, the TrainingContext is null, but the TrainingSet is still a valid one, with features, a start
+        # time and an end time
+        else:
+            ts = TrainingSet(
+                context_id=None,
+                name=None,
+                last_update_username=self.request_user
+            )
         self.session.add(ts)
         self.session.merge(ts) # Get the training_set_id
         return ts
