@@ -13,7 +13,7 @@ from shared.models.model_types import (DeploymentModelType, H2OModelType,
                                        KerasModelType, Metadata,
                                        SklearnModelType, SparkModelType)
 from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL
-from shared.models.feature_store_models import (Deployment, TrainingContext,
+from shared.models.feature_store_models import (Deployment, TrainingView,
                                                 TrainingSet, TrainingSetFeature, Feature)
 
 from .entities.db_model import Model
@@ -364,14 +364,14 @@ class DatabaseModelDDL:
         """
 
         self.logger.info(f"Dictionary of params {str(key_vals)}")
-        tcx: TrainingContext = self.session.query(TrainingContext)\
+        tcx: TrainingView = self.session.query(TrainingView)\
             .filter_by(name=key_vals['splice.feature_store.training_set']).one()
-        self.logger.info(f"Found training context with ID {tcx.context_id}")
-        self.logger.info(f"Registering new training set for context {key_vals['splice.feature_store.training_set']}", send_db=True)
+        self.logger.info(f"Found training view with ID {tcx.view_id}")
+        self.logger.info(f"Registering new training set for training view {key_vals['splice.feature_store.training_set']}", send_db=True)
 
         # Create training set
         ts = TrainingSet(
-            context_id=tcx.context_id,
+            view_id=tcx.view_id,
             name=key_vals['splice.feature_store.training_set'],
             last_update_username=self.request_user
         )
