@@ -6,7 +6,7 @@ from sqlalchemy.ext.compiler import compiles
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
-__credits__: list = ["Amrit Baveja", "Murray Brown", "Monte Zweben", "Ben Epstein"]
+__credits__: list = ["Amrit Baveja", "Ben Epstein"]
 
 __license__: str = "Apache"
 __version__: str = "2.0"

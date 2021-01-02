@@ -4,7 +4,7 @@ from shared.services.handlers import HandlerNames
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
-__credits__: list = ["Amrit Baveja"]
+__credits__: list = ["Amrit Baveja", "Ben Epstein"]
 
 __license__: str = "Proprietary"
 __version__: str = "2.0"

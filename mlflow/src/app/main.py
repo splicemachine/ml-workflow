@@ -23,7 +23,7 @@ from ui_utils import handle_bootgrid_query
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
-__credits__: list = ["Amrit Baveja", "Murray Brown", "Monte Zweben", "Ben Epstein"]
+__credits__: list = ["Amrit Baveja", "Ben Epstein"]
 
 __license__: str = "Commercial"
 __version__: str = "2.0"
@@ -225,9 +225,7 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
                      handler.payload_args
                      if field.name != 'payload'}
 
-    job: Job = Job(handler_name=handler.name,
-                   user=user,
-                   payload=serialize_json(payload))
+    job: Job = Job(handler_name=handler.name, user=user, payload=serialize_json(payload))
 
     Session.add(job)
     Session.commit()
@@ -307,7 +305,7 @@ def get_jobs_rest() -> list:
     Get jobs from DB
     :return: (dict) JSON response
     """
-    jobs = Session.query(Job).fetchall()
+    jobs = Session.query(Job).all()
 
     serialized_jobs = []
     for job in jobs:
@@ -328,7 +326,7 @@ def get_recurring_jobs_rest() -> list:
     Get recurring jobs from database
     :return: (dict) JSON response
     """
-    recurring_jobs = Session.query(RecurringJob).limit(request.json['limit']).fetchall()
+    recurring_jobs = Session.query(RecurringJob).limit(request.json['limit']).all()
 
     serialized_jobs = []
     for r_job in recurring_jobs:
