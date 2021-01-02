@@ -42,7 +42,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
             'baseReplicas': payload['base_replicas'],
             'k8s': {'namespace': env_vars['NAMESPACE'], 'ownerPod': env_vars['POD_NAME'],
                     'ownerUID': env_vars['POD_UID'], 'mlflow_url': env_vars['MLFLOW_URL']},
-            'model': {'runId': payload['run_id'], 'name': self.model_dir, 'jobId': self.task_id},
+            'model': {'runId': payload['run_id'], 'name': self.model_dir, 'jobId': str(self.task_id)},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'],
                    'host': env_vars['DB_HOST']},
             'versions': {'retriever': env_vars.get('RETRIEVER_IMAGE_TAG',
