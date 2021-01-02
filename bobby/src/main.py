@@ -157,15 +157,18 @@ def check_for_k8s_deployments() -> None:
     of Bobby. This function checks for k8s models that should be deployed and redeploys them.
     :return:
     """
-    session = SQLAlchemyClient.SessionFactory()
-    k8s_payloads = session.execute(DatabaseSQL.get_k8s_deployments_on_restart)
+    session = SQLAlchemyClient.SessionFactory
+    k8s_payloads = SQLAlchemyClient.execute(DatabaseSQL.get_k8s_deployments_on_restart)
     for user, payload in k8s_payloads:
+        logger.warning("Reincarnating Previous K8s Deployment Job: " + str(payload))
         # Create a new job to redeploy the model
         job: Job = Job(handler_name=HandlerNames.deploy_k8s,
                        user=user,
                        payload=payload)
         session.add(job)
+        session.commit()
     check_db_for_jobs()  # Add new jobs to the Job Ledger
+    session.commit()
 
 
 def check_for_recurring_deployments():
@@ -174,7 +177,7 @@ def check_for_recurring_deployments():
     will stop. This function resumes them if they should be redepoloyed.
     :return:
     """
-    session = SQLAlchemyClient.SessionFactory()
+    session = SQLAlchemyClient.SessionFactory
     recurring_jobs: List[RecurringJob] = session.query(RecurringJob).filter_by(status=RecurringJobStatuses.active).all()
     for recurring_job in recurring_jobs:
         # Add a flag that bobby is recreating this job (after a db pause). This will ensure the job doesn't fail
@@ -190,6 +193,7 @@ def check_for_recurring_deployments():
         session.add(job)
         session.commit()
         check_db_for_jobs()  # Add new jobs to the Job Ledger
+    session.commit()
 
 
 @APP.route('/job', methods=['POST'])

@@ -96,14 +96,17 @@ class SQLAlchemyClient:
         #     logger.info("Done.")
         #     SQLAlchemyClient._job_manager_created = True
         logger.info("Creating Job Manager Database Connection")
-        SQLAlchemyClient.logging_connection = SQLAlchemyClient.engine.connect()
+        SQLAlchemyClient.logging_connection = create_engine(
+                DatabaseConnectionConfig.connection_string(),
+                **DatabaseEngineConfig.as_dict()
+            )
+        logger.info("Created: " + str(SQLAlchemyClient.logging_connection))
         logger.info("Creating Job Manager Session Maker")
         SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection)
         logger.info("Creating Logging Factory")
         SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
         logger.info("Done.")
         SQLAlchemyClient._job_manager_created = True
-
 
     @staticmethod
     def create():

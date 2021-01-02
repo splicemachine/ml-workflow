@@ -49,6 +49,7 @@ class BaseHandler:
         # Lifecycle Management
         self.manager: JobLifecycleManager = JobLifecycleManager(task_id=task_id, **manager_kwargs)
         self.logger = self.manager.get_logger()
+        self.logger.info("job session: " + str(self.Session))
 
     def is_handler_enabled(self) -> None:
         """
