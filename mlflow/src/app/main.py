@@ -305,7 +305,7 @@ def get_jobs_rest():
     Get jobs from DB
     :return: (dict) JSON response
     """
-    jobs = Session.query(Job).all()
+    jobs = Session.query(Job).limit(request.json['limit']).all()
 
     serialized_jobs = []
     if serialized_jobs:
