@@ -2,6 +2,7 @@
 Class for Logging information to the database
 by updating the contents of a cell
 """
+from typing import List
 
 from shared.logger.logging_config import logger
 from shared.models.splice_models import Job
@@ -33,8 +34,7 @@ class JobLifecycleManager:
         self.use_buffer = logging_buffer_size != -1
 
         self.buffer = []
-        if self.use_buffer:
-            self.max_buffer_size = logging_buffer_size
+        self.max_buffer_size = logging_buffer_size
 
         logger.info('creating the logging session factory')
         self.Session = SQLAlchemyClient.LoggingSessionFactory()
@@ -50,7 +50,9 @@ class JobLifecycleManager:
         """
         Retrieve the task object from the database
         """
+
         logger.info('querying for job')
+        self.Session.flush()
         self.task: Job = self.Session.query(Job).filter_by(id=self.task_id).first()
         logger.info('parsing job payload')
         self.task.parse_payload()
