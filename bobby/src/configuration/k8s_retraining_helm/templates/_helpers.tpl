@@ -8,7 +8,7 @@
 - name: DB_USER
   valueFrom:
     secretKeyRef:
-      name: rerain-{{ .entityId }}-{{ .name }}-db-secret
+      name: retrain-{{ .entityId }}-{{ .name }}-db-secret
       key: DB_USER
 - name: DB_PASSWORD
   valueFrom:

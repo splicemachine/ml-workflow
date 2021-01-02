@@ -2,11 +2,10 @@
 Class for Logging information to the database
 by updating the contents of a cell
 """
-from sqlalchemy import text
-
 from shared.logger.logging_config import logger
-from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.models.splice_models import Job
+from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from sqlalchemy import text
 
 
 class JobLifecycleManager:
@@ -21,7 +20,7 @@ class JobLifecycleManager:
     # session here to maintain separate transactions then the queries executing in the
     # job threads.
 
-    def __init__(self, *, task_id: int, logging_format: str = None, buffer_size: int = None):
+    def __init__(self, *, task_id: int, logging_format: str = None, buffer_size: int = -1):
         """
         :param task_id: the task id to bind the logger to
         """
@@ -30,9 +29,12 @@ class JobLifecycleManager:
         self.logging_format = JobLifecycleManager.LOGGING_FORMAT or logging_format
         self.task_id = task_id
         self.task = None
-        self.buffer_size = buffer_size
-        if buffer_size:
-            self.buffer = []
+
+        self.use_buffer = buffer_size != -1
+
+        if self.use_buffer:
+            self.max_buffer_size = buffer_size
+            self.buffer_size = 0
 
         self.Session = SQLAlchemyClient.LoggingSessionFactory()
 
@@ -60,6 +62,20 @@ class JobLifecycleManager:
         record_extras = record['extra']
         return record_extras.get('task_id') == self.task_id and record_extras.get('send_db', False)
 
+    def write_log(self, *, message: str, commit: bool = True):
+        """
+        Write a single log message to the Splice Machine database lazily
+        :param message: the log message to write
+        :param commit: whether or not to commit to the database
+        """
+        self.Session.execute(
+            text(DatabaseSQL.update_job_log),
+            params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
+        )
+
+        if commit:
+            self.Session.commit()
+
     # noinspection PyBroadException
     def splice_sink(self, message):
         """
@@ -72,14 +88,15 @@ class JobLifecycleManager:
             self.task.update(status=updated_status)
             self.Session.add(self.task)
 
-        if self.buffer_size and self.buffer_size == len(self.buffer):
-            self.Session.execute(
-                text(DatabaseSQL.update_job_log),
-                params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
-            )
-            self.Session.commit()
+        if self.use_buffer:
+            if self.buffer_size == self.max_buffer_size:
+                self.write_log(message=message)
+                self.buffer_size = 0
+            else:
+                self.write_log(message=message, commit=False)
+                self.buffer_size += 1
         else:
-            self.buffer.append(bytes(str(message), encoding='utf-8'))
+            self.write_log(message=message)
 
     def get_logger(self):
         """

@@ -4,11 +4,10 @@ that interact with ElasticSearch
 """
 import re
 from os import environ as env_vars
+from time import sleep
 
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
-from time import sleep
-from datetime import datetime
 
 from .base_utility_handler import BaseUtilityHandler
 
@@ -50,11 +49,11 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
 
         while True:
             results = self.searcher.query('match', **{'kubernetes.pod.name': pod_name}) \
-                .filter('range', **{'@timestamp': {'gte': last_timestamp}}) \
-                .sort("-@timestamp").execute() # Sorting by timestamp asc brings back stale logs (even with the filter above)
+                .filter('range', **{'@timestamp': {'gte': last_timestamp}}).execute()
+            # Sorting by timestamp asc brings back stale logs (even with the filter above)
             new_last_timestamp = getattr(results.hits[0], '@timestamp')
 
-            if last_timestamp != new_last_timestamp: # new messages
+            if last_timestamp != new_last_timestamp:  # new messages
                 # Log the job messages
                 for hit in reversed(results.hits):
                     message = re.sub(WatchElasticSearchHandler.DB_PASSWORD_REGEX, "*****", hit.message)
