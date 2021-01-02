@@ -2,6 +2,8 @@
 Class for Logging information to the database
 by updating the contents of a cell
 """
+from typing import List
+
 from shared.logger.logging_config import logger
 from shared.models.splice_models import Job
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
@@ -33,7 +35,7 @@ class JobLifecycleManager:
 
         if self.use_buffer:
             self.max_buffer_size = logging_buffer_size
-            self.buffer_size = 0
+            self.buffer = []
 
         self.Session = SQLAlchemyClient.LoggingSessionFactory()
 
@@ -61,7 +63,7 @@ class JobLifecycleManager:
         record_extras = record['extra']
         return record_extras.get('task_id') == self.task_id and record_extras.get('send_db', False)
 
-    def write_log(self, *, message: str, commit: bool = True):
+    def write_log(self, *, message: str):
         """
         Write a single log message to the Splice Machine database lazily
         :param message: the log message to write
@@ -72,8 +74,14 @@ class JobLifecycleManager:
             params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
         )
 
-        if commit:
-            self.Session.commit()
+        self.Session.commit()
+
+    def write_buffer(self):
+        """
+        Write the buffer to database
+        """
+        if self.buffer:
+            self.write_log(message=''.join(map(str, self.buffer)))
 
     # noinspection PyBroadException
     def splice_sink(self, message):
@@ -88,16 +96,15 @@ class JobLifecycleManager:
             self.Session.add(self.task)
             self.Session.commit()
 
-        # if self.use_buffer:
-        #     if self.buffer_size == self.max_buffer_size:
-        #         self.write_log(message=message)
-        #         self.buffer_size = 0
-        #     else:
-        #         self.write_log(message=message, commit=False)
-        #         self.buffer_size += 1
-        # else:
-        #     self.write_log(message=message)
-        self.write_log(message=message)
+        if self.use_buffer:
+            if len(self.buffer) == self.max_buffer_size:
+                self.buffer.append(message)
+                self.write_buffer()
+                self.buffer.clear()
+            else:
+                self.buffer.append(message)
+        else:
+            self.write_log(message=message)
 
     def get_logger(self):
         """
@@ -110,6 +117,7 @@ class JobLifecycleManager:
         """
         Destroy the logger handler
         """
+        self.write_buffer()
         self.Session.commit()
         self.Session.close()
         logger.warning(f"Removing Database Logger - {self.task_id}")

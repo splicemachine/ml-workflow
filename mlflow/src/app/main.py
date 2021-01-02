@@ -312,7 +312,7 @@ def get_jobs_rest():
         for job in jobs:
             parsed_url = job.parse_url() or {}
             serialized_jobs.append(
-                dict(job_id=job.job_id, timestamp=job.timestamp, handler_name=job.handler_name,
+                dict(job_id=job.id, timestamp=job.timestamp, handler_name=job.handler_name,
                      parent_job_id=job.parent_job_id, status=job.status, payload=parse_json(job.payload),
                      user=job.user, target_service=job.target_service, **parsed_url)
             )
