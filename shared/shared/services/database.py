@@ -67,6 +67,7 @@ class SQLAlchemyClient:
 
     LoggingSessionMaker = None  # Logging Session Maker
     LoggingSessionFactory = None  # Thread-safe session factory issuer
+    logging_session = None
 
     # We have two bases because there are two different types of tables to create.
     # There are MLFlow tables (created by their code, such as Experiment
@@ -95,6 +96,7 @@ class SQLAlchemyClient:
             logger.info("Creating Logging Factory")
             SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
             logger.info("Done.")
+            SQLAlchemyClient.logging_session = SQLAlchemyClient.LoggingSessionFactory()
             SQLAlchemyClient._job_manager_created = True
 
     @staticmethod

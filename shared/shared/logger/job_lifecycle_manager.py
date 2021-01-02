@@ -37,7 +37,8 @@ class JobLifecycleManager:
         self.max_buffer_size = logging_buffer_size
 
         logger.info('creating the logging session factory')
-        self.Session = SQLAlchemyClient.LoggingSessionFactory()
+        # self.Session = SQLAlchemyClient.LoggingSessionFactory()
+        self.Session = SQLAlchemyClient.logging_session
         logger.info('done')
         logger.info('adding a new sub logger')
 
@@ -53,6 +54,10 @@ class JobLifecycleManager:
 
         logger.info('querying for job')
         self.Session.flush()
+        logger.info('Done flushing')
+        logger.info('values')
+        logger.info(str(list(self.Session.execute('values 1'))))
+        logger.info('real one')
         self.task: Job = self.Session.query(Job).filter_by(id=self.task_id).first()
         logger.info('parsing job payload')
         self.task.parse_payload()
@@ -127,7 +132,6 @@ class JobLifecycleManager:
         """
         self.write_buffer()
         self.Session.commit()
-        self.Session.close()
         logger.warning(f"Removing Database Logger - {self.task_id}")
         logger.remove(self.handler_id)
         logger.info("Done.")

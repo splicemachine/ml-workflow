@@ -51,9 +51,6 @@ class Retriever:
                        f' AND NAME=\'{name}\'')
         b = list(cursor.fetchone())[0]
 
-        # Close connection
-        cnxn.close()
-        del cursor, cnxn
 
         logger.info("Received Artifact from store, writing to mount")
 
@@ -82,6 +79,9 @@ class Retriever:
             self._get_and_write_binary(cnxn, file_name, is_zip)
 
         logger.info("Mounted Volume Contents:")
+        # Close connection
+        cnxn.close()
+        del cnxn
 
     def invoke_job_watcher(self):
         """
