@@ -22,8 +22,8 @@ class BaseUtilityHandler(BaseHandler):
         # we need to use the manager's session to change the task's data
         self.logger.info("Setting parent run ID...")
         self.task.parent_job_id = self.task.parsed_payload['parent_job_id']
-        self.manager.Session.add(self.task)
-        self.manager.Session.commit()
+        self.manager.scoped_session.add(self.task)
+        self.manager.scoped_session.commit()
         self.logger.info("Done.")
 
     @abstractmethod

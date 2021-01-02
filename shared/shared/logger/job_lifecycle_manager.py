@@ -25,7 +25,7 @@ class JobLifecycleManager:
         """
         :param task_id: the task id to bind the logger to
         """
-        SQLAlchemyClient.create_job_manager()
+        # SQLAlchemyClient.create_job_manager()
 
         self.logging_format = JobLifecycleManager.LOGGING_FORMAT or logging_format
         self.task_id = task_id
@@ -37,8 +37,8 @@ class JobLifecycleManager:
         self.max_buffer_size = logging_buffer_size
 
         logger.info('creating the logging session factory')
-        # self.Session = SQLAlchemyClient.LoggingSessionFactory()
-        self.Session = SQLAlchemyClient.logging_session
+        self.scoped_session = SQLAlchemyClient.LoggingSessionFactory()
+        logger.info(str(self.scoped_session))
         logger.info('done')
         logger.info('adding a new sub logger')
 
@@ -53,12 +53,12 @@ class JobLifecycleManager:
         """
 
         logger.info('querying for job')
-        self.Session.flush()
-        logger.info('Done flushing')
+        self.scoped_session.commit()
+        logger.info('Done comitting')
         logger.info('values')
-        logger.info(str(list(self.Session.execute('values 1'))))
+        logger.info(str(list(self.scoped_session.execute('values 1'))))
         logger.info('real one')
-        self.task: Job = self.Session.query(Job).filter_by(id=self.task_id).first()
+        self.task: Job = self.scoped_session.query(Job).filter_by(id=self.task_id).first()
         logger.info('parsing job payload')
         self.task.parse_payload()
         logger.info('done')
@@ -82,12 +82,12 @@ class JobLifecycleManager:
         :param message: the log message to write
         :param commit: whether or not to commit to the database
         """
-        self.Session.execute(
+        self.scoped_session.execute(
             text(DatabaseSQL.update_job_log),
             params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
         )
 
-        self.Session.commit()
+        self.scoped_session.commit()
 
     def write_buffer(self):
         """
@@ -106,8 +106,8 @@ class JobLifecycleManager:
         updated_status = message.record['extra'].get('update_status')
         if updated_status:
             self.task.update(status=updated_status)
-            self.Session.add(self.task)
-            self.Session.commit()
+            self.scoped_session.add(self.task)
+            self.scoped_session.commit()
 
         if self.use_buffer:
             if len(self.buffer) == self.max_buffer_size:
@@ -131,7 +131,29 @@ class JobLifecycleManager:
         Destroy the logger handler
         """
         self.write_buffer()
-        self.Session.commit()
-        logger.warning(f"Removing Database Logger - {self.task_id}")
-        logger.remove(self.handler_id)
-        logger.info("Done.")
+        try:
+            self.safe_commit()
+        finally:
+            logger.warning(f"Removing Database Logger - {self.task_id}")
+            logger.remove(self.handler_id)
+            self.destroy_session()
+            logger.info("Done.")
+
+    def safe_commit(self):
+        """
+        Tries to commit all transactions of the Session before deletion. Rolls back on failure
+        """
+        if self.scoped_session:
+            try:
+                self.scoped_session.commit()
+            except:
+                self.scoped_session.rollback()
+
+    def destroy_session(self):
+        """
+        Destroys the scoped Session at the end of the loggers life
+        """
+        SQLAlchemyClient.LoggingSessionFactory.remove()
+        del self.scoped_session
+        self.scoped_session = None
+

@@ -67,7 +67,6 @@ class SQLAlchemyClient:
 
     LoggingSessionMaker = None  # Logging Session Maker
     LoggingSessionFactory = None  # Thread-safe session factory issuer
-    logging_session = None
 
     # We have two bases because there are two different types of tables to create.
     # There are MLFlow tables (created by their code, such as Experiment
@@ -85,19 +84,26 @@ class SQLAlchemyClient:
         if not SQLAlchemyClient._created:
             raise Exception("Cannot create SQLAlchemy Job Manager Resources as `create()` has not been run")
 
-        if SQLAlchemyClient._job_manager_created:
-            logger.info("Using existing Job Manager SQLAlchemy Resources")
-        else:
-            logger.info("Creating Job Manager Database Connection")
-            SQLAlchemyClient.logging_connection = SQLAlchemyClient.engine.connect()
-            logger.info("Creating Job Manager Session Maker")
-            SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection,
-                                                                expire_on_commit=False)
-            logger.info("Creating Logging Factory")
-            SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
-            logger.info("Done.")
-            SQLAlchemyClient.logging_session = SQLAlchemyClient.LoggingSessionFactory()
-            SQLAlchemyClient._job_manager_created = True
+        # if SQLAlchemyClient._job_manager_created:
+        #     logger.info("Using existing Job Manager SQLAlchemy Resources")
+        # else:
+        #     logger.info("Creating Job Manager Database Connection")
+        #     SQLAlchemyClient.logging_connection = SQLAlchemyClient.engine.connect()
+        #     logger.info("Creating Job Manager Session Maker")
+        #     SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection)
+        #     logger.info("Creating Logging Factory")
+        #     SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
+        #     logger.info("Done.")
+        #     SQLAlchemyClient._job_manager_created = True
+        logger.info("Creating Job Manager Database Connection")
+        SQLAlchemyClient.logging_connection = SQLAlchemyClient.engine.connect()
+        logger.info("Creating Job Manager Session Maker")
+        SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection)
+        logger.info("Creating Logging Factory")
+        SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
+        logger.info("Done.")
+        SQLAlchemyClient._job_manager_created = True
+
 
     @staticmethod
     def create():
@@ -324,3 +330,4 @@ class Converters:
 
 
 SQLAlchemyClient.create()
+SQLAlchemyClient.create_job_manager()

@@ -152,8 +152,8 @@ class BaseDeploymentHandler(BaseHandler):
 
             # WHEN UPDATING JOBS, WE *MUST* USE THE MANAGER SESSION, NOT THE RUN SESSION
             # TO PREVENT EARLY COMMITTING OF THE DDL TRANSACTIONS WHEN WE UPDATE STATUS/LOGS
-            self.manager.Session.add(self.task)
-            self.manager.Session.commit()
+            self.manager.scoped_session.add(self.task)
+            self.manager.scoped_session.commit()
 
             self.execute()
             self._cleanup()
