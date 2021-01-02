@@ -2,7 +2,6 @@
 Class for Logging information to the database
 by updating the contents of a cell
 """
-from typing import List
 
 from shared.logger.logging_config import logger
 from shared.models.splice_models import Job
