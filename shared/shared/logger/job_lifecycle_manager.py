@@ -86,6 +86,7 @@ class JobLifecycleManager:
         if updated_status:
             self.task.update(status=updated_status)
             self.Session.add(self.task)
+            self.Session.commit()
 
         # if self.use_buffer:
         #     if self.buffer_size == self.max_buffer_size:
