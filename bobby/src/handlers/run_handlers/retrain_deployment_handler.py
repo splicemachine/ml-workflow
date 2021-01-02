@@ -34,7 +34,7 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
         Initialize retraining handler constructor
         :param task_id: task id to process
         """
-        BaseDeploymentHandler.__init__(self, task_id, logging_buffer_size=5)
+        BaseDeploymentHandler.__init__(self, task_id)
 
     def _build_template_parameters(self):
         """

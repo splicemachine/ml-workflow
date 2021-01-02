@@ -33,7 +33,7 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
 
         :param task_id: (int) Id of job to process
         """
-        BaseDeploymentHandler.__init__(self, task_id, logging_buffer_size=5)
+        BaseDeploymentHandler.__init__(self, task_id)
 
     def _assume_service_account_role(self) -> None:
         """

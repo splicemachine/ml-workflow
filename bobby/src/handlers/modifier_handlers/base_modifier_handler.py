@@ -24,13 +24,13 @@ class BaseModifierHandler(BaseHandler):
     must implement their own 'modify' functionality
     """
 
-    def __init__(self, task_id: int, action: str) -> None:
+    def __init__(self, task_id: int, action: str, **manager_kwargs) -> None:
         """
         :param task_id: (int) ID of the task to execute
         :param action: (str) name used for exceptions and logging
             identifying the handler subclass
         """
-        BaseHandler.__init__(self, task_id)
+        BaseHandler.__init__(self, task_id, **manager_kwargs)
         self.action: str = action
 
     def _get_handler_by_name(self, handler_name: str) -> Handler:

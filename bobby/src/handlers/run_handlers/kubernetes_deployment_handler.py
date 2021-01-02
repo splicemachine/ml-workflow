@@ -30,7 +30,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
 
         :param task_id: (int) Id of job to process
         """
-        BaseDeploymentHandler.__init__(self, task_id, logging_buffer_size=5)
+        BaseDeploymentHandler.__init__(self, task_id, logging_buffer_size=1)
 
     def _build_template_parameters(self):
         """
