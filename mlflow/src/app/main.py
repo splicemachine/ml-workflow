@@ -19,7 +19,7 @@ from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import HandlerNames, KnownHandlers
 from sqlalchemy.orm import load_only
 
-from .ui_utils import handle_bootgrid_query
+from ui_utils import handle_bootgrid_query
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
