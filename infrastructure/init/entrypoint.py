@@ -91,7 +91,7 @@ class Retriever:
             context_name='retrain' if self.retraining else 'model',
             entity_id=self.run_id,
             job_name=self.job_name,
-            job_id=self.job_id,
+            parent_job_id=self.job_id,
             handler_name="WATCH_ELASTICSEARCH",
             failure_msgs=['_CONTAINER_FAILED'],
             completion_msgs=['RETRAINING_CONTAINER_COMPLETED'] if self.retraining else ['Booting worker with pid']

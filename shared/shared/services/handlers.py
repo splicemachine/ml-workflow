@@ -64,6 +64,7 @@ class KnownHandlers:
                 Field('entity_id'),
                 Field('completion_msgs'),
                 Field('failure_msgs'),
+                Field('parent_job_id'),
                 Field('job_name', default=None, use_default=True),
             ],
             name=HandlerNames.watch_elasticsearch,
