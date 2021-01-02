@@ -36,18 +36,25 @@ class JobLifecycleManager:
         if self.use_buffer:
             self.max_buffer_size = logging_buffer_size
 
+        logger.info('creating the logging session factory')
         self.Session = SQLAlchemyClient.LoggingSessionFactory()
+        logger.info('done')
+        logger.info('adding a new sub logger')
 
         self.handler_id = logger.add(
             self.splice_sink, format=self.logging_format, filter=self.message_filter
         )
+        logger.info('done')
 
     def retrieve_task(self):
         """
         Retrieve the task object from the database
         """
+        logger.info('querying for job')
         self.task: Job = self.Session.query(Job).filter_by(id=self.task_id).first()
+        logger.info('parsing job payload')
         self.task.parse_payload()
+        logger.info('done')
         return self.task
 
     def message_filter(self, record):

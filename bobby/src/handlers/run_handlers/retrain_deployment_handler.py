@@ -85,6 +85,8 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
                                          job_id=self.task_id,
                                          user=self.task.user,
                                          entity_id=entity_id)
+            self.Session.add(recurring_job)
+            self.Session.commit()
             self.Session.merge(recurring_job)
 
     def _create_kubernetes_manifests(self):

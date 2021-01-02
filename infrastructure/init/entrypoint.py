@@ -111,12 +111,11 @@ def main():
         retriever.invoke_job_watcher()
         system(f"rm -rf {retriever.mount_path}/*")
         retriever.write_artifact()
+        print("LOADER_CONTAINER_COMPLETED")
     except Exception as e:
         # Logger message is polled by job watcher to see whether or not jobs are completed in the UI
         print("LOADER_CONTAINER_FAILED", file=stderr)
         raise e
-    finally:
-        print("LOADER_CONTAINER_COMPLETED")
 
 
 if __name__ == "__main__":

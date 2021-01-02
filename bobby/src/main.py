@@ -44,7 +44,6 @@ __email__: str = "abaveja@splicemachine.com"
 APP: Flask = Flask("bobby")
 
 # Jobs
-POLL_INTERVAL: int = 5  # check for new jobs every 2 seconds
 LEDGER_MAX_SIZE: int = int(env_vars['WORKER_THREADS'] * 2)  # how many previous jobs to account for
 
 # Spark

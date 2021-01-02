@@ -75,7 +75,9 @@ class BaseHandler:
         statuses/detailed info on error/success
         """
         try:
+            self.logger.info('retrieving a new task')
             self.task = self.manager.retrieve_task()
+            self.logger.info('done retrieving new task')
             self.logger.info("A service worker has found your request", send_db=True, update_status='RUNNING')
             if self.is_handler_enabled():
                 self.logger.info("Handler is available", send_db=True)

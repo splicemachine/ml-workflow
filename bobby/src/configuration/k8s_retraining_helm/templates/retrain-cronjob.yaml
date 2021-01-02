@@ -27,15 +27,18 @@ spec:
                   value: {{ .Values.entity.name }}
                 - name: RUN_ID
                   value: {{ .Values.entity.entityId }}
-                - env: JOB_ID
+                - name: JOB_ID
                   value: "{{ .Values.entity.jobId }}"
                 - name: CONDA_ENV_NAME
                   value: {{ .Values.entity.condaEnv }}
                 - name: MLFLOW_URL
                   value: {{ .Values.k8s.mlflowUrl }}
                 - name: RETRAINING
-                  value: {{ .Values.entity.retraining }}
+                  value: "{{ .Values.entity.retraining }}"
               image: splicemachine/sm_k8_model-init:{{ .Values.versions.retriever }}
+              volumeMounts:
+                - mountPath: "/var/run/model"
+                  name: {{ template "retraining.identifier" . }}-ephem-vol
           containers:
           - name: {{ template "retraining.identifier" . }}
             image: splicemachine/sm_k8_model_retraining:{{ .Values.versions.retrainer }}
@@ -57,4 +60,7 @@ spec:
                     name: {{ template "retraining.identifier" . }}-db-secret
                     key: DB_PASSWORD
             imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - mountPath: "/opt/ml/model"
+                name: {{ template "retraining.identifier" . }}-ephem-vol
           restartPolicy: OnFailure
