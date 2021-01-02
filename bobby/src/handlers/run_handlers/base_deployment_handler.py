@@ -11,7 +11,6 @@ from zipfile import ZipFile
 
 from mlflow.tracking import MlflowClient
 from shared.models.mlflow_models import SqlArtifact
-from shared.logger.job_lifecycle_manager import JobLifecycleManager
 
 from ..base_handler import BaseHandler
 

@@ -32,7 +32,7 @@ class BaseHandler:
     Base Class for all Handlers
     """
 
-    def __init__(self, task_id: int) -> None:
+    def __init__(self, task_id: int, logging_format: str = None) -> None:
         """
         Construct a new instance
         of Base Handler (cannot actually
@@ -48,7 +48,7 @@ class BaseHandler:
         self.Session = SQLAlchemyClient.SessionFactory()
 
         # Lifecycle Management
-        self.manager: JobLifecycleManager = JobLifecycleManager(task_id=task_id)
+        self.manager: JobLifecycleManager = JobLifecycleManager(task_id=task_id, logging_format=logging_format)
         self.logger = self.manager.get_logger()
 
     def is_handler_enabled(self) -> None:
