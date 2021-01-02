@@ -163,9 +163,11 @@ class Job(SQLAlchemyClient.SpliceBase):
         Parse the MLFlow URL into Run ID and Experiment ID
         :return: dictionary containing run id and experiment di
         """
-        if not self.mlflow_url:
+        if not self.mlflow_url or self.mlflow_url == "N/A":
             return
+
         match = MLFLOW_URL_PARSER.search(self.mlflow_url)
+
         if match:
             return dict(experiment_id=match.group('exp_id'), run_id=match.group('run_id'))
         else:

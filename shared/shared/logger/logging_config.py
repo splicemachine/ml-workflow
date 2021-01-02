@@ -44,6 +44,8 @@ class SpliceLogger:
     INTERCEPTION_TARGETS = ['gunicorn.error', 'gunicorn.access', 'boto3', 'werkzeug', 'botocore', 'boto', 'gunicorn',
                             'sqlalchemy.engine', 'alembic', 'mlflow_handler', 'sqlalchemy.log', 'bobby', 'director']
 
+    INTERCEPTION_WARNING = ['elasticsearch', 'elasticsearch.trace', 'urllib3']
+
     def __init__(self, config_path: str, debug=env_vars['MODE'] == 'development'):
         """
         :param config_path: path to json configuration for logger
@@ -77,7 +79,7 @@ class SpliceLogger:
             self.config['logfile']['format'] = SpliceLogger.replace_info_in_format(self.config['logfile']['format'])
             loguru_logger.add(self.config['logfile'].pop("path"), **self.config['logfile'])
 
-        logging.basicConfig(handlers=[InterceptHandler()], level=logging.DEBUG)
+        logging.basicConfig(handlers=[InterceptHandler()], level=logging.INFO)
 
         for module in SpliceLogger.INTERCEPTION_TARGETS:
             module_logger = logging.getLogger(module)

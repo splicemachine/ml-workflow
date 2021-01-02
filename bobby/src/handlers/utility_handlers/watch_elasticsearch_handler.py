@@ -67,7 +67,7 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
                 message = re.sub(WatchElasticSearchHandler.DB_PASSWORD_REGEX, "*****", hit.message)
                 self.logger.info(message, send_db=True)
                 if self.completion_regex.search(message):
-                    break
+                    return
                 if self.failure_regex.search(message):
                     raise Exception("Job did not succeed! Failing...")
 
