@@ -8,11 +8,8 @@ from time import sleep
 
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
-<<<<<<< HEAD
 from shared.logger.job_lifecycle_manager import JobLifecycleManager
 from collections import defaultdict
-=======
->>>>>>> cd24a56857fb87d159ab5490b1dc2e03c7baf4eb
 
 from .base_utility_handler import BaseUtilityHandler
 
