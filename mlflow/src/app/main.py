@@ -300,7 +300,7 @@ def get_jobs_ui() -> dict:
 @APP.route('/api/rest/get_jobs', methods=['POST'])
 @Authentication.basic_auth_required
 @HTTP.generate_json_response
-def get_jobs_rest() -> list:
+def get_jobs_rest():
     """
     Get jobs from DB
     :return: (dict) JSON response
@@ -315,13 +315,13 @@ def get_jobs_rest() -> list:
                  parent_job_id=job.parent_job_id, status=job.status, payload=parse_json(job.payload),
                  user=job.user, target_service=job.target_service, **parsed_url)
         )
-    return serialized_jobs
+    return {"jobs": serialized_jobs}
 
 
 @APP.route('/api/rest/get_recurring_jobs', methods=['POST'])
 @Authentication.basic_auth_required
 @HTTP.generate_json_response
-def get_recurring_jobs_rest() -> list:
+def get_recurring_jobs_rest():
     """
     Get recurring jobs from database
     :return: (dict) JSON response
@@ -336,7 +336,7 @@ def get_recurring_jobs_rest() -> list:
                  payload=r_job.job.payload)
         )
 
-    return serialized_jobs
+    return {"jobs": serialized_jobs}
 
 
 # HTML Routes
