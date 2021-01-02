@@ -81,7 +81,7 @@ fi
 
 if [[ "$WORKER_THREADS" == "" ]]
 then
-    export WORKER_THREADS=5
+    export WORKER_THREADS=10
 fi
 
 # Setting mode to development/production changes the logging levels
