@@ -308,7 +308,7 @@ def get_jobs_rest():
     jobs = Session.query(Job).limit(request.json['limit']).all()
 
     serialized_jobs = []
-    if serialized_jobs:
+    if jobs:
         for job in jobs:
             parsed_url = job.parse_url() or {}
             serialized_jobs.append(
