@@ -87,15 +87,16 @@ class JobLifecycleManager:
             self.task.update(status=updated_status)
             self.Session.add(self.task)
 
-        if self.use_buffer:
-            if self.buffer_size == self.max_buffer_size:
-                self.write_log(message=message)
-                self.buffer_size = 0
-            else:
-                self.write_log(message=message, commit=False)
-                self.buffer_size += 1
-        else:
-            self.write_log(message=message)
+        # if self.use_buffer:
+        #     if self.buffer_size == self.max_buffer_size:
+        #         self.write_log(message=message)
+        #         self.buffer_size = 0
+        #     else:
+        #         self.write_log(message=message, commit=False)
+        #         self.buffer_size += 1
+        # else:
+        #     self.write_log(message=message)
+        self.write_log(message=message)
 
     def get_logger(self):
         """
@@ -108,6 +109,7 @@ class JobLifecycleManager:
         """
         Destroy the logger handler
         """
+        self.Session.commit()
         self.Session.close()
         logger.warning(f"Removing Database Logger - {self.task_id}")
         logger.remove(self.handler_id)

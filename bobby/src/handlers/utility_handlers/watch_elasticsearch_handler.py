@@ -7,6 +7,7 @@ from os import environ as env_vars
 
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
+from time import sleep
 
 from .base_utility_handler import BaseUtilityHandler
 
@@ -52,8 +53,12 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
         pod_name = self.locate_pod_name()
 
         while True:
+            sleep(0.1)
             results = self.searcher.query('match', **{'kubernetes.pod.name': pod_name}) \
                 .filter('range', **{'log.offset': {'gt': last_offset}}).execute()
+
+            if not results.hits:
+                continue
 
             last_offset = results.hits[-1].log.offset
 

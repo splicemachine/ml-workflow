@@ -25,7 +25,7 @@ spec:
             - name: RUN_ID
               value: {{ .Values.model.runId }}
             - name: JOB_ID
-              value: {{ .Values.model.jobId }}
+              value: "{{ .Values.model.jobId }}"
             - name: MLFLOW_URL
               value: {{ .Values.k8s.mlflow_url }}
             - name: MODEL_NAME
