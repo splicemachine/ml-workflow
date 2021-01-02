@@ -33,9 +33,7 @@ class JobLifecycleManager:
 
         self.use_buffer = logging_buffer_size != -1
         self.buffer = []
-
-        if self.use_buffer:
-            self.max_buffer_size = logging_buffer_size
+        self.max_buffer_size = logging_buffer_size
 
         self.Session = SQLAlchemyClient.LoggingSessionFactory()
 
