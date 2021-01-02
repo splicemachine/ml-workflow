@@ -10,18 +10,9 @@ from zipfile import ZipFile
 import requests
 from splicemachinesa.pyodbc import splice_connect
 
-
-def build_logger():
-    logger = logging.getLogger(__name__)
-    logging.basicConfig()
-    logger.setLevel(logging.DEBUG)
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter('%(levelname)s %(asctime)s - %(message)s')
-    logger.addHandler(console_handler)
-    return logger
-
-
-logger = build_logger()
+LOGGING_FORMAT = "%(levelname)s %(asctime)s.%(msecs)03d - %(message)s"
+logging.basicConfig(level=logging.DEBUG, format=LOGGING_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
+logger = logging.getLogger("loader")
 
 
 class Retriever:
@@ -42,6 +33,7 @@ class Retriever:
         self.retraining = environ.get('RETRAINING')  # Whether we are retraining or deploying a model
         self.conda_env_name = environ.get('CONDA_ENV_NAME')  # Name of the conda file for retraining
         self.job_name = environ.get('JOB_NAME')  # Name of the retraining job (if deployment)
+        self.job_id = environ['JOB_ID']
         self.mlflow_url = environ['MLFLOW_URL'].rstrip(':5001')
 
     def _get_and_write_binary(self, cnxn, name, is_zip):
@@ -99,6 +91,7 @@ class Retriever:
             context_name='retrain' if self.retraining else 'model',
             entity_id=self.run_id,
             job_name=self.job_name,
+            job_id=self.job_id,
             handler_name="WATCH_ELASTICSEARCH",
             failure_msgs=['_CONTAINER_FAILED'],
             completion_msgs=['RETRAINING_CONTAINER_COMPLETED'] if self.retraining else ['Booting worker with pid']

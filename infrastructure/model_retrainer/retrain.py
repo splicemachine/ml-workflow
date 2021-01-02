@@ -2,17 +2,10 @@ import logging
 import pickle
 from os import environ as env_vars
 
+LOGGING_FORMAT = "%(levelname)s %(asctime)s.%(msecs)03d - %(message)s"
+logging.basicConfig(level=logging.DEBUG, format=LOGGING_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
+logger = logging.getLogger("loader")
 
-def build_logger():
-    logger = logging.getLogger(__name__)
-    logging.basicConfig()
-    logger.setLevel(logging.DEBUG)
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter('%(levelname)s %(asctime)s - %(message)s')
-    logger.addHandler(console_handler)
-    return logger
-
-logger = build_logger()
 
 def main():
     """

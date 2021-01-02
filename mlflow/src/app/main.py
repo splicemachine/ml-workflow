@@ -1,5 +1,5 @@
 from collections import defaultdict
-from json import dumps as serialize_json
+from json import dumps as serialize_json, loads as parse_json
 from os import environ as env_vars
 from time import time as timestamp
 
@@ -8,17 +8,18 @@ from flask import request, url_for, render_template as show_html, redirect, json
 from flask_executor import Executor
 from flask_login import (LoginManager, current_user, login_required,
                          login_user, logout_user)
-from shared.api.models import APIStatuses, TrackerTableMapping
+from shared.api.models import APIStatuses
 from shared.api.responses import HTTP
 from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
-from shared.models.splice_models import Handler, Job
+from shared.models.splice_models import Handler, Job, RecurringJob
 from shared.services.authentication import Authentication, User
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import HandlerNames, KnownHandlers
-from sqlalchemy import text
 from sqlalchemy.orm import load_only
+
+from .ui_utils import handle_bootgrid_query
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -287,54 +288,6 @@ def get_handler_data() -> dict:
     return dict(data=[tuple(res) for res in results])
 
 
-def get_jobs(request: request) -> dict:
-    """
-    As a temporary workaround,
-    we use SQL instead of SQLAlchemy
-    since driver does not support offset yet.
-    Since this is also a fairly complex query--
-    SQL is more efficient
-    :param request: the request
-    :return: (dict) JSON response rendered in front end
-    """
-    job_table: str = "JOBS"
-
-    # Parse Table Order Information
-    order_arg: str = list(filter(lambda key: key.startswith('sort'), request.form))[0]
-    order_value: str = order_arg.split('[')[1].split(']')[0]  # parse sort[column] -> column
-
-    direction_suffix: str = "DESC" if request.form[order_arg] == 'desc' else ''
-    limit: int = int(request.form['rowCount']) if request.form.get('rowCount') != '-1' else 0
-
-    # AJAX from jquery-bootgrid has -1 if user selects no limit
-    if request.form['searchPhrase']:  # query is doing a search on HTML table
-        int_offset: int = 0  # no offset on searches
-        table_query: text = _get_job_search_query(job_table, order_value, direction_suffix, limit,
-                                                  request.form['searchPhrase'])
-    else:  # query is listing
-        int_offset: int = int(request.form['current']) - 1 if request.form.get('current') else 0
-        table_query: text = _get_job_list_query(job_table, order_value, direction_suffix, limit,
-                                                int_offset)
-
-    total_query: text = f"""SELECT COUNT(*) FROM {job_table}"""  # how many pages to make in js
-
-    futures: list = [
-        EXECUTOR.submit(lambda: [_preformat_job_row(row) for row in Session.execute(table_query)]),
-        EXECUTOR.submit(lambda: list(Session.execute(total_query))[0][0])
-    ]
-
-    table_data, total_rows = futures[0].result(), futures[1].result()  # block until we get results
-
-    # Add Job Logs Links
-    for row in table_data:
-        row[TrackerTableMapping.job_logs] = f"<a href='/watch/{row[TrackerTableMapping.id_col]}'>View Logs</a>"
-
-    return dict(rows=table_data,
-                current=int_offset + 1,
-                total=total_rows,
-                rowCount=limit)
-
-
 @APP.route('/api/ui/get_jobs', methods=['POST'])
 @HTTP.generate_json_response
 @login_required
@@ -343,88 +296,52 @@ def get_jobs_ui() -> dict:
     Get jobs from UI
     :return: (dict) JSON response rendered in front end
     """
-    return get_jobs(request)
+    return handle_bootgrid_query(session=Session, request=request, executor=EXECUTOR)
 
 
 @APP.route('/api/rest/get_jobs', methods=['POST'])
 @Authentication.basic_auth_required
 @HTTP.generate_json_response
-def get_jobs_rest() -> dict:
+def get_jobs_rest() -> list:
     """
-    Get jobs from UI
-    :return: (dict) JSON response rendered in front end
+    Get jobs from DB
+    :return: (dict) JSON response
     """
-    return get_jobs(request)
+    jobs = Session.query(Job).fetchall()
+
+    serialized_jobs = []
+    for job in jobs:
+        parsed_url = job.parse_url() or {}
+        serialized_jobs.append(
+            dict(job_id=job.job_id, timestamp=job.timestamp, handler_name=job.handler_name,
+                 parent_job_id=job.parent_job_id, status=job.status, payload=parse_json(job.payload),
+                 user=job.user, target_service=job.target_service, **parsed_url)
+        )
+    return serialized_jobs
 
 
-def _preformat_job_row(job_row: list) -> dict:
+@APP.route('/api/rest/get_recurring_jobs', methods=['POST'])
+@Authentication.basic_auth_required
+@HTTP.generate_json_response
+def get_recurring_jobs_rest() -> list:
     """
-    Format job row object to have some
-    columns preformatted (<pre></pre> for table rendering
-    :param job_row: (ResultProxy) the Job Row to format
-    :return: (dict) formatted row
+    Get recurring jobs from database
+    :return: (dict) JSON response
     """
-    job_object: dict = dict(job_row)
-    for column in TrackerTableMapping.preformatted_columns:
-        if column in job_object:
-            job_object[column] = f'<pre>{job_object[column]}</pre>'
-    return job_object
+    recurring_jobs = Session.query(RecurringJob).limit(request.json['limit']).fetchall()
 
+    serialized_jobs = []
+    for r_job in recurring_jobs:
+        serialized_jobs.append(
+            dict(name=r_job.name, creation_timestamp=r_job.creation_timestamp,
+                 status=r_job.status, job_id=r_job.job_id, entity_id=r_job.entity_id,
+                 payload=r_job.job.payload)
+        )
 
-def _get_job_search_query(job_table: str, order_col: str, direction: str, limit: int,
-                          search_term: str) -> text:
-    """
-    Get SQL Query to search columns for search string
-
-    :param job_table: (str) Table in DB where jobs are stored
-    :param order_col: (str) column to sort by
-    :param direction: (str) either desc or nothing (ascending)
-    :param limit: (int) number of rows to retrieve
-    :param search_term: (str) term to look for in searchable columns
-    :return: (text) SELECT statement
-    """
-    limit_clause: str = f'FETCH FIRST {limit} ROWS ONLY' if limit > 0 else ''
-
-    filter_clause: str = f" LIKE '%{search_term}%' OR "
-    filter_expression: str = filter_clause.join(TrackerTableMapping.searchable_columns) + filter_clause[:-4]  # cut off
-    # OR on last column
-
-    return text(
-        f"""
-        SELECT {TrackerTableMapping.sql_columns} FROM {job_table}
-        WHERE {filter_expression} 
-        ORDER BY {TrackerTableMapping.DB_MAPPING[order_col]} {direction}
-        {limit_clause}
-        """
-    )
-
-
-def _get_job_list_query(job_table: str, order_col: str, direction: str, limit: int,
-                        offset: int) -> text:
-    """
-    Get JQuery Bootgrid formatted JSON (no search) for
-    rendering in HTML Table for /tracker.
-
-    :param job_table: (str) Table in DB where jobs are stored
-    :param order_col: (str) column to sort by
-    :param direction: (str) either desc or nothing (ascending)
-    :param limit: (int) number of rows to retrieve
-    :param offset: (int) number of rows to skip
-    :return: (text) SELECT statement
-    """
-    limit_clause: str = f'FETCH NEXT {limit} ROWS ONLY' if limit > 0 else ''
-    return text(
-        f"""
-        SELECT {TrackerTableMapping.sql_columns} FROM {job_table}
-        ORDER BY {TrackerTableMapping.DB_MAPPING[order_col]} {direction}
-        OFFSET {offset} ROWS
-        {limit_clause}
-        """
-    )
+    return serialized_jobs
 
 
 # HTML Routes
-
 # doesn't matter which name is used to generate the URL since both handlers
 # are started from this page
 @APP.route(KnownHandlers.get_url(HandlerNames.enable_service), methods=['GET'])

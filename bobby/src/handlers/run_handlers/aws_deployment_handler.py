@@ -8,7 +8,6 @@ from os import system as bash
 from time import sleep
 
 from mlflow import sagemaker
-
 from .base_deployment_handler import BaseDeploymentHandler
 
 __author__: str = "Splice Machine, Inc."
@@ -34,7 +33,7 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
 
         :param task_id: (int) Id of job to process
         """
-        BaseDeploymentHandler.__init__(self, task_id)
+        BaseDeploymentHandler.__init__(self, task_id, logging_buffer_size=5)
 
     def _assume_service_account_role(self) -> None:
         """
@@ -44,8 +43,9 @@ class SageMakerDeploymentHandler(BaseDeploymentHandler):
         assume_role_exit_code = bash('$SRC_HOME/scripts/assume_service_account_role.sh')
 
         if assume_role_exit_code != 0:
-            self.logger.error(f"Failed to assume Sagemaker role. Assume script exited with code {assume_role_exit_code}",
-                              send_db=True)
+            self.logger.error(
+                f"Failed to assume Sagemaker role. Assume script exited with code {assume_role_exit_code}",
+                send_db=True)
             raise Exception('Failed to assume Sagemaker role. Confirm Bobby has been correctly configured in AWS to '
                             'assume the proper role for Sagemaker deployment.')
 

@@ -14,13 +14,12 @@ class JobLifecycleManager:
     and logs in the database
     """
     LOGGING_FORMAT = "{level: <8} {time:YYYY-MM-DD HH:mm:ss.SSS} - {message}"
-    ELASTICSEARCH_LOGGING_FORMAT = "{level: <8} {extra[es_timestamp]} - {message}"
 
     # SQLAlchemy Manages Sessions on a thread local basis, so we need to create a
     # session here to maintain separate transactions then the queries executing in the
     # job threads.
 
-    def __init__(self, *, task_id: int, logging_format: str = None, buffer_size: int = -1):
+    def __init__(self, *, task_id: int, logging_format: str = None, logging_buffer_size: int = -1):
         """
         :param task_id: the task id to bind the logger to
         """
@@ -30,10 +29,10 @@ class JobLifecycleManager:
         self.task_id = task_id
         self.task = None
 
-        self.use_buffer = buffer_size != -1
+        self.use_buffer = logging_buffer_size != -1
 
         if self.use_buffer:
-            self.max_buffer_size = buffer_size
+            self.max_buffer_size = logging_buffer_size
             self.buffer_size = 0
 
         self.Session = SQLAlchemyClient.LoggingSessionFactory()

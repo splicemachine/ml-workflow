@@ -35,7 +35,7 @@ class AzureDeploymentHandler(BaseDeploymentHandler):
 
         :param task_id: (int) Id of job to process
         """
-        BaseDeploymentHandler.__init__(self, task_id)
+        BaseDeploymentHandler.__init__(self, task_id, logging_buffer_size=5)
 
         self.Workspace: Workspace or None = None
         self.azure_image: object = None

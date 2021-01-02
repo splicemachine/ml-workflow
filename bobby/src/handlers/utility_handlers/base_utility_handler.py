@@ -11,8 +11,8 @@ class BaseUtilityHandler(BaseHandler):
     Base Utility Handler
     """
 
-    def __init__(self, task_id: int, logging_format: str = None):
-        BaseHandler.__init__(self, task_id=task_id, logging_format=logging_format)
+    def __init__(self, task_id: int, **manager_kwargs):
+        BaseHandler.__init__(self, task_id=task_id, **manager_kwargs)
 
     @abstractmethod
     def execute(self):

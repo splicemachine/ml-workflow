@@ -11,11 +11,10 @@ function.
 from abc import abstractmethod
 from typing import Optional
 
-from sqlalchemy.orm import load_only
-
+from shared.logger.job_lifecycle_manager import JobLifecycleManager
 from shared.models.splice_models import Handler, Job
 from shared.services.database import SQLAlchemyClient
-from shared.logger.job_lifecycle_manager import JobLifecycleManager
+from sqlalchemy.orm import load_only
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -32,7 +31,7 @@ class BaseHandler:
     Base Class for all Handlers
     """
 
-    def __init__(self, task_id: int, logging_format: str = None) -> None:
+    def __init__(self, task_id: int, **manager_kwargs) -> None:
         """
         Construct a new instance
         of Base Handler (cannot actually
@@ -48,7 +47,7 @@ class BaseHandler:
         self.Session = SQLAlchemyClient.SessionFactory()
 
         # Lifecycle Management
-        self.manager: JobLifecycleManager = JobLifecycleManager(task_id=task_id, logging_format=logging_format)
+        self.manager: JobLifecycleManager = JobLifecycleManager(task_id=task_id, **manager_kwargs)
         self.logger = self.manager.get_logger()
 
     def is_handler_enabled(self) -> None:

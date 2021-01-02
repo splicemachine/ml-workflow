@@ -34,7 +34,7 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
         Initialize retraining handler constructor
         :param task_id: task id to process
         """
-        BaseDeploymentHandler.__init__(self, task_id)
+        BaseDeploymentHandler.__init__(self, task_id, logging_buffer_size=5)
 
     def _build_template_parameters(self):
         """
@@ -45,7 +45,7 @@ class RetrainingDeploymentHandler(BaseDeploymentHandler):
         return {
             'k8s': {'namespace': env_vars['NAMESPACE'], 'ownerPod': env_vars['POD_NAME'],
                     'ownerUID': env_vars['POD_UID'], 'mlflowUrl': env_vars['MLFLOW_URL']},
-            'entity': {'entityId': payload['run_id'], 'retraining': 'yes',
+            'entity': {'entityId': payload['run_id'], 'retraining': 'yes', 'jobId': self.task_id,
                        'name': payload['name'].replace("_", "-"), 'condaEnv': payload['conda_artifact'],
                        'schedule': payload['cron_exp']},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'], 'host': env_vars['DB_HOST'],

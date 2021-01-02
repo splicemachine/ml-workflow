@@ -2,6 +2,7 @@
 This module contains SQLAlchemy Models
 used for the Queue
 """
+import re
 from datetime import datetime
 from json import loads as parse_dict
 from time import sleep
@@ -28,6 +29,8 @@ __status__: str = "Quality Assurance (QA)"
 SHORT_VARCHAR_SIZE: int = 100
 LONG_VARCHAR_SIZE: int = 5000
 EXTRA_LONG_VARCHAR_SIZE: int = 30000
+# example = mlflow/#/experiments/1/runs/9e87e9d68923
+MLFLOW_URL_PARSER = re.compile("/experiments/(?P<exp_id>[0-9].*?)/runs/(?P<run_id>\w+)")
 
 
 def format_timestamp() -> str:
@@ -118,13 +121,16 @@ class Job(SQLAlchemyClient.SpliceBase):
     handler_name: Column = Column(String(SHORT_VARCHAR_SIZE), ForeignKey(Handler.name),
                                   nullable=False)
 
+    parent_job_id = Column(Integer, nullable=True)
+
     status: Column = Column(String(SHORT_VARCHAR_SIZE), default='PENDING')
     logs: Column = deferred(Column(Text, default='---Job Logs---\n'))
 
     payload: Column = Column(Text, nullable=False)
     user: Column = Column(String(SHORT_VARCHAR_SIZE), nullable=False)
 
-    mlflow_url: Column = Column(String(LONG_VARCHAR_SIZE), default="N/A")
+    mlflow_url: Column = Column(String(LONG_VARCHAR_SIZE), default="N/A")  # TODO change to run id and exp id
+
     # mlflow_url is only applicable to deployment jobs (and maybe retraining in the future)
     target_service: Column = Column(String(SHORT_VARCHAR_SIZE), default="N/A")
     # target_service is only applicable to access modifiers
@@ -151,6 +157,19 @@ class Job(SQLAlchemyClient.SpliceBase):
         :param status: (str) the new status to change to
         """
         self.status: str = status[:SHORT_VARCHAR_SIZE]
+
+    def parse_url(self):
+        """
+        Parse the MLFlow URL into Run ID and Experiment ID
+        :return: dictionary containing run id and experiment di
+        """
+        if not self.mlflow_url:
+            return
+        match = MLFLOW_URL_PARSER.search(self.mlflow_url)
+        if match:
+            return dict(experiment_id=match.group('exp_id'), run_id=match.group('run_id'))
+        else:
+            raise Exception("Could not parse Job MLFlow URL")
 
     def parse_payload(self) -> None:
         """

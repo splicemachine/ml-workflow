@@ -33,7 +33,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
         :param task_id: (int) Id of job to process
         """
-        BaseDeploymentHandler.__init__(self, task_id)
+        BaseDeploymentHandler.__init__(self, task_id, logging_buffer_size=5)
 
         self.creator: Optional[DatabaseRepresentationCreator] = None
         self.metadata_preparer: Optional[DatabaseModelMetadataPreparer] = None

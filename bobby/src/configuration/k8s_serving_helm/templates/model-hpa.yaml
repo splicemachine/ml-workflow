@@ -3,7 +3,7 @@ apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
 metadata:
   name: {{ template "kdeploy.identifier" . }}
-  namespace: {{ .Values.model.namespace }}
+  namespace: {{ .Values.k8s.namespace }}
   labels:
     identifier: {{ template "kdeploy.identifier" . }}
 {{ include "kdeploy.ownerRef" . | indent 2 }}

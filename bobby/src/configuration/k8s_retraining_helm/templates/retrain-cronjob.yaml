@@ -27,6 +27,8 @@ spec:
                   value: {{ .Values.entity.name }}
                 - name: RUN_ID
                   value: {{ .Values.entity.entityId }}
+                - env: JOB_ID
+                  value: {{ .Values.entity.jobId }}
                 - name: CONDA_ENV_NAME
                   value: {{ .Values.entity.condaEnv }}
                 - name: MLFLOW_URL

@@ -30,7 +30,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
 
         :param task_id: (int) Id of job to process
         """
-        BaseDeploymentHandler.__init__(self, task_id)
+        BaseDeploymentHandler.__init__(self, task_id, logging_buffer_size=5)
 
     def _build_template_parameters(self):
         """
@@ -42,7 +42,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
             'baseReplicas': payload['base_replicas'],
             'k8s': {'namespace': env_vars['NAMESPACE'], 'ownerPod': env_vars['POD_NAME'],
                     'ownerUID': env_vars['POD_UID'], 'mlflow_url': env_vars['MLFLOW_URL']},
-            'model': {'runId': payload['run_id'], 'name': self.model_dir, 'namespace': env_vars['NAMESPACE']},
+            'model': {'runId': payload['run_id'], 'name': self.model_dir, 'jobId': self.task_id},
             'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'],
                    'host': env_vars['DB_HOST']},
             'versions': {'retriever': env_vars.get('RETRIEVER_IMAGE_TAG',
