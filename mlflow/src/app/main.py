@@ -308,13 +308,14 @@ def get_jobs_rest():
     jobs = Session.query(Job).all()
 
     serialized_jobs = []
-    for job in jobs:
-        parsed_url = job.parse_url() or {}
-        serialized_jobs.append(
-            dict(job_id=job.job_id, timestamp=job.timestamp, handler_name=job.handler_name,
-                 parent_job_id=job.parent_job_id, status=job.status, payload=parse_json(job.payload),
-                 user=job.user, target_service=job.target_service, **parsed_url)
-        )
+    if serialized_jobs:
+        for job in jobs:
+            parsed_url = job.parse_url() or {}
+            serialized_jobs.append(
+                dict(job_id=job.job_id, timestamp=job.timestamp, handler_name=job.handler_name,
+                     parent_job_id=job.parent_job_id, status=job.status, payload=parse_json(job.payload),
+                     user=job.user, target_service=job.target_service, **parsed_url)
+            )
     return {"jobs": serialized_jobs}
 
 
@@ -329,12 +330,13 @@ def get_recurring_jobs_rest():
     recurring_jobs = Session.query(RecurringJob).limit(request.json['limit']).all()
 
     serialized_jobs = []
-    for r_job in recurring_jobs:
-        serialized_jobs.append(
-            dict(name=r_job.name, creation_timestamp=r_job.creation_timestamp,
-                 status=r_job.status, job_id=r_job.job_id, entity_id=r_job.entity_id,
-                 payload=r_job.job.payload)
-        )
+    if recurring_jobs:
+        for r_job in recurring_jobs:
+            serialized_jobs.append(
+                dict(name=r_job.name, creation_timestamp=r_job.creation_timestamp,
+                     status=r_job.status, job_id=r_job.job_id, entity_id=r_job.entity_id,
+                     payload=r_job.job.payload)
+            )
 
     return {"jobs": serialized_jobs}
 
