@@ -15,11 +15,13 @@ class JobLifecycleManager:
     and logs in the database
     """
     LOGGING_FORMAT = "{level: <8} {time:YYYY-MM-DD HH:mm:ss.SSS} - {message}"
+    ELASTICSEARCH_LOGGING_FORMAT = "{level: <8} {extra[es_timestamp]} - {message}"
+
     # SQLAlchemy Manages Sessions on a thread local basis, so we need to create a
     # session here to maintain separate transactions then the queries executing in the
     # job threads.
 
-    def __init__(self, *, task_id: int, logging_format=None):
+    def __init__(self, *, task_id: int, logging_format: str = None, buffer_size: int = None):
         """
         :param task_id: the task id to bind the logger to
         """
@@ -28,6 +30,9 @@ class JobLifecycleManager:
         self.logging_format = JobLifecycleManager.LOGGING_FORMAT or logging_format
         self.task_id = task_id
         self.task = None
+        self.buffer_size = buffer_size
+        if buffer_size:
+            self.buffer = []
 
         self.Session = SQLAlchemyClient.LoggingSessionFactory()
 
@@ -67,11 +72,14 @@ class JobLifecycleManager:
             self.task.update(status=updated_status)
             self.Session.add(self.task)
 
-        self.Session.execute(
-            text(DatabaseSQL.update_job_log),
-            params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
-        )
-        self.Session.commit()
+        if self.buffer_size and self.buffer_size == len(self.buffer):
+            self.Session.execute(
+                text(DatabaseSQL.update_job_log),
+                params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
+            )
+            self.Session.commit()
+        else:
+            self.buffer.append(bytes(str(message), encoding='utf-8'))
 
     def get_logger(self):
         """

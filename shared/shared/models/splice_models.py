@@ -119,7 +119,7 @@ class Job(SQLAlchemyClient.SpliceBase):
                                   nullable=False)
 
     status: Column = Column(String(SHORT_VARCHAR_SIZE), default='PENDING')
-    logs: Column = deferred(Column(String(24000), default='---Job Logs---\n'))
+    logs: Column = deferred(Column(Text, default='---Job Logs---\n'))
 
     payload: Column = Column(Text, nullable=False)
     user: Column = Column(String(SHORT_VARCHAR_SIZE), nullable=False)
