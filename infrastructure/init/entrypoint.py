@@ -53,10 +53,17 @@ class Retriever:
         """
         logger.info(f"Reading Artifact {name} from Store")
 
-        with cnxn.cursor() as cursor:
-            cursor.execute(f'SELECT "binary" from MLMANAGER.ARTIFACTS WHERE RUN_UUID=\'{self.run_id}\''
-                           f' AND NAME=\'{name}\'')
+        # with cnxn.cursor() as cursor:
+        cursor = cnxn.cursor()
+        cursor.execute(f'SELECT "binary" from MLMANAGER.ARTIFACTS WHERE RUN_UUID=\'{self.run_id}\''
+                       f' AND NAME=\'{name}\'')
         b = list(cursor.fetchone())[0]
+
+        # Close connection
+        cnxn.close()
+        del cursor, cnxn
+
+        logger.info("Received Artifact from store, writing to mount")
 
         if is_zip:
             logger.info(f"Decompressing Zipped Artifact")

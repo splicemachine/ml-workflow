@@ -2,7 +2,7 @@ apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
   name: {{ template "retraining.identifier" . }}
-  namespace: {{ .Values.entity.namespace }}
+  namespace: {{ .Values.k8s.namespace }}
   labels:
     identifier: {{ template "retraining.identifier" . }}
 {{ include "retraining.ownerRef" . | indent 2}}
