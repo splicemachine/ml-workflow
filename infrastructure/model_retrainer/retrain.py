@@ -16,7 +16,7 @@ def main():
     retrainer = 'retrainer.pkl'
     try:
         logger.info("Loading the retrainer")
-        retrainer = pickle.load(f'{mount_path}/{retrainer}')
+        retrainer = pickle.load(open(f'{mount_path}/{retrainer}', 'rb'))
         logger.info("Creating the contexts for spark, splice, mlflow, and feature store")
         retrainer._create_contexts()
         logger.info("Retraining the model")

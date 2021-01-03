@@ -43,6 +43,8 @@ spec:
           - name: {{ template "retraining.identifier" . }}
             image: splicemachine/sm_k8_model_retraining:{{ .Values.versions.retrainer }}
             env:
+              - name: MLFLOW_URL
+                value: {{ .Values.k8s.mlflowUrl }}
               - name: CONDA_ENV_NAME
                 value: {{ .Values.entity.condaEnv }}
               - name: MOUNT_PATH

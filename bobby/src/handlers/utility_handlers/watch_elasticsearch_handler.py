@@ -8,9 +8,9 @@ from os import environ as env_vars
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
 from time import sleep
+from retrying import retry
 
 from .base_utility_handler import BaseUtilityHandler
-
 
 class WatchElasticSearchHandler(BaseUtilityHandler):
     """
@@ -31,6 +31,15 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
         self.completion_regex: re.Pattern = None
         self.failure_regex: re.Pattern = None
 
+    def _retry_on_index_error(exception):
+        """
+        Return true if the exception is an IndexError
+        """
+        return isinstance(exception, IndexError)
+
+    # We add retrying here because the pod may be pulling and might not exist yet, so the query won't return anything
+    @retry(retry_on_exception=_retry_on_index_error, wait_exponential_multiplier=1000,
+           wait_exponential_max=10000, stop_max_delay=600000)  # Max 10 min
     def locate_pod_name(self):
         """
         Locate the Pod Name from ElasticSearch
