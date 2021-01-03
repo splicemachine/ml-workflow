@@ -81,8 +81,10 @@ class SpliceLogger:
 
         logging.basicConfig(handlers=[InterceptHandler()], level=logging.INFO)
 
-        for module in SpliceLogger.INTERCEPTION_TARGETS:
+        for module in SpliceLogger.INTERCEPTION_TARGETS + SpliceLogger.INTERCEPTION_WARNING:
             module_logger = logging.getLogger(module)
+            if module in SpliceLogger.INTERCEPTION_WARNING:
+                module_logger.setLevel(logging.WARNING)
             module_logger.propagate = False
             module_logger.handlers = [InterceptHandler()]
 

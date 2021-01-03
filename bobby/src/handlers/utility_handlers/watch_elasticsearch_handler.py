@@ -41,7 +41,8 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
         if payload.get('job_name'):
             pod_name += f'-{payload["job_name"]}'
 
-        results = self.searcher.query('match', **{'kubernetes.pod.name': pod_name}).execute()
+        results = self.searcher.query('match_phrase', **{'kubernetes.pod.name': pod_name}) \
+                .sort("-@timestamp").execute()
 
         return results.hits[-1].kubernetes.pod.name
 
@@ -54,7 +55,7 @@ class WatchElasticSearchHandler(BaseUtilityHandler):
 
         while True:
             sleep(0.1)
-            results = self.searcher.query('match', **{'kubernetes.pod.name': pod_name}) \
+            results = self.searcher.query('match_phrase', **{'kubernetes.pod.name': pod_name}) \
                 .filter('range', **{'log.offset': {'gt': last_offset}}).execute()
 
             if not results.hits:
