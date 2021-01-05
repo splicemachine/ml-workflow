@@ -82,17 +82,17 @@ class Feature(SQLAlchemyClient.SpliceBase):
     )
 
 
-class TrainingContext(SQLAlchemyClient.SpliceBase):
+class TrainingView(SQLAlchemyClient.SpliceBase):
     """
-    Training Context is a definition of features and (optionally) a label for use in modeling. This contains SQL
+    Training View is a definition of features and (optionally) a label for use in modeling. This contains SQL
     written by the user that defines the desired features and (optionally) a label. When the user wants to generate
-    a Training Dataset, the Training Context will be used, and the Feature Store will wrap SQL code around the 
-    Context SQL to create a historical batch of the desired features and (optionally) label.
+    a Training Dataset, the Training View will be used, and the Feature Store will wrap SQL code around the
+    View SQL to create a historical batch of the desired features and (optionally) label.
     This is a top level metadata that a user will interact with
     """
-    __tablename__: str = "training_context"
+    __tablename__: str = "training_view"
     __table_args__ = {'schema': 'featurestore'}
-    context_id: Column = Column(Integer, primary_key=True, autoincrement=True)
+    view_id: Column = Column(Integer, primary_key=True, autoincrement=True)
     name: Column = Column(String(128), nullable=False, index=True, unique=True)
     description: Column = Column(String(500), nullable=True)
     sql_text:Column = Column(Text)
@@ -102,23 +102,23 @@ class TrainingContext(SQLAlchemyClient.SpliceBase):
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
 
-class TrainingContextKey(SQLAlchemyClient.SpliceBase):
+class TrainingViewKey(SQLAlchemyClient.SpliceBase):
     """
-    Training Context Key holds the metadata about a training context, specifically the keys in the context and 
-    their types (either primary key or context key). A context key is a key that's used to join the desired features
-    with their feature sets. This is bottom level metadata that a user will NOT interact with.
+    Training View Key holds the metadata about a training view, specifically the keys in the view and
+    their types (either primary key or Join key). A join key is a key that's used to join the desired features
+    with their feature sets (the primary key(s) of the Feature Sets. This is bottom level metadata that a user will NOT interact with.
     """
-    __tablename__: str = "training_context_key"
-    context_id: Column = Column(Integer, ForeignKey(TrainingContext.context_id), primary_key=True )
+    __tablename__: str = "training_view_key"
+    view_id: Column = Column(Integer, ForeignKey(TrainingView.view_id), primary_key=True)
     key_column_name: Column = Column(String(128), primary_key=True)
-    key_type: Column = Column(String(1), primary_key=True)  # 'P'rimary key, 'C'ontext key
+    key_type: Column = Column(String(1), primary_key=True)  # 'P'rimary key, 'J'oin key
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
     # Table Options Configuration
     __table_args__: tuple = (
         CheckConstraint(
-            key_type.in_(('C', 'P'))  # no funny business allowed!
+            key_type.in_(('P', 'J'))  # no funny business allowed!
         ),
         {'schema': 'featurestore'}
     )
@@ -126,7 +126,7 @@ class TrainingContextKey(SQLAlchemyClient.SpliceBase):
 
 class TrainingSet(SQLAlchemyClient.SpliceBase):
     """
-    A Training Set is a Training Context with a subset of desired Features
+    A Training Set is a Training View with a subset of desired Features
     in order to generate a dataframe for model development (or other analysis). This is not an independent table.
     This table uses the TrainingSetFeature table to define the desired features, and uses
     Deployment to link the Training Set to a time window, in order to recreate the exact training set 
@@ -137,7 +137,7 @@ class TrainingSet(SQLAlchemyClient.SpliceBase):
     __table_args__ = {'schema': 'featurestore'}
     training_set_id: Column = Column(Integer, primary_key=True, autoincrement=True)
     name: Column = Column(String(255))
-    context_id: Column = Column(Integer, ForeignKey(TrainingContext.context_id), nullable=True)
+    view_id: Column = Column(Integer, ForeignKey(TrainingView.view_id))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
@@ -159,7 +159,7 @@ class TrainingSetFeature(SQLAlchemyClient.SpliceBase):
 class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     """
     This table holds statistics about a Training Set when a model using that particular Training Set 
-    (where a Training Set is defined as a Training Context and Features over a particular time window) is deployed.
+    (where a Training Set is defined as a Training View and Features over a particular time window) is deployed.
     This is static information as a training set does NOT change because of it's particular time window.
     This information will be available for a user post deployment for model/feature tracking and governance
     """

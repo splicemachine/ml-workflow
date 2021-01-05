@@ -13,7 +13,7 @@ from shared.models.model_types import (DeploymentModelType, H2OModelType,
                                        KerasModelType, Metadata,
                                        SklearnModelType, SparkModelType)
 from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL
-from shared.models.feature_store_models import (Deployment, TrainingContext,
+from shared.models.feature_store_models import (Deployment, TrainingView,
                                                 TrainingSet, TrainingSetFeature, Feature)
 
 from .entities.db_model import Model
@@ -364,26 +364,27 @@ class DatabaseModelDDL:
         """
 
         self.logger.info(f"Dictionary of params {str(key_vals)}")
-        tcx: TrainingContext = self.session.query(TrainingContext)\
+
+        tcx: TrainingView = self.session.query(TrainingView)\
             .filter_by(name=key_vals['splice.feature_store.training_set']).one_or_none()
 
         if tcx:
-            self.logger.info(f"Found training context with ID {tcx.context_id}")
-            self.logger.info(f"Registering new training set for context {key_vals['splice.feature_store.training_set']}", send_db=True)
+            self.logger.info(f"Found training view with ID {tcx.view_id}")
+            self.logger.info(f"Registering new training set for training view {key_vals['splice.feature_store.training_set']}", send_db=True)
 
             # Create training set
             ts = TrainingSet(
-                context_id=tcx.context_id,
+                view_id=tcx.view_id,
                 name=key_vals['splice.feature_store.training_set'],
                 last_update_username=self.request_user
             )
-        # If there is no training context, this means the user called fs.get_feature_dataset, and created a dataframe
-        # for training without using a TrainingContext (think clustering where all features come from FeatureSets).
-        # in this case, the TrainingContext is null, but the TrainingSet is still a valid one, with features, a start
+        # If there is no training view, this means the user called fs.get_feature_dataset, and created a dataframe
+        # for training without using a TrainingView (think clustering where all features come from FeatureSets).
+        # in this case, the view is null, but the TrainingSet is still a valid one, with features, a start
         # time and an end time
         else:
             ts = TrainingSet(
-                context_id=None,
+                view_id=None,
                 name=None,
                 last_update_username=self.request_user
             )
