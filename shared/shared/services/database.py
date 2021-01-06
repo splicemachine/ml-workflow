@@ -82,21 +82,17 @@ class SQLAlchemyClient:
         """
         Create Job Manager Connection (only runs if Job Manager is used)
         """
-        if not SQLAlchemyClient._created:
-            raise Exception("Cannot create SQLAlchemy Job Manager Resources as `create()` has not been run")
-
-        if SQLAlchemyClient._job_manager_created:
-            logger.info("Using existing Job Manager SQLAlchemy Resources")
-        else:
-            logger.info("Creating Job Manager Database Connection")
-            SQLAlchemyClient.logging_connection = SQLAlchemyClient.engine.connect()
-            logger.info("Creating Job Manager Session Maker")
-            SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection,
-                                                                expire_on_commit=False)
-            logger.info("Creating Logging Factory")
-            SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
-            logger.info("Done.")
-            SQLAlchemyClient._job_manager_created = True
+        logger.info("Creating Job Manager Database Connection")
+        SQLAlchemyClient.logging_connection = create_engine(
+                DatabaseConnectionConfig.connection_string(),
+                **DatabaseEngineConfig.as_dict()
+            )
+        logger.info("Creating Job Manager Session Maker")
+        SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection)
+        logger.info("Creating Logging Factory")
+        SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
+        logger.info("Done.")
+        SQLAlchemyClient._job_manager_created = True
 
     @staticmethod
     def create():

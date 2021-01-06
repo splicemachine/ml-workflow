@@ -1,0 +1,54 @@
+version: "3"
+services:
+  jupyter:
+    user: root
+    volumes:
+      - "./notebooks:/home/joyvan/work"
+    environment:
+      GRANT_SUDO: "yes"
+    ports:
+      - "8888:8888"
+    build:
+      args:
+        splice_base_image_version: 0.0.2
+      context: jupyter
+  mlflow:
+    environment:
+      DB_HOST: host.docker.internal
+      DB_USER: mlmanager
+      DB_PASSWORD: ${DB_PASSWORD}
+      FRAMEWORK_NAME: my-framework
+      MODE: development
+      ENVIRONMENT: ${ENVIRONMENT}
+    image: splicemachine/sm_k8_mlflow:0.1.26_rc001
+    ports:
+      - "5001:5001"
+      - "5003:5003"
+    build:
+      args:
+        splice_base_image_version: 0.0.2
+      context: ./
+      dockerfile: ./mlflow/Dockerfile
+  bobby:
+    privileged: true
+    environment:
+      DB_HOST: host.docker.internal
+      DB_USER: mlmanager
+      DB_PASSWORD: ${DB_PASSWORD}
+      FRAMEWORK_NAME: my-framework
+      MLFLOW_URL: "http://mlflow:5001"
+      CREATOR_ROLE: "true"
+      AZURE_USERNAME: ${AZURE_USERNAME}
+      AZURE_PASSWORD: ${AZURE_PASSWORD}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      SAGEMAKER_ROLE: ${SAGEMAKER_ROLE}
+      MODE: production
+      ENVIRONMENT: ${ENVIRONMENT}
+    image: splicemachine/sm_k8_bobby:0.1.26_rc001
+    build:
+      args:
+        server_image_tag: 0.0.15
+        splice_base_image_version: 0.0.2
+      context: ./
+      dockerfile: ./bobby/Dockerfile
