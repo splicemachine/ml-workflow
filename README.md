@@ -107,7 +107,7 @@ The master branch of this repo holds the most recent code. Stable releases are i
 ### Update
 
 Build and test your docker-compose images, then:
-* Update the image tag in your commit to <b>one more than currently in master<b> (ie 0.1.26 -> 0.1.27)
+* Update the image tag in your commit to <b>one more than currently in master</b> (ie 0.1.26 -> 0.1.27)
 * Open a PR
 * Once merged, the imgaes will be rebuilt with the updated tag and pushed (this will become automated soon)
 
