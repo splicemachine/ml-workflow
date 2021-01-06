@@ -13,15 +13,15 @@ To try ML Manager, for free, click [here](https://cloud.splicemachine.io/registe
 ML-Workflow is broken into 5 main components:
 
 * mlflow: The custom mlflow rest API with added Splice Machine functionality:
-* * Host of the mlflow UI
-* * Default tracking, artifact, and model registry store set to the Splice Machine database
-* * sm_mlflow: an override of a number of tracking APIs in mlflow for nit SQLAlchemy bugs and a few enhancements
-* * Host of the Job Tracker UI (deprecated)
-* * Additional rest endpoints for deploying models to Kubernetes, the Database, Azure and AWS Sagemaker
+  * Host of the mlflow UI
+  * Default tracking, artifact, and model registry store set to the Splice Machine database
+  * sm_mlflow: an override of a number of tracking APIs in mlflow for nit SQLAlchemy bugs and a few enhancements
+  * Host of the Job Tracker UI (deprecated)
+  * Additional rest endpoints for deploying models to Kubernetes, the Database, Azure and AWS Sagemaker
   * An authentication mechanism using Splice Shiro for authenticating and authorizing users (more to come)
 
 * bobby: The asynchronous job handler. Bobby performs any actual jobs that are sent to mlflow. Bobby has 1 endpoint that is not available external to the cluster, only from the mlflow pod:
-* * Deploying models to the database
+  * Deploying models to the database
   * Deploying models to kubernetes
   * Deploying models to azure
   * Deploying models to aws
@@ -29,14 +29,14 @@ ML-Workflow is broken into 5 main components:
   * Watching elasticsearch for logs
 
 * mlrunner: The Java code to deploy ML models to the database. When users of Splice Machine deploy models to the database, the engine with which those models run is wrtten here. Natively, it can support 5 model types
-* * Spark ML
+  * Spark ML
   * SKLearn
   * H2O (MOJO only)
   * Keras (Single dimensional inputs only currently)
   * (Coming soon) Kubernetes pod deployments (via a REST endpoint)
 
 * shared: A shared directory by docker images that contain useful tools for database/kubernetes work
-* * Custom loguru logger
+  * Custom loguru logger
   * SQLAlchemy tables created for metadata tracking
   * Database authenticator
   * custom Kubernetes API
@@ -48,12 +48,15 @@ ML-Workflow is broken into 5 main components:
 
 ## Running Locally
 
-You can run ml-workflow locally using docker-compose. The docker-comopse is set up, but missing a few fields that the user must provide in a <code>.env</code> file.<br>
+You can run ml-workflow locally using docker-compose. The docker-comopse  
+is set up, but missing a few fields that the user must provide  
+in a <code>.env</code> file. There is a [.env.example](https://github.com/splicemachine/ml-workflow/blob/DBAAS-4947/.env.example) file you can copy to a .env file and edit accordingly.<br>
+
 The following fields <b>must</b> be provided:
 * DB_PASSWORD
 * ENVIRONMENT
-* * Available values for ENVIRONMENT include:
-  *  * gcp
+  * Available values for ENVIRONMENT include:
+     * gcp
      * aws
      * azure
      * default
@@ -66,15 +69,33 @@ The following fields <b>may</b> be provided (only if you want to deploy models t
 * AWS_SECRET_ACCESS_KEY
 * SAGEMAKER_ROLE
 
-### Build for testing
-Update the docker-compose.yaml with a temporary tag for the image name, then run
+### If you are using a local Splice DB instance
+
+After starting the [standalone database](https://www.github.com/splicemachine/spliceengine] you must run sqlshell (`./sqlshell.sh`) and:
+* Create an MLMANAGER user (`call syscs_util.syscs_create_user('MLMANAGER','admin');
+* grant the mlmanager user access to all existing schemas
+  * grant all privileges on schema sys to mlmanager;
+  * grant all privileges on schema splice to mlmanager;
+  * grant all privileges on schema SYSIBM to mlmanager;
+
+Then you can run:
 ```
-docker-compose build mlflow bobby <br>
 docker-compose up mlflow bobby
 ```
 If you want to include jupyter notebooks in your testing, you can run
 ```
-docker-compose build mlflow bobby jupyter <br>
+docker-compose up mlflow bobby jupyter
+```
+
+### Build for testing
+Update the docker-compose.yaml with a temporary tag for the image name, then run
+```
+docker-compose build mlflow bobby
+docker-compose up mlflow bobby
+```
+If you want to include jupyter notebooks in your testing, you can run
+```
+docker-compose build mlflow bobby jupyter 
 docker-compose up mlflow bobby jupyter
 ```
 
