@@ -51,7 +51,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         primary_key = self.task.parsed_payload['primary_key']
 
         if create_model_table and not primary_key:
-            raise Exception("A deployed model table must have primary_key parameter specified")
+            raise Exception("If you are creating a new table for your deployment, you must specify the primary_keys parameter")
 
         if not create_model_table:
             primary_keys = inspector.get_primary_keys(self.task.parsed_payload['db_table'],
