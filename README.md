@@ -71,7 +71,7 @@ The following fields <b>may</b> be provided (only if you want to deploy models t
 
 ### If you are using a local Splice DB instance
 
-After starting the [standalone database](https://www.github.com/splicemachine/spliceengine] you must run sqlshell (`./sqlshell.sh`) and:
+After starting the [standalone database](https://www.github.com/splicemachine/spliceengine) you must run sqlshell (`./sqlshell.sh`) and:
 * Create an MLMANAGER user (`call syscs_util.syscs_create_user('MLMANAGER','admin');
 * grant the mlmanager user access to all existing schemas
   * grant all privileges on schema sys to mlmanager;

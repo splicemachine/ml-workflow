@@ -318,3 +318,4 @@ class Converters:
 
 
 SQLAlchemyClient.create()
+SQLAlchemyClient.create_job_manager()
