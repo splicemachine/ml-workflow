@@ -453,7 +453,6 @@ class DatabaseModelDDL:
             )
 
 
-
     def register_feature_store_deployment(self):
         """
         On deployment, if the model has an associated training set, we want to log this deployment in the
