@@ -20,7 +20,7 @@ services:
       FRAMEWORK_NAME: my-framework
       MODE: development
       ENVIRONMENT: ${ENVIRONMENT}
-    image: splicemachine/sm_k8_mlflow:0.1.26
+    image: splicemachine/sm_k8_mlflow:0.1.26_dev
     ports:
       - "5001:5001"
       - "5003:5003"
@@ -45,10 +45,26 @@ services:
       SAGEMAKER_ROLE: ${SAGEMAKER_ROLE}
       MODE: production
       ENVIRONMENT: ${ENVIRONMENT}
-    image: splicemachine/sm_k8_bobby:0.1.26
+    image: splicemachine/sm_k8_bobby:0.1.26_dev
     build:
       args:
         server_image_tag: 0.0.15
         splice_base_image_version: 0.0.2
       context: ./
       dockerfile: ./bobby/Dockerfile
+  feature_store:
+    environment:
+      DB_HOST: host.docker.internal
+      DB_USER: mlmanager
+      DB_PASSWORD: ${DB_PASSWORD}
+      FRAMEWORK_NAME: my-framework
+      MODE: development
+      ENVIRONMENT: ${ENVIRONMENT}
+    image: splicemachine/sm_k8_feature_store:0.0.1
+    ports:
+      - "8000:8000"
+    build:
+      args:
+        splice_base_image_version: 0.0.2
+      context: ./
+      dockerfile: ./feature_store/Dockerfile
