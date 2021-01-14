@@ -4,3 +4,4 @@ unixodbc
 gcc
 g++
 default-jre
+curl

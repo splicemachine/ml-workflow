@@ -12,6 +12,7 @@ services:
       args:
         splice_base_image_version: 0.0.2
       context: jupyter
+    image: splicemachine/ml-workflow_jupyter:0.0.1
   mlflow:
     environment:
       DB_HOST: host.docker.internal
