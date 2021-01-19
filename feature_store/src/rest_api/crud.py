@@ -5,6 +5,7 @@ from .constants import SQL
 from shared.models import feature_store_models
 from shared.services.database import SQLAlchemyClient
 from shared.logger.logging_config import logger
+import re
 
 def get_db():
     db = SQLAlchemyClient.SessionFactory()
@@ -32,9 +33,25 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate):
     logger.info("Validating Schema")
     str = f'Feature Set {fset.schema_name}.{fset.table_name} already exists. Use a different schema and/or table name.'
     # Validate Table
-    assert not SQLAlchemyClient.engine.dialect.has_table(SQLAlchemyClient.engine, fset.table_name, fset.schema_name), str
+    assert not table_exists(fset.schema_name, fset.table_name), str
     # Validate metadata
     assert len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) == 0, str
+
+def validate_feature(db: Session, name: str):
+    """
+    Ensures that the feature doesn't exist as all features have unique names
+    :param name: the Feature name
+    :return:
+    """
+    # TODO: Capitalization of feature name column
+    # TODO: Make more informative, add which feature set contains existing feature
+    str = f"Cannot add feature {name}, feature already exists in Feature Store. Try a new feature name."
+    l = len(db.execute(SQL.get_all_features.format(name=name.upper())).fetchall())
+    assert l == 0, str
+
+    if not re.match('^[A-Za-z][A-Za-z0-9_]*$', name, re.IGNORECASE):
+        raise SpliceMachineException('Feature name does not conform. Must start with an alphabetic character, '
+                                     'and can only contains letters, numbers and underscores')
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
     """
@@ -62,26 +79,47 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Di
     sql = sql.rstrip('AND')
 
     feature_set_rows = db.execute(sql)
-
-    for fs in feature_set_rows.collect():
-        d = fs.asDict()
+    for fs in feature_set_rows.fetchall():
+        d = { k.lower(): v for k, v in fs.items() }
         pkcols = d.pop('pk_columns').split('|')
         pktypes = d.pop('pk_types').split('|')
         d['primary_keys'] = {c: k for c, k in zip(pkcols, pktypes)}
-        feature_sets.append(schema.FeatureSet(**d))
+        feature_sets.append(schemas.FeatureSet(**d))
     return feature_sets
 
-def register_metadata(db: Session, fset: feature_store_models.FeatureSet):
+def register_feature_set_metadata(db: Session, fset: schemas.FeatureSetCreate):
     fset_metadata = SQL.feature_set_metadata.format(schema=fset.schema_name, table=fset.table_name,
                                                     desc=fset.description)
 
     db.execute(fset_metadata)
-    fsid = db.execute(SQL.get_feature_set_id.format(schema=fset.schema_name,
-                                                            table=fset.table_name)).collect()[0][0]
-    fset.feature_set_id = fsid
+    fsid_results = db.execute(SQL.get_feature_set_id.format(schema=fset.schema_name,
+                                                            table=fset.table_name))
+    fsid = fsid_results.fetchone().values()[0]
 
-    for pk in fset.pk_columns:
+    logger.info(f'Found Feature Set ID {fsid}')
+
+    fsid_results.close()
+
+    db.execute(SQL.get_feature_set_id.format(schema=fset.schema_name,
+                                                            table=fset.table_name))
+
+    for pk in list(fset.primary_keys.keys()):
         pk_sql = SQL.feature_set_pk_metadata.format(
             feature_set_id=fsid, pk_col_name=pk.upper(), pk_col_type=fset.primary_keys[pk]
         )
         db.execute(pk_sql)
+    return schemas.FeatureSet(**fset.__dict__, feature_set_id=fsid)
+
+def register_feature_metadata(db: Session, f: schemas.FeatureCreate):
+    """
+    Registers the feature's existence in the feature store
+    """
+    feature_sql = SQL.feature_metadata.format(
+        feature_set_id=f.feature_set_id, name=f.name, desc=f.description,
+        feature_data_type=f.feature_data_type,
+        feature_type=f.feature_type, tags=','.join(f.tags) if isinstance(f.tags, list) else f.tags
+    )
+    db.execute(feature_sql)
+
+def table_exists(schema_name, table_name):
+    return SQLAlchemyClient.engine.dialect.has_table(SQLAlchemyClient.engine, table_name, schema_name)
