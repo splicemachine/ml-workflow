@@ -4,10 +4,13 @@ from fastapi import FastAPI, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_utils.timing import add_timing_middleware
 from uvicorn import run as run_server
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 
 # from routers.asynchronous import ASYNC_ROUTER
 from .routers.synchronous import SYNC_ROUTER
 from shared.logger.logging_config import logger
+from . import utils
 # from shared.services.database import DatabaseSQL, SQLAlchemyClient
 
 APP = FastAPI(
@@ -45,6 +48,10 @@ async def on_shutdown():
     """
     logger.info("****** API IS SHUTTING DOWN ******")
 
+@APP.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return utils.handle_exception(exc)
+
 # @APP.middleware("http")
 # async def create_session(request: Request, call_next):
 #     global Session
@@ -78,8 +85,6 @@ APP.include_router(
     tags=['Sync']
 )
 
-def toDict(resultproxy):
-    return [{column: value for column, value in rowproxy.items()} for rowproxy in resultproxy]
 
 if __name__ == '__main__':
     run_server(APP, host='0.0.0.0', port=8798)

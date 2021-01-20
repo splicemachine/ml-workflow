@@ -33,7 +33,7 @@ class FeatureBase(BaseModel):
     feature_data_type: str
     feature_type: str
     description: Optional[str] = None
-    tags: Optional[List[str]] = None
+    tags: Optional[Dict[str, str]] = None
 
 class FeatureCreate(FeatureBase):
     # Fill this in later
@@ -42,6 +42,23 @@ class FeatureCreate(FeatureBase):
 class Feature(FeatureBase):
     # Fill this in later
     feature_set_id: int
+
+    class Config:
+        orm_mode = True
+
+class TrainingViewBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    pk_columns: List[str]
+    ts_column: str
+    label_column: Optional[str] = None
+    join_keys: List[str]
+
+class TrainingViewCreate(TrainingViewBase):
+    sql_text: str
+
+class TrainingView(TrainingViewBase):
+    view_sql: str
 
     class Config:
         orm_mode = True
