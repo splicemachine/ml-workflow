@@ -10,7 +10,6 @@ from fastapi.exceptions import RequestValidationError
 # from routers.asynchronous import ASYNC_ROUTER
 from .routers.synchronous import SYNC_ROUTER
 from shared.logger.logging_config import logger
-from . import utils
 # from shared.services.database import DatabaseSQL, SQLAlchemyClient
 
 APP = FastAPI(
@@ -50,7 +49,8 @@ async def on_shutdown():
 
 @APP.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    return utils.handle_exception(exc)
+    logger.error(exc)
+    return JSONResponse(status_code=400, content={ "detail": str(exc) })
 
 # @APP.middleware("http")
 # async def create_session(request: Request, call_next):
