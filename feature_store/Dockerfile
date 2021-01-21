@@ -45,7 +45,6 @@ RUN rm -rf $BUILD_HOME/* && \
 
 # Copy Source into Container
 COPY feature_store/src $SRC_HOME
-COPY feature_store/src/lib $SRC_HOME/lib
 
 # Copy Shiro (and dependencies) for authentication
 RUN \
@@ -62,5 +61,7 @@ COPY shared /tmp/shared
 RUN pip3 install /tmp/shared/.
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
+
+RUN pip3 install async-exit-stack async-generator
 
 CMD $SRC_HOME"/scripts/entrypoint.sh"
