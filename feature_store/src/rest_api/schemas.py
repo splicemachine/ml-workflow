@@ -46,6 +46,9 @@ class Feature(FeatureBase):
     class Config:
         orm_mode = True
 
+class FeatureDescription(Feature):
+    feature_set_name: str
+
 class TrainingViewBase(BaseModel):
     name: str
     description: Optional[str] = None

@@ -105,7 +105,7 @@ def get_training_view_features(db: Session, training_view: str) -> List[schemas.
     features = []
     for feat in df.fetchall():
         f = dict((k.lower(), v) for k, v in feat.items())
-        features.append(Feature(**f))
+        features.append(schemas.Feature(**f))
     return features
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
@@ -142,7 +142,7 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Di
         feature_sets.append(schemas.FeatureSet(**d))
     return feature_sets
 
-def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None):
+def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) -> List[schemas.TrainingView]:
     """
     Returns a list of all available training views with an optional filter
 
@@ -259,10 +259,10 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
     :return: List[Feature]
     """
     feat_str = [f for f in features if isinstance(f, str)]
-    str_to_feat = crud.get_features_by_name(db, names=feat_str) if feat_str else []
+    str_to_feat = get_features_by_name(db, names=feat_str) if feat_str else []
     all_features = str_to_feat + [f for f in features if not isinstance(f, str)]
     assert all(
-        [isinstance(i, Feature) for i in all_features]), "It seems you've passed in Features that are neither" \
+        [isinstance(i, schemas.Feature) for i in all_features]), "It seems you've passed in Features that are neither" \
                                                             " a feature name (string) or a Feature object"
     return all_features
 
@@ -298,7 +298,7 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet):
     db.execute(trigger_sql)
     print('Done.')
     print('Updating Metadata...')
-    db.execute(SQL.update_fset_deployment_status.format(status=int(status),
+    db.execute(SQL.update_fset_deployment_status.format(status=int(True),
                                                         feature_set_id=fset.feature_set_id))
     fset.deployed = True
     print('Done.')
@@ -315,7 +315,7 @@ def _validate_training_view(db: Session, name, sql, join_keys, label_col=None):
     :return:
     """
     # Validate name doesn't exist
-    assert len(crud.get_training_views(db, _filter={'name': name})) == 0, f"Training View {name} already exists!"
+    assert len(get_training_views(db, _filter={'name': name})) == 0, f"Training View {name} already exists!"
 
     # Column comparison
     # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
@@ -345,7 +345,7 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate):
     print('Done.')
 
     # Get generated view ID
-    vid = get_training_view_id(db, name)
+    vid = get_training_view_id(db, tv.name)
 
     print('Creating Join Keys')
     for i in tv.join_keys:
