@@ -9,24 +9,14 @@ class FeatureSetBase(BaseModel):
     primary_keys: Dict[str, str]
 
 class FeatureSetCreate(FeatureSetBase):
-    # primary_keys: Dict[str, str]
     pass
 
 class FeatureSet(FeatureSetBase):
     feature_set_id: int
-    # deployed: bool
+    deployed: Optional[bool] = False
 
     class Config:
         orm_mode = True
-
-# class FeatureType:
-#     """
-#     Class containing names for
-#     valid feature types
-#     """
-#     categorical: str = "N"
-#     ordinal: str = "O"
-#     continuous: str = "C"
 
 class FeatureBase(BaseModel):
     name: str
@@ -36,31 +26,33 @@ class FeatureBase(BaseModel):
     tags: Optional[Dict[str, str]] = None
 
 class FeatureCreate(FeatureBase):
-    # Fill this in later
     pass
 
 class Feature(FeatureBase):
-    # Fill this in later
     feature_set_id: int
 
     class Config:
         orm_mode = True
 
 class FeatureDescription(Feature):
-    feature_set_name: str
+    feature_set_name: Optional[str] = None
+    compliance_level: Optional[int] = None
+    last_update_ts: datetime
+    last_update_username: str
 
 class TrainingViewBase(BaseModel):
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
     pk_columns: List[str]
     ts_column: str
     label_column: Optional[str] = None
-    join_keys: List[str]
+    join_columns: Optional[List[str]] = None
 
 class TrainingViewCreate(TrainingViewBase):
     sql_text: str
 
 class TrainingView(TrainingViewBase):
+    view_id: int
     view_sql: str
 
     class Config:

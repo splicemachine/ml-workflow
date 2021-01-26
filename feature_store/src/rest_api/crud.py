@@ -1,23 +1,29 @@
 from sqlalchemy.orm import Session
-from typing import List, Dict, Union, Optional
+from typing import List, Dict, Union, Optional, Any
 from . import schemas
-from .constants import SQL, Columns
+from .constants import SQL
 from shared.models import feature_store_models
 from shared.services.database import SQLAlchemyClient
 from shared.logger.logging_config import logger
 from fastapi import HTTPException
 import re
 import json
+from datetime import datetime
+from sqlalchemy import inspect as peer_into_splice_db
+from .utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
 
 FEATURE_SET_TS_COL = '\n\tLAST_UPDATE_TS TIMESTAMP'
 HISTORY_SET_TS_COL = '\n\tASOF_TS TIMESTAMP,\n\tUNTIL_TS TIMESTAMP'
 
 def get_db():
+    """
+    Provides SqlAlchemy Session object to path operations
+    """
     db = SQLAlchemyClient.SessionFactory()
     try:
         yield db
     except Exception as e:
-        logger.error(f'Encountered error - {e}')
+        logger.error(e)
         db.rollback()
     else:
         logger.info("Committing...")
@@ -28,31 +34,35 @@ def get_db():
         db.close()
         SQLAlchemyClient.SessionFactory.remove()
 
-def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate):
+def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     """
     Asserts a feature set doesn't already exist in the database
-    :param schema_name: schema name of the feature set
-    :param table_name: table name of the feature set
+    :param db: SqlAlchemy Session
+    :param fset: the feature set
     :return: None
     """
     logger.info("Validating Schema")
     str = f'Feature Set {fset.schema_name}.{fset.table_name} already exists. Use a different schema and/or table name.'
     # Validate Table
-    assert not table_exists(fset.schema_name, fset.table_name), str
+    if table_exists(fset.schema_name, fset.table_name):
+        raise HTTPException(status_code=409, detail=str)
     # Validate metadata
-    assert len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) == 0, str
+    if len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) > 0:
+        raise HTTPException(status_code=409, detail=str)
 
-def validate_feature(db: Session, name: str):
+def validate_feature(db: Session, name: str) -> None:
     """
     Ensures that the feature doesn't exist as all features have unique names
+    :param db: SqlAlchemy Session
     :param name: the Feature name
-    :return:
+    :return: None
     """
     # TODO: Capitalization of feature name column
     # TODO: Make more informative, add which feature set contains existing feature
     str = f"Cannot add feature {name}, feature already exists in Feature Store. Try a new feature name."
     l = len(db.execute(SQL.get_all_features.format(name=name.upper())).fetchall())
-    assert l == 0, str
+    if l > 0:
+        raise HTTPException(status_code=409, detail=str)
 
     if not re.match('^[A-Za-z][A-Za-z0-9_]*$', name, re.IGNORECASE):
         raise HTTPException(status_code=406, detail='Feature name does not conform. Must start with an alphabetic character, '
@@ -69,9 +79,20 @@ def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
 
     feature_set_key_columns = {fkey.lower() for fset in feature_sets for fkey in fset.primary_keys.keys()}
     missing_keys = feature_set_key_columns - join_key_values.keys()
-    assert not missing_keys, f"The following keys were not provided and must be: {missing_keys}"
+    if missing_keys:
+        raise HTTPException(status_code=400, detail=f"The following keys were not provided and must be: {missing_keys}")
 
-def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, str], feature_sets: List[schemas.FeatureSet], return_sql: bool):
+def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, str], feature_sets: List[schemas.FeatureSet], return_sql: bool) -> Union[Dict[str, Any], str]:
+    """
+    Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets
+
+    :param db: SqlAlchemy Session
+    :param features: List of Features
+    :param join_key_values: (dict) join key values to get the proper Feature values formatted as {join_key_column_name: join_key_value}
+    :param feature_sets: List of Feature Sets
+    :param return_sql: Whether to return the SQL needed to get the vector or the values themselves. Default False
+    :return: Dict or str (SQL statement)
+    """
     feature_names = ','.join([f.name for f in feats])
     fset_tables = ','.join(
         [f'{fset.schema_name}.{fset.table_name} fset{fset.feature_set_id}' for fset in feature_sets])
@@ -91,27 +112,30 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
 
     return dict(vector[0].items()) if len(vector) > 0 else {}
 
-def get_training_view_features(db: Session, training_view: str) -> List[schemas.Feature]:
+def get_training_view_features(db: Session, training_view: str) -> List[schemas.FeatureDescription]:
     """
     Returns the available features for the given a training view name
 
+    :param db: SqlAlchemy Session
     :param training_view: The name of the training view
     :return: A list of available Feature objects
     """
     where = f"tc.Name='{training_view}'"
 
-    df = db.execute(SQL.get_training_view_features.format(where=where), to_lower=True)
+    df = db.execute(SQL.get_training_view_features.format(where=where))
 
     features = []
     for feat in df.fetchall():
         f = dict((k.lower(), v) for k, v in feat.items())
-        features.append(schemas.Feature(**f))
+        f['tags'] = json.loads(f['tags'])
+        features.append(schemas.FeatureDescription(**f))
     return features
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
     """
     Returns a list of available feature sets
 
+    :param db: SqlAlchemy Session
     :param feature_set_ids: A list of feature set IDs. If none will return all FeatureSets
     :param _filter: Dictionary of filters to apply to the query. This filter can be on any attribute of FeatureSets.
         If None, will return all FeatureSets
@@ -146,6 +170,7 @@ def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) 
     """
     Returns a list of all available training views with an optional filter
 
+    :param db: SqlAlchemy Session
     :param _filter: Dictionary container the filter keyword (label, description etc) and the value to filter on
         If None, will return all TrainingViews
     :return: List[TrainingView]
@@ -166,19 +191,27 @@ def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) 
         t = dict((k.lower(), v) for k, v in tc.items())
         # DB doesn't support lists so it stores , separated vals in a string
         t['pk_columns'] = t.pop('pk_columns').split(',')
+        t['join_columns'] = t.pop('join_columns').split(',')
         training_views.append(schemas.TrainingView(**t))
     return training_views
 
-def get_training_view_id(db: Session, name: str):
+def get_training_view_id(db: Session, name: str) -> int:
+    """
+    Returns the view_id for the given training view
+
+    :param db: SqlAlchemy Session
+    :param name: The name of the training view
+    :return: in
+    """
     return db.execute(SQL.get_training_view_id.format(name=name)).fetchall()[0].values()[0]
 
-def get_features_by_name(db: Session, names: Optional[List[str]]):
+def get_features_by_name(db: Session, names: Optional[List[str]]) -> List[schemas.Feature]:
     """
     Returns a dataframe or list of features whose names are provided
 
+    :param db: SqlAlchemy Session
     :param names: The list of feature names
-    :param as_list: Whether or not to return a list of features. Default False
-    :return: SparkDF or List[Feature] The list of Feature objects or Spark Dataframe of features and their metadata. Note, this is not the Feature
+    :return: List[Feature] The list of Feature objects and their metadata. Note, this is not the Feature
     values, simply the describing metadata about the features. To create a training dataset with Feature values, see
     :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_feature_dataset`
     """
@@ -189,10 +222,27 @@ def get_features_by_name(db: Session, names: Optional[List[str]]):
     features = []
     for feat in df.fetchall():
         f = dict((k.lower(), v) for k, v in feat.items())  # DB returns uppercase column names
+        f['tags'] = json.loads(f['tags'])
         features.append(schemas.Feature(**f))
     return features
 
-def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: schemas.TrainingView):
+def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: schemas.TrainingView) -> str:
+    """
+    Returns the parameterized feature retrieval SQL used for online model serving.
+
+    :param db: SqlAlchemy Session
+    :param features: (List[Feature]) the list of features from the feature store to be included in the training
+    :param training_view: (str) The registered training view
+
+        :NOTE:
+            .. code-block:: text
+
+                This function will error if the view SQL is missing a view key required to retrieve the\
+                desired features
+
+    :return: (str) the parameterized feature vector SQL
+    """
+
     sql = 'SELECT '
 
     # SELECT expressions
@@ -213,7 +263,7 @@ def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: s
     for fset in feature_sets:
         # Join Feature Set
         sql += f'\n\t{fset.schema_name}.{fset.table_name} fset{fset.feature_set_id}, '
-        for pkcol in fset.pk_columns:
+        for pkcol in __get_pk_columns(fset):
             where += f'\n\tfset{fset.feature_set_id}.{pkcol}={{p_{pkcol}}} AND '
 
     sql = sql.rstrip(', ')
@@ -222,7 +272,7 @@ def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: s
 
     return sql
 
-def register_feature_set_metadata(db: Session, fset: schemas.FeatureSetCreate):
+def register_feature_set_metadata(db: Session, fset: schemas.FeatureSetCreate) -> None:
     fset_metadata = SQL.feature_set_metadata.format(schema=fset.schema_name, table=fset.table_name,
                                                     desc=fset.description)
 
@@ -231,18 +281,19 @@ def register_feature_set_metadata(db: Session, fset: schemas.FeatureSetCreate):
                                                             table=fset.table_name))
     fsid = fsid_results.fetchall()[0].values()[0]
 
-    logger.info(f'Found Feature Set ID {fsid}')
-
-    for pk in list(fset.primary_keys.keys()):
+    for pk in __get_pk_columns(fset):
         pk_sql = SQL.feature_set_pk_metadata.format(
             feature_set_id=fsid, pk_col_name=pk.upper(), pk_col_type=fset.primary_keys[pk]
         )
         db.execute(pk_sql)
     return schemas.FeatureSet(**fset.__dict__, feature_set_id=fsid)
 
-def register_feature_metadata(db: Session, f: schemas.FeatureCreate):
+def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> None:
     """
     Registers the feature's existence in the feature store
+    :param db: SqlAlchemy Session
+    :param f: (Feature) the feature to register
+    :return: None
     """
     feature_sql = SQL.feature_metadata.format(
         feature_set_id=f.feature_set_id, name=f.name, desc=f.description,
@@ -255,22 +306,27 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
     """
     Process a list of Features parameter. If the list is strings, it converts them to Features, else returns itself
 
+    :param db: SqlAlchemy Session
     :param features: The list of Feature names or Feature objects
     :return: List[Feature]
     """
     feat_str = [f for f in features if isinstance(f, str)]
     str_to_feat = get_features_by_name(db, names=feat_str) if feat_str else []
     all_features = str_to_feat + [f for f in features if not isinstance(f, str)]
-    assert all(
-        [isinstance(i, schemas.Feature) for i in all_features]), "It seems you've passed in Features that are neither" \
-                                                            " a feature name (string) or a Feature object"
+    if not all(
+        [isinstance(i, schemas.Feature) for i in all_features]):
+        raise HTTPException(status_code=409, detail="It seems you've passed in Features that are neither" \
+                                                            " a feature name (string) or a Feature object")
     return all_features
 
-def deploy_feature_set(db: Session, fset: schemas.FeatureSet):
+def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.FeatureSet:
     """
     Deploys the current feature set. Equivalent to calling fs.deploy(schema_name, table_name)
+    :param db: SqlAlchemy Session
+    :param fset: The feature set
+    :return: List[Feature]
     """
-    old_pk_cols = ','.join(f'OLDW.{p}' for p in fset.pk_columns)
+    old_pk_cols = ','.join(f'OLDW.{p}' for p in __get_pk_columns(fset))
     old_feature_cols = ','.join(f'OLDW.{f.name}' for f in get_features(db, fset))
 
     feature_set_sql = SQL.feature_set_table.format(
@@ -304,24 +360,26 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet):
     print('Done.')
     return fset
 
-def _validate_training_view(db: Session, name, sql, join_keys, label_col=None):
+def validate_training_view(db: Session, name, sql, join_keys, label_col=None) -> None:
     """
     Validates that the training view doesn't already exist.
 
+    :param db: SqlAlchemy Session
     :param name: The training view name
     :param sql: The training view provided SQL
     :param join_keys: The provided join keys when creating the training view
     :param label_col: The label column
-    :return:
+    :return: None
     """
     # Validate name doesn't exist
-    assert len(get_training_views(db, _filter={'name': name})) == 0, f"Training View {name} already exists!"
+    if len(get_training_views(db, _filter={'name': name}))> 0:
+        raise HTTPException(status_code=409, detail=f"Training View {name} already exists!")
 
     # Column comparison
     # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
     from py4j.protocol import Py4JJavaError
     try:
-        valid_df = db.execute(sql)
+        valid_df = db.execute(f'SELECT * FROM ({sql}) {{limit 1}}')
     except Py4JJavaError as e:
         if 'SQLSyntaxErrorException' in str(e.java_exception):
             raise HTTPException(status_code=406, detail=f'The provided SQL is incorrect. The following error was raised during '
@@ -329,14 +387,24 @@ def _validate_training_view(db: Session, name, sql, join_keys, label_col=None):
         raise e
 
     # Ensure the label column specified is in the output of the SQL
-    if label_col: assert label_col in valid_df.keys(), f"Provided label column {label_col} is not available in the provided SQL"
+    if label_col and not label_col in valid_df.keys():
+        raise HTTPException(status_code=400, detail=f"Provided label column {label_col} is not available in the provided SQL")
     # Confirm that all join_keys provided correspond to primary keys of created feature sets
     pks = set(i.values()[0].upper() for i in db.execute(SQL.get_fset_primary_keys).fetchall())
     missing_keys = set(i.upper() for i in join_keys) - pks
-    assert not missing_keys, f"Not all provided join keys exist. Remove {missing_keys} or " \
-                                f"create a feature set that uses the missing keys"
+    if missing_keys:
+        raise HTTPException(status_code=400, detail=f"Not all provided join keys exist. Remove {missing_keys} or " \
+                                f"create a feature set that uses the missing keys")
 
-def create_training_view(db: Session, tv: schemas.TrainingViewCreate):
+def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
+    """
+    Registers a training view for use in generating training SQL
+
+    :param db: SqlAlchemy Session
+    :param tv: The training view to register
+    :return: None
+    """
+    
     train_sql = SQL.training_view.format(name=tv.name, desc=tv.description or 'None Provided', sql_text=tv.sql_text, ts_col=tv.ts_column,
                                             label_col=tv.label_column)
     print('Building training sql...')
@@ -348,7 +416,7 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate):
     vid = get_training_view_id(db, tv.name)
 
     print('Creating Join Keys')
-    for i in tv.join_keys:
+    for i in tv.join_columns:
         key_sql = SQL.training_view_keys.format(view_id=vid, key_column=i.upper(), key_type='J')
         print(f'\tCreating Join Key {i}...')
         # if verbose: print('\t', key_sql)
@@ -362,27 +430,24 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate):
         db.execute(key_sql)
     print('Done.')
 
-def get_features(db: Session, fset: schemas.FeatureSet):
+# Feature/FeatureSet specific
+
+def get_features(db: Session, fset: schemas.FeatureSet) -> List[schemas.Feature]:
     """
     Get's all of the features from this featureset as a list of splicemachine.features.Feature
 
+    :param db: SqlAlchemy Session
+    :param fset: The feature set from which to get features
     :return: List[Feature]
     """
     features = []
     if fset.feature_set_id:
-        features_rows = db.execut(SQL.get_features_in_feature_set.format(feature_set_id=fset.feature_set_id)).fetchall()
+        features_rows = db.execute(SQL.get_features_in_feature_set.format(feature_set_id=fset.feature_set_id)).fetchall()
         for f in features_rows:
             d = dict((k.lower(), v) for k, v in f.items())
+            d['tags'] = json.loads(d['tags'])
             features.append(schemas.Feature(**d))
     return features
-
-def get_pk_schema_str(fset: schemas.FeatureSet):
-    return ','.join([f'\n\t{k} {fset.primary_keys[k]}' for k in fset.primary_keys])
-
-def get_pk_column_str(fset: schemas.FeatureSet, history=False):
-    if history:
-        return ','.join(fset.pk_columns + Columns.history_table_pk)
-    return ','.join(fset.pk_columns)
 
 def get_feature_schema_str(db: Session, fset: schemas.FeatureSet):
     return ','.join([f'\n\t{f.name}  {f.feature_data_type}' for f in get_features(db, fset)])
@@ -391,4 +456,5 @@ def get_feature_column_str(db: Session, fset: schemas.FeatureSet):
     return ','.join([f.name for f in get_features(db, fset)])
 
 def table_exists(schema_name, table_name):
-    return SQLAlchemyClient.engine.dialect.has_table(SQLAlchemyClient.engine, table_name, schema_name)
+    inspector = peer_into_splice_db(SQLAlchemyClient.engine)
+    return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]

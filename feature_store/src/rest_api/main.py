@@ -10,7 +10,6 @@ from fastapi.exceptions import RequestValidationError
 # from routers.asynchronous import ASYNC_ROUTER
 from .routers.synchronous import SYNC_ROUTER
 from shared.logger.logging_config import logger
-# from shared.services.database import DatabaseSQL, SQLAlchemyClient
 
 APP = FastAPI(
     title="Feature Store API",
@@ -28,9 +27,6 @@ APP.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-
-# Session = None  # db session-- created with every request
-# engine = SQLAlchemyClient.engine
 
 @APP.on_event(event_type='startup')
 async def on_startup():
@@ -51,21 +47,6 @@ async def on_shutdown():
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     logger.error(exc)
     return JSONResponse(status_code=400, content={ "detail": str(exc) })
-
-# @APP.middleware("http")
-# async def create_session(request: Request, call_next):
-#     global Session
-#     Session = SQLAlchemyClient.SessionFactory()
-#     try:
-#         response = await call_next(request)
-#         Session.commit()
-#     except:
-#         Session.rollback()
-#     finally:
-#         Session.close()
-#         SQLAlchemyClient.SessionFactory.remove()
-#     return toDict(response)
-
 
 @APP.get('/health', description='Health check', response_model=str, operation_id='healthcheck', tags=['Mgmt'],
          status_code=status.HTTP_200_OK)
