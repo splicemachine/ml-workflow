@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Depends, HTTPException, Body
+from fastapi import APIRouter, status, Depends, HTTPException, Body, Query
 from typing import List, Dict, Optional, Union
 from shared.logger.logging_config import logger
 from shared.models.feature_store_models import FeatureSet, TrainingView, Feature
@@ -17,7 +17,7 @@ SYNC_ROUTER = APIRouter()
 
 @SYNC_ROUTER.get('/feature-sets', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSet],
                  description="Returns a list of available feature sets", operation_id='get_feature_sets')
-async def get_feature_sets(fsid: Optional[List[int]] = None, db: Session = Depends(crud.get_db)):
+async def get_feature_sets(fsid: Optional[List[int]] = Query(None), db: Session = Depends(crud.get_db)):
     """
     Returns a list of available feature sets
     """
@@ -57,7 +57,7 @@ async def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
 
 @SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.Feature],
                 description="Returns a dataframe or list of features whose names are provided", operation_id='get_features_by_name')
-async def get_features_by_name(name: Optional[List[str]] = None, db: Session = Depends(crud.get_db)):
+async def get_features_by_name(name: Optional[List[str]] = Query(None), db: Session = Depends(crud.get_db)):
     """
     Returns a list of features whose names are provided
 
@@ -102,7 +102,7 @@ async def get_feature_vector_sql_from_training_view(features: List[schemas.Featu
 
 @SYNC_ROUTER.get('/feature-primary-keys', status_code=status.HTTP_200_OK, response_model=Dict[str, List[str]],
                 description="Returns a dictionary mapping each individual feature to its primary key(s).", operation_id='get_feature_primary_keys')
-async def get_feature_primary_keys(features: List[str], db: Session = Depends(crud.get_db)):
+async def get_feature_primary_keys(features: List[str] = Query([]), db: Session = Depends(crud.get_db)):
     """
     Returns a dictionary mapping each individual feature to its primary key(s). This function is not yet implemented.
     """
@@ -191,7 +191,7 @@ async def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db:
     Add a feature to a feature set
     """
     __validate_feature_data_type(fc.feature_data_type)
-    if crud.table_exists(schema, table):
+    if crud.table_exists(db, schema, table):
         raise HTTPException(status_code=409, detail=f"Feature Set {schema}.{table} is already deployed. You cannot "
                                         f"add features to a deployed feature set.")
     fset: schemas.FeatureSet = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema})[0]

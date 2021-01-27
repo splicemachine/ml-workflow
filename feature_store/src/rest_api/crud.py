@@ -44,7 +44,7 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     logger.info("Validating Schema")
     str = f'Feature Set {fset.schema_name}.{fset.table_name} already exists. Use a different schema and/or table name.'
     # Validate Table
-    if table_exists(fset.schema_name, fset.table_name):
+    if table_exists(db, fset.schema_name, fset.table_name):
         raise HTTPException(status_code=409, detail=str)
     # Validate metadata
     if len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) > 0:
@@ -455,6 +455,7 @@ def get_feature_schema_str(db: Session, fset: schemas.FeatureSet):
 def get_feature_column_str(db: Session, fset: schemas.FeatureSet):
     return ','.join([f.name for f in get_features(db, fset)])
 
-def table_exists(schema_name, table_name):
-    inspector = peer_into_splice_db(SQLAlchemyClient.engine)
+def table_exists(db, schema_name, table_name):
+    inspector = peer_into_splice_db(db.get_bind())
+    if schema_name.lower() not in [value.lower() for value in inspector.get_schema_names()]: return False
     return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]

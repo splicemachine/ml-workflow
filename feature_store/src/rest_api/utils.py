@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from .schemas import FeatureSetBase
+from .schemas import FeatureSetBase, FeatureSet
 from .constants import Columns
 
 def __validate_feature_data_type(feature_data_type: str):
@@ -13,10 +13,10 @@ def __validate_feature_data_type(feature_data_type: str):
         raise HTTPException(status_code=406, detail=f"The datatype you've passed in, {feature_data_type} is not a valid SQL type. "
                                      f"Valid types are {SQL_TYPES}")
 
-def get_pk_schema_str(fset: schemas.FeatureSet):
+def get_pk_schema_str(fset: FeatureSet):
     return ','.join([f'\n\t{k} {fset.primary_keys[k]}' for k in fset.primary_keys])
 
-def get_pk_column_str(fset: schemas.FeatureSet, history=False):
+def get_pk_column_str(fset: FeatureSet, history=False):
     if history:
         return ','.join(__get_pk_columns(fset) + Columns.history_table_pk)
     return ','.join(__get_pk_columns(fset))
