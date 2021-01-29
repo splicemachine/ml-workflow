@@ -1,6 +1,7 @@
 from fastapi import HTTPException
 from .schemas import FeatureSetBase
 from .constants import Columns
+from . import schemas
 
 def __validate_feature_data_type(feature_data_type: str):
     """
