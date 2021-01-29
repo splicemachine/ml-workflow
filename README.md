@@ -61,7 +61,6 @@ The following fields <b>must</b> be provided:
      * azure
      * default
 
-You can run ml-workflow locally using docker-compose. The docker-comopse is set up, but missing a few fields that the user must provide in a <code>.env</code> file.<br>
 The following fields <b>may</b> be provided (only if you want to deploy models to the relevant endpoints):
 * AZURE_USERNAME
 * AZURE_PASSWORD
@@ -72,11 +71,13 @@ The following fields <b>may</b> be provided (only if you want to deploy models t
 ### If you are using a local Splice DB instance
 
 After starting the [standalone database](https://www.github.com/splicemachine/spliceengine) you must run sqlshell (`./sqlshell.sh`) and:
-* Create an MLMANAGER user (`call syscs_util.syscs_create_user('MLMANAGER','admin');
+* Create an MLMANAGER user <br>`call syscs_util.syscs_create_user('MLMANAGER','admin');`
 * grant the mlmanager user access to all existing schemas
-  * grant all privileges on schema sys to mlmanager;
-  * grant all privileges on schema splice to mlmanager;
-  * grant all privileges on schema SYSIBM to mlmanager;
+  ```
+  grant all privileges on schema sys to mlmanager;
+  grant all privileges on schema splice to mlmanager;
+  grant all privileges on schema SYSIBM to mlmanager;
+  ```
 
 Then you can run:
 ```
