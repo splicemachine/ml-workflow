@@ -1,8 +1,8 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from typing import List, Dict, Union, Optional, Any
 from . import schemas
 from .constants import SQL
-from shared.models import feature_store_models
+from shared.models import feature_store_models as models
 from shared.services.database import SQLAlchemyClient
 from shared.logger.logging_config import logger
 from fastapi import HTTPException
@@ -10,7 +10,9 @@ import re
 import json
 from datetime import datetime
 from sqlalchemy import inspect as peer_into_splice_db
+from sqlalchemy import sql, Integer, String, func, distinct, cast, and_
 from .utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
+from sys import exc_info as get_stack_trace
 
 FEATURE_SET_TS_COL = '\n\tLAST_UPDATE_TS TIMESTAMP'
 HISTORY_SET_TS_COL = '\n\tASOF_TS TIMESTAMP,\n\tUNTIL_TS TIMESTAMP'
@@ -24,6 +26,7 @@ def get_db():
         yield db
     except Exception as e:
         logger.error(e)
+        logger.warning("Rolling back...")
         db.rollback()
     else:
         logger.info("Committing...")
@@ -60,7 +63,8 @@ def validate_feature(db: Session, name: str) -> None:
     # TODO: Capitalization of feature name column
     # TODO: Make more informative, add which feature set contains existing feature
     str = f"Cannot add feature {name}, feature already exists in Feature Store. Try a new feature name."
-    l = len(db.execute(SQL.get_all_features.format(name=name.upper())).fetchall())
+    # l = len(db.execute(SQL.get_all_features.format(name=name.upper())).fetchall())
+    l = len(db.query(models.Feature.name).filter(models.Feature.name == name.upper()).all())
     if l > 0:
         raise HTTPException(status_code=409, detail=str)
 
@@ -112,7 +116,7 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
 
     return dict(vector[0].items()) if len(vector) > 0 else {}
 
-def get_training_view_features(db: Session, training_view: str) -> List[schemas.FeatureDescription]:
+def get_training_view_features(db: Session, training_view: str) -> List[schemas.Feature]:
     """
     Returns the available features for the given a training view name
 
@@ -120,15 +124,46 @@ def get_training_view_features(db: Session, training_view: str) -> List[schemas.
     :param training_view: The name of the training view
     :return: A list of available Feature objects
     """
-    where = f"tc.Name='{training_view}'"
+    # where = f"tc.Name='{training_view}'"
 
-    df = db.execute(SQL.get_training_view_features.format(where=where))
+    # df = db.execute(SQL.get_training_view_features.format(where=where))
+    fsk = db.query(
+        models.FeatureSetKey.feature_set_id, 
+        models.FeatureSetKey.key_column_name, 
+        func.count().over(partition_by=models.FeatureSetKey.feature_set_id).\
+            label('KeyCount')).\
+        subquery('fsk')
+
+    tc = aliased(models.TrainingView, name='tc')
+    c = aliased(models.TrainingViewKey, name='c')
+    f = aliased(models.Feature, name='f')
+
+    match_keys = db.query(
+        f.feature_id,
+        fsk.c.KeyCount,
+        func.count(distinct(fsk.c.key_column_name)).\
+            label('JoinKeyMatchCount')).\
+        join(fsk, f.feature_set_id==fsk.c.feature_set_id).\
+        join(c, (c.key_column_name==fsk.c.key_column_name) & (c.key_type=='J')).\
+        join(tc, tc.view_id==c.view_id).\
+        filter(tc.name==training_view).\
+        group_by(
+            f.feature_id,
+            fsk.c.KeyCount).\
+        subquery('match_keys')
+
+    fl = db.query(match_keys.c.feature_id).\
+        filter(match_keys.c.JoinKeyMatchCount==match_keys.c.KeyCount).\
+        subquery('fl')
+
+    q = db.query(f).filter(f.feature_id.in_(fl))
 
     features = []
-    for feat in df.fetchall():
-        f = dict((k.lower(), v) for k, v in feat.items())
+    for feat in q.all():
+        # f = dict((k.lower(), v) for k, v in feat.items())
+        f = feat.__dict__
         f['tags'] = json.loads(f['tags'])
-        features.append(schemas.FeatureDescription(**f))
+        features.append(schemas.Feature(**f))
     return features
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
@@ -145,25 +180,54 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Di
     feature_set_ids = feature_set_ids or []
     _filter = _filter or {}
 
-    sql = SQL.get_feature_sets
+    # sql = SQL.get_feature_sets
 
     # Filter by feature_set_id and filter
-    if feature_set_ids or _filter:
-        sql += ' WHERE '
-    if feature_set_ids:
-        fsd = tuple(feature_set_ids) if len(feature_set_ids) > 1 else f'({feature_set_ids[0]})'
-        sql += f' fset.feature_set_id in {fsd} AND'
-    for fl in _filter:
-        sql += f" fset.{fl}='{_filter[fl]}' AND"
-    sql = sql.rstrip('AND')
+    # if feature_set_ids or _filter:
+    #     sql += ' WHERE '
+    # if feature_set_ids:
+    #     fsd = tuple(feature_set_ids) if len(feature_set_ids) > 1 else f'({feature_set_ids[0]})'
+    #     sql += f' fset.feature_set_id in {fsd} AND'
+    # for fl in _filter:
+    #     sql += f" fset.{fl}='{_filter[fl]}' AND"
+    # sql = sql.rstrip('AND')
 
-    feature_set_rows = db.execute(sql)
-    for fs in feature_set_rows.fetchall():
-        d = dict((k.lower(), v) for k, v in fs.items())
-        pkcols = d.pop('pk_columns').split('|')
-        pktypes = d.pop('pk_types').split('|')
-        d['primary_keys'] = {c: k for c, k in zip(pkcols, pktypes)}
-        feature_sets.append(schemas.FeatureSet(**d))
+
+    # feature_set_rows = db.execute(sql)
+    # for fs in feature_set_rows.fetchall():
+
+    fset = aliased(models.FeatureSet)
+
+    queries = []
+    if feature_set_ids:
+        queries.append(fset.feature_set_id.in_(tuple(set(feature_set_ids))))
+    if _filter:
+        queries.extend([getattr(fset, name) == value for name, value in _filter.items()])
+
+    # SQLAlchemy does not support STRING_AGG
+    p = sql.text("""SELECT feature_set_id, STRING_AGG(key_column_name,'|') pk_columns, STRING_AGG(key_column_data_type,'|') pk_types 
+                    FROM FeatureStore.feature_set_key 
+                    GROUP BY 1""").\
+                    columns(
+                        sql.column('feature_set_id', Integer), 
+                        sql.column('pk_columns', String), 
+                        sql.column('pk_types', String)).\
+                    alias('p')
+
+    q = db.query(
+        fset, 
+        p.c.pk_columns, 
+        p.c.pk_types).\
+        join(p, fset.feature_set_id==p.c.feature_set_id).\
+        filter(and_(*queries))
+
+    for fs, pk_columns, pk_types in q.all():
+        # print(fs, pk_columns, pk_types)
+        # d = dict((k.lower(), v) for k, v in fs.items())
+        pkcols = pk_columns.split('|')
+        pktypes = pk_types.split('|')
+        primary_keys = {c: k for c, k in zip(pkcols, pktypes)}
+        feature_sets.append(schemas.FeatureSet(**fs.__dict__, primary_keys=primary_keys))
     return feature_sets
 
 def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) -> List[schemas.TrainingView]:
@@ -177,18 +241,54 @@ def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) 
     """
     training_views = []
 
-    sql = SQL.get_training_views
+    # sql = SQL.get_training_views
+
+    # if _filter:
+    #     sql += ' WHERE '
+    #     for k in _filter:
+    #         sql += f"tc.{k}='{_filter[k]}' and"
+    #     sql = sql.rstrip('and')
+
+    # training_view_rows = db.execute(sql)
+
+    p = sql.text("""SELECT view_id, STRING_AGG(key_column_name,',') pk_columns 
+                    FROM FeatureStore.training_view_key 
+                    WHERE key_type='P' 
+                    GROUP BY 1""").\
+            columns(
+                sql.column('view_id', Integer),
+                sql.column('pk_columns', String)).\
+            alias('p')
+
+    c = sql.text("""SELECT view_id, STRING_AGG(key_column_name,',') join_columns 
+                    FROM FeatureStore.training_view_key 
+                    WHERE key_type='J' 
+                    GROUP BY 1""").\
+            columns(
+                sql.column('view_id', Integer),
+                sql.column('join_columns', String)).\
+            alias('c')
+
+    tc = aliased(models.TrainingView)
+
+    q = db.query(
+        tc.view_id,
+        tc.name,
+        tc.description, 
+        cast(tc.sql_text, String(1000)).label('view_sql'),
+        p.c.pk_columns,
+        tc.ts_column,
+        tc.label_column,
+        c.c.join_columns).\
+        join(p, tc.view_id==p.c.view_id).\
+        join(c, tc.view_id==c.c.view_id)
 
     if _filter:
-        sql += ' WHERE '
-        for k in _filter:
-            sql += f"tc.{k}='{_filter[k]}' and"
-        sql = sql.rstrip('and')
+        q = q.filter(and_(*[getattr(tc, name) == value for name, value in _filter.items()]))
 
-    training_view_rows = db.execute(sql)
-
-    for tc in training_view_rows.fetchall():
-        t = dict((k.lower(), v) for k, v in tc.items())
+    for tc in q.all():
+        # t = dict((k.lower(), v) for k, v in tc.items())
+        t = tc._asdict()
         # DB doesn't support lists so it stores , separated vals in a string
         t['pk_columns'] = t.pop('pk_columns').split(',')
         t['join_columns'] = t.pop('join_columns').split(',')
@@ -203,9 +303,11 @@ def get_training_view_id(db: Session, name: str) -> int:
     :param name: The name of the training view
     :return: in
     """
-    return db.execute(SQL.get_training_view_id.format(name=name)).fetchall()[0].values()[0]
+    return db.query(models.TrainingView.view_id).\
+        filter(models.TrainingView.name==name).\
+        all()[0][0]
 
-def get_features_by_name(db: Session, names: Optional[List[str]]) -> List[schemas.Feature]:
+def get_features_by_name(db: Session, names: List[str]) -> List[schemas.Feature]:
     """
     Returns a dataframe or list of features whose names are provided
 
@@ -215,12 +317,15 @@ def get_features_by_name(db: Session, names: Optional[List[str]]) -> List[schema
     values, simply the describing metadata about the features. To create a training dataset with Feature values, see
     :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_feature_dataset`
     """
-    # If they don't pass in feature names, get all features
-    where_clause = "name in (" + ",".join([f"'{i.upper()}'" for i in names]) + ")"
-    df = db.execute(SQL.get_features_by_name.format(where=where_clause))
+    # If they don't pass in feature names, raise exception
+    if not names:
+        raise HTTPException(status_code=409, detail="Please provide at least one name")
+    # where_clause = "name in (" + ",".join([f"'{i.upper()}'" for i in names]) + ")"
+    # df = db.execute(SQL.get_features_by_name.format(where=where_clause))
+    db.query(models.FeatureSet.schema_name, models.FeatureSet.table_name, models.Feature)
 
     features = []
-    for feat in df.fetchall():
+    for feat in db.all():
         f = dict((k.lower(), v) for k, v in feat.items())  # DB returns uppercase column names
         f['tags'] = json.loads(f['tags'])
         features.append(schemas.Feature(**f))
@@ -272,35 +377,45 @@ def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: s
 
     return sql
 
-def register_feature_set_metadata(db: Session, fset: schemas.FeatureSetCreate) -> None:
-    fset_metadata = SQL.feature_set_metadata.format(schema=fset.schema_name, table=fset.table_name,
-                                                    desc=fset.description)
+def register_feature_set_metadata(db: Session, fset: schemas.FeatureSetCreate) -> schemas.FeatureSet:
+    # fset_metadata = SQL.feature_set_metadata.format(schema=fset.schema_name, table=fset.table_name,
+    #                                                 desc=fset.description)
 
-    db.execute(fset_metadata)
-    fsid_results = db.execute(SQL.get_feature_set_id.format(schema=fset.schema_name,
-                                                            table=fset.table_name))
-    fsid = fsid_results.fetchall()[0].values()[0]
+    # db.execute(fset_metadata)
+    fset_metadata = models.FeatureSet(schema_name=fset.schema_name, table_name=fset.table_name, description=fset.description)
+    db.add(fset_metadata)
+    db.flush()
+    # fsid_results = db.execute(SQL.get_feature_set_id.format(schema=fset.schema_name,
+    #                                                         table=fset.table_name))
+    # fsid = fsid_results.fetchall()[0].values()[0]
+
+    fsid = fset_metadata.feature_set_id
 
     for pk in __get_pk_columns(fset):
-        pk_sql = SQL.feature_set_pk_metadata.format(
-            feature_set_id=fsid, pk_col_name=pk.upper(), pk_col_type=fset.primary_keys[pk]
-        )
-        db.execute(pk_sql)
+        pk_metadata = models.FeatureSetKey(feature_set_id=fsid, 
+            key_column_name=pk.upper(), 
+            key_column_data_type=fset.primary_keys[pk])
+        db.add(pk_metadata)
     return schemas.FeatureSet(**fset.__dict__, feature_set_id=fsid)
+    # return fset_metadata
 
-def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> None:
+def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.Feature:
     """
     Registers the feature's existence in the feature store
     :param db: SqlAlchemy Session
     :param f: (Feature) the feature to register
     :return: None
     """
-    feature_sql = SQL.feature_metadata.format(
-        feature_set_id=f.feature_set_id, name=f.name, desc=f.description,
+    feature = models.Feature(
+        feature_set_id=f.feature_set_id, name=f.name, description=f.description,
         feature_data_type=f.feature_data_type,
         feature_type=f.feature_type, tags=json.dumps(f.tags)
     )
-    db.execute(feature_sql)
+    db.add(feature)
+    db.flush()
+    fd = feature.__dict__
+    fd['tags'] = json.loads(fd['tags'])
+    return schemas.Feature(**fd)
 
 def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -> List[schemas.Feature]:
     """

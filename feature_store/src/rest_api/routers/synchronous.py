@@ -57,7 +57,7 @@ async def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
 
 @SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.Feature],
                 description="Returns a dataframe or list of features whose names are provided", operation_id='get_features_by_name')
-async def get_features_by_name(name: Optional[List[str]] = Query(None), db: Session = Depends(crud.get_db)):
+async def get_features_by_name(name: List[str] = Query([]), db: Session = Depends(crud.get_db)):
     """
     Returns a list of features whose names are provided
 
@@ -194,12 +194,17 @@ async def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db:
     if crud.table_exists(db, schema, table):
         raise HTTPException(status_code=409, detail=f"Feature Set {schema}.{table} is already deployed. You cannot "
                                         f"add features to a deployed feature set.")
-    fset: schemas.FeatureSet = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema})[0]
+    fsets: List[schemas.FeatureSet] = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema})
+    if not fsets:
+        raise HTTPException(status_code=404, detail=f"Feature Set {schema}.{table} does not exist. Please enter "
+                                        f"a valid feature set.")
+    fset = fsets[0]
     crud.validate_feature(db, fc.name)
-    f = schemas.Feature(**fc.__dict__, feature_set_id=fset.feature_set_id)
-    print(f'Registering feature {f.name} in Feature Store')
-    crud.register_feature_metadata(db, f)
-    return f
+    # f = schemas.Feature(**fc.__dict__, feature_set_id=fset.feature_set_id)
+    fc.feature_set_id = fset.feature_set_id
+    print(f'Registering feature {fc.name} in Feature Store')
+    return crud.register_feature_metadata(db, fc)
+    # return f
 
 @SYNC_ROUTER.post('/training-views', status_code=201,
                 description="Registers a training view for use in generating training SQL", operation_id='create_training_view')
@@ -255,13 +260,15 @@ async def get_training_view_descriptions(name: Optional[str] = None, db: Session
         tcxs = crud.get_training_views(db)
     descs = []
     for tcx in tcxs:
-        feats: List[schemas.FeatureDescription] = crud.get_training_view_features(db, tcx.name)
+        feats: List[schemas.Feature] = crud.get_training_view_features(db, tcx.name)
         # Grab the feature set info and their corresponding names (schema.table) for the display table
         feat_sets: List[schemas.FeatureSet] = crud.get_feature_sets(db, feature_set_ids=[f.feature_set_id for f in feats])
         feat_sets: Dict[int, str] = {fset.feature_set_id: f'{fset.schema_name}.{fset.table_name}' for fset in feat_sets}
-        for f in feats:
-            f.feature_set_name = feat_sets[f.feature_set_id]
-        descs.append({ "training_view": tcx, "features": feats })
+        # for f in feats:
+            # f.feature_set_name = feat_sets[f.feature_set_id]
+        fds = list(map(lambda f, feat_sets=feat_sets: schemas.FeatureDescription(**f.__dict__, feature_set_name=feat_sets[f.feature_set_id]), feats))
+        print(fds)
+        descs.append({ "training_view": tcx, "features": fds })
     return descs
 
 
