@@ -7,6 +7,7 @@ from typing import Optional
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructField, StructType
 from sqlalchemy import inspect as peer_into_splice_db, text
+from mlflow.store.tracking.dbmodels.models import SqlParam
 
 from shared.models.model_types import Metadata, Representations
 from shared.services.database import Converters, SQLAlchemyClient, DatabaseSQL
@@ -50,7 +51,8 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         primary_key = self.task.parsed_payload['primary_key']
 
         if create_model_table and not primary_key:
-            raise Exception("A deployed model table must have primary_key parameter specified. You've specified to "
+            raise Exception("If you are creating a new table for your deployment, you must specify the primary_keys "
+                            "parameter. You've specified to "
                             "create a model table, so you must pass in a primary_key parameter, like 'primary_key={'ID':'INT'}'")
 
         if not create_model_table:
@@ -96,6 +98,10 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.model.add_metadata(Metadata.SQL_SCHEMA,
                                 {field.name: Converters.SPARK_DB_CONVERSIONS[str(field.dataType).split('(')[0]]
                                  for field in struct_schema})
+        # The database
+        self.model.add_metadata(Metadata.SCHEMA_STR,
+                                ', '.join([f"{field.name.upper()} {Converters.SPARK_DB_CONVERSIONS[str(field.dataType).split('(')[0]].upper()}"
+                                 for field in struct_schema]) + ',')
         self.logger.info("Done.")
 
     def _add_model_examples_from_db(self, table_name: str, schema_name: str):
@@ -108,6 +114,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         struct_type = StructType()
         schema_dict = {}
+        schema_str = []
         columns = inspector.get_columns(table_name, schema=schema_name)
 
         if len(columns) == 0:
@@ -115,16 +122,19 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
         for field in columns:
             # FIXME: Sqlalchemy assumes lowercase and Splice assumes uppercase. Quoted cols in DB don't translate
-            schema_dict[field['name'].upper()] = str(field['type']).split('(')[0].upper()
+            schema_dict[field['name'].upper()] = str(field['type']).upper()
             # Remove length specification from datatype for backwards conversion
             spark_d_type = getattr(spark_types,
                                    Converters.DB_SPARK_CONVERSIONS[str(field['type']).split('(')[0].upper()])
             # TODO @ben or @amrit: case-sensitity
             struct_type.add(StructField(name=field['name'].upper(), dataType=spark_d_type()))
 
+            schema_str.append(f"{field['name'].upper()} {str(field['type']).upper()}")
+
         self.model.add_metadata(Metadata.DATAFRAME_EXAMPLE,
                                 self.spark_session.createDataFrame(data=[], schema=struct_type))
         self.model.add_metadata(Metadata.SQL_SCHEMA, schema_dict)
+        self.model.add_metadata(Metadata.SCHEMA_STR, ', '.join([i for i in schema_str]) + ',')
 
     def _get_model_schema(self):
         """

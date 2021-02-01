@@ -53,6 +53,8 @@ class DatabaseModelMetadataPreparer:
         # Register Model Metadata
         self.model.add_metadata(Metadata.TYPE, self.model_type)
         self.model.add_metadata(Metadata.GENERIC_TYPE, ModelTypeMapper.get_model_type(self.model_type))
+        # Constant for every model
+        self.model.add_metadata(Metadata.RESERVED_COLUMNS, ['EVAL_TIME', 'CUR_USER', 'RUN_ID', 'PREDICTION'])
 
         # MULTI_PRED_INT model type needs an extra "class" for the actual PREDICTION (applied to H2O and Spark)
         if self.model.get_metadata(Metadata.GENERIC_TYPE) == DeploymentModelType.MULTI_PRED_INT:

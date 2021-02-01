@@ -51,7 +51,15 @@ class SparkUtils:
         """
         if hasattr(model, 'numClasses') or model.hasParam('numClasses'):
             return model.numClasses
-        return model.summary.k
+        elif hasattr(model, 'k'):
+            try:
+                return model.summary.k
+            except RuntimeError:
+                return model.getOrDefault('k')
+        else:
+            raise Exception('Unable to determine the number of classes of this model. If this is a model that should '
+                            'have classes, please raise an issue at https://github.com/splicemachine/pysplice/issues')
+
 
     @staticmethod
     def get_model_type(model):

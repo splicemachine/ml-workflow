@@ -8,12 +8,15 @@ from collections import OrderedDict
 from sqlalchemy import inspect as peer_into_splice_db, text
 from sqlalchemy.orm import Session
 from sqlalchemy.engine.result import ResultProxy
+from mlflow.store.tracking.dbmodels.models import SqlParam
 
 from shared.logger.logging_config import log_operation_status, logger
 from shared.models.model_types import (DeploymentModelType, H2OModelType,
                                        KerasModelType, Metadata,
                                        SklearnModelType, SparkModelType)
 from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL
+from shared.models.feature_store_models import (Deployment, TrainingView,
+                                                TrainingSet, TrainingSetFeature, Feature)
 
 from .entities.db_model import Model
 
@@ -77,11 +80,6 @@ class DatabaseModelDDL:
 
         # Create the schema of the table (we use this a few times)
         self.logger.info("Adding Schema String to model metadata...", send_db=True)
-
-        self.model.add_metadata(
-            Metadata.SCHEMA_STR, ', '.join([f'{name} {col_type}' for name, col_type in self.model.get_metadata(
-                Metadata.SQL_SCHEMA).items()]) + ','
-        )
 
         mcols = [m.upper() for m in self.model_columns]
         self.model.add_metadata(
@@ -171,9 +169,10 @@ class DatabaseModelDDL:
         pk_cols = ''
         for key in self.primary_key:
             # If pk is already in the schema_string, don't add another column. PK may be an existing value
-            if key.lower() not in schema_str.lower():
-                table_create_sql += f'{key.upper()} {self.primary_key[key]},'
-            pk_cols += f'{key.upper()},'
+            if key.lower() not in schema_str.lower() and \
+                    key.upper() not in self.model.get_metadata(Metadata.RESERVED_COLUMNS):
+                table_create_sql += f'{key} {self.primary_key[key]},'
+            pk_cols += f'{key},'
 
         for col in self.prediction_data['column_vals']:
             table_create_sql += f'{col.upper()},'
@@ -199,7 +198,7 @@ class DatabaseModelDDL:
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         table_cols = [col['name'] for col in inspector.get_columns(self.table_name, schema=self.schema_name)]
         reserved_fields = set(
-            ['CUR_USER', 'EVAL_TIME', 'RUN_ID', 'PREDICTION'] + (self.model.get_metadata(Metadata.CLASSES) or [])
+            self.model.get_metadata(Metadata.RESERVED_COLUMNS) + (self.model.get_metadata(Metadata.CLASSES) or [])
         )
         for col in table_cols:
             if col in reserved_fields:
@@ -316,37 +315,6 @@ class DatabaseModelDDL:
         self.logger.info(f"Executing\n{trigger_sql}", send_db=True)
         self.session.execute(trigger_sql)
 
-    def add_model_to_metadata_table(self):
-        """
-        Add the model to the deployed model metadata table
-        """
-        self.logger.info("Adding Model to Metadata table", send_db=True)
-        table_id = self.session.execute(f"""
-            SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name.upper()}' 
-            AND SCHEMANAME='{self.schema_name.upper()}'""").fetchone()[0]
-
-        trigger_suffix = f"{self.table_name}_{self.run_id}".upper()
-
-        trigger_1_id, trigger_1_timestamp = self.session.execute(f"""
-            SELECT TRIGGERID, CREATIONTIMESTAMP FROM SYS.SYSTRIGGERS
-            WHERE TABLEID='{table_id}' AND TRIGGERNAME='RUNMODEL_{trigger_suffix}'
-        """).fetchone()
-
-        trigger_2_id = self.session.execute(f"""
-            SELECT TRIGGERID FROM SYS.SYSTRIGGERS
-            WHERE TABLEID='{table_id}' AND TRIGGERNAME='PARSERESULT_{trigger_suffix}'
-        """).fetchone()
-        trigger_2_id = trigger_2_id[0] if trigger_2_id else None
-
-        self.logger.info("Executing SQL to insert Database Deployed Metadata", send_db=True)
-        self.session.execute(
-            DatabaseSQL.add_database_deployed_metadata.format(
-                run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
-                trigger_type='INSERT', triggerid=trigger_1_id, triggerid_2=trigger_2_id, db_env='PROD',
-                db_user=self.request_user, action_date=trigger_1_timestamp.strftime("%Y-%m-%d %H:%M:%S")
-            )
-        )
-        self.logger.info("Done executing.", send_db=True)
 
     # def create_prediction_trigger(self):
     #     """
@@ -407,6 +375,166 @@ class DatabaseModelDDL:
     #     sql_inner_parse += ' FROM ('
     #     return sql_inner_parse
 
+    def add_model_to_metadata_table(self):
+        """
+        Add the model to the deployed model metadata table
+        """
+        self.logger.info("Adding Model to Metadata table", send_db=True)
+        table_id = self.session.execute(f"""
+            SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{self.table_name.upper()}' 
+            AND SCHEMANAME='{self.schema_name.upper()}'""").fetchone()[0]
+
+        trigger_suffix = f"{self.table_name}_{self.run_id}".upper()
+
+        trigger_1_id, trigger_1_timestamp = self.session.execute(f"""
+            SELECT TRIGGERID, CREATIONTIMESTAMP FROM SYS.SYSTRIGGERS
+            WHERE TABLEID='{table_id}' AND TRIGGERNAME='RUNMODEL_{trigger_suffix}'
+        """).fetchone()
+
+        trigger_2_id = self.session.execute(f"""
+            SELECT TRIGGERID FROM SYS.SYSTRIGGERS
+            WHERE TABLEID='{table_id}' AND TRIGGERNAME='PARSERESULT_{trigger_suffix}'
+        """).fetchone()
+        trigger_2_id = trigger_2_id[0] if trigger_2_id else None
+
+        self.logger.info("Executing SQL to insert Database Deployed Metadata", send_db=True)
+        self.session.execute(
+            DatabaseSQL.add_database_deployed_metadata.format(
+                run_uuid=self.run_id, action='DEPLOYED', tableid=table_id,
+                trigger_type='INSERT', triggerid=trigger_1_id, triggerid_2=trigger_2_id, db_env='PROD',
+                db_user=self.request_user, action_date=trigger_1_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            )
+        )
+        self.logger.info("Done executing.", send_db=True)
+
+    def _register_training_set(self, key_vals: Dict[str,str]):
+        """
+        Registers training set for the deployment
+        :param key_vals: Dictionary containing the relevant keys for the training set
+        :return: TrainingSet
+        """
+
+        self.logger.info(f"Dictionary of params {str(key_vals)}")
+
+        tcx: TrainingView = self.session.query(TrainingView)\
+            .filter_by(name=key_vals['splice.feature_store.training_set']).one_or_none()
+
+        if tcx:
+            self.logger.info(f"Found training view with ID {tcx.view_id}")
+            self.logger.info(f"Registering new training set for training view {key_vals['splice.feature_store.training_set']}", send_db=True)
+
+            # Create training set
+            ts = TrainingSet(
+                view_id=tcx.view_id,
+                name=key_vals['splice.feature_store.training_set'],
+                last_update_username=self.request_user
+            )
+        # If there is no training view, this means the user called fs.get_feature_dataset, and created a dataframe
+        # for training without using a TrainingView (think clustering where all features come from FeatureSets).
+        # in this case, the view is null, but the TrainingSet is still a valid one, with features, a start
+        # time and an end time
+        else:
+            ts = TrainingSet(
+                view_id=None,
+                name=None,
+                last_update_username=self.request_user
+            )
+        self.session.add(ts)
+        self.session.merge(ts) # Get the training_set_id
+        return ts
+
+    def _register_training_set_features(self, ts: TrainingSet):
+        """
+        Registers the features of a training set for a deployment
+        :param ts: The TrainingSet
+        :return:
+        """
+
+        # Create an entry for each feature
+        training_set_features: List[SqlParam] = self.session.query(SqlParam).filter_by(run_uuid=self.run_id) \
+            .filter(SqlParam.key.like('splice.feature_store.training_set_feature%')).all()
+        self.logger.info("Done. Getting feature IDs for each feature...")
+        features: List[Feature] =  self.session.query(Feature)\
+            .filter(Feature.name.in_([feat.value for feat in training_set_features])).all()
+
+        self.logger.info(f"Done. Registering all {len(features)} features")
+        for feat in features:
+            self.session.add(
+                TrainingSetFeature(
+                    training_set_id=ts.training_set_id,
+                    feature_id=feat.feature_id, # The mlflow param's value is the feature name
+                    last_update_username=self.request_user
+                )
+            )
+    def _register_model_deployment(self, ts: TrainingSet, key_vals: Dict[str,str]):
+        """
+        Registers the model deployment with the TrainingSet
+        :param ts: The TrainingSet
+        :param key_vals: Dictionary containing the relevant keys for the training set
+        :return:
+        """
+        # Add the model deployment
+        # Splice PyODBC cannot take string representation of datetime, so we need to use raw SQL :(
+        # Check if deployment exists (schema.table name)
+        table_exists = self.session.query(Deployment)\
+            .filter_by(model_schema_name=self.schema_name)\
+            .filter_by(model_table_name=self.table_name)\
+            .all()
+
+        deployment = dict(
+            model_schema_name=self.schema_name,
+            model_table_name=self.table_name,
+            training_set_id=ts.training_set_id,
+            training_set_start_ts=key_vals['splice.feature_store.training_set_start_time'],
+            training_set_end_ts=key_vals['splice.feature_store.training_set_end_time'],
+            run_id=self.run_id,
+            last_update_username=self.request_user
+        )
+        # Can't do splice upsert because Splice Machine considers an an upsert as an insert,
+        # so our update trigger won't ever fire.
+        if table_exists: # Update
+            self.logger.info("Updating deployment in Feature Store metadata", send_db=True)
+            self.session.execute(
+                DatabaseSQL.update_feature_store_deployment.format(**deployment)
+            )
+        else: # Insert
+            self.logger.info("Adding new deployment to Feature Store metadata", send_db=True)
+            self.session.execute(
+                DatabaseSQL.add_feature_store_deployment.format(**deployment)
+            )
+
+
+    def register_feature_store_deployment(self):
+        """
+        On deployment, if the model has an associated training set, we want to log this deployment in the
+        FeatureStore.deployment table.
+        First, we check if there is a training set.
+        If there is, we check if a record of this deployment already exists in the deployment table (PK schema.table)
+        If no deployment exists, we insert a new row.
+        If one does, we UPDATE that row.
+        We cannot use UPSERT because Splice treats upserts as inserts always, we there is an AFTER UPDATE trigger
+        on the FeatureStore.Deployment table.
+        :return:
+        """
+        self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
+        # Check if run has training set
+        training_set_params = [f'splice.feature_store.{i}' for i in ['training_set','training_set_start_time',
+                                                                    'training_set_end_time']]
+        params: List[SqlParam] = self.session.query(SqlParam)\
+            .filter_by(run_uuid=self.run_id)\
+            .filter(SqlParam.key.in_(training_set_params))\
+            .all()
+
+        if len(params)==len(training_set_params): # Run has associated training set
+            key_vals = {param.key:param.value for param in params}
+            self.logger.info("Training set found! Registering...", send_db=True)
+            ts: TrainingSet = self._register_training_set(key_vals)
+            self.logger.info(f"Done. Gathering individual features...", send_db=True)
+            self._register_training_set_features(ts)
+            self.logger.info("Done. Registering deployment with Feature Store")
+            self._register_model_deployment(ts, key_vals)
+            self.logger.info("Done!", send_db=True)
+
     def create(self):
         """
         Deploy the model to the database DDL
@@ -439,3 +567,6 @@ class DatabaseModelDDL:
 
         with log_operation_status("add model to metadata table", logger_obj=self.logger):
             self.add_model_to_metadata_table()
+
+        with log_operation_status("Managing Feature Store metadata", logger_obj=self.logger):
+            self.register_feature_store_deployment()

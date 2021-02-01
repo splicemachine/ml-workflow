@@ -34,8 +34,8 @@ class DatabaseEngineConfig:
     """
     Database Engine Connection Configuration
     """
-    pool_size: int = 6
-    max_overflow: int = 0
+    pool_size: int = 20
+    max_overflow: int = env_vars.get('MAX_OVERFLOW',-1)
     echo: bool = env_vars['MODE'] == 'development'
     pool_pre_ping: bool = True
 
@@ -82,21 +82,17 @@ class SQLAlchemyClient:
         """
         Create Job Manager Connection (only runs if Job Manager is used)
         """
-        if not SQLAlchemyClient._created:
-            raise Exception("Cannot create SQLAlchemy Job Manager Resources as `create()` has not been run")
-
-        if SQLAlchemyClient._job_manager_created:
-            logger.info("Using existing Job Manager SQLAlchemy Resources")
-        else:
-            logger.info("Creating Job Manager Database Connection")
-            SQLAlchemyClient.logging_connection = SQLAlchemyClient.engine.connect()
-            logger.info("Creating Job Manager Session Maker")
-            SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection,
-                                                                expire_on_commit=False)
-            logger.info("Creating Logging Factory")
-            SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
-            logger.info("Done.")
-            SQLAlchemyClient._job_manager_created = True
+        logger.info("Creating Job Manager Database Connection")
+        SQLAlchemyClient.logging_connection = create_engine(
+                DatabaseConnectionConfig.connection_string(),
+                **DatabaseEngineConfig.as_dict()
+            )
+        logger.info("Creating Job Manager Session Maker")
+        SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection)
+        logger.info("Creating Logging Factory")
+        SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
+        logger.info("Done.")
+        SQLAlchemyClient._job_manager_created = True
 
     @staticmethod
     def create():
@@ -144,6 +140,27 @@ class DatabaseSQL:
     """
     Namespace for SQL Commands
     """
+    feature_update_check = \
+    """
+    CREATE TRIGGER <schema_name>.<feature_set_tablename>_update_check
+    BEFORE UPDATE 
+    ON <schema_name>.<feature_set_tablename>
+    REFERENCING OLD AS OLDW NEW AS NEWW
+    FOR EACH ROW
+    WHEN (OLDW.LAST_UPDATE_TS > NEWW.LAST_UPDATE_TS) SIGNAL SQLSTATE '2201H' SET MESSAGE_TEXT = 'LAST_UPDATE_TS must be greater than the current row.';
+    """
+
+    deployment_feature_historian = \
+    """
+    CREATE TRIGGER FeatureStore.deployment_historian
+    AFTER UPDATE 
+    ON FeatureStore.deployment
+    REFERENCING OLD AS od
+    FOR EACH ROW 
+    INSERT INTO FeatureStore.deployment_history ( model_schema_name, model_table_name, asof_ts, training_set_id, training_set_start_ts, training_set_end_ts, run_id, last_update_ts, last_update_username)
+    VALUES ( od.model_schema_name, od.model_table_name, CURRENT_TIMESTAMP, od.training_set_id, od.training_set_start_ts, od.training_set_end_ts, od.run_id, od.last_update_ts, od.last_update_username)
+    """
+
     live_status_view_selector: str = \
         """
        SELECT mm.run_uuid,
@@ -180,7 +197,7 @@ class DatabaseSQL:
         """
         SELECT MONTH(INNER_TABLE.parsed_date) AS month_1, COUNT(*) AS count_1, user_1
         FROM (
-            SELECT TIMESTAMP("timestamp") AS parsed_date, "user" as user_1
+            SELECT "timestamp" AS parsed_date, "user" as user_1
             FROM JOBS
         ) AS INNER_TABLE
         WHERE YEAR(INNER_TABLE.parsed_date) = YEAR(CURRENT_TIMESTAMP)
@@ -206,6 +223,41 @@ class DatabaseSQL:
         WHERE run_uuid='{run_uuid}' AND name='{name}'
         """
 
+    add_feature_store_deployment = \
+    """
+    INSERT INTO FEATURESTORE.DEPLOYMENT(
+        model_schema_name, model_table_name, training_set_id, 
+        training_set_start_ts, training_set_end_ts, run_id, last_update_username
+    ) VALUES (
+        '{model_schema_name}', '{model_table_name}', {training_set_id}, 
+        '{training_set_start_ts}', '{training_set_end_ts}', '{run_id}', '{last_update_username}')
+    """
+
+    update_feature_store_deployment = \
+    """
+    UPDATE FEATURESTORE.DEPLOYMENT
+        SET 
+            training_set_id={training_set_id},
+            training_set_start_ts='{training_set_start_ts}',
+            training_set_end_ts='{training_set_end_ts}',
+            last_update_username='{last_update_username}',
+            run_id='{run_id}'
+        WHERE
+            model_schema_name='{model_schema_name}' 
+        AND
+            model_table_name='{model_table_name}'
+    """
+
+    get_k8s_deployments_on_restart = \
+    """
+    SELECT "user",payload FROM MLManager.Jobs
+    INNER JOIN 
+       ( SELECT MLFlow_URL, max("timestamp") "timestamp" 
+         FROM MLManager.Jobs 
+         where HANDLER_NAME in ('DEPLOY_KUBERNETES','UNDEPLOY_KUBERNETES')  
+         group by 1 ) LatestEvent using ("timestamp",MLFLOW_URL)
+    where HANDLER_NAME='DEPLOY_KUBERNETES'
+    """
 
 class Converters:
     """
@@ -236,7 +288,7 @@ class Converters:
         'IntegerType': 'INTEGER',
         'LongType': 'BIGINT',
         'ShortType': 'SMALLINT',
-        'StringType': 'VARCHAR(5000)',
+        'StringType': 'VARCHAR(20000)',
         'TimestampType': 'TIMESTAMP',
         'UnknownType': 'BLOB',
         'FloatType': 'FLOAT'
@@ -266,3 +318,4 @@ class Converters:
 
 
 SQLAlchemyClient.create()
+SQLAlchemyClient.create_job_manager()

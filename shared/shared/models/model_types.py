@@ -36,6 +36,7 @@ class Metadata:
     SCHEMA_STR = 'schema_str'
     MODEL_VECTOR_STR = 'model_vector_str' # Like SCHEMA_STR but only columns that are in the feature vector
     MODEL_COLUMNS = 'model_columns' # The feature vector of the string in list form, if the user passed it in
+    RESERVED_COLUMNS = 'reserved_columns' # For columns that come build into every model deployment table
 
 
 class H2OModelType(Enum):  # see https://bit.ly/3gJ69gc

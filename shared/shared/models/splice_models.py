@@ -7,9 +7,9 @@ from json import loads as parse_dict
 from time import sleep
 
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
-                        String, Text)
+                        String, Text, DateTime)
 from sqlalchemy.orm import relationship, deferred
-
+from sqlalchemy.sql.elements import TextClause
 from shared.logger.logging_config import logger
 from shared.models.enums import JobStatuses
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
@@ -114,7 +114,7 @@ class Job(SQLAlchemyClient.SpliceBase):
 
     # Columns Definition
     id: Column = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp: Column = Column(String(SHORT_VARCHAR_SIZE), default=format_timestamp)
+    timestamp: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     handler_name: Column = Column(String(SHORT_VARCHAR_SIZE), ForeignKey(Handler.name),
                                   nullable=False)
 
