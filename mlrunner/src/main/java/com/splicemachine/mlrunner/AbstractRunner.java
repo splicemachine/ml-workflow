@@ -38,20 +38,19 @@ public abstract class AbstractRunner {
         Connection conn = EngineDriver.driver().getInternalConnection();
         PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
         pstmt.setString(1, modelID);
-        ResultSet rs = pstmt.executeQuery();
         Object [] obj = null;
-        if (rs.next()) {
-            final Blob blobModel = rs.getBlob(1);
-            final String library = rs.getString(2);
-            obj = new Object[]{blobModel, library};
+        try(ResultSet rs = pstmt.executeQuery()){
+            if (rs.next()) {
+                final Blob blobModel = rs.getBlob(1);
+                final String library = rs.getString(2);
+                obj = new Object[]{blobModel, library};
+            }
+            if(obj == null){
+                throw new SQLException("Model not found in Database!");
+            }
+            else{
+                return obj;
+            }
         }
-//        rs.close();
-        if(obj == null){
-            throw new SQLException("Model not found in Database!");
-        }
-        else{
-            return obj;
-        }
-
     }
 }

@@ -29,6 +29,7 @@ public class KerasRunner extends AbstractRunner {
         this.model = KerasModelImport.importKerasSequentialModelAndWeights(is, true);
     }
 
+    @Deprecated
     private INDArray parseDataToArray(String rawData) throws SQLException {
         final String[] rawDatas = rawData.split(",");
         int numFeatures = rawDatas.length;
