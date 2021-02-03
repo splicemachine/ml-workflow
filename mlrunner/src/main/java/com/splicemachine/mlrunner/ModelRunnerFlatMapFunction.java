@@ -62,11 +62,9 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
         this.unprocessedRows = new LinkedList<>();
         this.processedRows = new LinkedList<>();
     }
-//    public ModelRunnerFlatMapFunction(){
-//        super();
-//        this.processedRows = new LinkedList<>();
-//
-//    }
+    public ModelRunnerFlatMapFunction(){
+        super();
+    }
 
     @Override
     public boolean hasNext() {

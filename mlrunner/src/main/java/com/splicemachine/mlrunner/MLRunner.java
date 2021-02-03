@@ -119,7 +119,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     }
 
     /**
-     * @deprecated  As of release 2.4.0-k8, VTI only now
+     * @deprecated  As of release 2.5.0-k8, VTI only now
      */
     @Deprecated public static Double predictRegression(final String modelID, final String rawData, final String schema)
             throws ClassNotFoundException, UnsupportedLibraryExcetion, SQLException, IOException,
