@@ -64,6 +64,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         AbstractRunner runner;
         // Check if the runner is in cache
         if (runnerCache.containsKey(modelID)) {
+            LOG.info(String.format("Got model %s from cache", modelID));
             runner = runnerCache.get(modelID);
         }
         else {
@@ -216,16 +217,6 @@ public class MLRunner implements DatasetProvider, VTICosting {
         // Get row indexes of each model/feature column from tabledescriptor so it's always correct even if columns are modified
         List<Integer> modelFeaturesIndexes = new ArrayList<>();
         List<Integer> predictionLabelIndexes = new ArrayList<>();
-        /*
-        List<Integer> modelFeaturesIndexes = new ArrayList<>(Arrays.asList(4,5,6,7));
-        List<Integer> predictionLabelIndexes = new ArrayList<>(Arrays.asList(11,12,13));
-        DataDictionary dd = operationContext.getActivation().getLanguageConnectionContext().getDataDictionary();
-        LOG.warn("Data Dictionary is null " +(dd==null));
-        assert dd != null;
-        LOG.warn("Trying new way");
-        SchemaDescriptor sd = dd.getSchemaDescriptor(this.schema, operationContext.getActivation().getLanguageConnectionContext().getTransactionExecute(), true);
-        TableDescriptor td = dd.getTableDescriptor(this.table, sd, operationContext.getActivation().getLanguageConnectionContext().getTransactionExecute());
-        */
 
         ResultColumnDescriptor[] cd = operationContext.getActivation().getLanguageConnectionContext().getTriggerExecutionContext().getTemporaryRowHolder().getResultSet().getResultDescription().getColumnInfo();
         HashMap<String, Integer> colIndexes= new HashMap<>();
@@ -235,7 +226,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
             modelFeaturesIndexes.add(colIndexes.get(col.toUpperCase()));
         }
         for(String col : this.predictionLabels){
-            if(!col.toUpperCase().equals("PREDICTION")) { // Keep prediction col separate
+            if(!col.equalsIgnoreCase("PREDICTION")) { // Keep prediction col separate
                 predictionLabelIndexes.add(colIndexes.get(col.toUpperCase()));
             }
         }
@@ -247,17 +238,22 @@ public class MLRunner implements DatasetProvider, VTICosting {
 
 
         // Initialize runner
+        LOG.warn("Getting runner");
         AbstractRunner runner = null;
         try {
             runner = this.modelCategory.equals("endpoint") ? null : getRunner(this.modelID);
             
         } catch (SQLException e) {
-            LOG.error("Unexpected SQLException: ", e);
+            LOG.error("Unexpected SQLException while getting runner: ", e.getMessage());
         } catch (ClassNotFoundException e) {
-            LOG.error("Unexpected ClassNotFoundException: ", e);
+            LOG.error("Unexpected ClassNotFoundException while getting runner: ", e.getMessage());
         } catch (Exception e) {
-            LOG.error("Unexpected Exception: ", e);
+            LOG.error("Unexpected Exception while getting runner: ", e.getMessage());
         }
+        LOG.warn("Finished getting runner");
+        LOG.warn("Runner is null " + (runner==null));
+        assert runner != null: "runner is null!";
+        LOG.warn("Got runner " + runner.getTypeFormatId());
         
         // Get the row(s) of data and transform them
         DataSet<ExecRow> rows = this.newTransitionRows.getDataSet(spliceOperation, dataSetProcessor, execRow);

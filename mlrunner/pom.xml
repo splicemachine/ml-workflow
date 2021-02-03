@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.splicemachine</groupId>
     <artifactId>mlrunner</artifactId>
-    <version>0.1.6_VTI030</version>
+    <version>0.1.6_VTI048</version>
     <properties>
         <scala.binary.version>2.11</scala.binary.version>
         <maven.compiler.source>1.8</maven.compiler.source>
@@ -48,7 +48,7 @@
         <dependency>
             <groupId>com.splicemachine</groupId>
             <artifactId>splice_machine</artifactId>
-            <version>3.0.1.1982</version>
+            <version>3.0.1.1997</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -197,12 +197,12 @@
                     <shadedArtifactAttached>true</shadedArtifactAttached>
                 </configuration>
                 <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                    </execution>
+<!--                    <execution>-->
+<!--                        <phase>package</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>shade</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
                 </executions>
             </plugin>
             <plugin>

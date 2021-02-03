@@ -1,7 +1,6 @@
 package com.splicemachine.mlrunner;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.sql.Blob;
@@ -9,6 +8,7 @@ import java.sql.SQLException;
 import java.util.*;
 
 import com.splicemachine.db.iapi.error.StandardException;
+import com.splicemachine.db.iapi.services.io.Formatable;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.iapi.types.*;
 import hex.genmodel.easy.exception.PredictException;
@@ -18,12 +18,16 @@ import jep.SharedInterpreter;
 import jep.JepException;
 
 import static java.nio.ByteBuffer.allocateDirect;
-public class SKRunner extends AbstractRunner {
+public class SKRunner extends AbstractRunner implements Formatable {
+
+    // For serializing and deserializing across spark
+    SQLBlob deserModel;
 
     ByteBuffer model;
     private static final Logger LOG = Logger.get(MLRunner.class);
 
     public SKRunner(final Blob modelBlob) throws SQLException, IOException {
+        this.deserModel = new SQLBlob(modelBlob);
         InputStream is = modelBlob.getBinaryStream();
         int fileSize = (int)modelBlob.length();
         final byte[] allBytes = new byte[fileSize];
@@ -355,5 +359,47 @@ public class SKRunner extends AbstractRunner {
             e.printStackTrace();
             return null; //FIXME: Not sure what exception to throw
         }
+    }
+
+    //////////////////////////////////////////////
+    //
+    // FORMATABLE
+    // Jep model class ByteBuffer does not implement serializable so we need to implement it on the SQLBlob (which does)
+    //
+    //////////////////////////////////////////////
+
+    /** @exception  IOException thrown on error */
+    @Override
+    public void writeExternal(ObjectOutput out) throws IOException
+    {
+        out.writeObject(this.deserModel);
+    }
+
+    /**
+     * @see java.io.Externalizable#readExternal
+     *
+     * @exception IOException on error
+     * @exception ClassNotFoundException on error
+     */
+    @Override
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+        SQLBlob sqlModelBlob = (SQLBlob) in.readObject();
+        Blob modelBlob;
+        InputStream is = null;
+        int fileSize = 0;
+        try {
+            modelBlob = (Blob) (sqlModelBlob.getObject());
+            is = modelBlob.getBinaryStream();
+            fileSize = (int)modelBlob.length();
+
+        } catch (StandardException e) {
+            e.printStackTrace();
+        }
+        catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+        final byte[] allBytes = new byte[fileSize];
+        is.read(allBytes);
+        this.model = allocateDirect(fileSize).put(allBytes);
     }
 }

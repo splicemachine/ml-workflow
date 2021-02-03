@@ -4,7 +4,14 @@ import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.derby.iapi.sql.execute.SpliceOperation;
 import com.splicemachine.derby.stream.function.SpliceFlatMapFunction;
 import com.splicemachine.derby.stream.iapi.OperationContext;
+import com.splicemachine.db.iapi.types.ArrayImpl;
+
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
 import io.airlift.log.Logger;
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.Arrays;
 
 import java.util.*;
 
@@ -46,7 +53,9 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
             final List<String> featureColumnNames, final int maxBufferSize){
 
         super(operationContext);
+        LOG.warn("Proper constructor called");
         this.runner = runner;
+        assert runner != null: "Runner is null!";
         this.modelCategory = modelCategory;
         this.predictCall = predictCall;
         this.predictArgs = predictArgs;
@@ -64,6 +73,9 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     }
     public ModelRunnerFlatMapFunction(){
         super();
+        LOG.warn("Default constructor called");
+        this.unprocessedRows = new LinkedList<>();
+        this.processedRows = new LinkedList<>();
     }
 
     @Override
@@ -78,31 +90,32 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
             // Fill the buffer until either there are no more rows or we hit our max buffer size
             do {
                 this.unprocessedRows.add(this.execRowIterator.next().getClone());
-                remainingBufferAvailability--;
+                this.remainingBufferAvailability--;
             } while (this.execRowIterator.hasNext() && this.remainingBufferAvailability > 0);
             this.remainingBufferAvailability = (this.remainingBufferAvailability <= 0) ? this.maxBufferSize : this.remainingBufferAvailability;
 
             // transform all rows in buffer
             // return first row
             try {
-                switch (this.modelCategory) {
+                LOG.warn("Model Category is "+ modelCategory);
+                LOG.warn("Runner is " + this.runner.getTypeFormatId());
+                switch (modelCategory) {
                     case "key_value":
-                        this.processedRows = this.runner.predictKeyValue(unprocessedRows, this.modelFeaturesIndexes,
-                                this.predictionColIndex, this.predictionLabels, this.predictionLabelIndexes,
-                                this.featureColumnNames, this.predictCall, this.predictArgs, this.threshold);
+                        this.processedRows = this.runner.predictKeyValue(unprocessedRows, modelFeaturesIndexes,
+                                predictionColIndex, predictionLabels, predictionLabelIndexes,
+                                featureColumnNames, predictCall, predictArgs, threshold);
                         break;
                     case "classification":
-                        this.processedRows = this.runner.predictClassification(unprocessedRows, this.modelFeaturesIndexes,
-                                this.predictionColIndex, this.predictionLabels, this.predictionLabelIndexes,
-                                this.featureColumnNames);
+                        this.processedRows = this.runner.predictClassification(unprocessedRows, modelFeaturesIndexes,
+                                predictionColIndex, predictionLabels, predictionLabelIndexes, featureColumnNames);
                         break;
                     case "regression":
-                        this.processedRows = this.runner.predictRegression(unprocessedRows, this.modelFeaturesIndexes,
-                                this.predictionColIndex, this.featureColumnNames);
+                        this.processedRows = this.runner.predictRegression(unprocessedRows, modelFeaturesIndexes,
+                                predictionColIndex, featureColumnNames);
                         break;
                     case "cluster":
-                        this.processedRows = this.runner.predictCluster(unprocessedRows, this.modelFeaturesIndexes,
-                                this.predictionColIndex, this.featureColumnNames);
+                        this.processedRows = this.runner.predictCluster(unprocessedRows, modelFeaturesIndexes,
+                                predictionColIndex, featureColumnNames);
                         break;
                 }
                 this.unprocessedRows.clear();
@@ -111,7 +124,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
                 throw new NoSuchElementException("Could not retrieve next row due to error: " + e.getMessage());
             }
         }
-        return this.processedRows.remove();
+        return processedRows.remove();
     }
 
     @Override
@@ -122,5 +135,50 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     public Iterator<ExecRow> call(Iterator<ExecRow> execRowIterator) throws Exception {
         this.execRowIterator = execRowIterator;
         return this;
+    }
+    @Override
+    public void writeExternal(ObjectOutput out) throws IOException {
+        super.writeExternal(out);
+        out.writeObject(this.runner); //AbstractRunner
+        out.writeUTF(this.modelCategory);
+        out.writeUTF((this.predictCall != null) ? this.predictCall  : "NULL"); // Cannot write a null, get NPE
+        out.writeUTF((this.predictArgs != null) ? this.predictArgs  : "NULL"); // Cannot write a null, get NPE
+        out.writeDouble(this.threshold);
+        out.writeInt(this.predictionColIndex);
+        out.writeInt(this.maxBufferSize);
+        // Need to use ArrayImpl because it implements readExternal and writeExternal
+        // https://github.com/splicemachine/spliceengine/blob/master/db-shared/src/main/java/com/splicemachine/db/iapi/types/ArrayImpl.java
+        out.writeObject(new ArrayImpl("null",-1,this.modelFeaturesIndexes.toArray())); //List<Integer>
+        out.writeObject(new ArrayImpl("null",-1,this.predictionLabels.toArray())); //List<String>
+        out.writeObject(new ArrayImpl("null",-1,this.predictionLabelIndexes.toArray())); //List<Integer>
+        out.writeObject(new ArrayImpl("null",-1,this.featureColumnNames.toArray())); //List<String>
+    }
+
+    @Override
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+        super.readExternal(in);
+
+        this.runner = (AbstractRunner) in.readObject();
+        this.modelCategory = in.readUTF();
+        this.predictCall = in.readUTF();
+        this.predictCall = (predictCall.equals("NULL")) ? null : predictCall; // Convert back in case it was null
+        this.predictArgs = in.readUTF();
+        this.predictArgs = (predictArgs.equals("NULL")) ? null : predictArgs; // Convert back in case it was null
+        this.threshold = in.readDouble();
+        this.predictionColIndex = in.readInt();
+        this.maxBufferSize = in.readInt();
+
+        try {
+            // Need to convert arrayimpl back into an array, then to List
+            // convert in.readObject() to an ArrayImpl class. Then get the array. Then convert that Object to a Integer[]
+            // Then to a List<Integer>
+            this.modelFeaturesIndexes = Arrays.asList(((Integer[]) ((ArrayImpl) in.readObject()).getArray()));
+            this.predictionLabels = Arrays.asList(((String[]) ((ArrayImpl) in.readObject()).getArray()));
+            this.predictionLabelIndexes = Arrays.asList(((Integer[]) ((ArrayImpl) in.readObject()).getArray()));
+            this.featureColumnNames = Arrays.asList(((String[]) ((ArrayImpl) in.readObject()).getArray()));
+        }
+        catch(SQLException sqlException){
+            throw new IOException("Could not deserialize arraylists");
+        }
     }
 }

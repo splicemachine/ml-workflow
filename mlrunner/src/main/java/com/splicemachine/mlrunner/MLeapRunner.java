@@ -1,6 +1,8 @@
 package com.splicemachine.mlrunner;
 
 import com.splicemachine.db.iapi.error.StandardException;
+import com.splicemachine.db.iapi.services.io.Formatable;
+import com.splicemachine.db.iapi.types.SQLBlob;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.iapi.types.DataValueDescriptor;
 import com.splicemachine.db.iapi.types.SQLDouble;
@@ -18,9 +20,7 @@ import scala.collection.Iterator;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.Blob;
@@ -31,13 +31,18 @@ import java.util.regex.Pattern;
 /**
  * Scalar function for making predictions via mleap
  */
-public class MLeapRunner extends AbstractRunner {
+public class MLeapRunner extends AbstractRunner implements Formatable {
     private static LeapFrameBuilder frameBuilder = new LeapFrameBuilder();
+    // For serializing and deserializing across spark
+    SQLBlob deserModel;
+
     Transformer model;
+
     static Class[] parameterTypes = { String.class };
     private static final Logger LOG = Logger.get(MLRunner.class);
 
     public MLeapRunner(final Blob modelBlob) throws IOException, ClassNotFoundException, SQLException {
+        this.deserModel = new SQLBlob(modelBlob);
         final InputStream bis = modelBlob.getBinaryStream();
         final ObjectInputStream ois = new ObjectInputStream(bis);
         this.model = (Transformer) ois.readObject();
@@ -345,6 +350,44 @@ public class MLeapRunner extends AbstractRunner {
     @Override
     public double[] predictKeyValue(final String rawData, final String schema, final String predictCall, final String predictArgs, double threshold)  {
         return null;
+    }
+
+    //////////////////////////////////////////////
+    //
+    // FORMATABLE
+    // Mleap model class Transformer does not implement Serializable so we need to implement it on the SQLBlob (which does)
+    //
+    //////////////////////////////////////////////
+
+    /** @exception  IOException thrown on error */
+    @Override
+    public void writeExternal(ObjectOutput out) throws IOException
+    {
+        out.writeObject(deserModel);
+    }
+
+    /**
+     * @see java.io.Externalizable#readExternal
+     *
+     * @exception IOException on error
+     * @exception ClassNotFoundException on error
+     */
+    @Override
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+        SQLBlob sqlModelBlob = (SQLBlob) in.readObject();
+        Blob modelBlob;
+        InputStream bis = null;
+        try {
+            modelBlob = (Blob) (sqlModelBlob.getObject());
+            bis = modelBlob.getBinaryStream();
+        } catch (StandardException e) {
+            e.printStackTrace();
+        }
+         catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+        final ObjectInputStream ois = new ObjectInputStream(bis);
+        this.model = (Transformer) ois.readObject();
     }
 }
 

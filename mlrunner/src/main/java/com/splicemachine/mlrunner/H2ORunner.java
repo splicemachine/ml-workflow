@@ -5,12 +5,15 @@ import java.io.ObjectInputStream;
 import java.sql.Blob;
 import java.sql.SQLException;
 import java.util.*;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
 
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.iapi.types.SQLDouble;
 import com.splicemachine.db.iapi.types.SQLInteger;
 import com.splicemachine.db.iapi.types.SQLVarchar;
+import com.splicemachine.db.iapi.services.io.Formatable;
 import hex.genmodel.algos.deeplearning.DeeplearningMojoModel;
 import hex.genmodel.algos.word2vec.WordEmbeddingModel;
 import hex.genmodel.easy.RowData;
@@ -19,10 +22,12 @@ import hex.genmodel.easy.EasyPredictModelWrapper;
 import hex.genmodel.easy.prediction.*;
 import io.airlift.log.Logger;
 
-public class H2ORunner extends AbstractRunner {
+public class H2ORunner extends AbstractRunner implements Formatable {
     EasyPredictModelWrapper model;
 
     private static final Logger LOG = Logger.get(MLRunner.class);
+
+    public H2ORunner(){};
 
     public H2ORunner(final Blob modelBlob) throws SQLException, IOException, ClassNotFoundException {
         final InputStream bis = modelBlob.getBinaryStream();
@@ -417,5 +422,16 @@ public class H2ORunner extends AbstractRunner {
                 throw new PredictException("Unhandled model category (" + model.getModelCategory() + ") in switch statement");
         }
         return result;
+    }
+
+    @Override
+    public void writeExternal(ObjectOutput out) throws IOException {
+        out.writeObject(model);
+    }
+
+    @Override
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+        // EasyPredictModelWrapper already implements Serializable
+        this.model = (EasyPredictModelWrapper) in.readObject();
     }
 }

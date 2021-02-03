@@ -1,11 +1,14 @@
 package com.splicemachine.mlrunner;
 
 import com.splicemachine.db.iapi.error.StandardException;
+import com.splicemachine.db.iapi.services.io.Formatable;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.iapi.types.SQLDouble;
 import com.splicemachine.db.iapi.types.SQLVarchar;
 
 import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
 import java.sql.Blob;
 import java.sql.SQLException;
 
@@ -22,7 +25,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
-public class KerasRunner extends AbstractRunner {
+public class KerasRunner extends AbstractRunner implements Formatable {
     MultiLayerNetwork model;
     public KerasRunner(Blob modelBlob) throws SQLException, UnsupportedKerasConfigurationException, IOException, InvalidKerasConfigurationException {
         InputStream is = modelBlob.getBinaryStream();
@@ -170,6 +173,17 @@ public class KerasRunner extends AbstractRunner {
     @Override
     public int predictCluster(String rawData, String schema) {
         return 0;
+    }
+
+    @Override
+    public void writeExternal(ObjectOutput out) throws IOException {
+        out.writeObject(model);
+    }
+
+    @Override
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+        // MultiLayerNetwork already implements Serializable
+        this.model = (MultiLayerNetwork) in.readObject();
     }
 
 }
