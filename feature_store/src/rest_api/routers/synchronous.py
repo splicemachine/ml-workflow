@@ -70,7 +70,6 @@ async def remove_feature_set(db: Session = Depends(crud.get_db)):
     # TODO
     raise NotImplementedError
 
-
 @SYNC_ROUTER.post('/feature-vector', status_code=status.HTTP_200_OK, response_model=Union[Dict[str, Any], str],
                 description="Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets", operation_id='get_feature_vector')
 async def get_feature_vector(features: List[Union[str, schemas.FeatureDescription]],
@@ -200,11 +199,9 @@ async def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db:
                                         f"a valid feature set.")
     fset = fsets[0]
     crud.validate_feature(db, fc.name)
-    # f = schemas.Feature(**fc.__dict__, feature_set_id=fset.feature_set_id)
     fc.feature_set_id = fset.feature_set_id
     print(f'Registering feature {fc.name} in Feature Store')
     return crud.register_feature_metadata(db, fc)
-    # return f
 
 @SYNC_ROUTER.post('/training-views', status_code=201,
                 description="Registers a training view for use in generating training SQL", operation_id='create_training_view')

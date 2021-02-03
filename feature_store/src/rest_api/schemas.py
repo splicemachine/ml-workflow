@@ -28,11 +28,13 @@ class FeatureBase(BaseModel):
 
 class FeatureCreate(FeatureBase):
     pass
+  
 class Feature(FeatureBase):
     feature_id: int
     compliance_level: Optional[int] = None
     last_update_ts: Optional[datetime] = None
     last_update_username: Optional[str] = None
+    
     class Config:
         orm_mode = True
 

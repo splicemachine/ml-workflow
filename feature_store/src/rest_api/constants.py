@@ -1,7 +1,7 @@
 
 class SQL:
     FEATURE_STORE_SCHEMA = 'FeatureStore'
-    
+
     feature_set_trigger = f'''
     CREATE TRIGGER {{schema}}.{{table}}_history_update 
     AFTER UPDATE ON {{schema}}.{{table}}
