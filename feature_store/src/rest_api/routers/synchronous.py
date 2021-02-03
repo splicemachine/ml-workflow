@@ -1,5 +1,5 @@
 from fastapi import APIRouter, status, Depends, HTTPException, Body, Query
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Any
 from shared.logger.logging_config import logger
 from shared.models.feature_store_models import FeatureSet, TrainingView, Feature
 from sqlalchemy.orm import Session
@@ -55,7 +55,7 @@ async def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
     """
     return crud.get_training_view_id(db, name)
 
-@SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.Feature],
+@SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureDescription],
                 description="Returns a dataframe or list of features whose names are provided", operation_id='get_features_by_name')
 async def get_features_by_name(name: List[str] = Query([]), db: Session = Depends(crud.get_db)):
     """
@@ -71,10 +71,10 @@ async def remove_feature_set(db: Session = Depends(crud.get_db)):
     raise NotImplementedError
 
 
-@SYNC_ROUTER.post('/feature-vector', status_code=status.HTTP_200_OK, response_model=Union[str, List[str]],
+@SYNC_ROUTER.post('/feature-vector', status_code=status.HTTP_200_OK, response_model=Union[Dict[str, Any], str],
                 description="Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets", operation_id='get_feature_vector')
-async def get_feature_vector(features: List[Union[str, schemas.Feature]],
-                    join_key_values: Dict[str, str], sql: bool = False, db: Session = Depends(crud.get_db)):
+async def get_feature_vector(features: List[Union[str, schemas.FeatureDescription]],
+                    join_key_values: Dict[str, Union[str, int]], sql: bool = False, db: Session = Depends(crud.get_db)):
     """
     Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets
     """
@@ -213,9 +213,13 @@ async def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Dep
     Registers a training view for use in generating training SQL
     """
     # assert tv.name != "None", "Name of training view cannot be None!"
-    crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.label_column)
-    tv.label_column = f"'{tv.label_column}'" if tv.label_column else "NULL"  # Formatting incase NULL
-    crud.create_training_view(db, tv)
+    try:
+        crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.label_column)
+        tv.label_column = f"'{tv.label_column}'" if tv.label_column else "NULL"  # Formatting incase NULL
+        crud.create_training_view(db, tv)
+    except HTTPException as e:
+        db.rollback()
+        raise e
 
 @SYNC_ROUTER.post('/deploy-feature-set', response_model=schemas.FeatureSet, status_code=status.HTTP_200_OK,
                 description="Deploys a feature set to the database", operation_id='deploy_feature_set')
@@ -270,7 +274,6 @@ async def get_training_view_descriptions(name: Optional[str] = None, db: Session
         print(fds)
         descs.append({ "training_view": tcx, "features": fds })
     return descs
-
 
 @SYNC_ROUTER.put('/feature-description', status_code=status.HTTP_200_OK,
                 description="", operation_id='set_feature_description')

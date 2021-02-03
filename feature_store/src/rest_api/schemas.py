@@ -19,6 +19,7 @@ class FeatureSet(FeatureSetBase):
         orm_mode = True
 
 class FeatureBase(BaseModel):
+    feature_set_id: Optional[int] = None
     name: str
     description: Optional[str] = None
     feature_data_type: str
@@ -26,9 +27,7 @@ class FeatureBase(BaseModel):
     tags: Optional[Dict[str, str]] = None
 
 class FeatureCreate(FeatureBase):
-    feature_set_id: Optional[int] = None
-    # pass
-
+    pass
 class Feature(FeatureBase):
     feature_id: int
     compliance_level: Optional[int] = None

@@ -154,7 +154,7 @@ def _create_temp_training_view(features: List[Feature], feature_sets: List[Featu
     ts_col = 'LAST_UPDATE_TS'
     schema_table_name = f'{anchor_fset.schema_name}.{anchor_fset.table_name}_history'
     view_sql = f'SELECT {anchor_pk_column_sql}, ASOF_TS as {ts_col} FROM {schema_table_name}'
-    return TrainingView(pk_columns=__get_pk_columns(anchor_fset), ts_column=ts_col, view_sql=view_sql,
+    return TrainingView(view_id=0, pk_columns=__get_pk_columns(anchor_fset), ts_column=ts_col, view_sql=view_sql,
                         description=None, name=None, label_column=None)
 
 def _get_training_view_by_name(db: Session, name: str) -> List[TrainingView]:
