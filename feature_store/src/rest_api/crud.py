@@ -6,7 +6,7 @@ from .constants import SQL, SQL_TYPES
 from shared.models import feature_store_models as models
 from shared.services.database import SQLAlchemyClient
 from shared.logger.logging_config import logger
-from fastapi import HTTPException, status
+from fastapi import status
 import re
 import json
 from datetime import datetime
@@ -17,6 +17,7 @@ from sys import exc_info as get_stack_trace
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
 from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
                                 DECIMAL, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, BOOLEAN)
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
 SQLALCHEMY_TYPES = dict(zip(SQL_TYPES, [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
                         DECIMAL, FLOAT, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, SMALLINT, BOOLEAN, INTEGER]))
@@ -52,10 +53,10 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     str = f'Feature Set {fset.schema_name}.{fset.table_name} already exists. Use a different schema and/or table name.'
     # Validate Table
     if table_exists(db, fset.schema_name, fset.table_name):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str)
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
     # Validate metadata
     if len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) > 0:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str)
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
 
 def validate_feature(db: Session, name: str) -> None:
     """
@@ -69,10 +70,11 @@ def validate_feature(db: Session, name: str) -> None:
     str = f"Cannot add feature {name}, feature already exists in Feature Store. Try a new feature name."
     l = len(db.query(models.Feature.name).filter(models.Feature.name == name.upper()).all())
     if l > 0:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str)
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
 
     if not re.match('^[A-Za-z][A-Za-z0-9_]*$', name, re.IGNORECASE):
-        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail='Feature name does not conform. Must start with an alphabetic character, '
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+                                     message='Feature name does not conform. Must start with an alphabetic character, '
                                      'and can only contains letters, numbers and underscores')
 
 def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
@@ -87,7 +89,8 @@ def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
     feature_set_key_columns = {fkey.lower() for fset in feature_sets for fkey in fset.primary_keys.keys()}
     missing_keys = feature_set_key_columns - join_key_values.keys()
     if missing_keys:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"The following keys were not provided and must be: {missing_keys}")
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.MISSING_ARGUMENTS,
+                                        message=f"The following keys were not provided and must be: {missing_keys}")
 
 def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, Union[str, int]], feature_sets: List[schemas.FeatureSet], return_sql: bool) -> Union[Dict[str, Any], str]:
     """
@@ -282,7 +285,8 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
     """
     # If they don't pass in feature names, raise exception
     if not names:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Please provide at least one name")
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.MISSING_ARGUMENTS,
+                                        message="Please provide at least one name")
 
     f = aliased(models.Feature, name='f')
     fset = aliased(models.FeatureSet, name='fset')
@@ -391,8 +395,9 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
     all_features = str_to_feat + [f for f in features if not isinstance(f, str)]
     if not all(
         [isinstance(i, schemas.Feature) for i in all_features]):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="It seems you've passed in Features that are neither" \
-                                                            " a feature name (string) or a Feature object")
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                        message="It seems you've passed in Features that are neither" \
+                                        " a feature name (string) or a Feature object")
     return all_features
 
 def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.FeatureSet:
@@ -456,7 +461,7 @@ def validate_training_view(db: Session, name, sql_text, join_keys, label_col=Non
     """
     # Validate name doesn't exist
     if len(get_training_views(db, _filter={'name': name}))> 0:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Training View {name} already exists!")
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=f"Training View {name} already exists!")
 
     # Column comparison
     # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
@@ -465,18 +470,21 @@ def validate_training_view(db: Session, name, sql_text, join_keys, label_col=Non
         valid_df = db.execute(sql_text).fetchone()
     except ProgrammingError as e:
         if '[Splice Machine][Splice]' in str(e):
-            raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f'The provided SQL is incorrect. The following error was raised during '
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                            message=f'The provided SQL is incorrect. The following error was raised during '
                                             f'validation:\n\n{str(e)}') from None
         raise e
 
     # Ensure the label column specified is in the output of the SQL
     if label_col and not label_col in valid_df.keys():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Provided label column {label_col} is not available in the provided SQL")
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided label column {label_col} is not available in the provided SQL")
     # Confirm that all join_keys provided correspond to primary keys of created feature sets
     pks = set(i[0].upper() for i in db.query(distinct(models.FeatureSetKey.key_column_name)).all())
     missing_keys = set(i.upper() for i in join_keys) - pks
     if missing_keys:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Not all provided join keys exist. Remove {missing_keys} or " \
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
+                                message=f"Not all provided join keys exist. Remove {missing_keys} or " \
                                 f"create a feature set that uses the missing keys")
 
 def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:

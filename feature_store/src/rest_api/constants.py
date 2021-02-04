@@ -29,7 +29,7 @@ class SQL:
     GROUP BY 1
     """
     
-    traning_view_pk_columns = """
+    training_view_pk_columns = """
     SELECT view_id, STRING_AGG(key_column_name,',') pk_columns 
     FROM FeatureStore.training_view_key 
     WHERE key_type='P' 

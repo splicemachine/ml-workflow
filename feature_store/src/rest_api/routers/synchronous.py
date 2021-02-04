@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Depends, HTTPException, Body, Query
+from fastapi import APIRouter, status, Depends, Body, Query
 from typing import List, Dict, Optional, Union, Any
 from shared.logger.logging_config import logger
 from shared.models.feature_store_models import FeatureSet, TrainingView, Feature
@@ -9,6 +9,7 @@ from .. import schemas, crud
 from ..training_utils import (dict_to_lower,_get_training_view_by_name, 
                                 _get_training_set, _get_training_set_from_view)
 from ..utils import __validate_feature_data_type
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
 # Synchronous API Router-- we can mount it to the main API
 SYNC_ROUTER = APIRouter()
@@ -190,11 +191,13 @@ async def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db:
     """
     __validate_feature_data_type(fc.feature_data_type)
     if crud.table_exists(db, schema, table):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Feature Set {schema}.{table} is already deployed. You cannot "
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
+                                        message=f"Feature Set {schema}.{table} is already deployed. You cannot "
                                         f"add features to a deployed feature set.")
     fsets: List[schemas.FeatureSet] = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema})
     if not fsets:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Feature Set {schema}.{table} does not exist. Please enter "
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature Set {schema}.{table} does not exist. Please enter "
                                         f"a valid feature set.")
     fset = fsets[0]
     crud.validate_feature(db, fc.name)
@@ -213,7 +216,7 @@ async def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Dep
         crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.label_column)
         tv.label_column = f"'{tv.label_column}'" if tv.label_column else "NULL"  # Formatting incase NULL
         crud.create_training_view(db, tv)
-    except HTTPException as e:
+    except SpliceMachineException as e:
         db.rollback()
         raise e
 
@@ -228,8 +231,9 @@ async def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud
     try:
         fset = crud.get_feature_sets(db, _filter={'schema_name': schema, 'table_name': table})[0]
     except:
-        raise HTTPException(
-            status_code=404, detail=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
+        raise SpliceMachineException(
+            status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+            message=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
             f"feature set using fs.create_feature_set before deploying.")
     return crud.deploy_feature_set(db, fset)
 

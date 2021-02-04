@@ -5,6 +5,7 @@ from . import crud
 from sqlalchemy.orm import Session
 from datetime import datetime
 from .utils import __get_pk_columns
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
 """
 A set of utility functions for creating Training Set SQL 
@@ -47,7 +48,8 @@ def _get_anchor_feature_set(features: List[Feature], feature_sets: List[FeatureS
             bad_features += [f.name for f in features if f.feature_set_id == fset.feature_set_id]
 
     if bad_features:
-        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"The provided features do not have a common join key."
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                    message=f"The provided features do not have a common join key."
                                      f"Remove features {bad_features} from your request")
 
     return anchor_fset
@@ -160,7 +162,8 @@ def _create_temp_training_view(features: List[Feature], feature_sets: List[Featu
 def _get_training_view_by_name(db: Session, name: str) -> List[TrainingView]:
     tvs = crud.get_training_views(db, {'name': name})
     if not tvs:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Could not find training view with name "{name}"')
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f'Could not find training view with name "{name}"')
     return tvs
 
 def _get_training_set(db: Session, features: Union[List[Feature], List[str]], start_time: datetime = None, end_time: datetime = None, 
