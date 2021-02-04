@@ -85,6 +85,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
 
     @Override
     public ExecRow next() {
+        if(!hasNext()){return null;}
         // If we have any processed rows available, return the first one
         if(this.processedRows.isEmpty()) { // Fill and transform the buffer
             // Fill the buffer until either there are no more rows or we hit our max buffer size
@@ -97,8 +98,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
             // transform all rows in buffer
             // return first row
             try {
-                LOG.warn("Model Category is "+ modelCategory);
-                LOG.warn("Runner is " + this.runner.getTypeFormatId());
+                LOG.info("Doing transformation of size "+ this.unprocessedRows.size());
                 switch (modelCategory) {
                     case "key_value":
                         this.processedRows = this.runner.predictKeyValue(unprocessedRows, modelFeaturesIndexes,

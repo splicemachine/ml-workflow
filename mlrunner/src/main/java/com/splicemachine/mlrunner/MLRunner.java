@@ -3,6 +3,7 @@ package com.splicemachine.mlrunner;
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.sql.Activation;
 import com.splicemachine.db.iapi.sql.ResultColumnDescriptor;
+import com.splicemachine.db.iapi.sql.conn.LanguageConnectionContext;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.vti.VTICosting;
 import com.splicemachine.db.vti.VTIEnvironment;
@@ -40,6 +41,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     final int maxBufferSize;
     private final double threshold;
     TriggerNewTransitionRows newTransitionRows;
+    AbstractRunner runner;
 
     //Provide external context which can be carried with the operation
     protected OperationContext operationContext;
@@ -236,13 +238,17 @@ public class MLRunner implements DatasetProvider, VTICosting {
             predictionColIndex=-1;
         }
 
-
+        LanguageConnectionContext languageConnectionContext = operationContext.getActivation().getLanguageConnectionContext();
+        // TODO code from Jun
+//        PreparedStatement ps = languageConnectionContext.prepareInternalStatement(SQL);
+//        Activation activation = ps.getActivation(lcc, false);
+//        ((GenericStorablePreparedStatement)ps).setNeedsSavepoint(false);
+//        ResultSet rs = ps.execute(activation, 0);
         // Initialize runner
         LOG.warn("Getting runner");
-        AbstractRunner runner = null;
         try {
-            runner = this.modelCategory.equals("endpoint") ? null : getRunner(this.modelID);
-            
+            this.runner = this.modelCategory.equals("endpoint") ? null : getRunner(this.modelID);
+
         } catch (SQLException e) {
             LOG.error("Unexpected SQLException while getting runner: ", e.getMessage());
         } catch (ClassNotFoundException e) {
@@ -254,7 +260,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         LOG.warn("Runner is null " + (runner==null));
         assert runner != null: "runner is null!";
         LOG.warn("Got runner " + runner.getTypeFormatId());
-        
+
         // Get the row(s) of data and transform them
         DataSet<ExecRow> rows = this.newTransitionRows.getDataSet(spliceOperation, dataSetProcessor, execRow);
         return rows.mapPartitions(new ModelRunnerFlatMapFunction(operationContext, runner, modelCategory,
@@ -340,13 +346,13 @@ public class MLRunner implements DatasetProvider, VTICosting {
     @Override
     public double getEstimatedRowCount(VTIEnvironment vtiEnvironment) throws SQLException {
         //FIXME: We are going to get more than 1 row now
-        return 1;
+        return 100000;
     }
 
     @Override
     public double getEstimatedCostPerInstantiation(VTIEnvironment vtiEnvironment) throws SQLException {
         //FIXME: This should be estimated better
-        return 100;
+        return 100000;
     }
 
     @Override

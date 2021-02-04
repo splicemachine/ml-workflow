@@ -14,9 +14,13 @@ import java.util.List;
 import java.util.Queue;
 
 import com.splicemachine.EngineDriver;
+import com.splicemachine.db.client.am.Statement;
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.services.io.Formatable;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
+import com.splicemachine.db.impl.jdbc.EmbedPreparedStatement;
+import com.splicemachine.db.impl.jdbc.EmbedPreparedStatement30;
+import com.splicemachine.db.jdbc.Driver30;
 import hex.genmodel.easy.exception.PredictException;
 import com.splicemachine.db.iapi.services.io.StoredFormatIds;
 import jep.JepException;
@@ -55,17 +59,24 @@ public abstract class AbstractRunner implements Formatable {
 //        }
 //    }
     public static Object[] getModelBlob(final String modelID) throws SQLException, IOException, ClassNotFoundException {
+//        final String sql = "select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?";
         final Connection conn = EngineDriver.driver().getInternalConnection();
-        final PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
-        pstmt.setString(1, modelID);
-        final ResultSet rs = pstmt.executeQuery();
-        if (rs.next()) {
-            final Blob blobModel = rs.getBlob(1);
-            final String library = rs.getString(2);
-            final Object[] obj = { blobModel, library };
-            return obj;
+        try {
+            conn.setAutoCommit(false);
+            final PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
+            pstmt.setString(1, modelID);
+            final ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                final Blob blobModel = rs.getBlob(1);
+                final String library = rs.getString(2);
+                final Object[] obj = {blobModel, library};
+                return obj;
+            }
+            throw new SQLException("Model not found in Database!");
         }
-        throw new SQLException("Model not found in Database!");
+        finally {
+            conn.setAutoCommit(true);
+        }
     }
 
     /**
