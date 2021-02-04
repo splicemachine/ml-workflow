@@ -6,9 +6,8 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from ..constants import SQL
 from .. import schemas, crud
-from ..training_utils import (dict_to_lower, _generate_training_set_history_sql,
-                                   _generate_training_set_sql, _create_temp_training_view,
-                                   _get_training_view_by_name, _get_training_set, _get_training_set_from_view)
+from ..training_utils import (dict_to_lower,_get_training_view_by_name, 
+                                _get_training_set, _get_training_set_from_view)
 from ..utils import __validate_feature_data_type
 
 # Synchronous API Router-- we can mount it to the main API
@@ -174,7 +173,7 @@ async def list_training_sets(db: Session = Depends(crud.get_db)):
     """
     raise NotImplementedError("To see available training views, run fs.describe_training_views()")
 
-@SYNC_ROUTER.post('/feature-sets', response_model=schemas.FeatureSet, status_code=201,
+@SYNC_ROUTER.post('/feature-sets', response_model=schemas.FeatureSet, status_code=status.HTTP_201_CREATED,
                 description="Creates and returns a new feature set", operation_id='create_feature_set')
 async def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(crud.get_db)):
     """
@@ -184,7 +183,7 @@ async def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depen
     logger.info(f'Registering feature set {fset.schema_name}.{fset.table_name} in Feature Store')
     return crud.register_feature_set_metadata(db, fset)
 
-@SYNC_ROUTER.post('/features', response_model=schemas.Feature, status_code=201,
+@SYNC_ROUTER.post('/features', response_model=schemas.Feature, status_code=status.HTTP_201_CREATED,
                 description="Add a feature to a feature set", operation_id='create_feature')
 async def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db: Session = Depends(crud.get_db)):
     """
@@ -192,21 +191,20 @@ async def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db:
     """
     __validate_feature_data_type(fc.feature_data_type)
     if crud.table_exists(db, schema, table):
-        raise HTTPException(status_code=409, detail=f"Feature Set {schema}.{table} is already deployed. You cannot "
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Feature Set {schema}.{table} is already deployed. You cannot "
                                         f"add features to a deployed feature set.")
     fsets: List[schemas.FeatureSet] = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema})
     if not fsets:
-        raise HTTPException(status_code=404, detail=f"Feature Set {schema}.{table} does not exist. Please enter "
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Feature Set {schema}.{table} does not exist. Please enter "
                                         f"a valid feature set.")
     fset = fsets[0]
     crud.validate_feature(db, fc.name)
-    # f = schemas.Feature(**fc.__dict__, feature_set_id=fset.feature_set_id)
     fc.feature_set_id = fset.feature_set_id
-    print(f'Registering feature {fc.name} in Feature Store')
+    logger.info(f'Registering feature {fc.name} in Feature Store')
     return crud.register_feature_metadata(db, fc)
     # return f
 
-@SYNC_ROUTER.post('/training-views', status_code=201,
+@SYNC_ROUTER.post('/training-views', status_code=status.HTTP_201_CREATED,
                 description="Registers a training view for use in generating training SQL", operation_id='create_training_view')
 async def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Depends(crud.get_db)):
     """
@@ -268,10 +266,7 @@ async def get_training_view_descriptions(name: Optional[str] = None, db: Session
         # Grab the feature set info and their corresponding names (schema.table) for the display table
         feat_sets: List[schemas.FeatureSet] = crud.get_feature_sets(db, feature_set_ids=[f.feature_set_id for f in feats])
         feat_sets: Dict[int, str] = {fset.feature_set_id: f'{fset.schema_name}.{fset.table_name}' for fset in feat_sets}
-        # for f in feats:
-            # f.feature_set_name = feat_sets[f.feature_set_id]
         fds = list(map(lambda f, feat_sets=feat_sets: schemas.FeatureDescription(**f.__dict__, feature_set_name=feat_sets[f.feature_set_id]), feats))
-        print(fds)
         descs.append({ "training_view": tcx, "features": fds })
     return descs
 

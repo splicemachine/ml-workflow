@@ -5,7 +5,7 @@ from .constants import SQL, SQL_TYPES
 from shared.models import feature_store_models as models
 from shared.services.database import SQLAlchemyClient
 from shared.logger.logging_config import logger
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 import re
 import json
 from datetime import datetime
@@ -51,10 +51,10 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     str = f'Feature Set {fset.schema_name}.{fset.table_name} already exists. Use a different schema and/or table name.'
     # Validate Table
     if table_exists(db, fset.schema_name, fset.table_name):
-        raise HTTPException(status_code=409, detail=str)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str)
     # Validate metadata
     if len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) > 0:
-        raise HTTPException(status_code=409, detail=str)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str)
 
 def validate_feature(db: Session, name: str) -> None:
     """
@@ -68,10 +68,10 @@ def validate_feature(db: Session, name: str) -> None:
     str = f"Cannot add feature {name}, feature already exists in Feature Store. Try a new feature name."
     l = len(db.query(models.Feature.name).filter(models.Feature.name == name.upper()).all())
     if l > 0:
-        raise HTTPException(status_code=409, detail=str)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str)
 
     if not re.match('^[A-Za-z][A-Za-z0-9_]*$', name, re.IGNORECASE):
-        raise HTTPException(status_code=406, detail='Feature name does not conform. Must start with an alphabetic character, '
+        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail='Feature name does not conform. Must start with an alphabetic character, '
                                      'and can only contains letters, numbers and underscores')
 
 def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
@@ -86,7 +86,7 @@ def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
     feature_set_key_columns = {fkey.lower() for fset in feature_sets for fkey in fset.primary_keys.keys()}
     missing_keys = feature_set_key_columns - join_key_values.keys()
     if missing_keys:
-        raise HTTPException(status_code=400, detail=f"The following keys were not provided and must be: {missing_keys}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"The following keys were not provided and must be: {missing_keys}")
 
 def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, Union[str, int]], feature_sets: List[schemas.FeatureSet], return_sql: bool) -> Union[Dict[str, Any], str]:
     """
@@ -159,6 +159,7 @@ def get_training_view_features(db: Session, training_view: str) -> List[schemas.
 
     features = []
     for feat in q.all():
+        # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         f = feat.__dict__
         f['tags'] = json.loads(f['tags'])
         features.append(schemas.Feature(**f))
@@ -187,9 +188,7 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Di
         queries.extend([getattr(fset, name) == value for name, value in _filter.items()])
 
     # SQLAlchemy does not support STRING_AGG
-    p = sql.text("""SELECT feature_set_id, STRING_AGG(key_column_name,'|') pk_columns, STRING_AGG(key_column_data_type,'|') pk_types 
-                    FROM FeatureStore.feature_set_key 
-                    GROUP BY 1""").\
+    p = sql.text(SQL.feature_set_pk_columns).\
                     columns(
                         sql.column('feature_set_id', Integer), 
                         sql.column('pk_columns', String), 
@@ -221,19 +220,13 @@ def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) 
     """
     training_views = []
 
-    p = sql.text("""SELECT view_id, STRING_AGG(key_column_name,',') pk_columns 
-                    FROM FeatureStore.training_view_key 
-                    WHERE key_type='P' 
-                    GROUP BY 1""").\
+    p = sql.text(SQL.training_view_pk_columns).\
             columns(
                 sql.column('view_id', Integer),
                 sql.column('pk_columns', String)).\
             alias('p')
 
-    c = sql.text("""SELECT view_id, STRING_AGG(key_column_name,',') join_columns 
-                    FROM FeatureStore.training_view_key 
-                    WHERE key_type='J' 
-                    GROUP BY 1""").\
+    c = sql.text(SQL.join_columns).\
             columns(
                 sql.column('view_id', Integer),
                 sql.column('join_columns', String)).\
@@ -288,7 +281,7 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
     """
     # If they don't pass in feature names, raise exception
     if not names:
-        raise HTTPException(status_code=409, detail="Please provide at least one name")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Please provide at least one name")
 
     f = aliased(models.Feature, name='f')
     fset = aliased(models.FeatureSet, name='fset')
@@ -397,7 +390,7 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
     all_features = str_to_feat + [f for f in features if not isinstance(f, str)]
     if not all(
         [isinstance(i, schemas.Feature) for i in all_features]):
-        raise HTTPException(status_code=409, detail="It seems you've passed in Features that are neither" \
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="It seems you've passed in Features that are neither" \
                                                             " a feature name (string) or a Feature object")
     return all_features
 
@@ -420,33 +413,33 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
         schema=fset.schema_name, table=fset.table_name, pk_list=get_pk_column_str(fset),
         feature_list=get_feature_column_str(db, fset), old_pk_cols=old_pk_cols, old_feature_cols=old_feature_cols)
 
-    print('Creating Feature Set...', end=' ')
+    logger.info('Creating Feature Set...')
     pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
     ts_columns = [Column('last_update_ts', TIMESTAMP)]
     feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
     columns = pk_columns + ts_columns + feature_columns
     feature_set = Table(fset.table_name.lower(), metadata, *columns, schema=fset.schema_name.lower())
     feature_set.create(db.connection())
-    print('Done.')
+    logger.info('Done.')
 
-    print('Creating Feature Set History...', end=' ')
+    logger.info('Creating Feature Set History...')
     pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
     ts_columns = [Column('asof_ts', TIMESTAMP, primary_key=True), Column('until_ts', TIMESTAMP, primary_key=True)]
     feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
     columns = pk_columns + ts_columns + feature_columns
     history = Table(f'{fset.table_name.lower()}_history', metadata, *columns, schema=fset.schema_name.lower())
     history.create(db.connection())
-    print('Done.')
+    logger.info('Done.')
 
-    print('Creating Historian Trigger...', end=' ')
+    logger.info('Creating Historian Trigger...')
     trigger = DDL(trigger_sql)
     db.execute(trigger)
-    print('Done.')
+    logger.info('Done.')
 
-    print('Updating Metadata...')
+    logger.info('Updating Metadata...')
     db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id==fset.feature_set_id).update({models.FeatureSet.deployed: True})
     fset.deployed = True
-    print('Done.')
+    logger.info('Done.')
     return fset
 
 def validate_training_view(db: Session, name, sql_text, join_keys, label_col=None) -> None:
@@ -462,7 +455,7 @@ def validate_training_view(db: Session, name, sql_text, join_keys, label_col=Non
     """
     # Validate name doesn't exist
     if len(get_training_views(db, _filter={'name': name}))> 0:
-        raise HTTPException(status_code=409, detail=f"Training View {name} already exists!")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Training View {name} already exists!")
 
     # Column comparison
     # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
@@ -470,20 +463,19 @@ def validate_training_view(db: Session, name, sql_text, join_keys, label_col=Non
     try:
         valid_df = db.execute(sql_text).fetchone()
     except ProgrammingError as e:
-        print("caught")
         if '[Splice Machine][Splice]' in str(e):
-            raise HTTPException(status_code=406, detail=f'The provided SQL is incorrect. The following error was raised during '
+            raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f'The provided SQL is incorrect. The following error was raised during '
                                             f'validation:\n\n{str(e)}') from None
         raise e
 
     # Ensure the label column specified is in the output of the SQL
     if label_col and not label_col in valid_df.keys():
-        raise HTTPException(status_code=400, detail=f"Provided label column {label_col} is not available in the provided SQL")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Provided label column {label_col} is not available in the provided SQL")
     # Confirm that all join_keys provided correspond to primary keys of created feature sets
     pks = set(i[0].upper() for i in db.query(distinct(models.FeatureSetKey.key_column_name)).all())
     missing_keys = set(i.upper() for i in join_keys) - pks
     if missing_keys:
-        raise HTTPException(status_code=400, detail=f"Not all provided join keys exist. Remove {missing_keys} or " \
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Not all provided join keys exist. Remove {missing_keys} or " \
                                 f"create a feature set that uses the missing keys")
 
 def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
@@ -494,28 +486,28 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
     :param tv: The training view to register
     :return: None
     """
-    print('Building training sql...')
+    logger.info('Building training sql...')
     train = models.TrainingView(name=tv.name, description=tv.description or 'None Provided', sql_text=tv.sql_text, ts_column=tv.ts_column,
                             label_column=tv.label_column)
     db.add(train)
     db.flush()
-    print('Done.')
+    logger.info('Done.')
 
     # Get generated view ID
     vid = train.view_id
 
-    print('Creating Join Keys')
+    logger.info('Creating Join Keys')
     for i in tv.join_columns:
-        print(f'\tCreating Join Key {i}...')
+        logger.info(f'\tCreating Join Key {i}...')
         key = models.TrainingViewKey(view_id=vid, key_column_name=i.upper(), key_type='J')
         db.add(key)
-    print('Done.')
-    print('Creating Training View Primary Keys')
+    logger.info('Done.')
+    logger.info('Creating Training View Primary Keys')
     for i in tv.pk_columns:
-        print(f'\tCreating Primary Key {i}...')
+        logger.info(f'\tCreating Primary Key {i}...')
         key = models.TrainingViewKey(view_id=vid, key_column_name=i.upper(), key_type='P')
         db.add(key)
-    print('Done.')
+    logger.info('Done.')
 
 # Feature/FeatureSet specific
 
@@ -532,6 +524,7 @@ def get_features(db: Session, fset: schemas.FeatureSet) -> List[schemas.Feature]
         features_rows = db.query(models.Feature).\
                         filter(models.Feature.feature_set_id==fset.feature_set_id).all()
         for f in features_rows:
+            # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
             d = f.__dict__
             d['tags'] = json.loads(d['tags'])
             features.append(schemas.Feature(**d))
