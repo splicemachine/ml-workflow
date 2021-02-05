@@ -211,7 +211,11 @@ async def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Dep
     """
     Registers a training view for use in generating training SQL
     """
-    # assert tv.name != "None", "Name of training view cannot be None!"
+    if not tv.name:
+        raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+            message="Name of training view cannot be None!")
+
     try:
         crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.label_column)
         tv.label_column = f"'{tv.label_column}'" if tv.label_column else "NULL"  # Formatting incase NULL
