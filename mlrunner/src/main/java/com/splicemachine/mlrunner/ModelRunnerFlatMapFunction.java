@@ -85,7 +85,6 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
 
     @Override
     public ExecRow next() {
-        if(!hasNext()){return null;}
         // If we have any processed rows available, return the first one
         if(this.processedRows.isEmpty()) { // Fill and transform the buffer
             // Fill the buffer until either there are no more rows or we hit our max buffer size

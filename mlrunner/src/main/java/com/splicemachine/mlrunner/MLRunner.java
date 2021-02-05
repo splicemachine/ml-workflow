@@ -61,8 +61,8 @@ public class MLRunner implements DatasetProvider, VTICosting {
         runnerCache.clear();
     }
 
-    public static AbstractRunner getRunner(final String modelID)
-            throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+    public static AbstractRunner getRunner(final String modelID, LanguageConnectionContext languageConnectionContext)
+            throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         AbstractRunner runner;
         // Check if the runner is in cache
         if (runnerCache.containsKey(modelID)) {
@@ -71,7 +71,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         }
         else {
             // Get the model blob and the library
-            final Object[] modelAndLibrary = AbstractRunner.getModelBlob(modelID);
+            final Object[] modelAndLibrary = AbstractRunner.getModelBlob(modelID, languageConnectionContext);
             final String lib = ((String) modelAndLibrary[1]).toLowerCase();
             Blob model = (Blob) modelAndLibrary[0];
             switch (lib) {
@@ -111,13 +111,13 @@ public class MLRunner implements DatasetProvider, VTICosting {
      */
     @Deprecated public static String predictClassification(final String modelID, final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
-            UnsupportedLibraryExcetion, ClassNotFoundException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+            UnsupportedLibraryExcetion, ClassNotFoundException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
         if (checkVals(modelID, rawData, schema)){
             return null;
         }
 
-        AbstractRunner runner = getRunner(modelID);
+        AbstractRunner runner = getRunner(modelID, null);
         return runner.predictClassification(rawData, schema);
     }
 
@@ -126,14 +126,14 @@ public class MLRunner implements DatasetProvider, VTICosting {
      */
     @Deprecated public static Double predictRegression(final String modelID, final String rawData, final String schema)
             throws ClassNotFoundException, UnsupportedLibraryExcetion, SQLException, IOException,
-            InvocationTargetException, IllegalAccessException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+            InvocationTargetException, IllegalAccessException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
         if (checkVals(modelID, rawData, schema)){
             return null;
         }
 
         //TODO: Add defensive code in case the model returns nothing (ie if a stringindexer skips the row)
-        AbstractRunner runner = getRunner(modelID);
+        AbstractRunner runner = getRunner(modelID, null);
         return runner.predictRegression(rawData, schema);
     }
 
@@ -141,13 +141,13 @@ public class MLRunner implements DatasetProvider, VTICosting {
      * @deprecated  As of release 2.4.0-k8, VTI only now
      */
     @Deprecated public static String predictClusterProbabilities(final String modelID, final String rawData, final String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException,
-            UnsupportedLibraryExcetion, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+            UnsupportedLibraryExcetion, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
         if (checkVals(modelID, rawData, schema)){
             return null;
         }
 
-        AbstractRunner runner = getRunner(modelID);
+        AbstractRunner runner = getRunner(modelID, null);
         return runner.predictClusterProbabilities(rawData, schema);
     }
 
@@ -156,26 +156,26 @@ public class MLRunner implements DatasetProvider, VTICosting {
      */
     @Deprecated public static int predictCluster(final String modelID, final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
-            ClassNotFoundException, UnsupportedLibraryExcetion, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+            ClassNotFoundException, UnsupportedLibraryExcetion, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
         if (checkVals(modelID, rawData, schema)){
             return -1;
         }
 
-        AbstractRunner runner = getRunner(modelID);
+        AbstractRunner runner = getRunner(modelID, null);
         return runner.predictCluster(rawData, schema);
     }
 
     /**
      * @deprecated  As of release 2.4.0-k8, VTI only now
      */
-    @Deprecated public static double[] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
+    @Deprecated public static double[] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
         if (checkVals(modelID, rawData, schema)){
             return null;
         }
 
-        AbstractRunner runner = getRunner(modelID);
+        AbstractRunner runner = getRunner(modelID, null);
         return runner.predictKeyValue(rawData, schema, null, null, -1);
     }
 
@@ -220,7 +220,9 @@ public class MLRunner implements DatasetProvider, VTICosting {
         List<Integer> modelFeaturesIndexes = new ArrayList<>();
         List<Integer> predictionLabelIndexes = new ArrayList<>();
 
-        ResultColumnDescriptor[] cd = operationContext.getActivation().getLanguageConnectionContext().getTriggerExecutionContext().getTemporaryRowHolder().getResultSet().getResultDescription().getColumnInfo();
+        LanguageConnectionContext languageConnectionContext = operationContext.getActivation().getLanguageConnectionContext();
+
+        ResultColumnDescriptor[] cd = languageConnectionContext.getTriggerExecutionContext().getTemporaryRowHolder().getResultSet().getResultDescription().getColumnInfo();
         HashMap<String, Integer> colIndexes= new HashMap<>();
         for(ResultColumnDescriptor rcd : cd)    colIndexes.put(rcd.getName(), rcd.getColumnPosition());
 
@@ -238,23 +240,26 @@ public class MLRunner implements DatasetProvider, VTICosting {
             predictionColIndex=-1;
         }
 
-        LanguageConnectionContext languageConnectionContext = operationContext.getActivation().getLanguageConnectionContext();
         // TODO code from Jun
 //        PreparedStatement ps = languageConnectionContext.prepareInternalStatement(SQL);
 //        Activation activation = ps.getActivation(lcc, false);
 //        ((GenericStorablePreparedStatement)ps).setNeedsSavepoint(false);
 //        ResultSet rs = ps.execute(activation, 0);
+
         // Initialize runner
         LOG.warn("Getting runner");
         try {
-            this.runner = this.modelCategory.equals("endpoint") ? null : getRunner(this.modelID);
+            this.runner = this.modelCategory.equals("endpoint") ? null : getRunner(this.modelID, languageConnectionContext);
 
         } catch (SQLException e) {
             LOG.error("Unexpected SQLException while getting runner: ", e.getMessage());
+            throw StandardException.plainWrapException(e);
         } catch (ClassNotFoundException e) {
             LOG.error("Unexpected ClassNotFoundException while getting runner: ", e.getMessage());
+            throw StandardException.plainWrapException(e);
         } catch (Exception e) {
-            LOG.error("Unexpected Exception while getting runner: ", e.getMessage());
+            LOG.error("Unexpected Exception while getting runner: ", e.getMessage() + "END OF EXCEPTION");
+            throw StandardException.plainWrapException(e);
         }
         LOG.warn("Finished getting runner");
         LOG.warn("Runner is null " + (runner==null));

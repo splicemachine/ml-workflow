@@ -6,8 +6,6 @@ import java.io.ObjectOutput;
 import java.lang.reflect.InvocationTargetException;
 import java.sql.Blob;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.LinkedList;
 import java.util.List;
@@ -17,15 +15,24 @@ import com.splicemachine.EngineDriver;
 import com.splicemachine.db.client.am.Statement;
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.services.io.Formatable;
+import com.splicemachine.db.iapi.sql.Activation;
+import com.splicemachine.db.iapi.sql.PreparedStatement;
+import com.splicemachine.db.iapi.sql.ResultColumnDescriptor;
+import com.splicemachine.db.iapi.sql.conn.LanguageConnectionContext;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
+import com.splicemachine.db.iapi.sql.ResultSet;
 import com.splicemachine.db.impl.jdbc.EmbedPreparedStatement;
 import com.splicemachine.db.impl.jdbc.EmbedPreparedStatement30;
+import com.splicemachine.db.impl.sql.GenericStorablePreparedStatement;
 import com.splicemachine.db.jdbc.Driver30;
 import hex.genmodel.easy.exception.PredictException;
 import com.splicemachine.db.iapi.services.io.StoredFormatIds;
+import io.airlift.log.Logger;
 import jep.JepException;
 
 public abstract class AbstractRunner implements Formatable {
+
+    private static final Logger LOG = Logger.get(MLRunner.class);
 
     public abstract Queue<ExecRow> predictClassification(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> predictionLabels, List<Integer> predictionLabelIndexes, List<String> featureColumnNames) throws IllegalAccessException, StandardException, InvocationTargetException, PredictException;
     public abstract Queue<ExecRow> predictRegression(LinkedList<ExecRow> rows, List<Integer> modelFeaturesIndexes, int predictionColIndex, List<String> featureColumnNames) throws Exception;
@@ -39,44 +46,54 @@ public abstract class AbstractRunner implements Formatable {
     @Deprecated public abstract int predictCluster(final String rawData, final String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException, PredictException, JepException;
     public abstract double[] predictKeyValue(final String rawData, final String schema, String predictCall, String predictArgs, double threshold) throws PredictException, JepException, SQLException;
     
-//    public static Object[] getModelBlob(final String modelID) throws SQLException {
-//        Connection conn = EngineDriver.driver().getInternalConnection();
-//        PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
-//        pstmt.setString(1, modelID);
-//        Object [] obj = null;
-//        try(ResultSet rs = pstmt.executeQuery()){
-//            if (rs.next()) {
-//                final Blob blobModel = rs.getBlob(1);
-//                final String library = rs.getString(2);
-//                obj = new Object[]{blobModel, library};
-//            }
-//            if(obj == null){
-//                throw new SQLException("Model not found in Database!");
-//            }
-//            else{
-//                return obj;
-//            }
-//        }
-//    }
-    public static Object[] getModelBlob(final String modelID) throws SQLException, IOException, ClassNotFoundException {
-//        final String sql = "select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?";
-        final Connection conn = EngineDriver.driver().getInternalConnection();
-        try {
-            conn.setAutoCommit(false);
-            final PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
-            pstmt.setString(1, modelID);
-            final ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                final Blob blobModel = rs.getBlob(1);
-                final String library = rs.getString(2);
-                final Object[] obj = {blobModel, library};
-                return obj;
-            }
+
+      // FIXME: Trying Jun's fix below
+    public static Object[] getModelBlob(final String modelID) throws SQLException {
+        Connection conn = EngineDriver.driver().getInternalConnection();
+        java.sql.PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
+        pstmt.setString(1, modelID);
+        Object [] obj = null;
+        java.sql.ResultSet rs = pstmt.executeQuery();
+        if (rs.next()) {
+            final Blob blobModel = rs.getBlob(1);
+            final String library = rs.getString(2);
+            obj = new Object[]{blobModel, library};
+        }
+        if(obj == null){
             throw new SQLException("Model not found in Database!");
         }
-        finally {
-            conn.setAutoCommit(true);
+        else{
+            return obj;
         }
+    }
+
+    public static Object[] getModelBlob(final String modelID, LanguageConnectionContext languageConnectionContext) throws SQLException, StandardException {
+        final String sql = String.format("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID='%s'",modelID);
+        final PreparedStatement pstmt;
+        if (languageConnectionContext == null) {
+            throw new SQLException("Missing a languageConnectionContext!");
+//            final Connection conn = EngineDriver.driver().getInternalConnection();
+//            conn.setAutoCommit(false);
+//            final PreparedStatement pstmt = conn.prepareStatement(sql);
+        }
+        else{
+            pstmt = languageConnectionContext.prepareInternalStatement(sql);
+        }
+        Activation activation = pstmt.getActivation(languageConnectionContext, false);
+        ((GenericStorablePreparedStatement)pstmt).setNeedsSavepoint(false);
+        ResultSet rs = pstmt.execute(activation, 0);
+        ExecRow row = rs.getNextRow();
+        if (row != null) {
+            LOG.info("Row has data!");
+            final Blob blobModel = (Blob) row.getColumn(1).getObject();
+            LOG.info("blob model object is null: " + (blobModel==null));
+            final String library = row.getColumn(2).getString();
+            LOG.info("Library version is null: " + (library==null));
+            LOG.info("Library is " + library);
+            final Object[] obj = {blobModel, library};
+            return obj;
+        }
+        throw new SQLException("Model not found in Database!");
     }
 
     /**
