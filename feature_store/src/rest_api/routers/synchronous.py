@@ -1,15 +1,15 @@
-from fastapi import APIRouter, status, Depends, HTTPException, Body, Query
-from typing import List, Dict, Optional, Union
+from fastapi import APIRouter, status, Depends, Body, Query
+from typing import List, Dict, Optional, Union, Any
 from shared.logger.logging_config import logger
 from shared.models.feature_store_models import FeatureSet, TrainingView, Feature
 from sqlalchemy.orm import Session
 from datetime import datetime
 from ..constants import SQL
 from .. import schemas, crud
-from ..training_utils import (dict_to_lower, _generate_training_set_history_sql,
-                                   _generate_training_set_sql, _create_temp_training_view,
-                                   _get_training_view_by_name, _get_training_set, _get_training_set_from_view)
+from ..training_utils import (dict_to_lower,_get_training_view_by_name, 
+                                _get_training_set, _get_training_set_from_view)
 from ..utils import __validate_feature_data_type
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
 # Synchronous API Router-- we can mount it to the main API
 SYNC_ROUTER = APIRouter()
@@ -55,9 +55,9 @@ async def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
     """
     return crud.get_training_view_id(db, name)
 
-@SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.Feature],
+@SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureDescription],
                 description="Returns a dataframe or list of features whose names are provided", operation_id='get_features_by_name')
-async def get_features_by_name(name: Optional[List[str]] = Query(None), db: Session = Depends(crud.get_db)):
+async def get_features_by_name(name: List[str] = Query([]), db: Session = Depends(crud.get_db)):
     """
     Returns a list of features whose names are provided
 
@@ -70,11 +70,10 @@ async def remove_feature_set(db: Session = Depends(crud.get_db)):
     # TODO
     raise NotImplementedError
 
-
-@SYNC_ROUTER.post('/feature-vector', status_code=status.HTTP_200_OK, response_model=Union[str, List[str]],
+@SYNC_ROUTER.post('/feature-vector', status_code=status.HTTP_200_OK, response_model=Union[Dict[str, Any], str],
                 description="Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets", operation_id='get_feature_vector')
-async def get_feature_vector(features: List[Union[str, schemas.Feature]],
-                    join_key_values: Dict[str, str], sql: bool = False, db: Session = Depends(crud.get_db)):
+async def get_feature_vector(features: List[Union[str, schemas.FeatureDescription]],
+                    join_key_values: Dict[str, Union[str, int]], sql: bool = False, db: Session = Depends(crud.get_db)):
     """
     Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets
     """
@@ -174,7 +173,7 @@ async def list_training_sets(db: Session = Depends(crud.get_db)):
     """
     raise NotImplementedError("To see available training views, run fs.describe_training_views()")
 
-@SYNC_ROUTER.post('/feature-sets', response_model=schemas.FeatureSet, status_code=201,
+@SYNC_ROUTER.post('/feature-sets', response_model=schemas.FeatureSet, status_code=status.HTTP_201_CREATED,
                 description="Creates and returns a new feature set", operation_id='create_feature_set')
 async def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(crud.get_db)):
     """
@@ -184,7 +183,7 @@ async def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depen
     logger.info(f'Registering feature set {fset.schema_name}.{fset.table_name} in Feature Store')
     return crud.register_feature_set_metadata(db, fset)
 
-@SYNC_ROUTER.post('/features', response_model=schemas.Feature, status_code=201,
+@SYNC_ROUTER.post('/features', response_model=schemas.Feature, status_code=status.HTTP_201_CREATED,
                 description="Add a feature to a feature set", operation_id='create_feature')
 async def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db: Session = Depends(crud.get_db)):
     """
@@ -192,25 +191,38 @@ async def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db:
     """
     __validate_feature_data_type(fc.feature_data_type)
     if crud.table_exists(db, schema, table):
-        raise HTTPException(status_code=409, detail=f"Feature Set {schema}.{table} is already deployed. You cannot "
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
+                                        message=f"Feature Set {schema}.{table} is already deployed. You cannot "
                                         f"add features to a deployed feature set.")
-    fset: schemas.FeatureSet = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema})[0]
+    fsets: List[schemas.FeatureSet] = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema})
+    if not fsets:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature Set {schema}.{table} does not exist. Please enter "
+                                        f"a valid feature set.")
+    fset = fsets[0]
     crud.validate_feature(db, fc.name)
-    f = schemas.Feature(**fc.__dict__, feature_set_id=fset.feature_set_id)
-    print(f'Registering feature {f.name} in Feature Store')
-    crud.register_feature_metadata(db, f)
-    return f
+    fc.feature_set_id = fset.feature_set_id
+    logger.info(f'Registering feature {fc.name} in Feature Store')
+    return crud.register_feature_metadata(db, fc)
 
-@SYNC_ROUTER.post('/training-views', status_code=201,
+@SYNC_ROUTER.post('/training-views', status_code=status.HTTP_201_CREATED,
                 description="Registers a training view for use in generating training SQL", operation_id='create_training_view')
 async def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Depends(crud.get_db)):
     """
     Registers a training view for use in generating training SQL
     """
-    # assert tv.name != "None", "Name of training view cannot be None!"
-    crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.label_column)
-    tv.label_column = f"'{tv.label_column}'" if tv.label_column else "NULL"  # Formatting incase NULL
-    crud.create_training_view(db, tv)
+    if not tv.name:
+        raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+            message="Name of training view cannot be None!")
+
+    try:
+        crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.label_column)
+        tv.label_column = f"'{tv.label_column}'" if tv.label_column else "NULL"  # Formatting incase NULL
+        crud.create_training_view(db, tv)
+    except SpliceMachineException as e:
+        db.rollback()
+        raise e
 
 @SYNC_ROUTER.post('/deploy-feature-set', response_model=schemas.FeatureSet, status_code=status.HTTP_200_OK,
                 description="Deploys a feature set to the database", operation_id='deploy_feature_set')
@@ -223,8 +235,9 @@ async def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud
     try:
         fset = crud.get_feature_sets(db, _filter={'schema_name': schema, 'table_name': table})[0]
     except:
-        raise HTTPException(
-            status_code=404, detail=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
+        raise SpliceMachineException(
+            status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+            message=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
             f"feature set using fs.create_feature_set before deploying.")
     return crud.deploy_feature_set(db, fset)
 
@@ -255,15 +268,13 @@ async def get_training_view_descriptions(name: Optional[str] = None, db: Session
         tcxs = crud.get_training_views(db)
     descs = []
     for tcx in tcxs:
-        feats: List[schemas.FeatureDescription] = crud.get_training_view_features(db, tcx.name)
+        feats: List[schemas.Feature] = crud.get_training_view_features(db, tcx.name)
         # Grab the feature set info and their corresponding names (schema.table) for the display table
         feat_sets: List[schemas.FeatureSet] = crud.get_feature_sets(db, feature_set_ids=[f.feature_set_id for f in feats])
         feat_sets: Dict[int, str] = {fset.feature_set_id: f'{fset.schema_name}.{fset.table_name}' for fset in feat_sets}
-        for f in feats:
-            f.feature_set_name = feat_sets[f.feature_set_id]
-        descs.append({ "training_view": tcx, "features": feats })
+        fds = list(map(lambda f, feat_sets=feat_sets: schemas.FeatureDescription(**f.__dict__, feature_set_name=feat_sets[f.feature_set_id]), feats))
+        descs.append({ "training_view": tcx, "features": fds })
     return descs
-
 
 @SYNC_ROUTER.put('/feature-description', status_code=status.HTTP_200_OK,
                 description="", operation_id='set_feature_description')

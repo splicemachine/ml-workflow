@@ -1,6 +1,7 @@
-from fastapi import HTTPException
+from fastapi import status
 from .schemas import FeatureSetBase, FeatureSet
 from .constants import Columns
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
 def __validate_feature_data_type(feature_data_type: str):
     """
@@ -10,7 +11,8 @@ def __validate_feature_data_type(feature_data_type: str):
     """
     from .constants import SQL_TYPES
     if not feature_data_type.split('(')[0] in SQL_TYPES:
-        raise HTTPException(status_code=406, detail=f"The datatype you've passed in, {feature_data_type} is not a valid SQL type. "
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, codee=ExceptionCodes.INVALID_TYPE,
+                                     message=f"The datatype you've passed in, {feature_data_type} is not a valid SQL type. "
                                      f"Valid types are {SQL_TYPES}")
 
 def get_pk_schema_str(fset: FeatureSet):
