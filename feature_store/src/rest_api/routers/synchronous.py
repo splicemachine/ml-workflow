@@ -4,6 +4,7 @@ from shared.logger.logging_config import logger
 from shared.models.feature_store_models import FeatureSet, TrainingView, Feature
 from sqlalchemy.orm import Session
 from datetime import datetime
+from .auth import authenticate
 from ..constants import SQL
 from .. import schemas, crud
 from ..training_utils import (dict_to_lower,_get_training_view_by_name, 
@@ -12,7 +13,9 @@ from ..utils import __validate_feature_data_type
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
 # Synchronous API Router-- we can mount it to the main API
-SYNC_ROUTER = APIRouter()
+SYNC_ROUTER = APIRouter(
+    dependencies=[Depends(authenticate)]
+)
 
 
 @SYNC_ROUTER.get('/feature-sets', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSet],
