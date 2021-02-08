@@ -3,6 +3,7 @@ This module contains SQLAlchemy Models
 used for the Queue
 """
 from time import sleep
+from os import environ as env
 
 from shared.logger.logging_config import logger
 from shared.services.database import SQLAlchemyClient, DatabaseSQL
@@ -252,12 +253,13 @@ class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
     )
 
 
-@event.listens_for(DeploymentHistory.__table__, 'after_create')
-def create_feature_hisorian_trigger(*args, **kwargs):
-    logger.warning("Creating historian trigger for feature store")
-    SQLAlchemyClient.execute(
-        DatabaseSQL.deployment_feature_historian  # Record the old feature in the feature store history table
-    )
+def create_deploy_historian():
+    @event.listens_for(DeploymentHistory.__table__, 'after_create')
+    def create_feature_hisorian_trigger(*args, **kwargs):
+        logger.warning("Creating historian trigger for feature store")
+        SQLAlchemyClient.execute(
+            DatabaseSQL.deployment_feature_historian  # Record the old feature in the feature store history table
+        )
 
 
 def create_feature_store_tables(_sleep_secs=1) -> None:
@@ -271,6 +273,10 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
 
     # noinspection PyBroadException
     try:
+        # If we are testing with pytest, we cannot create this trigger
+        # Because it causes a segmentation fault
+        # if env.get('MODE') != 'TESTING':
+        create_deploy_historian()
         logger.warning("Creating Feature Store Splice Tables inside Splice DB...")
         SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
         logger.info("Created Tables")

@@ -1,10 +1,11 @@
-from fastapi import HTTPException 
+from fastapi import HTTPException, status
 from typing import List, Union, Optional, Dict
 from .schemas import Feature, FeatureSet, TrainingView
 from . import crud
 from sqlalchemy.orm import Session
 from datetime import datetime
 from .utils import __get_pk_columns
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
 """
 A set of utility functions for creating Training Set SQL 
@@ -47,7 +48,8 @@ def _get_anchor_feature_set(features: List[Feature], feature_sets: List[FeatureS
             bad_features += [f.name for f in features if f.feature_set_id == fset.feature_set_id]
 
     if bad_features:
-        raise HTTPException(status_code=406, detail=f"The provided features do not have a common join key."
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                    message=f"The provided features do not have a common join key."
                                      f"Remove features {bad_features} from your request")
 
     return anchor_fset
@@ -154,13 +156,14 @@ def _create_temp_training_view(features: List[Feature], feature_sets: List[Featu
     ts_col = 'LAST_UPDATE_TS'
     schema_table_name = f'{anchor_fset.schema_name}.{anchor_fset.table_name}_history'
     view_sql = f'SELECT {anchor_pk_column_sql}, ASOF_TS as {ts_col} FROM {schema_table_name}'
-    return TrainingView(pk_columns=__get_pk_columns(anchor_fset), ts_column=ts_col, view_sql=view_sql,
+    return TrainingView(view_id=0, pk_columns=__get_pk_columns(anchor_fset), ts_column=ts_col, view_sql=view_sql,
                         description=None, name=None, label_column=None)
 
 def _get_training_view_by_name(db: Session, name: str) -> List[TrainingView]:
     tvs = crud.get_training_views(db, {'name': name})
     if not tvs:
-        raise HTTPException(status_code=404, detail=f'Could not find training view with name "{name}"')
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f'Could not find training view with name "{name}"')
     return tvs
 
 def _get_training_set(db: Session, features: Union[List[Feature], List[str]], start_time: datetime = None, end_time: datetime = None, 

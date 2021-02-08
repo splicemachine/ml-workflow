@@ -19,26 +19,27 @@ class FeatureSet(FeatureSetBase):
         orm_mode = True
 
 class FeatureBase(BaseModel):
+    feature_set_id: Optional[int] = None
     name: str
+    description: Optional[str] = None
     feature_data_type: str
     feature_type: str
-    description: Optional[str] = None
     tags: Optional[Dict[str, str]] = None
 
 class FeatureCreate(FeatureBase):
     pass
-
+  
 class Feature(FeatureBase):
-    feature_set_id: int
-
+    feature_id: int
+    compliance_level: Optional[int] = None
+    last_update_ts: Optional[datetime] = None
+    last_update_username: Optional[str] = None
+    
     class Config:
         orm_mode = True
 
 class FeatureDescription(Feature):
     feature_set_name: Optional[str] = None
-    compliance_level: Optional[int] = None
-    last_update_ts: datetime
-    last_update_username: str
 
 class TrainingViewBase(BaseModel):
     name: Optional[str] = None

@@ -1,33 +1,74 @@
 import pytest
+import tempfile
 from fastapi.testclient import TestClient
+from pytest_postgresql import factories
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, session, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import event
+from shared.models.feature_store_models import (Feature, FeatureSet, FeatureSetKey, TrainingView,
+                                                TrainingViewKey, TrainingSet, TrainingSetFeature,
+                                                TrainingSetFeatureStats, Deployment, DeploymentHistory,
+                                                DeploymentFeatureStats)
+from shared.services.database import SQLAlchemyClient
+from mlflow.store.tracking.dbmodels.models import SqlRun, SqlExperiment
 from shared.logger.logging_config import logger
 
 from ..rest_api.crud import get_db
 from ..rest_api.main import APP
 
+# Add SqlRun to the featurestore schema
+SqlRun.__table_args__ += ({'schema': 'featurestore'},)
+SqlExperiment.__table_args__ += ({'schema': 'featurestore'},)
+TABLES = [t.__table__ for t in (Feature, FeatureSet, FeatureSetKey, TrainingView,
+                                TrainingViewKey, TrainingSet, TrainingSetFeature,
+                                TrainingSetFeatureStats, Deployment, DeploymentHistory,
+                                DeploymentFeatureStats, SqlRun, SqlExperiment)]
+
 # Create sqlite database for testing
 Base = declarative_base()
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
-# Connect to local sqlite db
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Create local sqlite db
-Base.metadata.create_all(engine, checkfirst=True)
+# Using the factory to create a postgresql instance
+socket_dir = tempfile.TemporaryDirectory()
+postgresql_my_proc = factories.postgresql_proc(
+    port=None, unixsocketdir=socket_dir.name)
+postgresql_my = factories.postgresql('postgresql_my_proc')
 
 # Override the SpliceDB connection with sqlite
-def override_get_db():
+@pytest.fixture(scope='function')
+def override_get_db(postgresql_my):
+    logger.info("Creating postgres engine")
+
+    def dbcreator():
+        return postgresql_my.cursor().connection
+
+    # Connect to local sqlite db
+    engine = create_engine('postgresql+psycopg2://', creator=dbcreator)
+    engine.execute('create schema featurestore')
+
+    # Point SQLAlchemy Client to local engine
+    SQLAlchemyClient.SpliceBase.metadata.bind = engine
+
+    logger.info("Creating tables")
+    Base.metadata.create_all(engine, checkfirst=True, tables=TABLES)
+
+    # Create local sqlite session maker
+    logger.info("Creating session")
+    TestingSessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+    ScopedSessionLocal = scoped_session(TestingSessionLocal)
+
+    logger.info("Done")
     try:
-        db = TestingSessionLocal()
+        db = ScopedSessionLocal()
+        logger.info('Type of session')
+        logger.info(type(db))
+        logger.info(str(db))
         yield db
     finally:
+        logger.info('cleanup')
+        Base.metadata.drop_all(engine, tables=TABLES)
         db.close()
+
 
 
 @pytest.fixture
@@ -35,6 +76,16 @@ def test_app():
     client = TestClient(APP)
     yield client
 
-@pytest.fixture(scope='module')
-def setup_feature_store():
-    pass
+@pytest.fixture(scope='function')
+def feature_create_1(override_get_db):
+    logger.info("getting postgres database")
+    sess = override_get_db
+    logger.info("Done. Adding feature set entry")
+    sess.add(FeatureSet(schema_name='TEST_FS', table_name='FSET_1', description='Test Fset 1', deployed=False))
+    sess.flush()
+    logger.info('Done')
+    yield sess
+
+
+
+
