@@ -402,4 +402,7 @@ public class SKRunner extends AbstractRunner implements Formatable {
         is.read(allBytes);
         this.model = allocateDirect(fileSize).put(allBytes);
     }
+
+    @Override
+    public int getTypeFormatId() {return super.getTypeFormatId();}
 }

@@ -380,15 +380,15 @@ public class MLeapRunner extends AbstractRunner implements Formatable {
         try {
             modelBlob = (Blob) (sqlModelBlob.getObject());
             bis = modelBlob.getBinaryStream();
-        } catch (StandardException e) {
+        } catch (StandardException | SQLException e) {
             e.printStackTrace();
-        }
-         catch (SQLException throwables) {
-            throwables.printStackTrace();
         }
         final ObjectInputStream ois = new ObjectInputStream(bis);
         this.model = (Transformer) ois.readObject();
     }
+
+    @Override
+    public int getTypeFormatId() {return super.getTypeFormatId();}
 }
 
 

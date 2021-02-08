@@ -12,19 +12,14 @@ import java.util.List;
 import java.util.Queue;
 
 import com.splicemachine.EngineDriver;
-import com.splicemachine.db.client.am.Statement;
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.services.io.Formatable;
 import com.splicemachine.db.iapi.sql.Activation;
 import com.splicemachine.db.iapi.sql.PreparedStatement;
-import com.splicemachine.db.iapi.sql.ResultColumnDescriptor;
 import com.splicemachine.db.iapi.sql.conn.LanguageConnectionContext;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.iapi.sql.ResultSet;
-import com.splicemachine.db.impl.jdbc.EmbedPreparedStatement;
-import com.splicemachine.db.impl.jdbc.EmbedPreparedStatement30;
 import com.splicemachine.db.impl.sql.GenericStorablePreparedStatement;
-import com.splicemachine.db.jdbc.Driver30;
 import hex.genmodel.easy.exception.PredictException;
 import com.splicemachine.db.iapi.services.io.StoredFormatIds;
 import io.airlift.log.Logger;
@@ -85,6 +80,11 @@ public abstract class AbstractRunner implements Formatable {
         ExecRow row = rs.getNextRow();
         if (row != null) {
             LOG.info("Row has data!");
+
+            LOG.info("Row has contents: " + row.toString());
+            LOG.info("Column 1 has contents: " + row.getColumn(1).toString());
+            LOG.info("Column 2 has contents: " + row.getColumn(2).toString());
+
             final Blob blobModel = (Blob) row.getColumn(1).getObject();
             LOG.info("blob model object is null: " + (blobModel==null));
             final String library = row.getColumn(2).getString();

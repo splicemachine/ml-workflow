@@ -3,12 +3,11 @@ package com.splicemachine.mlrunner;
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.services.io.Formatable;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
+import com.splicemachine.db.iapi.types.SQLBlob;
 import com.splicemachine.db.iapi.types.SQLDouble;
 import com.splicemachine.db.iapi.types.SQLVarchar;
 
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
+import java.io.*;
 import java.sql.Blob;
 import java.sql.SQLException;
 
@@ -19,7 +18,6 @@ import org.nd4j.linalg.factory.Nd4j;
 
 import org.deeplearning4j.nn.modelimport.keras.exceptions.*;
 
-import java.io.InputStream;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -27,7 +25,12 @@ import java.util.Queue;
 
 public class KerasRunner extends AbstractRunner implements Formatable {
     MultiLayerNetwork model;
+
+    // For serializing and deserializing across spark
+    SQLBlob deserModel;
+
     public KerasRunner(Blob modelBlob) throws SQLException, UnsupportedKerasConfigurationException, IOException, InvalidKerasConfigurationException {
+        this.deserModel = new SQLBlob(modelBlob);
         InputStream is = modelBlob.getBinaryStream();
         this.model = KerasModelImport.importKerasSequentialModelAndWeights(is, true);
     }
@@ -175,15 +178,28 @@ public class KerasRunner extends AbstractRunner implements Formatable {
         return 0;
     }
 
+    /** @exception  IOException thrown on error */
     @Override
-    public void writeExternal(ObjectOutput out) throws IOException {
-        out.writeObject(model);
+    public void writeExternal(ObjectOutput out) throws IOException
+    {
+        out.writeObject(deserModel);
     }
 
     @Override
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        // MultiLayerNetwork already implements Serializable
-        this.model = (MultiLayerNetwork) in.readObject();
+        SQLBlob sqlModelBlob = (SQLBlob) in.readObject();
+        Blob modelBlob;
+        InputStream is;
+        try {
+            modelBlob = (Blob) (sqlModelBlob.getObject());
+            is = modelBlob.getBinaryStream();
+            this.model = KerasModelImport.importKerasSequentialModelAndWeights(is, true);
+        } catch (StandardException | SQLException | InvalidKerasConfigurationException | UnsupportedKerasConfigurationException e) {
+            e.printStackTrace();
+        }
     }
+
+    @Override
+    public int getTypeFormatId() {return super.getTypeFormatId();}
 
 }

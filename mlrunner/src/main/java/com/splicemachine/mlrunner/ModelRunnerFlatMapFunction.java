@@ -4,14 +4,8 @@ import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.derby.iapi.sql.execute.SpliceOperation;
 import com.splicemachine.derby.stream.function.SpliceFlatMapFunction;
 import com.splicemachine.derby.stream.iapi.OperationContext;
-import com.splicemachine.db.iapi.types.ArrayImpl;
 
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
 import io.airlift.log.Logger;
-import java.io.IOException;
-import java.sql.SQLException;
-import java.util.Arrays;
 
 import java.util.*;
 
@@ -135,49 +129,49 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
         this.execRowIterator = execRowIterator;
         return this;
     }
-    @Override
-    public void writeExternal(ObjectOutput out) throws IOException {
-        super.writeExternal(out);
-        out.writeObject(this.runner); //AbstractRunner
-        out.writeUTF(this.modelCategory);
-        out.writeUTF((this.predictCall != null) ? this.predictCall  : "NULL"); // Cannot write a null, get NPE
-        out.writeUTF((this.predictArgs != null) ? this.predictArgs  : "NULL"); // Cannot write a null, get NPE
-        out.writeDouble(this.threshold);
-        out.writeInt(this.predictionColIndex);
-        out.writeInt(this.maxBufferSize);
-        // Need to use ArrayImpl because it implements readExternal and writeExternal
-        // https://github.com/splicemachine/spliceengine/blob/master/db-shared/src/main/java/com/splicemachine/db/iapi/types/ArrayImpl.java
-        out.writeObject(new ArrayImpl("null",-1,this.modelFeaturesIndexes.toArray())); //List<Integer>
-        out.writeObject(new ArrayImpl("null",-1,this.predictionLabels.toArray())); //List<String>
-        out.writeObject(new ArrayImpl("null",-1,this.predictionLabelIndexes.toArray())); //List<Integer>
-        out.writeObject(new ArrayImpl("null",-1,this.featureColumnNames.toArray())); //List<String>
-    }
-
-    @Override
-    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        super.readExternal(in);
-
-        this.runner = (AbstractRunner) in.readObject();
-        this.modelCategory = in.readUTF();
-        this.predictCall = in.readUTF();
-        this.predictCall = (predictCall.equals("NULL")) ? null : predictCall; // Convert back in case it was null
-        this.predictArgs = in.readUTF();
-        this.predictArgs = (predictArgs.equals("NULL")) ? null : predictArgs; // Convert back in case it was null
-        this.threshold = in.readDouble();
-        this.predictionColIndex = in.readInt();
-        this.maxBufferSize = in.readInt();
-
-        try {
-            // Need to convert arrayimpl back into an array, then to List
-            // convert in.readObject() to an ArrayImpl class. Then get the array. Then convert that Object to a Integer[]
-            // Then to a List<Integer>
-            this.modelFeaturesIndexes = Arrays.asList(((Integer[]) ((ArrayImpl) in.readObject()).getArray()));
-            this.predictionLabels = Arrays.asList(((String[]) ((ArrayImpl) in.readObject()).getArray()));
-            this.predictionLabelIndexes = Arrays.asList(((Integer[]) ((ArrayImpl) in.readObject()).getArray()));
-            this.featureColumnNames = Arrays.asList(((String[]) ((ArrayImpl) in.readObject()).getArray()));
-        }
-        catch(SQLException sqlException){
-            throw new IOException("Could not deserialize arraylists");
-        }
-    }
+//    @Override
+//    public void writeExternal(ObjectOutput out) throws IOException {
+//        super.writeExternal(out);
+//        out.writeObject(this.runner); //AbstractRunner
+//        out.writeUTF(this.modelCategory);
+//        out.writeUTF((this.predictCall != null) ? this.predictCall  : "NULL"); // Cannot write a null, get NPE
+//        out.writeUTF((this.predictArgs != null) ? this.predictArgs  : "NULL"); // Cannot write a null, get NPE
+//        out.writeDouble(this.threshold);
+//        out.writeInt(this.predictionColIndex);
+//        out.writeInt(this.maxBufferSize);
+//        // Need to use ArrayImpl because it implements readExternal and writeExternal
+//        // https://github.com/splicemachine/spliceengine/blob/master/db-shared/src/main/java/com/splicemachine/db/iapi/types/ArrayImpl.java
+//        out.writeObject(new ArrayImpl("null",-1,this.modelFeaturesIndexes.toArray())); //List<Integer>
+//        out.writeObject(new ArrayImpl("null",-1,this.predictionLabels.toArray())); //List<String>
+//        out.writeObject(new ArrayImpl("null",-1,this.predictionLabelIndexes.toArray())); //List<Integer>
+//        out.writeObject(new ArrayImpl("null",-1,this.featureColumnNames.toArray())); //List<String>
+//    }
+//
+//    @Override
+//    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+//        super.readExternal(in);
+//
+//        this.runner = (AbstractRunner) in.readObject();
+//        this.modelCategory = in.readUTF();
+//        this.predictCall = in.readUTF();
+//        this.predictCall = (predictCall.equals("NULL")) ? null : predictCall; // Convert back in case it was null
+//        this.predictArgs = in.readUTF();
+//        this.predictArgs = (predictArgs.equals("NULL")) ? null : predictArgs; // Convert back in case it was null
+//        this.threshold = in.readDouble();
+//        this.predictionColIndex = in.readInt();
+//        this.maxBufferSize = in.readInt();
+//
+//        try {
+//            // Need to convert arrayimpl back into an array, then to List
+//            // convert in.readObject() to an ArrayImpl class. Then get the array. Then convert that Object to a Integer[]
+//            // Then to a List<Integer>
+//            this.modelFeaturesIndexes = Arrays.asList(((Integer[]) ((ArrayImpl) in.readObject()).getArray()));
+//            this.predictionLabels = Arrays.asList(((String[]) ((ArrayImpl) in.readObject()).getArray()));
+//            this.predictionLabelIndexes = Arrays.asList(((Integer[]) ((ArrayImpl) in.readObject()).getArray()));
+//            this.featureColumnNames = Arrays.asList(((String[]) ((ArrayImpl) in.readObject()).getArray()));
+//        }
+//        catch(SQLException sqlException){
+//            throw new IOException("Could not deserialize arraylists");
+//        }
+//    }
 }

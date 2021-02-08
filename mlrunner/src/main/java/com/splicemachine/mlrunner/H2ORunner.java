@@ -10,6 +10,7 @@ import java.io.ObjectOutput;
 
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
+import com.splicemachine.db.iapi.types.SQLBlob;
 import com.splicemachine.db.iapi.types.SQLDouble;
 import com.splicemachine.db.iapi.types.SQLInteger;
 import com.splicemachine.db.iapi.types.SQLVarchar;
@@ -25,11 +26,15 @@ import io.airlift.log.Logger;
 public class H2ORunner extends AbstractRunner implements Formatable {
     EasyPredictModelWrapper model;
 
+    // For serializing and deserializing across spark
+    SQLBlob deserModel;
+
     private static final Logger LOG = Logger.get(MLRunner.class);
 
     public H2ORunner(){};
 
     public H2ORunner(final Blob modelBlob) throws SQLException, IOException, ClassNotFoundException {
+        this.deserModel = new SQLBlob(modelBlob);
         final InputStream bis = modelBlob.getBinaryStream();
         final ObjectInputStream ois = new ObjectInputStream(bis);
         this.model = (EasyPredictModelWrapper) ois.readObject();
@@ -426,12 +431,23 @@ public class H2ORunner extends AbstractRunner implements Formatable {
 
     @Override
     public void writeExternal(ObjectOutput out) throws IOException {
-        out.writeObject(model);
+        out.writeObject(this.deserModel);
     }
 
     @Override
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        // EasyPredictModelWrapper already implements Serializable
-        this.model = (EasyPredictModelWrapper) in.readObject();
+        SQLBlob sqlModelBlob = (SQLBlob) in.readObject();
+        Blob modelBlob;
+        try {
+            modelBlob = (Blob) (sqlModelBlob.getObject());
+            final InputStream bis = modelBlob.getBinaryStream();
+            final ObjectInputStream ois = new ObjectInputStream(bis);
+            this.model = (EasyPredictModelWrapper) ois.readObject();
+        } catch (StandardException | SQLException e) {
+            e.printStackTrace();
+        }
     }
+
+    @Override
+    public int getTypeFormatId() {return super.getTypeFormatId();}
 }
