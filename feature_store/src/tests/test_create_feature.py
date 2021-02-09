@@ -9,10 +9,10 @@ from shared.models.feature_store_models import (Feature, FeatureSet, FeatureSetK
 
 from ..rest_api import crud
 from ..rest_api.main import APP
-from .conftest import override_get_db, feature_create_1, test_app
+from .conftest import override_get_db, feature_create_1, test_app, feature_create_2, get_my_session
 
 
-APP.dependency_overrides[crud.get_db] = override_get_db
+APP.dependency_overrides[crud.get_db] = get_my_session
 
 basic_auth = HTTPBasicAuth('user','password')
 
@@ -32,10 +32,9 @@ basic_auth = HTTPBasicAuth('user','password')
 #     assert 'Feature Set ' in mes and 'does not exist' in mes, mes
 #
 #
-def test_create_feature_existing_feature_set(test_app, feature_create_1):
-    sess = feature_create_1
-    assert len(sess.query(FeatureSet).all())==1
+def test_create_feature_existing_feature_set(test_app, feature_create_2):
 
+    logger.info("============================= Starting test_create_feature_existing_feature_set =============================")
     d = { "name": 'good_feature',
           "description": 'a feature that should succeed because there is a feature set',
           "feature_data_type": 'VARCHAR(250)',
@@ -45,6 +44,7 @@ def test_create_feature_existing_feature_set(test_app, feature_create_1):
     response = test_app.post('/features',params={'schema': 'test_fs', 'table': 'fset_1'}, json=d, auth=basic_auth)
     logger.info(response.status_code)
     logger.info(str(response.text))
+    logger.info(response.url)
     try:
         response.raise_for_status()
     except requests.exceptions.HTTPError as error:
@@ -53,6 +53,7 @@ def test_create_feature_existing_feature_set(test_app, feature_create_1):
     assert response.status_code == 201, response.json()['message']
 
 def test_db_setup(feature_create_1):
+    logger.info("============================= Starting test_db_setup =============================")
     sess = feature_create_1
     assert len(sess.query(FeatureSet).all())==1
     assert not sess.query(FeatureSet).one().deployed

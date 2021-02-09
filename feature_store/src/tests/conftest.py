@@ -60,16 +60,17 @@ def override_get_db(postgresql_my):
     logger.info("Done")
     try:
         db = ScopedSessionLocal()
-        logger.info('Type of session')
-        logger.info(type(db))
-        logger.info(str(db))
         yield db
     finally:
-        logger.info('cleanup')
-        Base.metadata.drop_all(engine, tables=TABLES)
         db.close()
 
 
+def cleanup(sess):
+    logger.info('cleanup')
+    Base.metadata.drop_all(sess.get_bind(), tables=TABLES)
+
+    logger.info("Creating tables")
+    Base.metadata.create_all(sess.get_bind(), checkfirst=True, tables=TABLES)
 
 @pytest.fixture
 def test_app():
@@ -80,12 +81,41 @@ def test_app():
 def feature_create_1(override_get_db):
     logger.info("getting postgres database")
     sess = override_get_db
+
+    cleanup(sess)
+
     logger.info("Done. Adding feature set entry")
     sess.add(FeatureSet(schema_name='TEST_FS', table_name='FSET_1', description='Test Fset 1', deployed=False))
     sess.flush()
     logger.info('Done')
     yield sess
 
+@pytest.fixture(scope='function')
+def feature_create_2(override_get_db):
+    logger.info("getting postgres database")
+    sess = override_get_db
+
+    cleanup(sess)
+
+    logger.info("Done. Adding feature set entry")
+    sess.add(FeatureSet(schema_name='TEST_FS', table_name='FSET_1', description='Test Fset 1', deployed=False))
+    sess.flush()
+    logger.info('Done')
 
 
+def get_my_session(postgresql_my):
+    def dbcreator():
+        return postgresql_my.cursor().connection
 
+    # Connect to local sqlite db
+    engine = create_engine('postgresql+psycopg2://', creator=dbcreator)
+    engine.execute('create schema featurestore')
+    # Point SQLAlchemy Client to local engine
+    SQLAlchemyClient.SpliceBase.metadata.bind = engine
+    TestingSessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+    ScopedSessionLocal = scoped_session(TestingSessionLocal)
+    sess = ScopedSessionLocal()
+    try:
+        yield sess
+    finally:
+        sess.close()
