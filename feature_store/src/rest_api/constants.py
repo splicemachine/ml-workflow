@@ -23,26 +23,6 @@ class SQL:
     ({{model_schema_name}}, {{model_table_name}}, {{model_start_ts}}, {{model_end_ts}}, {{feature_id}}, {{feature_cardinality}}, {{feature_histogram}}, {{feature_mean}}, {{feature_median}}, {{feature_count}}, {{feature_stddev}}) 
     """
 
-    feature_set_pk_columns = f"""
-    SELECT feature_set_id, STRING_AGG(key_column_name,'|') pk_columns, STRING_AGG(key_column_data_type,'|') pk_types 
-    FROM {FEATURE_STORE_SCHEMA}.feature_set_key 
-    GROUP BY 1
-    """
-    
-    training_view_pk_columns = f"""
-    SELECT view_id, STRING_AGG(key_column_name,',') pk_columns 
-    FROM {FEATURE_STORE_SCHEMA}.training_view_key 
-    WHERE key_type='P' 
-    GROUP BY 1
-    """
-
-    join_columns = f"""
-    SELECT view_id, STRING_AGG(key_column_name,',') join_columns 
-    FROM {FEATURE_STORE_SCHEMA}.training_view_key 
-    WHERE key_type='J' 
-    GROUP BY 1
-    """
-
 class Columns:
     feature = ['feature_id', 'feature_set_id', 'name', 'description', 'feature_data_type', 'feature_type',
                'tags', 'compliance_level', 'last_update_ts', 'last_update_username']

@@ -15,3 +15,5 @@ uvicorn
 fastapi-utils
 uvloop
 httptools
+async-exit-stack
+async-generator

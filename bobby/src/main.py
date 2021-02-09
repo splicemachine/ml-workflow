@@ -181,8 +181,6 @@ def main():
     create_run_contexts()
     logger.info("Creating Splice Tables...")
     create_bobby_tables()
-    logger.info("Creating Feature Store Tables...")
-    create_feature_store_tables()
     logger.info('Registering handlers...')
     register_handlers()
     logger.info('Populating handlers...')
