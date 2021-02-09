@@ -122,12 +122,3 @@ def test_create_good_feature_set(test_app, create_schema):
     logger.info("RESPONSE FROM FSET create")
     logger.info(r)
     assert 'schema_name' in r, f'response should contain created feature set, but had {r}'
-
-df = fs.get_training_set(
-    features = [
-        'monthly_churn_aggregations',
-        'spending_avg_7_day',
-        'spending_avg_15_day',
-        'spending_avg_60_day',
-    ]
-)
