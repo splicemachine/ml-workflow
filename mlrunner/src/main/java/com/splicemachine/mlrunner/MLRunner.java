@@ -61,7 +61,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         runnerCache.clear();
     }
 
-    public static AbstractRunner getRunner(final String modelID, LanguageConnectionContext languageConnectionContext)
+    public static AbstractRunner getRunner(final String modelID)
             throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         AbstractRunner runner;
         // Check if the runner is in cache
@@ -71,7 +71,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         }
         else {
             // Get the model blob and the library
-            final Object[] modelAndLibrary = AbstractRunner.getModelBlob(modelID, languageConnectionContext);
+            final Object[] modelAndLibrary = AbstractRunner.getModelBlob(modelID);
             final String lib = ((String) modelAndLibrary[1]).toLowerCase();
             Blob model = (Blob) modelAndLibrary[0];
             switch (lib) {
@@ -117,7 +117,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
             return null;
         }
 
-        AbstractRunner runner = getRunner(modelID, null);
+        AbstractRunner runner = getRunner(modelID);
         return runner.predictClassification(rawData, schema);
     }
 
@@ -133,7 +133,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         }
 
         //TODO: Add defensive code in case the model returns nothing (ie if a stringindexer skips the row)
-        AbstractRunner runner = getRunner(modelID, null);
+        AbstractRunner runner = getRunner(modelID);
         return runner.predictRegression(rawData, schema);
     }
 
@@ -147,7 +147,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
             return null;
         }
 
-        AbstractRunner runner = getRunner(modelID, null);
+        AbstractRunner runner = getRunner(modelID);
         return runner.predictClusterProbabilities(rawData, schema);
     }
 
@@ -162,7 +162,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
             return -1;
         }
 
-        AbstractRunner runner = getRunner(modelID, null);
+        AbstractRunner runner = getRunner(modelID);
         return runner.predictCluster(rawData, schema);
     }
 
@@ -175,7 +175,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
             return null;
         }
 
-        AbstractRunner runner = getRunner(modelID, null);
+        AbstractRunner runner = getRunner(modelID);
         return runner.predictKeyValue(rawData, schema, null, null, -1);
     }
 
@@ -249,7 +249,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         // Initialize runner
         LOG.warn("Getting runner");
         try {
-            this.runner = this.modelCategory.equals("endpoint") ? null : getRunner(this.modelID, languageConnectionContext);
+            this.runner = this.modelCategory.equals("endpoint") ? null : getRunner(this.modelID);
 
         } catch (SQLException e) {
             LOG.error("Unexpected SQLException while getting runner: ", e.getMessage());
