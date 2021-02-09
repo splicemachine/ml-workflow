@@ -59,8 +59,6 @@ RUN pip3 install /tmp/shared/.
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 
-RUN pip3 install async-exit-stack async-generator pytest-postgresql psycopg2-binary
-
 RUN wget -q \
     https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
     && mkdir /root/.conda \
@@ -76,7 +74,9 @@ RUN adduser postgres && \
     usermod -aG root postgres && \
     ln -s /root/miniconda3/bin/pg_ctl /usr/bin/pg_ctl
 
+
 # Copy Source into Container
 COPY feature_store/src $SRC_HOME
+
 
 CMD $SRC_HOME"/scripts/entrypoint.sh"
