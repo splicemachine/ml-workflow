@@ -144,6 +144,15 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         """
         return str(super(SpliceMachineTrackingStore, self)._get_artifact_location(experiment_id))
 
+    def _get_current_transaction(self) -> int:
+        """
+        Gets the current database transaction and returns it
+        :return: (int) the Database transaction timestamp
+        """
+        with SQLAlchemyClient.engine.begin() as transaction:
+            tid = transaction.execute('CALL SYSCS_UTIL.SYSCS_GET_CURRENT_TRANSACTION()').fetchall()[0][0]
+        return tid
+
     def create_run(self, experiment_id, user_id, start_time, tags):
         """
         We override this method so that MLFlow doesn't log users
@@ -169,6 +178,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                     raise MlflowException("Tag 'mlflow.user' must be specified for governance")
 
                 tags_dict['mlflow.runName'] = run_id
+                tags_dict['DB Transaction ID'] = str(self._get_current_transaction())
 
                 run: SqlRun = SqlRun(name="", artifact_uri=artifact_location, run_uuid=run_id,
                                      experiment_id=experiment_id,

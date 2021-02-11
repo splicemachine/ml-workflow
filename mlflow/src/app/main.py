@@ -221,7 +221,8 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
     :return: (Response) JSON payload for success
     """
     # Format Payload
-    payload: dict = {field.name: field.get_value(request_payload.get(field.name) or None) for field in handler.payload_args}
+    payload: dict = {field.name: field.get_value(request_payload.get(field.name) or None) for field in handler.payload_args
+                     if field.name != 'payload'}
 
     job: Job = Job(handler_name=handler.name,
                    user=user,

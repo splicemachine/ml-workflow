@@ -10,6 +10,7 @@ from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String, Text, DateTime, text)
 from sqlalchemy.orm import relationship, deferred
 
+from sqlalchemy.sql.elements import TextClause
 from shared.logger.logging_config import logger
 from shared.models.enums import JobStatuses
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
@@ -114,7 +115,7 @@ class Job(SQLAlchemyClient.SpliceBase):
 
     # Columns Definition
     id: Column = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp: Column = Column(DateTime, server_default=text("CURRENT TIMESTAMP"), nullable=False)
+    timestamp: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     handler_name: Column = Column(String(SHORT_VARCHAR_SIZE), ForeignKey(Handler.name),
                                   nullable=False)
 

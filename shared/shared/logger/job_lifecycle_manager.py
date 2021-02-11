@@ -23,7 +23,6 @@ class JobLifecycleManager:
         """
         :param task_id: the task id to bind the logger to
         """
-        SQLAlchemyClient.create_job_manager()
 
         self.logging_format = JobLifecycleManager.LOGGING_FORMAT or logging_format
         self.task_id = task_id
@@ -71,7 +70,7 @@ class JobLifecycleManager:
             text(DatabaseSQL.update_job_log),
             params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
         )
-        self.Session.commit()
+        self.safe_commit()
 
     def get_logger(self):
         """
@@ -80,11 +79,30 @@ class JobLifecycleManager:
         """
         return logger.bind(task_id=self.task_id)
 
+    def safe_commit(self):
+        """
+        Tries to commit all transactions of the Session before deletion. Rolls back on failure
+        """
+        if self.Session:
+            try:
+                self.Session.commit()
+            except:
+                logger.warning("An error occured trying to commit, rolling back")
+                self.Session.rollback()
+
+    def destroy_session(self):
+        """
+        Destroys the scoped Session at the end of the loggers life
+        """
+        self.Session.close()
+        SQLAlchemyClient.LoggingSessionFactory.remove()
+        self.Session = None
+
     def destroy_logger(self):
         """
         Destroy the logger handler
         """
-        self.Session.close()
         logger.warning(f"Removing Database Logger - {self.task_id}")
         logger.remove(self.handler_id)
         logger.info("Done.")
+        self.destroy_session()

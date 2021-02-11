@@ -7,6 +7,7 @@ from typing import Optional
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructField, StructType
 from sqlalchemy import inspect as peer_into_splice_db, text
+from mlflow.store.tracking.dbmodels.models import SqlParam
 
 from shared.models.model_types import Metadata, Representations
 from shared.services.database import Converters, SQLAlchemyClient, DatabaseSQL
@@ -50,7 +51,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         primary_key = self.task.parsed_payload['primary_key']
 
         if create_model_table and not primary_key:
-            raise Exception("A deployed model table must have primary_key parameter specified")
+            raise Exception("If you are creating a new table for your deployment, you must specify the primary_keys parameter")
 
         if not create_model_table:
             primary_keys = inspector.get_primary_keys(self.task.parsed_payload['db_table'],
@@ -114,7 +115,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
         for field in columns:
             # FIXME: Sqlalchemy assumes lowercase and Splice assumes uppercase. Quoted cols in DB don't translate
-            schema_dict[field['name'].upper()] = str(field['type']).split('(')[0].upper()
+            schema_dict[field['name'].upper()] = str(field['type']).upper()
             # Remove length specification from datatype for backwards conversion
             spark_d_type = getattr(spark_types,
                                    Converters.DB_SPARK_CONVERSIONS[str(field['type']).split('(')[0].upper()])

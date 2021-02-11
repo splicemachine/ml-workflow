@@ -52,10 +52,114 @@ class DatabaseEngineConfig:
             'pool_pre_ping': DatabaseEngineConfig.pool_pre_ping
         }
 
+class SQLAlchemyClient:
+    """
+    Database configuration constants
+    """
+    engine = None  # SQLAlchemy Engine
+
+    logging_connection = None  # Logging Connection the database
+
+    reflector = None  # Inspector for DB reflection
+
+    SessionMaker = None  # Session Maker
+    SessionFactory = None  # Thread-safe session factory issuer
+
+    LoggingSessionMaker = None  # Logging Session Maker
+    LoggingSessionFactory = None  # Thread-safe session factory issuer
+
+    # We have two bases because there are two different types of tables to create.
+    # There are MLFlow tables (created by their code, such as Experiment
+    SpliceBase = declarative_base()
+    MlflowBase = MLFlowBase
+
+    _created = False
+    _job_manager_created = False
+
+    @staticmethod
+    def create_job_manager():
+        """
+        Create Job Manager Connection (only runs if Job Manager is used)
+        """
+        logger.info("Creating Job Manager Database Connection")
+        SQLAlchemyClient.logging_connection = create_engine(
+                DatabaseConnectionConfig.connection_string(),
+                **DatabaseEngineConfig.as_dict()
+            )
+        logger.info("Creating Job Manager Session Maker")
+        SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection)
+        logger.info("Creating Logging Factory")
+        SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
+        logger.info("Done.")
+        SQLAlchemyClient._job_manager_created = True
+
+    @staticmethod
+    def create():
+        """
+        Connect to the Splice Machine Database
+        :return: sqlalchemy engine
+        """
+        # if there are multiple writers, setting var before
+        # will ensure that only one engine is created
+        if not SQLAlchemyClient._created:
+            logger.info("SQLAlchemy Engine has not been created... creating SQLAlchemy Client...")
+            SQLAlchemyClient.engine = create_engine(
+                DatabaseConnectionConfig.connection_string(),
+                **DatabaseEngineConfig.as_dict()
+            )
+            SQLAlchemyClient.SpliceBase.metadata.bind = SQLAlchemyClient.engine
+            logger.debug("Created engine...")
+            SQLAlchemyClient.SessionMaker = sessionmaker(bind=SQLAlchemyClient.engine, expire_on_commit=False)
+            logger.debug("Created session maker")
+            SQLAlchemyClient.SessionFactory = scoped_session(SQLAlchemyClient.SessionMaker)
+            logger.debug("created session factory")
+            SQLAlchemyClient._created = True
+            logger.debug("Created SQLAlchemy Client...")
+        else:
+            logger.debug("Using existing SQLAlchemy Client...")
+        return SQLAlchemyClient.engine
+
+    @staticmethod
+    def execute(sql: str) -> list:
+        """
+        Directly Execute SQL on the
+        SQLAlchemy ENGINE without
+        using the ORM (more performant).
+
+        *WARNING: Is NOT Thread Safe-- Use SessionFactory for thread-safe
+        SQLAlchemy Sessions*
+
+        :param sql: (str) the SQL to execute
+        :return: (list) returned result set
+        """
+        return SQLAlchemyClient.engine.execute(sql)
+
+
 class DatabaseSQL:
     """
     Namespace for SQL Commands
     """
+    feature_update_check = \
+    """
+    CREATE TRIGGER <schema_name>.<feature_set_tablename>_update_check
+    BEFORE UPDATE 
+    ON <schema_name>.<feature_set_tablename>
+    REFERENCING OLD AS OLDW NEW AS NEWW
+    FOR EACH ROW
+    WHEN (OLDW.LAST_UPDATE_TS > NEWW.LAST_UPDATE_TS) SIGNAL SQLSTATE '2201H' SET MESSAGE_TEXT = 'LAST_UPDATE_TS must be greater than the current row.';
+    """
+
+    deployment_feature_historian = \
+    """
+    CREATE TRIGGER FeatureStore.deployment_historian
+    AFTER UPDATE 
+    ON FeatureStore.deployment
+    REFERENCING OLD AS od
+    FOR EACH ROW 
+    INSERT INTO FeatureStore.deployment_history ( model_schema_name, model_table_name, asof_ts, training_set_id, training_set_start_ts, training_set_end_ts, run_id, last_update_ts, last_update_username)
+    VALUES ( od.model_schema_name, od.model_table_name, CURRENT_TIMESTAMP, od.training_set_id, od.training_set_start_ts, od.training_set_end_ts, od.run_id, od.last_update_ts, od.last_update_username)
+    """
+
     live_status_view_selector: str = \
         """
        SELECT mm.run_uuid,
@@ -118,6 +222,31 @@ class DatabaseSQL:
         WHERE run_uuid='{run_uuid}' AND name='{name}'
         """
 
+    add_feature_store_deployment = \
+    """
+    INSERT INTO FEATURESTORE.DEPLOYMENT(
+        model_schema_name, model_table_name, training_set_id, 
+        training_set_start_ts, training_set_end_ts, run_id, last_update_username
+    ) VALUES (
+        '{model_schema_name}', '{model_table_name}', {training_set_id}, 
+        '{training_set_start_ts}', '{training_set_end_ts}', '{run_id}', '{last_update_username}')
+    """
+
+    update_feature_store_deployment = \
+    """
+    UPDATE FEATURESTORE.DEPLOYMENT
+        SET 
+            training_set_id={training_set_id},
+            training_set_start_ts='{training_set_start_ts}',
+            training_set_end_ts='{training_set_end_ts}',
+            last_update_username='{last_update_username}',
+            run_id='{run_id}'
+        WHERE
+            model_schema_name='{model_schema_name}' 
+        AND
+            model_table_name='{model_table_name}'
+    """
+
     get_k8s_deployments_on_restart = \
     """
     SELECT "user",payload FROM MLManager.Jobs
@@ -128,7 +257,6 @@ class DatabaseSQL:
          group by 1 ) LatestEvent using ("timestamp",MLFLOW_URL)
     where HANDLER_NAME='DEPLOY_KUBERNETES'
     """
-
 
 class Converters:
     """
@@ -159,7 +287,7 @@ class Converters:
         'IntegerType': 'INTEGER',
         'LongType': 'BIGINT',
         'ShortType': 'SMALLINT',
-        'StringType': 'VARCHAR(5000)',
+        'StringType': 'VARCHAR(20000)',
         'TimestampType': 'TIMESTAMP',
         'UnknownType': 'BLOB',
         'FloatType': 'FLOAT'
@@ -187,90 +315,6 @@ class Converters:
         'CHAR': 'StringType'
     }
 
-class SQLAlchemyClient:
-    """
-    Database configuration constants
-    """
-    engine = None  # SQLAlchemy Engine
-
-    logging_connection = None  # Logging Connection the database
-
-    reflector = None  # Inspector for DB reflection
-
-    SessionMaker = None  # Session Maker
-    SessionFactory = None  # Thread-safe session factory issuer
-
-    LoggingSessionMaker = None  # Logging Session Maker
-    LoggingSessionFactory = None  # Thread-safe session factory issuer
-
-    # We have two bases because there are two different types of tables to create.
-    # There are MLFlow tables (created by their code, such as Experiment
-    SpliceBase = declarative_base()
-    MlflowBase = MLFlowBase
-
-    _created = False
-    _job_manager_created = False
-
-    @staticmethod
-    def create_job_manager():
-        """
-        Create Job Manager Connection (only runs if Job Manager is used)
-        """
-        if not SQLAlchemyClient._created:
-            raise Exception("Cannot create SQLAlchemy Job Manager Resources as `create()` has not been run")
-
-        if SQLAlchemyClient._job_manager_created:
-            logger.info("Using existing Job Manager SQLAlchemy Resources")
-        else:
-            logger.info("Creating Job Manager Database Connection")
-            SQLAlchemyClient.logging_connection = SQLAlchemyClient.engine.connect()
-            logger.info("Creating Job Manager Session Maker")
-            SQLAlchemyClient.LoggingSessionMaker = sessionmaker(bind=SQLAlchemyClient.logging_connection,
-                                                                expire_on_commit=False)
-            logger.info("Creating Logging Factory")
-            SQLAlchemyClient.LoggingSessionFactory = scoped_session(SQLAlchemyClient.LoggingSessionMaker)
-            logger.info("Done.")
-            SQLAlchemyClient._job_manager_created = True
-
-    @staticmethod
-    def create():
-        """
-        Connect to the Splice Machine Database
-        :return: sqlalchemy engine
-        """
-        # if there are multiple writers, setting var before
-        # will ensure that only one engine is created
-        if not SQLAlchemyClient._created:
-            logger.info("SQLAlchemy Engine has not been created... creating SQLAlchemy Client...")
-            SQLAlchemyClient.engine = create_engine(
-                DatabaseConnectionConfig.connection_string(),
-                **DatabaseEngineConfig.as_dict()
-            )
-            SQLAlchemyClient.SpliceBase.metadata.bind = SQLAlchemyClient.engine
-            logger.debug("Created engine...")
-            SQLAlchemyClient.SessionMaker = sessionmaker(bind=SQLAlchemyClient.engine, expire_on_commit=False)
-            logger.debug("Created session maker")
-            SQLAlchemyClient.SessionFactory = scoped_session(SQLAlchemyClient.SessionMaker)
-            logger.debug("created session factory")
-            SQLAlchemyClient._created = True
-            logger.debug("Created SQLAlchemy Client...")
-        else:
-            logger.debug("Using existing SQLAlchemy Client...")
-        return SQLAlchemyClient.engine
-
-    @staticmethod
-    def execute(sql: str) -> list:
-        """
-        Directly Execute SQL on the
-        SQLAlchemy ENGINE without
-        using the ORM (more performant).
-
-        *WARNING: Is NOT Thread Safe-- Use SessionFactory for thread-safe
-        SQLAlchemy Sessions*
-
-        :param sql: (str) the SQL to execute
-        :return: (list) returned result set
-        """
-        return SQLAlchemyClient.engine.execute(sql)
 
 SQLAlchemyClient.create()
+SQLAlchemyClient.create_job_manager()
