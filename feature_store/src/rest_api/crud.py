@@ -165,7 +165,7 @@ def get_training_view_features(db: Session, training_view: str) -> List[schemas.
     for feat in q.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         f = feat.__dict__
-        f['tags'] = json.loads(f['tags'])
+        f['tags'] = json.loads(f['tags']) if 'tags' in f else None
         features.append(schemas.Feature(**f))
     return features
 
@@ -308,7 +308,7 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
     for schema, table, feat in df.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         f = feat.__dict__
-        f['tags'] = json.loads(str(f['tags']))
+        f['tags'] = json.loads(str(f['tags'])) if 'tags' in f else None
         features.append(schemas.FeatureDescription(**f, feature_set_name=f'{schema}.{table}'))
     return features
 
@@ -387,7 +387,7 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     db.add(feature)
     db.flush()
     fd = feature.__dict__
-    fd['tags'] = json.loads(fd['tags'])
+    fd['tags'] = json.loads(fd['tags']) if 'tags' in fd else None
     return schemas.Feature(**fd)
 
 def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -> List[schemas.Feature]:
@@ -419,9 +419,6 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     old_feature_cols = ','.join(f'OLDW.{f.name}' for f in get_features(db, fset))
 
     metadata = MetaData(db.get_bind())
-
-    pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
-    feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
 
     trigger_sql = SQL.feature_set_trigger.format(
         schema=fset.schema_name, table=fset.table_name, pk_list=get_pk_column_str(fset),
@@ -582,7 +579,7 @@ def get_features(db: Session, fset: schemas.FeatureSet) -> List[schemas.Feature]
         for f in features_rows:
             # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
             d = f.__dict__
-            d['tags'] = json.loads(d['tags'])
+            d['tags'] = json.loads(d['tags']) if 'tags' in d else None
             features.append(schemas.Feature(**d))
     return features
 
