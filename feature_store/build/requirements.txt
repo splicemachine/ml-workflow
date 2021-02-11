@@ -14,7 +14,7 @@ testing.postgresql==1.3.0
 fastapi
 uvicorn
 fastapi-utils
-uvloop
+uvloop==0.14.0
 httptools
 psycopg2-binary==2.8.6
 async-exit-stack

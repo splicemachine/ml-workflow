@@ -3,9 +3,9 @@ from typing import List
 from requests.auth import HTTPBasicAuth
 from shared.logger.logging_config import logger
 from shared.models.feature_store_models import Feature, FeatureSet
-from .fixtures.conftest import get_my_session, test_app, override_get_db, APP
-from .fixtures.feature import test_session_create, create_deployed_fset, create_undeployed_fset
-from ..rest_api import crud
+from ..fixtures.conftest import get_my_session, test_app, override_get_db, APP
+from ..fixtures.feature import test_session_create, create_deployed_fset, create_undeployed_fset
+from ...rest_api import crud
 
 APP.dependency_overrides[crud.get_db] = override_get_db
 
