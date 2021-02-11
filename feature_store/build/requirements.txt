@@ -10,8 +10,10 @@ retrying==1.3.3
 loguru==0.5.1
 pydantic==1.7.3
 mlflow==1.8.0
-fastapi
-uvicorn
-fastapi-utils
-uvloop
-httptools
+fastapi==0.63.0
+uvicorn==0.13.3
+fastapi-utils==0.2.1
+uvloop==0.14.0
+httptools==0.1.1
+async-exit-stack==1.0.1
+async-generator==1.10

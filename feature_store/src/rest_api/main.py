@@ -12,6 +12,7 @@ from .routers.synchronous import SYNC_ROUTER
 from shared.logger.logging_config import logger
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from shared.models.feature_store_models import wait_for_runs_table, create_feature_store_tables
 
 APP = FastAPI(
     title="Feature Store API",
@@ -88,6 +89,12 @@ APP.include_router(
     tags=['Sync']
 )
 
+def setup():
+    wait_for_runs_table()
+    logger.info("Creating Feature Store Tables...")
+    create_feature_store_tables()
+
+setup()
 
 if __name__ == '__main__':
     run_server(APP, host='0.0.0.0', port=8798)

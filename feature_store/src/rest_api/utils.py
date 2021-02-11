@@ -11,7 +11,7 @@ def __validate_feature_data_type(feature_data_type: str):
     """
     from .constants import SQL_TYPES
     if not feature_data_type.split('(')[0] in SQL_TYPES:
-        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, codee=ExceptionCodes.INVALID_TYPE,
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_TYPE,
                                      message=f"The datatype you've passed in, {feature_data_type} is not a valid SQL type. "
                                      f"Valid types are {SQL_TYPES}")
 
