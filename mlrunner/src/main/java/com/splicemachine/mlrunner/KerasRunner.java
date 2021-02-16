@@ -8,7 +8,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.sql.Blob;
 import java.sql.SQLException;
 
-import org.apache.derby.client.am.SqlException;
 import org.deeplearning4j.nn.modelimport.keras.KerasModelImport;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.nd4j.linalg.api.ndarray.INDArray;

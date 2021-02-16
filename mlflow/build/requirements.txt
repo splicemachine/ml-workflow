@@ -1,6 +1,6 @@
 Flask==1.0.2
 mlflow==1.8.0
-splicemachinesa>=0.3.3
+splicemachinesa>=0.3.7
 boto3==1.9.164
 gunicorn==19.9.0
 cachetools==3.1.1
