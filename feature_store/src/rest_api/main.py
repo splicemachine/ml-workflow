@@ -14,7 +14,7 @@ from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from shared.models.feature_store_models import wait_for_runs_table, create_feature_store_tables
 
-APP = FastAPI(
+APP: FastAPI = FastAPI(
     title="Feature Store API",
     debug=env_vars.get('DEBUG', False),
     description="API for asynchronous and synchronous calls to the feature store"

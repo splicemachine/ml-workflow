@@ -43,9 +43,6 @@ RUN pip3 install -r $BUILD_HOME/requirements.txt
 RUN rm -rf $BUILD_HOME/* && \
     mkdir -p $SRC_HOME/lib
 
-# Copy Source into Container
-COPY feature_store/src $SRC_HOME
-
 # Copy Shiro (and dependencies) for authentication
 RUN \
   curl -kLs $SHIRO_CORE_URI      -o $SRC_HOME/lib/$shiro_core_version.jar && \
@@ -62,4 +59,24 @@ RUN pip3 install /tmp/shared/.
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 
+RUN wget -q \
+    https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+    && mkdir /root/.conda \
+    && bash Miniconda3-latest-Linux-x86_64.sh -b \
+    && rm -f Miniconda3-latest-Linux-x86_64.sh
+
+ENV PATH="/root/miniconda3/bin:${PATH}"
+# Install Python dependencies
+
+RUN conda install -c anaconda postgresql
+
+RUN adduser postgres && \
+    usermod -aG root postgres && \
+    ln -s /root/miniconda3/bin/pg_ctl /usr/bin/pg_ctl
+
+
+# Copy Source into Container
+COPY feature_store/src $SRC_HOME
+
 CMD $SRC_HOME"/scripts/entrypoint.sh"
+

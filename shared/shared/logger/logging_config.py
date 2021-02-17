@@ -44,7 +44,7 @@ class SpliceLogger:
     INTERCEPTION_TARGETS = ['gunicorn.error', 'gunicorn.access', 'boto3', 'werkzeug', 'botocore', 'boto', 'gunicorn',
                             'sqlalchemy.engine', 'alembic', 'mlflow_handler', 'sqlalchemy.log', 'bobby', 'director']
 
-    def __init__(self, config_path: str, debug=env_vars['MODE'] == 'development'):
+    def __init__(self, config_path: str, debug=env_vars.get('MODE') == 'development'):
         """
         :param config_path: path to json configuration for logger
         :param debug: whether in testing mode (default=False)
