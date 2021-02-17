@@ -97,10 +97,11 @@ async def get_feature_vector_sql_from_training_view(features: List[schemas.Featu
     """
     Returns the parameterized feature retrieval SQL used for online model serving.
     """
+    feats = crud.process_features(features)
 
     tctx = _get_training_view_by_name(db, view)[0]
 
-    return crud.get_feature_vector_sql(db, features, tctx)
+    return crud.get_feature_vector_sql(db, feats, tctx)
 
 @SYNC_ROUTER.get('/feature-primary-keys', status_code=status.HTTP_200_OK, response_model=Dict[str, List[str]],
                 description="Returns a dictionary mapping each individual feature to its primary key(s).", operation_id='get_feature_primary_keys')
