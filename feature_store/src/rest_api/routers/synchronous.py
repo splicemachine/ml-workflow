@@ -221,7 +221,6 @@ async def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Dep
 
     try:
         crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.label_column)
-        tv.label_column = f"'{tv.label_column}'" if tv.label_column else "NULL"  # Formatting incase NULL
         crud.create_training_view(db, tv)
     except SpliceMachineException as e:
         db.rollback()
