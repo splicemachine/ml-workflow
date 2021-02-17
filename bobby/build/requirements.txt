@@ -1,4 +1,4 @@
-splicemachinesa>=0.3.3
+splicemachinesa>=0.3.7
 workerpool==0.9.4
 mlflow==1.8.0
 pyyaml<=3.13,>=3.10
