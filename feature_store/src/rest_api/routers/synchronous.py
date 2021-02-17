@@ -97,10 +97,11 @@ async def get_feature_vector_sql_from_training_view(features: List[schemas.Featu
     """
     Returns the parameterized feature retrieval SQL used for online model serving.
     """
+    feats = crud.process_features(features)
 
     tctx = _get_training_view_by_name(db, view)[0]
 
-    return crud.get_feature_vector_sql(db, features, tctx)
+    return crud.get_feature_vector_sql(db, feats, tctx)
 
 @SYNC_ROUTER.get('/feature-primary-keys', status_code=status.HTTP_200_OK, response_model=Dict[str, List[str]],
                 description="Returns a dictionary mapping each individual feature to its primary key(s).", operation_id='get_feature_primary_keys')
@@ -221,7 +222,6 @@ async def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Dep
 
     try:
         crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.label_column)
-        tv.label_column = f"'{tv.label_column}'" if tv.label_column else "NULL"  # Formatting incase NULL
         crud.create_training_view(db, tv)
     except SpliceMachineException as e:
         db.rollback()
@@ -284,18 +284,18 @@ async def get_training_view_descriptions(name: Optional[str] = None, db: Session
 async def set_feature_description(db: Session = Depends(crud.get_db)):
         raise NotImplementedError
 
-@SYNC_ROUTER.post('/training-set-from-deployment', response_model=Dict[str, Union[str, Dict[str, str]]], status_code=status.HTTP_200_OK,
+@SYNC_ROUTER.get('/training-set-from-deployment', response_model=Dict[str, Union[str, Dict[str, str]]], status_code=status.HTTP_200_OK,
                 description="Reads Feature Store metadata to rebuild orginal training data set used for the given deployed model.", operation_id='get_training_set_from_deployment')
 async def get_training_set_from_deployment(schema: str, table: str, db: Session = Depends(crud.get_db)):
     """
     Reads Feature Store metadata to rebuild orginal training data set used for the given deployed model.
     """
     # database stores object names in upper case
-    metadata = crud.retrieve_training_set_metadata_from_deployement(schema, table)
-    features = metadata['FEATURES'].split(',')
-    tv_name = metadata['NAME']
-    start_time = metadata['TRAINING_SET_START_TS']
-    end_time = metadata['TRAINING_SET_END_TS']
+    metadata = crud.retrieve_training_set_metadata_from_deployement(db, schema, table)
+    features = metadata['features'].split(',')
+    tv_name = metadata['name']
+    start_time = metadata['training_set_start_ts']
+    end_time = metadata['training_set_end_ts']
     if tv_name:
         training_set_sql = _get_training_set_from_view(db, view=tv_name, features=features,
                                                             start_time=start_time, end_time=end_time)['sql']

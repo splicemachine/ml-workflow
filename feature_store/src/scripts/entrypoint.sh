@@ -29,12 +29,6 @@ then
     exit 1
 fi
 
-if [[ "$FRAMEWORK_NAME" == "" ]]
-then
-    echo "Error: environment variable FRAMEWORK_NAME is required"
-    exit 1
-fi
-
 # Test Optional Environment Variables
 if [[ "$FEATURE_STORE_PORT" == "" ]]
 then

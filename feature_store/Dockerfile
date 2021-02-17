@@ -78,5 +78,5 @@ RUN adduser postgres && \
 # Copy Source into Container
 COPY feature_store/src $SRC_HOME
 
-
 CMD $SRC_HOME"/scripts/entrypoint.sh"
+

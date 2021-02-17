@@ -11,7 +11,7 @@ import re
 import json
 from datetime import datetime
 from sqlalchemy import inspect as peer_into_splice_db
-from sqlalchemy import sql, Integer, String, func, distinct, cast, and_, Column, event
+from sqlalchemy import sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column
 from .utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
 from sys import exc_info as get_stack_trace
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
@@ -165,7 +165,7 @@ def get_training_view_features(db: Session, training_view: str) -> List[schemas.
     for feat in q.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         f = feat.__dict__
-        f['tags'] = json.loads(f['tags'])
+        f['tags'] = json.loads(f['tags']) if 'tags' in f else None
         features.append(schemas.Feature(**f))
     return features
 
@@ -191,13 +191,15 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Di
     if _filter:
         queries.extend([getattr(fset, name) == value for name, value in _filter.items()])
 
-    # SQLAlchemy does not support STRING_AGG
-    p = sql.text(SQL.feature_set_pk_columns).\
-                    columns(
-                        sql.column('feature_set_id', Integer), 
-                        sql.column('pk_columns', String), 
-                        sql.column('pk_types', String)).\
-                    alias('p')
+    p = db.query(
+        models.FeatureSetKey.feature_set_id,
+        func.string_agg(models.FeatureSetKey.key_column_name, literal_column("'|'"), type_=String).\
+            label('pk_columns'),
+        func.string_agg(models.FeatureSetKey.key_column_data_type, literal_column("'|'"), type_=String).\
+            label('pk_types')
+        ).\
+        group_by(models.FeatureSetKey.feature_set_id).\
+        subquery('p')
 
     q = db.query(
         fset, 
@@ -224,17 +226,23 @@ def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) 
     """
     training_views = []
 
-    p = sql.text(SQL.training_view_pk_columns).\
-            columns(
-                sql.column('view_id', Integer),
-                sql.column('pk_columns', String)).\
-            alias('p')
+    p = db.query(
+        models.TrainingViewKey.view_id,
+        func.string_agg(models.TrainingViewKey.key_column_name, literal_column("','"), type_=String).\
+            label('pk_columns')
+        ).\
+        filter(models.TrainingViewKey.key_type=='P').\
+        group_by(models.TrainingViewKey.view_id).\
+        subquery('p')
 
-    c = sql.text(SQL.join_columns).\
-            columns(
-                sql.column('view_id', Integer),
-                sql.column('join_columns', String)).\
-            alias('c')
+    c = db.query(
+        models.TrainingViewKey.view_id,
+        func.string_agg(models.TrainingViewKey.key_column_name, literal_column("','"), type_=String).\
+            label('join_columns')
+        ).\
+        filter(models.TrainingViewKey.key_type=='J').\
+        group_by(models.TrainingViewKey.view_id).\
+        subquery('c')
 
     tc = aliased(models.TrainingView, name='tc')
 
@@ -300,7 +308,7 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
     for schema, table, feat in df.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         f = feat.__dict__
-        f['tags'] = json.loads(str(f['tags']))
+        f['tags'] = json.loads(str(f['tags'])) if 'tags' in f else None
         features.append(schemas.FeatureDescription(**f, feature_set_name=f'{schema}.{table}'))
     return features
 
@@ -379,7 +387,7 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     db.add(feature)
     db.flush()
     fd = feature.__dict__
-    fd['tags'] = json.loads(fd['tags'])
+    fd['tags'] = json.loads(fd['tags']) if 'tags' in fd else None
     return schemas.Feature(**fd)
 
 def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -> List[schemas.Feature]:
@@ -411,9 +419,6 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     old_feature_cols = ','.join(f'OLDW.{f.name}' for f in get_features(db, fset))
 
     metadata = MetaData(db.get_bind())
-
-    pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
-    feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
 
     trigger_sql = SQL.feature_set_trigger.format(
         schema=fset.schema_name, table=fset.table_name, pk_list=get_pk_column_str(fset),
@@ -467,7 +472,7 @@ def validate_training_view(db: Session, name, sql_text, join_keys, label_col=Non
     # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
     from sqlalchemy.exc import ProgrammingError
     try:
-        valid_df = db.execute(sql_text).fetchone()
+        valid_df = db.execute(sql_text).first()
     except ProgrammingError as e:
         if '[Splice Machine][Splice]' in str(e):
             raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
@@ -518,6 +523,45 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
         db.add(key)
     logger.info('Done.')
 
+def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: str, table_name: str) -> Dict[str, Union[str, datetime]]:
+    """
+    Reads Feature Store metadata to retrieve definition of training set used to train the specified model.
+    :param schema_name: model schema name
+    :param table_name: model table name
+    :return:
+    """
+    d = aliased(models.Deployment, name='d')
+    ts = aliased(models.TrainingSet, name='ts')
+    tsf = aliased(models.TrainingSetFeature, name='tsf')
+    tv = aliased(models.TrainingView, name='tv')
+    f = aliased(models.Feature, name='f')
+
+    deploy = db.query(
+        tv.name,
+        d.training_set_start_ts,
+        d.training_set_end_ts,
+        func.string_agg(f.name, literal_column("','"), type_=String).\
+            label('features')
+    ).\
+    select_from(d).\
+    join(ts, d.training_set_id==ts.training_set_id).\
+    join(tsf, tsf.training_set_id==d.training_set_id).\
+    outerjoin(tv, tv.view_id==ts.view_id).\
+    join(f, tsf.feature_id==f.feature_id).\
+    filter(and_(
+        d.model_schema_name==schema_name, 
+        d.model_table_name==table_name
+    )).\
+    group_by(tv.name,
+        d.training_set_start_ts,
+        d.training_set_end_ts
+    ).first()
+
+    if not deploy:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST, 
+                                        message=f"No deployment found for {schema_name}.{table_name}")
+    return deploy._asdict()
+
 # Feature/FeatureSet specific
 
 def get_features(db: Session, fset: schemas.FeatureSet) -> List[schemas.Feature]:
@@ -535,7 +579,7 @@ def get_features(db: Session, fset: schemas.FeatureSet) -> List[schemas.Feature]
         for f in features_rows:
             # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
             d = f.__dict__
-            d['tags'] = json.loads(d['tags'])
+            d['tags'] = json.loads(d['tags']) if 'tags' in d else None
             features.append(schemas.Feature(**d))
     return features
 
