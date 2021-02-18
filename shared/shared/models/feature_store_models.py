@@ -316,8 +316,5 @@ def wait_for_runs_table() -> None:
             'runs' in [value.lower() for value in inspector.get_table_names(schema='mlmanager')])
         if not exists:
             logger.info("mlmanager.runs does not exist. Checking again in 10s")
-<<<<<<< HEAD
         sleep(10)
-=======
->>>>>>> master
     logger.info("Found mlmanager.runs")
