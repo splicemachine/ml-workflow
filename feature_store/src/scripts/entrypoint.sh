@@ -70,4 +70,4 @@ nohup java gateway &
 
 # Start Feature Store Tracking Server logging to feature_store log file
 echo "Starting Feature Store Server on port :${FEATURE_STORE_PORT}"
-nohup gunicorn -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${FEATURE_STORE_PORT} --chdir ${SRC_HOME} rest_api.main:APP 2>&1 | tee ${FEATURE_STORE_LOG_FILE}
+nohup gunicorn -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${FEATURE_STORE_PORT} --chdir ${SRC_HOME} --workers ${GUNICORN_THREADS} rest_api.main:APP 2>&1 | tee ${FEATURE_STORE_LOG_FILE}

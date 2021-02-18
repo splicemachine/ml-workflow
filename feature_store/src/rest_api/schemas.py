@@ -14,6 +14,7 @@ class FeatureSetCreate(FeatureSetBase):
 class FeatureSet(FeatureSetBase):
     feature_set_id: int
     deployed: Optional[bool] = False
+    deploy_ts: Optional[datetime] = None
 
     class Config:
         orm_mode = True
@@ -68,3 +69,4 @@ class FeatureTimeframe(BaseModel):
 class FeatureJoinKeys(BaseModel):
     features: List[Union[str, FeatureDescription]]
     join_key_values: Dict[str, Union[str, int]]
+
