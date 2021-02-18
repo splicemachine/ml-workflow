@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Union
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -58,3 +58,13 @@ class TrainingView(TrainingViewBase):
 
     class Config:
         orm_mode = True
+
+# Basically just for neat documentation
+class FeatureTimeframe(BaseModel):
+    features: Union[List[Feature], List[str]] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+
+class FeatureJoinKeys(BaseModel):
+    features: List[Union[str, FeatureDescription]]
+    join_key_values: Dict[str, Union[str, int]]

@@ -291,18 +291,16 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
     values, simply the describing metadata about the features. To create a training dataset with Feature values, see
     :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_feature_dataset`
     """
-    # If they don't pass in feature names, raise exception
-    if not names:
-        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.MISSING_ARGUMENTS,
-                                        message="Please provide at least one name")
-
     f = aliased(models.Feature, name='f')
     fset = aliased(models.FeatureSet, name='fset')
 
     df = db.query(fset.schema_name, fset.table_name, f).\
         select_from(f).\
-        join(fset, f.feature_set_id==fset.feature_set_id).\
-        filter(f.name.in_(names))
+        join(fset, f.feature_set_id==fset.feature_set_id)
+
+    # If they don't pass in feature names, get all features 
+    if names:
+        df = df.filter(f.name.in_(names))
 
     features = []
     for schema, table, feat in df.all():
