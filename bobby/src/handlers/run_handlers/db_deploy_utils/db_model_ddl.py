@@ -71,8 +71,8 @@ class DatabaseModelDDL:
         self.logger.info("Adding Schema String to model metadata...", send_db=True)
 
         mcols = [m.upper() for m in self.model_columns]
-        self.model.add_metadata(
-            Metadata.MODEL_VECTOR_STR, ', '.join([f'{name} {col_type}' for name, col_type in self.model.get_metadata(
+        self.model.add_metadata( # We split on "(" because columns like DECIMAL(5,2) and VARCHAR(3000) we only want the type
+            Metadata.MODEL_VECTOR_STR, ', '.join([f'{name} {col_type.split("(")[0]}' for name, col_type in self.model.get_metadata(
                 Metadata.SQL_SCHEMA).items() if name.upper() in mcols]) + ','
         )
 
