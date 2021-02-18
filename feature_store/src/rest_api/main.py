@@ -85,8 +85,8 @@ async def health_check():
 # )
 
 APP.include_router(
-    router=SYNC_ROUTER,
-    tags=['Sync']
+    router=SYNC_ROUTER
+    # tags=['Sync']
 )
 
 def setup():

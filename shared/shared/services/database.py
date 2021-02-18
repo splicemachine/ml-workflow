@@ -52,7 +52,6 @@ class DatabaseEngineConfig:
             'pool_pre_ping': DatabaseEngineConfig.pool_pre_ping
         }
 
-
 class SQLAlchemyClient:
     """
     Database configuration constants
