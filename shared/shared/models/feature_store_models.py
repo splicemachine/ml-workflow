@@ -3,6 +3,7 @@ This module contains SQLAlchemy Models
 used for the Queue
 """
 from time import sleep
+from os import environ as env
 
 from shared.logger.logging_config import logger
 from shared.services.database import SQLAlchemyClient, DatabaseSQL
@@ -12,6 +13,7 @@ from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
 from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.sql.functions import now as db_current_timestamp
 from mlflow.store.tracking.dbmodels.models import SqlRun
+from sqlalchemy import inspect as peer_into_splice_db
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -252,12 +254,13 @@ class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
     )
 
 
-@event.listens_for(DeploymentHistory.__table__, 'after_create')
-def create_feature_hisorian_trigger(*args, **kwargs):
-    logger.warning("Creating historian trigger for feature store")
-    SQLAlchemyClient.execute(
-        DatabaseSQL.deployment_feature_historian  # Record the old feature in the feature store history table
-    )
+def create_deploy_historian():
+    @event.listens_for(DeploymentHistory.__table__, 'after_create')
+    def create_feature_hisorian_trigger(*args, **kwargs):
+        logger.warning("Creating historian trigger for feature store")
+        SQLAlchemyClient.execute(
+            DatabaseSQL.deployment_feature_historian  # Record the old feature in the feature store history table
+        )
 
 
 def create_feature_store_tables(_sleep_secs=1) -> None:
@@ -271,6 +274,10 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
 
     # noinspection PyBroadException
     try:
+        # If we are testing with pytest, we cannot create this trigger
+        # Because it causes a segmentation fault
+        # if env.get('MODE') != 'TESTING':
+        create_deploy_historian()
         logger.warning("Creating Feature Store Splice Tables inside Splice DB...")
         SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
         logger.info("Created Tables")
@@ -279,3 +286,15 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
         logger.error(f"Retrying after {_sleep_secs} seconds...")
         sleep(_sleep_secs)
         create_feature_store_tables(_sleep_secs=_sleep_secs * 2)
+
+def wait_for_runs_table() -> None:
+    logger.info("Checking for mlmanager.runs table...")
+    exists = False
+    while not exists:
+        sleep(10)
+        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
+        exists = ('mlmanager' in [value.lower() for value in inspector.get_schema_names()] and 
+            'runs' in [value.lower() for value in inspector.get_table_names(schema='mlmanager')])
+        if not exists:
+            logger.info("mlmanager.runs does not exist. Checking again in 10s")
+    logger.info("Found mlmanager.runs")

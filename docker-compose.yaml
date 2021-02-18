@@ -12,6 +12,7 @@ services:
       args:
         splice_base_image_version: 0.0.2
       context: jupyter
+    image: splicemachine/ml-workflow_jupyter:0.0.3
   mlflow:
     environment:
       DB_HOST: host.docker.internal
@@ -52,3 +53,19 @@ services:
         splice_base_image_version: 0.0.2
       context: ./
       dockerfile: ./bobby/Dockerfile
+  feature_store:
+    environment:
+      DB_HOST: host.docker.internal
+      DB_USER: mlmanager
+      DB_PASSWORD: ${DB_PASSWORD}
+      FRAMEWORK_NAME: my-framework
+      MODE: development
+      ENVIRONMENT: ${ENVIRONMENT}
+    image: splicemachine/sm_k8_feature_store:0.0.1
+    ports:
+      - "8000:8000"
+    build:
+      args:
+        splice_base_image_version: 0.0.2
+      context: ./
+      dockerfile: ./feature_store/Dockerfile
