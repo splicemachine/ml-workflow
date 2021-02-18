@@ -523,9 +523,7 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
     :return: List[Feature]
     """
     feat_str = [f for f in features if isinstance(f, str)]
-    str_to_feat = 
-    
-    s_by_name(db, names=feat_str) if feat_str else []
+    str_to_feat = get_feature_descriptions_by_name(db, names=feat_str) if feat_str else []
     all_features = str_to_feat + [f for f in features if not isinstance(f, str)]
     if not all(
         [isinstance(i, schemas.Feature) for i in all_features]):
