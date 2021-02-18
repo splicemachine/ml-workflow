@@ -40,6 +40,7 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
     deployed: Column = Column(Boolean)
+    deploy_ts: Column = Column(DateTime, nullable=True)
 
 
 class FeatureSetKey(SQLAlchemyClient.SpliceBase):
