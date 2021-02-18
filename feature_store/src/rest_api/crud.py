@@ -68,14 +68,14 @@ def validate_feature(db: Session, name: str) -> None:
     # TODO: Capitalization of feature name column
     # TODO: Make more informative, add which feature set contains existing feature
     str = f"Cannot add feature {name}, feature already exists in Feature Store. Try a new feature name."
-    l = len(db.query(models.Feature.name).filter(models.Feature.name == name.upper()).all())
-    if l > 0:
-        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
-
     if not re.match('^[A-Za-z][A-Za-z0-9_]*$', name, re.IGNORECASE):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
                                      message='Feature name does not conform. Must start with an alphabetic character, '
                                      'and can only contains letters, numbers and underscores')
+
+    l = len(db.query(models.Feature.name).filter(models.Feature.name.upper() == name.upper()).all())
+    if l > 0:
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
 
 def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
     """
@@ -281,7 +281,7 @@ def get_training_view_id(db: Session, name: str) -> int:
         filter(models.TrainingView.name==name).\
         all()[0][0]
 
-def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
+def get_feature_descriptions_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
     """
     Returns a dataframe or list of features whose names are provided
 
@@ -300,7 +300,7 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
 
     # If they don't pass in feature names, get all features 
     if names:
-        df = df.filter(f.name.in_(names))
+        df = df.filter(func.upper(f.name).in_([name.upper() for name in names]))
 
     features = []
     for schema, table, feat in df.all():
@@ -309,6 +309,30 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
         f['tags'] = json.loads(str(f['tags'])) if 'tags' in f else None
         features.append(schemas.FeatureDescription(**f, feature_set_name=f'{schema}.{table}'))
     return features
+
+def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
+    """
+    Returns a dataframe or list of features whose names are provided
+
+    :param db: SqlAlchemy Session
+    :param names: The list of feature names
+    :return: List[Feature] The list of Feature objects and their metadata. Note, this is not the Feature
+    values, simply the describing metadata about the features. To create a training dataset with Feature values, see
+    :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_feature_dataset`
+    """
+    f = aliased(models.Feature, name='f')
+    fset = aliased(models.FeatureSet, name='fset')
+
+    df = db.query(f, fset.schema_name, fset.table_name, fset.deployed).\
+        select_from(f).\
+        join(fset, f.feature_set_id==fset.feature_set_id)
+
+
+    # If they don't pass in feature names, get all features 
+    if names:
+        df = df.filter(func.upper(f.name).in_([name.upper() for name in names]))
+    
+    return df.all()
 
 def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: schemas.TrainingView) -> str:
     """
@@ -397,7 +421,7 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
     :return: List[Feature]
     """
     feat_str = [f for f in features if isinstance(f, str)]
-    str_to_feat = get_features_by_name(db, names=feat_str) if feat_str else []
+    str_to_feat = get_feature_descriptions_by_name(db, names=feat_str) if feat_str else []
     all_features = str_to_feat + [f for f in features if not isinstance(f, str)]
     if not all(
         [isinstance(i, schemas.Feature) for i in all_features]):
@@ -566,6 +590,9 @@ def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: st
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST, 
                                         message=f"No deployment found for {schema_name}.{table_name}")
     return deploy._asdict()
+
+def delete_feature(db: Session, feature: models.Feature):
+    db.delete(feature)
 
 # Feature/FeatureSet specific
 
