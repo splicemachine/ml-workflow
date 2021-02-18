@@ -454,7 +454,8 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     #     update({models.FeatureSet.deployed: True, models.FeatureSet.deploy_ts: datetime.now()})
     updt = update(models.FeatureSet).where(models.FeatureSet.feature_set_id==fset.feature_set_id).\
         values(deployed=True, deploy_ts=text('CURRENT_TIMESTAMP'))
-    db.execute(str(updt))
+    stmt = updt.compile(dialect=db.get_bind().dialect, compile_kwargs={"literal_binds": True})
+    db.execute(str(stmt))
     fset.deployed = True
     logger.info('Done.')
     return fset
