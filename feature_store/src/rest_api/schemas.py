@@ -14,6 +14,7 @@ class FeatureSetCreate(FeatureSetBase):
 class FeatureSet(FeatureSetBase):
     feature_set_id: int
     deployed: Optional[bool] = False
+    deploy_ts: Optional[datetime] = None
 
     class Config:
         orm_mode = True
@@ -80,4 +81,3 @@ class FeatureStoreSummary(BaseModel):
     num_models: int
     num_deployed_models: int
     num_pending_feature_set_deployments: int
-

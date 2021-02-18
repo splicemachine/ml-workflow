@@ -10,8 +10,8 @@ from fastapi import status
 import re
 import json
 from datetime import datetime
-from sqlalchemy import inspect as peer_into_splice_db
-from sqlalchemy import sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column
+from sqlalchemy import inspect as peer_into_splice_db, text
+from sqlalchemy import update, sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column
 from .utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
 from sys import exc_info as get_stack_trace
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
@@ -547,7 +547,14 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     logger.info('Done.')
 
     logger.info('Updating Metadata...')
-    db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id==fset.feature_set_id).update({models.FeatureSet.deployed: True})
+    # Due to an issue with our sqlalchemy driver, we cannot update in the standard way with timestamps. TODO
+    # So we create the update, compile it, and execute it directly
+    # db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id==fset.feature_set_id).\
+    #     update({models.FeatureSet.deployed: True, models.FeatureSet.deploy_ts: datetime.now()})
+    updt = update(models.FeatureSet).where(models.FeatureSet.feature_set_id==fset.feature_set_id).\
+        values(deployed=True, deploy_ts=text('CURRENT_TIMESTAMP'))
+    stmt = updt.compile(dialect=db.get_bind().dialect, compile_kwargs={"literal_binds": True})
+    db.execute(str(stmt))
     fset.deployed = True
     logger.info('Done.')
     return fset

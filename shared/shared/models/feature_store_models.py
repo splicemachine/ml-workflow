@@ -40,6 +40,7 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
     deployed: Column = Column(Boolean, default=False)
+    deploy_ts: Column = Column(DateTime, nullable=True)
 
 class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
     """
@@ -59,7 +60,7 @@ class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
         ),
         {'schema': 'featurestore'}
     )
-
+    deployed: Column = Column(Boolean)
 
 class FeatureSetKey(SQLAlchemyClient.SpliceBase):
     """
@@ -315,5 +316,8 @@ def wait_for_runs_table() -> None:
             'runs' in [value.lower() for value in inspector.get_table_names(schema='mlmanager')])
         if not exists:
             logger.info("mlmanager.runs does not exist. Checking again in 10s")
+<<<<<<< HEAD
         sleep(10)
+=======
+>>>>>>> master
     logger.info("Found mlmanager.runs")
