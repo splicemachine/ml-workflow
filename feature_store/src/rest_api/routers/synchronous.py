@@ -82,7 +82,7 @@ async def get_features_by_name(name: List[str] = Query([]), db: Session = Depend
     Returns a list of features whose names are provided
 
     """
-    return crud.get_features_by_name(db, name)
+    return crud.get_feature_descriptions_by_name(db, name)
 
 @SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK,
                 description="Removes a feature set", operation_id='remove_feature_set', tags=['Feature Sets'])
@@ -326,3 +326,16 @@ async def get_training_set_from_deployment(schema: str, table: str, db: Session 
     else:
         training_set_sql = _get_training_set(db, features=features, start_time=start_time, end_time=end_time)
     return { "metadata": metadata, "sql": training_set_sql }
+
+@SYNC_ROUTER.delete('/features', status_code=status.HTTP_200_OK,
+                description="Remove a feature", operation_id='create_feature', tags=['Features'])
+async def remove_feature(name: str, db: Session = Depends(crud.get_db)):
+    features = crud.get_features_by_name(db, [name])
+    if not features:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature {name} does not exist. Please enter a valid feature.")
+    feature, schema, table, deployed = features[0]
+    if bool(deployed):
+        raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.ALREADY_DEPLOYED,
+                                        message=f"Cannot delete Feature {feature.name} from deployed Feature Set {schema}.{table}")
+    crud.delete_feature(db, feature)
