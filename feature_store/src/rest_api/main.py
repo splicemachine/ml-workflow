@@ -97,4 +97,4 @@ def setup():
 setup()
 
 if __name__ == '__main__':
-    run_server(APP, host='0.0.0.0', port=8798)
+    run_server(APP, host='0.0.0.0', port=8000)

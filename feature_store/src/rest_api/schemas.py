@@ -70,3 +70,18 @@ class FeatureJoinKeys(BaseModel):
     features: List[Union[str, FeatureDescription]]
     join_key_values: Dict[str, Union[str, int]]
 
+class Deployment(BaseModel):
+    model_schema_name: str
+    model_table_name: str
+    training_set_id: int
+    training_set_start_ts: datetime
+    training_set_end_ts: datetime
+    run_id: str
+    last_update_ts: datetime
+    last_update_username: str
+
+    class Config:
+        orm_mode = True
+
+class DeploymentDescription(Deployment):
+    training_set_name: str

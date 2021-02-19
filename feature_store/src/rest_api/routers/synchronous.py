@@ -311,8 +311,11 @@ async def get_training_set_from_deployment(schema: str, table: str, db: Session 
     return { "metadata": metadata, "sql": training_set_sql }
 
 @SYNC_ROUTER.delete('/features', status_code=status.HTTP_200_OK,
-                description="Remove a feature", operation_id='create_feature', tags=['Features'])
+                description="Remove a feature", operation_id='remove_feature', tags=['Features'])
 async def remove_feature(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Removes a feature from the Feature Store
+    """
     features = crud.get_features_by_name(db, [name])
     if not features:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
@@ -322,3 +325,15 @@ async def remove_feature(name: str, db: Session = Depends(crud.get_db)):
         raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.ALREADY_DEPLOYED,
                                         message=f"Cannot delete Feature {feature.name} from deployed Feature Set {schema}.{table}")
     crud.delete_feature(db, feature)
+
+@SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
+                description="Get all deployments", operation_id='get_deployments', tags=['Deployments'])
+async def get_deployments(schema: Optional[str] = None, table: Optional[str] = None, name: Optional[str] = None, 
+                            db: Session = Depends(crud.get_db)):
+    """
+    Returns a list of available deployments
+    """
+    if schema and table and name:
+        _filter = { 'model_schema_name': schema, 'model_table_name': table, 'name': name }
+        return crud.get_deployments(db, _filter)
+    return crud.get_deployments(db)
