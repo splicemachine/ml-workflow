@@ -58,6 +58,12 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     if len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) > 0:
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
 
+def validate_feature_set_names(names: List[str]) -> None:
+    if not all([len(name.split('.')) == 2 for name in names]):
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                        message="It seems you've passed in an invalid Feature Set name. " \
+                                        "Names must conform to '[schema_name].[table_name]'")
+
 def validate_feature(db: Session, name: str) -> None:
     """
     Ensures that the feature doesn't exist as all features have unique names
@@ -169,7 +175,7 @@ def get_training_view_features(db: Session, training_view: str) -> List[schemas.
         features.append(schemas.Feature(**f))
     return features
 
-def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
+def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
     """
     Returns a list of available feature sets
 
@@ -188,6 +194,9 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Di
     queries = []
     if feature_set_ids:
         queries.append(fset.feature_set_id.in_(tuple(set(feature_set_ids))))
+    if feature_set_names:
+        queries.extend([and_(func.upper(fset.schema_name)==name.split('.')[0].upper(), 
+            func.upper(fset.table_name)==name.split('.')[1].upper()) for name in feature_set_names])
     if _filter:
         queries.extend([getattr(fset, name) == value for name, value in _filter.items()])
 
