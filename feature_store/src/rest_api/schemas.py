@@ -109,3 +109,14 @@ class TrainingSet(BaseModel):
     training_view: Optional[TrainingView] = None
     features: List[Feature]
     metadata: Optional[TrainingSetMetadata] = None
+
+class FeatureStoreSummary(BaseModel):
+    num_feature_sets: int
+    num_deployed_feature_sets: int
+    num_features: int
+    num_deployed_features: int
+    num_training_sets: int
+    num_training_views: int
+    num_models: int
+    num_deployed_models: int
+    num_pending_feature_set_deployments: int

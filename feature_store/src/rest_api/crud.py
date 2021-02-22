@@ -1,6 +1,6 @@
 
 from sqlalchemy.orm import Session, aliased, load_only
-from typing import List, Dict, Union, Optional, Any
+from typing import List, Dict, Union, Optional, Any, Tuple
 from . import schemas
 from .constants import SQL, SQL_TYPES
 from shared.models import feature_store_models as models
@@ -14,6 +14,7 @@ from sqlalchemy import inspect as peer_into_splice_db, text
 from sqlalchemy import update, sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column
 from .utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
 from sys import exc_info as get_stack_trace
+from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
 from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
                                 DECIMAL, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, BOOLEAN)
@@ -319,6 +320,106 @@ def get_feature_descriptions_by_name(db: Session, names: List[str]) -> List[sche
         features.append(schemas.FeatureDescription(**f, feature_set_name=f'{schema}.{table}'))
     return features
 
+def _get_feature_set_counts(db) -> List[Tuple[bool,int]]:
+    """
+    Returns the counts of undeployed and deployed feature set as a list of tuples
+    """
+
+    fset = aliased(models.FeatureSet, name='fset')
+    return db.query(fset.deployed, func.count(fset.feature_set_id)).group_by(fset.deployed).all()
+
+def _get_feature_counts(db) -> List[Tuple[bool,int]]:
+    """
+    Returns the counts of undeployed and deployed features as a list of tuples
+    """
+
+    fset = aliased(models.FeatureSet, name='fset')
+    f = aliased(models.FeatureSet, name='f')
+    return db.query(fset.deployed, func.count(fset.feature_set_id)).\
+        join(f, f.feature_set_id==fset.feature_set_id).\
+        group_by(fset.deployed).all()
+
+def _get_num_training_sets(db) -> int:
+    """
+    Returns the number of training sets
+    """
+    return db.query(models.TrainingSet).count()
+
+def _get_num_training_views(db) -> int:
+    """
+    Returns the number of training views
+    """
+    return db.query(models.TrainingView).count()
+
+def _get_num_deployments(db) -> int:
+    """
+    Returns the number of actively deployed models that were trained using training sets from the feature store
+    """
+    return db.query(models.Deployment).count()
+
+def _get_num_pending_feature_sets(db) -> int:
+    """
+    Returns the number of feature sets pending deployment
+    """
+    pend = aliased(models.PendingFeatureSetDeployment, name='pend')
+    return db.query(pend).\
+        filter(pend.status=='PENDING').\
+        count()
+
+def _get_num_created_models(db) -> int:
+    """
+    Returns the number of models that have been created and trained with a feature store training set.
+    This corresponds to the number of mlflow runs with the tag splice.model_name set and the parameter
+    splice.feature_store.training_set set.
+    """
+    return db.query(SqlRun).\
+        join(SqlTag, SqlRun.run_uuid==SqlTag.run_uuid).\
+        join(SqlParam, SqlRun.run_uuid==SqlParam.run_uuid).\
+        filter(SqlParam.key=='splice.feature_store.training_set').\
+        filter(SqlTag.key=='splice.model_name').\
+        count()
+
+def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
+    """
+    This function returns a summary of the feature store including:
+        * Number of feature sets
+        * Number of deployed feature sets
+        * Number of features
+        * Number of deployed features
+        * Number of training sets
+        * Number of training views
+        * Number of associated models - this is a count of the MLManager.RUNS table where the `splice.model_name` tag is set and the `splice.feature_store.training_set` parameter is set
+        * Number of active (deployed) models (that have used the feature store for training)
+        * Number of pending feature sets - this will will require a new table `featurestore.pending_feature_set_deployments` and it will be a count of that
+    """
+
+    feature_set_counts = _get_feature_set_counts(db)
+    num_fsets = sum(i[1] for i in feature_set_counts)
+    num_deployed_fsets = sum(i[1] for i in feature_set_counts if i[0]) # Only sum the ones that have Deployed=True
+
+    feature_counts = _get_feature_counts(db)
+    num_feats = sum(i[1] for i in feature_counts)
+    num_deployed_feats = sum(i[1] for i in feature_counts if i[0]) # Only sum the ones that have Deployed=True
+
+    num_training_sets = _get_num_training_sets(db)
+    num_training_views = _get_num_training_views(db)
+    num_created_models = _get_num_created_models(db)
+    num_deployemnts = _get_num_deployments(db)
+    num_pending_feature_set_deployments = _get_num_pending_feature_sets(db)
+
+    return schemas.FeatureStoreSummary(
+        num_feature_sets=num_fsets,
+        num_deployed_feature_sets=num_deployed_fsets,
+        num_features=num_feats,
+        num_deployed_features=num_deployed_feats,
+        num_training_sets=num_training_sets,
+        num_training_views=num_training_views,
+        num_models=num_created_models,
+        num_deployed_models=num_deployemnts,
+        num_pending_feature_set_deployments=num_pending_feature_set_deployments
+    )
+
+
 def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
     """
     Returns a dataframe or list of features whose names are provided
@@ -342,6 +443,7 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
         df = df.filter(func.upper(f.name).in_([name.upper() for name in names]))
     
     return df.all()
+
 
 def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: schemas.TrainingView) -> str:
     """
@@ -609,8 +711,9 @@ def get_deployments(db: Session, _filter: Dict[str, str] = None) -> List[schemas
     
     q = db.query(ts.name, d).\
         join(ts, ts.training_set_id==d.training_set_id)
-
+    
     if _filter:
+        # if filter key is a column in Training_Set, get compare Training_Set column, else compare to Deployment column
         q = q.filter(and_(*[(getattr(ts, name) if hasattr(ts, name) else getattr(d, name)) == value 
                                 for name, value in _filter.items()]))
     deployments = []
