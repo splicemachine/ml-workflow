@@ -601,6 +601,7 @@ def get_deployments(db: Session, _filter: Dict[str, str] = None):
     q = db.query(ts.name, d).\
         join(ts, ts.training_set_id==d.training_set_id)
 
+    # if filter key is a column in Training_Set, get compare Training_Set column, else compare to Deployment column
     if _filter:
         q = q.filter(and_(*[(getattr(ts, name) if hasattr(ts, name) else getattr(d, name)) == value 
                                 for name, value in _filter.items()]))

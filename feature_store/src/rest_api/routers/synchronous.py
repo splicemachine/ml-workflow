@@ -333,7 +333,8 @@ async def get_deployments(schema: Optional[str] = None, table: Optional[str] = N
     """
     Returns a list of available deployments
     """
-    if schema and table and name:
+    if schema or table or name:
         _filter = { 'model_schema_name': schema, 'model_table_name': table, 'name': name }
+        _filter = { k: v for k, v in _filter.items() if v }
         return crud.get_deployments(db, _filter)
     return crud.get_deployments(db)
