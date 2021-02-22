@@ -40,6 +40,23 @@ def remove_training_view(override=False, db: Session = Depends(crud.get_db)):
     """
     raise NotImplementedError
 
+@SYNC_ROUTER.get('/summary', status_code=status.HTTP_200_OK, response_model=schemas.FeatureStoreSummary,
+                description="Returns feature store summary metrics", operation_id='get_summary', tags=['Feature Store'])
+async def get_summary(db: Session = Depends(crud.get_db)):
+    """
+    This function returns a summary of the feature store including:
+        * Number of feature sets
+        * Number of deployed feature sets
+        * Number of features
+        * Number of deployed features
+        * Number of training sets
+        * Number of training views
+        * Number of associated models - this is a count of the MLManager.RUNS table where the `splice.model_name` tag is set and the `splice.feature_store.training_set` parameter is set
+        * Number of active (deployed) models (that have used the feature store for training)
+        * Number of pending feature sets - this will will require a new table `featurestore.pending_feature_set_deployments` and it will be a count of that
+    """
+    return crud.get_fs_summary(db)
+
 @SYNC_ROUTER.get('/training-views', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingView],
                 description="Returns a list of all available training views with an optional filter", operation_id='get_training_views', tags=['Training Views'])
 async def get_training_views(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
@@ -337,8 +354,9 @@ async def get_deployments(schema: Optional[str] = None, table: Optional[str] = N
     """
     Returns a list of available deployments
     """
-    if schema and table and name:
+    if schema or table or name:
         _filter = { 'model_schema_name': schema, 'model_table_name': table, 'name': name }
+        _filter = { k: v for k, v in _filter.items() if v }
         return crud.get_deployments(db, _filter)
     return crud.get_deployments(db)
 
