@@ -80,7 +80,7 @@ def validate_feature(db: Session, name: str) -> None:
                                      message='Feature name does not conform. Must start with an alphabetic character, '
                                      'and can only contains letters, numbers and underscores')
 
-    l = len(db.query(models.Feature.name).filter(models.Feature.name.upper() == name.upper()).all())
+    l = db.query(models.Feature.name).filter(func.upper(models.Feature.name) == name.upper()).count()
     if l > 0:
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
 
@@ -289,7 +289,7 @@ def get_training_view_id(db: Session, name: str) -> int:
     """
     return db.query(models.TrainingView.view_id).\
         filter(models.TrainingView.name==name).\
-        all()[0][0]
+        first()[0]
 
 def get_feature_descriptions_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
     """
@@ -704,6 +704,20 @@ def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: st
 
 def delete_feature(db: Session, feature: models.Feature):
     db.delete(feature)
+
+def get_deployments(db: Session, _filter: Dict[str, str] = None):
+    d = aliased(models.Deployment, name='d')
+    ts = aliased(models.TrainingSet, name='ts')
+    
+    q = db.query(ts.name, d).\
+        join(ts, ts.training_set_id==d.training_set_id)
+
+    # if filter key is a column in Training_Set, get compare Training_Set column, else compare to Deployment column
+    if _filter:
+        q = q.filter(and_(*[(getattr(ts, name) if hasattr(ts, name) else getattr(d, name)) == value 
+                                for name, value in _filter.items()]))
+
+    return q.all()
 
 # Feature/FeatureSet specific
 
