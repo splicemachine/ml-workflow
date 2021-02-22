@@ -561,7 +561,7 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
         db.add(key)
     logger.info('Done.')
 
-def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: str, table_name: str) -> Dict[str, Union[str, datetime]]:
+def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: str, table_name: str) -> schemas.TrainingSetMetadata:
     """
     Reads Feature Store metadata to retrieve definition of training set used to train the specified model.
     :param schema_name: model schema name
@@ -598,7 +598,7 @@ def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: st
     if not deploy:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST, 
                                         message=f"No deployment found for {schema_name}.{table_name}")
-    return deploy._asdict()
+    return schemas.TrainingSetMetadata(**deploy._asdict())
 
 def delete_feature(db: Session, feature: models.Feature) -> None:
     db.delete(feature)

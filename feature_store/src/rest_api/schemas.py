@@ -2,23 +2,6 @@ from typing import List, Optional, Dict, Union
 from datetime import datetime
 from pydantic import BaseModel
 
-class FeatureSetBase(BaseModel):
-    schema_name: str
-    table_name: str
-    description: Optional[str] = None
-    primary_keys: Dict[str, str]
-
-class FeatureSetCreate(FeatureSetBase):
-    pass
-
-class FeatureSet(FeatureSetBase):
-    feature_set_id: int
-    deployed: Optional[bool] = False
-    deploy_ts: Optional[datetime] = None
-
-    class Config:
-        orm_mode = True
-
 class FeatureBase(BaseModel):
     feature_set_id: Optional[int] = None
     name: str
@@ -42,6 +25,26 @@ class Feature(FeatureBase):
 class FeatureDescription(Feature):
     feature_set_name: Optional[str] = None
 
+class FeatureSetBase(BaseModel):
+    schema_name: str
+    table_name: str
+    description: Optional[str] = None
+    primary_keys: Dict[str, str]
+
+class FeatureSetCreate(FeatureSetBase):
+    pass
+
+class FeatureSet(FeatureSetBase):
+    feature_set_id: int
+    deployed: Optional[bool] = False
+    deploy_ts: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+
+class FeatureSetDescription(FeatureSet):
+    features: List[Feature]
+
 class TrainingViewBase(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
@@ -59,6 +62,9 @@ class TrainingView(TrainingViewBase):
 
     class Config:
         orm_mode = True
+
+class TrainingViewDescription(TrainingView):
+    features: List[FeatureDescription]
 
 # Basically just for neat documentation
 class FeatureTimeframe(BaseModel):
@@ -85,3 +91,21 @@ class Deployment(BaseModel):
 
 class DeploymentDescription(Deployment):
     training_set_name: Optional[str] = None
+
+class DeploymentFeatures(DeploymentDescription):
+    features: List[Feature]
+
+class TrainingSetMetadata(BaseModel):
+    name: str
+    training_set_start_ts: datetime
+    training_set_end_ts: datetime
+    features: str
+
+    class Config:
+        orm_mode = True
+
+class TrainingSet(BaseModel):
+    sql: str
+    training_view: Optional[TrainingView] = None
+    features: List[Feature]
+    metadata: Optional[TrainingSetMetadata] = None
