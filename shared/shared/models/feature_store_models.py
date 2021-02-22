@@ -39,9 +39,28 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     description: Column = Column(String(500), nullable=True)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
-    deployed: Column = Column(Boolean)
+    deployed: Column = Column(Boolean, default=False)
     deploy_ts: Column = Column(DateTime, nullable=True)
 
+class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
+    """
+    A queue of feature sets that have been requested to be deployed, but have not been approved.
+    """
+    __tablename__: str = "pending_feature_set_deployment"
+    feature_set_id: Column = Column(Integer, primary_key=True, autoincrement=True)
+    request_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    request_username: Column = Column(String(128), nullable=False)
+    status: Column = Column(String(128), nullable=True, default='PENDING')
+    approver_username: Column = Column(String(128), nullable=False)
+    status_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    # Table Options Configuration
+    __table_args__: tuple = (
+        CheckConstraint(
+            status.in_(('PENDING', 'ACCEPTED', 'REJECTED'))
+        ),
+        {'schema': 'featurestore'}
+    )
+    deployed: Column = Column(Boolean)
 
 class FeatureSetKey(SQLAlchemyClient.SpliceBase):
     """
@@ -292,10 +311,10 @@ def wait_for_runs_table() -> None:
     logger.info("Checking for mlmanager.runs table...")
     exists = False
     while not exists:
-        sleep(10)
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         exists = ('mlmanager' in [value.lower() for value in inspector.get_schema_names()] and 
             'runs' in [value.lower() for value in inspector.get_table_names(schema='mlmanager')])
         if not exists:
             logger.info("mlmanager.runs does not exist. Checking again in 10s")
+            sleep(10)
     logger.info("Found mlmanager.runs")

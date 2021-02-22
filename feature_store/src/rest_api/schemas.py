@@ -60,6 +60,7 @@ class TrainingView(TrainingViewBase):
     class Config:
         orm_mode = True
 
+
 # Basically just for neat documentation
 class FeatureTimeframe(BaseModel):
     features: Union[List[Feature], List[str]] = None
@@ -85,3 +86,14 @@ class Deployment(BaseModel):
 
 class DeploymentDescription(Deployment):
     training_set_name: str
+
+class FeatureStoreSummary(BaseModel):
+    num_feature_sets: int
+    num_deployed_feature_sets: int
+    num_features: int
+    num_deployed_features: int
+    num_training_sets: int
+    num_training_views: int
+    num_models: int
+    num_deployed_models: int
+    num_pending_feature_set_deployments: int

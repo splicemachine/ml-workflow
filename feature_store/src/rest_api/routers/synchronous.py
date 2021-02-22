@@ -20,11 +20,12 @@ SYNC_ROUTER = APIRouter(
 
 @SYNC_ROUTER.get('/feature-sets', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSet],
                 description="Returns a list of available feature sets", operation_id='get_feature_sets', tags=['Feature Sets'])
-async def get_feature_sets(fsid: Optional[List[int]] = Query(None), db: Session = Depends(crud.get_db)):
+async def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
     """
     Returns a list of available feature sets
     """
-    return crud.get_feature_sets(db, fsid)
+    crud.validate_feature_set_names(names)
+    return crud.get_feature_sets(db, feature_set_names=names)
 
 @SYNC_ROUTER.delete('/training-views', status_code=status.HTTP_200_OK,description="Removes a training view", 
                 operation_id='remove_training_view', tags=['Training Views'])
@@ -38,6 +39,23 @@ async def remove_training_view(override=False, db: Session = Depends(crud.get_db
         they will need to "override" this function to forcefully remove the training view.
     """
     raise NotImplementedError
+
+@SYNC_ROUTER.get('/summary', status_code=status.HTTP_200_OK, response_model=schemas.FeatureStoreSummary,
+                description="Returns feature store summary metrics", operation_id='get_summary', tags=['Feature Store'])
+async def get_summary(db: Session = Depends(crud.get_db)):
+    """
+    This function returns a summary of the feature store including:
+        * Number of feature sets
+        * Number of deployed feature sets
+        * Number of features
+        * Number of deployed features
+        * Number of training sets
+        * Number of training views
+        * Number of associated models - this is a count of the MLManager.RUNS table where the `splice.model_name` tag is set and the `splice.feature_store.training_set` parameter is set
+        * Number of active (deployed) models (that have used the feature store for training)
+        * Number of pending feature sets - this will will require a new table `featurestore.pending_feature_set_deployments` and it will be a count of that
+    """
+    return crud.get_fs_summary(db)
 
 @SYNC_ROUTER.get('/training-views', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingView],
                 description="Returns a list of all available training views with an optional filter", operation_id='get_training_views', tags=['Training Views'])
@@ -60,12 +78,12 @@ async def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
 
 @SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureDescription],
                 description="Returns a list of all (or the specified) features", operation_id='get_features', tags=['Features'])
-async def get_features_by_name(name: List[str] = Query([]), db: Session = Depends(crud.get_db)):
+async def get_features_by_name(names: List[str] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
     """
     Returns a list of features whose names are provided
 
     """
-    return crud.get_feature_descriptions_by_name(db, name)
+    return crud.get_feature_descriptions_by_name(db, names)
 
 @SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK,
                 description="Removes a feature set", operation_id='remove_feature_set', tags=['Feature Sets'])
@@ -107,7 +125,7 @@ async def get_feature_vector_sql_from_training_view(features: List[schemas.Featu
 @SYNC_ROUTER.get('/feature-primary-keys', status_code=status.HTTP_200_OK, response_model=Dict[str, List[str]],
                 description="Returns a dictionary mapping each individual feature to its primary key(s).", 
                 operation_id='get_feature_primary_keys', tags=['Features'])
-async def get_feature_primary_keys(features: List[str] = Query([]), db: Session = Depends(crud.get_db)):
+async def get_feature_primary_keys(features: List[str] = Query([], alias="feature"), db: Session = Depends(crud.get_db)):
     """
     Returns a dictionary mapping each individual feature to its primary key(s). This function is not yet implemented.
     """
