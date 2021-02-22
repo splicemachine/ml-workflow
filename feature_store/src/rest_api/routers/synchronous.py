@@ -24,7 +24,7 @@ async def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"),
     """
     Returns a list of available feature sets
     """
-    crud.validate_feature_set_names(names)
+    crud.validate_table_schema(names)
     return crud.get_feature_sets(db, feature_set_names=names)
 
 @SYNC_ROUTER.delete('/training-views', status_code=status.HTTP_200_OK,description="Removes a training view", 
