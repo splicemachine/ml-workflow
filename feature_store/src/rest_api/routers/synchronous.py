@@ -29,7 +29,7 @@ async def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"),
 
 @SYNC_ROUTER.delete('/training-views', status_code=status.HTTP_200_OK,description="Removes a training view", 
                 operation_id='remove_training_view', tags=['Training Views'])
-async def remove_training_view(override=False, db: Session = Depends(crud.get_db)):
+def remove_training_view(override=False, db: Session = Depends(crud.get_db)):
     """
     Note: This function is not yet implemented.
     Removes a training view. This will run 2 checks.
@@ -70,7 +70,7 @@ async def get_features_by_name(names: List[str] = Query([], alias="name"), db: S
 
 @SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK,
                 description="Removes a feature set", operation_id='remove_feature_set', tags=['Feature Sets'])
-async def remove_feature_set(db: Session = Depends(crud.get_db)):
+def remove_feature_set(db: Session = Depends(crud.get_db)):
     # TODO
     raise NotImplementedError
 
@@ -151,7 +151,8 @@ async def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False,
 
 
 
-@SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, response_model=Dict[str, Union[str, schemas.TrainingView]],
+@SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, 
+                response_model=Dict[str, Union[str, schemas.TrainingView, List[schemas.Feature]]],
                 description="Returns the training set as a Spark Dataframe from a Training View", 
                 operation_id='get_training_set_from_view', tags=['Training Sets'])
 async def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, db: Session = Depends(crud.get_db)):
@@ -183,7 +184,7 @@ async def list_training_sets(db: Session = Depends(crud.get_db)):
 
 @SYNC_ROUTER.post('/feature-sets', response_model=schemas.FeatureSet, status_code=status.HTTP_201_CREATED,
                 description="Creates and returns a new feature set", operation_id='create_feature_set', tags=['Feature Sets'])
-async def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(crud.get_db)):
+def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(crud.get_db)):
     """
     Creates and returns a new feature set
     """
@@ -193,7 +194,7 @@ async def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depen
 
 @SYNC_ROUTER.post('/features', response_model=schemas.Feature, status_code=status.HTTP_201_CREATED,
                 description="Add a feature to a feature set", operation_id='create_feature', tags=['Features'])
-async def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db: Session = Depends(crud.get_db)):
+def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db: Session = Depends(crud.get_db)):
     """
     Add a feature to a feature set
     """
@@ -216,7 +217,7 @@ async def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db:
 @SYNC_ROUTER.post('/training-views', status_code=status.HTTP_201_CREATED,
                 description="Registers a training view for use in generating training SQL", 
                 operation_id='create_training_view', tags=['Training Views'])
-async def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Depends(crud.get_db)):
+def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Depends(crud.get_db)):
     """
     Registers a training view for use in generating training SQL
     """
@@ -234,7 +235,7 @@ async def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Dep
 
 @SYNC_ROUTER.post('/deploy-feature-set', response_model=schemas.FeatureSet, status_code=status.HTTP_200_OK,
                 description="Deploys a feature set to the database", operation_id='deploy_feature_set', tags=['Feature Sets'])
-async def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_db)):
+def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_db)):
     """
     Deploys a feature set to the database. This persists the feature stores existence.
     As of now, once deployed you cannot delete the feature set or add/delete features.
@@ -288,10 +289,11 @@ async def get_training_view_descriptions(name: Optional[str] = None, db: Session
 
 @SYNC_ROUTER.put('/feature-description', status_code=status.HTTP_200_OK,
                 description="Sets a feature's description", operation_id='set_feature_description', tags=['Features'])
-async def set_feature_description(db: Session = Depends(crud.get_db)):
+def set_feature_description(db: Session = Depends(crud.get_db)):
         raise NotImplementedError
 
-@SYNC_ROUTER.get('/training-set-from-deployment', response_model=Dict[str, Union[str, Dict[str, str]]], status_code=status.HTTP_200_OK,
+@SYNC_ROUTER.get('/training-set-from-deployment', response_model=Dict[str, Union[str, Dict[str, str], schemas.TrainingView, List[schemas.Feature]]], 
+                status_code=status.HTTP_200_OK,
                 description="Reads Feature Store metadata to rebuild orginal training data set used for the given deployed model.", 
                 operation_id='get_training_set_from_deployment', tags=['Training Sets'])
 async def get_training_set_from_deployment(schema: str, table: str, db: Session = Depends(crud.get_db)):
@@ -304,16 +306,18 @@ async def get_training_set_from_deployment(schema: str, table: str, db: Session 
     tv_name = metadata['name']
     start_time = metadata['training_set_start_ts']
     end_time = metadata['training_set_end_ts']
+
+    return_dict = { "metadata": metadata }
     if tv_name:
-        training_set_sql = _get_training_set_from_view(db, view=tv_name, features=features,
-                                                            start_time=start_time, end_time=end_time)['sql']
+        return_dict.update(_get_training_set_from_view(db, view=tv_name, features=features,
+                                                            start_time=start_time, end_time=end_time))
     else:
-        training_set_sql = _get_training_set(db, features=features, start_time=start_time, end_time=end_time)
-    return { "metadata": metadata, "sql": training_set_sql }
+        return_dict.update(get_training_set(db, features=features, start_time=start_time, end_time=end_time))
+    return return_dict
 
 @SYNC_ROUTER.delete('/features', status_code=status.HTTP_200_OK,
                 description="Remove a feature", operation_id='remove_feature', tags=['Features'])
-async def remove_feature(name: str, db: Session = Depends(crud.get_db)):
+def remove_feature(name: str, db: Session = Depends(crud.get_db)):
     """
     Removes a feature from the Feature Store
     """
@@ -338,3 +342,21 @@ async def get_deployments(schema: Optional[str] = None, table: Optional[str] = N
         _filter = { 'model_schema_name': schema, 'model_table_name': table, 'name': name }
         return crud.get_deployments(db, _filter)
     return crud.get_deployments(db)
+
+@SYNC_ROUTER.get('/training-set-features', response_model=Dict[str, Union[schemas.DeploymentDescription, List[schemas.Feature]]], 
+                status_code=status.HTTP_200_OK,
+                description="Returns a training set and the features associated with it", 
+                operation_id='get_training_set_features', tags=['Training Sets'])
+async def get_training_set_features(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Returns a training set and the features associated with it
+    """
+    crud.validate_table_schema([name])
+    schema, table = name.split('.')
+    deployments = crud.get_deployments(db, _filter={ 'model_schema_name': schema.upper(), 'model_table_name': table.upper()})
+    if not deployments:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Could not find Training Set {schema}.{table}")
+    ts = deployments[0]
+    features = crud.get_features_from_deployment(db, ts.training_set_id)
+    return { 'training_set': ts, 'features': features }

@@ -167,7 +167,7 @@ def _get_training_view_by_name(db: Session, name: str) -> List[TrainingView]:
     return tvs
 
 def _get_training_set(db: Session, features: Union[List[Feature], List[str]], start_time: datetime = None, end_time: datetime = None, 
-                            current: bool = False) -> str:
+                            current: bool = False) -> Dict[str, Union[str, List[Feature]]]:
     # Get List[Feature]
     features = crud.process_features(db, features)
 
@@ -179,10 +179,10 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], st
     else:
         temp_vw = _create_temp_training_view(features, fsets)
         sql = _generate_training_set_history_sql(temp_vw, features, fsets, start_time=start_time, end_time=end_time)
-    return sql
+    return { "sql": sql, "features": features }
 
-def _get_training_set_from_view(db: Session, view: str, features: Union[List[Feature], List[str]] = None,
-                                start_time: Optional[datetime] = None, end_time: Optional[datetime] = None) -> Dict[str, Union[str, TrainingView]]:
+def _get_training_set_from_view(db: Session, view: str, features: Union[List[Feature], List[str]] = None, start_time: Optional[datetime] = None, 
+                                end_time: Optional[datetime] = None) -> Dict[str, Union[str, TrainingView, List[Feature]]]:
     # Get features as list of Features
     features = crud.process_features(db, features) if features else crud.get_training_view_features(db, view)
 
@@ -194,4 +194,4 @@ def _get_training_set_from_view(db: Session, view: str, features: Union[List[Fea
     tvw = _get_training_view_by_name(db, view)[0]
     # Generate the SQL needed to create the dataset
     sql = _generate_training_set_history_sql(tvw, features, feature_sets, start_time=start_time, end_time=end_time)
-    return { "sql": sql, "training_view": tvw}
+    return { "sql": sql, "training_view": tvw , "features": features }
