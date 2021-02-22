@@ -59,7 +59,12 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     if len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) > 0:
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
 
-def validate_table_schema(names: List[str]) -> None:
+def validate_schema_table(names: List[str]) -> None:
+    """
+    Asserts a list names each conforms to {schema_name.table_name}
+    :param names: the list of names
+    :return: None
+    """
     if not all([len(name.split('.')) == 2 for name in names]):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                         message="It seems you've passed in an invalid name. " \
