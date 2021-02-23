@@ -346,7 +346,7 @@ async def get_training_set_from_deployment(schema: str, table: str, db: Session 
         ts = _get_training_set_from_view(db, view=tv_name, features=features,
                                                             start_time=start_time, end_time=end_time)
     else:
-        ts = get_training_set(db, features=features, start_time=start_time, end_time=end_time)
+        ts = _get_training_set(db, features=features, start_time=start_time, end_time=end_time)
 
     ts.metadata = metadata
     return ts
