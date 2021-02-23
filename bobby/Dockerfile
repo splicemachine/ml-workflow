@@ -120,7 +120,7 @@ RUN \
   curl -kLs $SCALA_ARM_URI -o $SRC_HOME/lib/scala-arm_$SCALA_VERSION-2.0.jar && \
   curl -kLs $PROTOBUF_JAVA_URI -o $SRC_HOME/lib/protobuf-java-3.11.1.jar && \
   curl -kLs $MLEAP_SPARK_URI -o $SRC_HOME/lib/mleap-spark_$SCALA_VERSION-$MLEAP_VERSION.jar && \
-  curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_$SCALA_VERSION-$MLEAP_VERSION.jar && \
+  curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_$SCALA_VERSION-$MLEAP_VERSION.jar
 
 # Install Shared Lib
 COPY shared /tmp/shared
