@@ -30,14 +30,6 @@ def get_db():
     db = SQLAlchemyClient.SessionFactory()
     try:
         yield db
-    except Exception as e:
-        logger.error(e)
-        logger.warning("Rolling back...")
-        db.rollback()
-    else:
-        logger.info("Committing...")
-        db.commit()
-        logger.info("Committed")
     finally:
         logger.info("Closing session")
         db.close()
