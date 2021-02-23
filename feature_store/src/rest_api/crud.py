@@ -30,14 +30,6 @@ def get_db():
     db = SQLAlchemyClient.SessionFactory()
     try:
         yield db
-    except Exception as e:
-        logger.error(e)
-        logger.warning("Rolling back...")
-        db.rollback()
-    else:
-        logger.info("Committing...")
-        db.commit()
-        logger.info("Committed")
     finally:
         logger.info("Closing session")
         db.close()
@@ -59,10 +51,15 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     if len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) > 0:
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
 
-def validate_feature_set_names(names: List[str]) -> None:
+def validate_schema_table(names: List[str]) -> None:
+    """
+    Asserts a list names each conforms to {schema_name.table_name}
+    :param names: the list of names
+    :return: None
+    """
     if not all([len(name.split('.')) == 2 for name in names]):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
-                                        message="It seems you've passed in an invalid Feature Set name. " \
+                                        message="It seems you've passed in an invalid name. " \
                                         "Names must conform to '[schema_name].[table_name]'")
 
 def validate_feature(db: Session, name: str) -> None:
@@ -663,7 +660,7 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
         db.add(key)
     logger.info('Done.')
 
-def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: str, table_name: str) -> Dict[str, Union[str, datetime]]:
+def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: str, table_name: str) -> schemas.TrainingSetMetadata:
     """
     Reads Feature Store metadata to retrieve definition of training set used to train the specified model.
     :param schema_name: model schema name
@@ -700,24 +697,41 @@ def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: st
     if not deploy:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST, 
                                         message=f"No deployment found for {schema_name}.{table_name}")
-    return deploy._asdict()
+    return schemas.TrainingSetMetadata(**deploy._asdict())
 
-def delete_feature(db: Session, feature: models.Feature):
+def delete_feature(db: Session, feature: models.Feature) -> None:
     db.delete(feature)
 
-def get_deployments(db: Session, _filter: Dict[str, str] = None):
+def get_deployments(db: Session, _filter: Dict[str, str] = None) -> List[schemas.DeploymentDescription]:
     d = aliased(models.Deployment, name='d')
     ts = aliased(models.TrainingSet, name='ts')
     
     q = db.query(ts.name, d).\
         join(ts, ts.training_set_id==d.training_set_id)
-
-    # if filter key is a column in Training_Set, get compare Training_Set column, else compare to Deployment column
+    
     if _filter:
+        # if filter key is a column in Training_Set, get compare Training_Set column, else compare to Deployment column
         q = q.filter(and_(*[(getattr(ts, name) if hasattr(ts, name) else getattr(d, name)) == value 
                                 for name, value in _filter.items()]))
+    deployments = []
+    for name, deployment in q.all():
+        deployments.append(schemas.DeploymentDescription(**deployment.__dict__, training_set_name=name))
+    return deployments
 
-    return q.all()
+def get_features_from_deployment(db: Session, tsid: int) -> List[schemas.Feature]:
+    ids = db.query(models.TrainingSetFeature.feature_id).\
+        filter(models.TrainingSetFeature.training_set_id==tsid).\
+        subquery('ids')
+
+    q = db.query(models.Feature).filter(models.Feature.feature_id.in_(ids))
+    
+    features = []
+    for f in q.all():
+        # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
+        d = f.__dict__
+        d['tags'] = json.loads(d['tags']) if 'tags' in d else None
+        features.append(schemas.Feature(**d))
+    return features
 
 # Feature/FeatureSet specific
 
