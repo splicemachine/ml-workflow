@@ -10,7 +10,7 @@ ARG odbc_driver_version='2.7.63.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Spark Configuration
-ARG spark_version='2.4.5'
+ARG spark_version='3.0.1'
 
 # File Retriever Configuration
 ARG file_retriever_version='0.0.3'
@@ -78,8 +78,8 @@ RUN mkdir -p $SRC_HOME/lib && \
     curl https://splicemachine.s3.amazonaws.com/artifacts/fileretriever-$file_retriever_version.jar -o $SRC_HOME/lib/fileretriever.jar
 
 
-ARG SCALA_VERSION=2.11
-ARG MLEAP_VERSION=0.15.0
+ARG SCALA_VERSION=2.12
+ARG MLEAP_VERSION=0.16.0
 
 ARG MLEAP_CORE_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-core_$SCALA_VERSION/$MLEAP_VERSION/mleap-core_$SCALA_VERSION-$MLEAP_VERSION.jar
 ARG MLEAP_RUNTIME_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-runtime_$SCALA_VERSION/$MLEAP_VERSION/mleap-runtime_$SCALA_VERSION-$MLEAP_VERSION.jar
