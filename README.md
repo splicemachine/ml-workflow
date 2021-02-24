@@ -59,7 +59,7 @@ ML-Workflow is broken into 6 main components:
 
 You can run ml-workflow locally using docker-compose. The docker-comopse  
 is set up, but missing a few fields that the user must provide  
-in a <code>.env</code> file. There is a [.env.example](https://github.com/splicemachine/ml-workflow/blob/DBAAS-4947/.env.example) file you can copy to a .env file and edit accordingly.<br>
+in a <code>.env</code> file. There is a [.env.example](https://github.com/splicemachine/ml-workflow/blob/master/.env.example) file you can copy to a .env file and edit accordingly.<br>
 
 The following fields <b>must</b> be provided:
 * DB_PASSWORD
