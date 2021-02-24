@@ -87,7 +87,7 @@ After starting the [standalone database](https://www.github.com/splicemachine/sp
   grant all privileges on schema splice to mlmanager;
   grant all privileges on schema SYSIBM to mlmanager;
   create schema featurestore;
-  grant all privileges on schema sys to mlmanager;
+  grant all privileges on schema featurestore to mlmanager;
   ```
 
 Then you can run:
