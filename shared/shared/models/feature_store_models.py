@@ -283,6 +283,9 @@ def create_deploy_historian():
         )
 
 
+TABLES = [FeatureSet, PendingFeatureSetDeployment, FeatureSetKey, Feature, TrainingView, TrainingViewKey, TrainingSet,
+          TrainingSetFeature, TrainingSetFeatureStats, Deployment, DeploymentHistory, DeploymentFeatureStats]
+
 def create_feature_store_tables(_sleep_secs=1) -> None:
     """
     Function that creates all of the tables in a retry loop in case the database.py doesn't exist
@@ -299,7 +302,7 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
         # if env.get('MODE') != 'TESTING':
         create_deploy_historian()
         logger.warning("Creating Feature Store Splice Tables inside Splice DB...")
-        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
+        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True, tables=[t.__table__ for t in TABLES])
         logger.info("Created Tables")
     except Exception:
         logger.exception(f"Encountered Error while initializing")  # logger might have failed
