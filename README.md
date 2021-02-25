@@ -10,7 +10,7 @@ To try ML Manager, for free, click [here](https://cloud.splicemachine.io/registe
 
 ### Structure
 
-ML-Workflow is broken into 5 main components:
+ML-Workflow is broken into 6 main components:
 
 * mlflow: The custom mlflow rest API with added Splice Machine functionality:
   * Host of the mlflow UI
@@ -27,6 +27,15 @@ ML-Workflow is broken into 5 main components:
   * Deploying models to aws
   * Scheduling model retraining
   * Watching elasticsearch for logs
+
+* feature store: REST api (FastAPI) for the Splice Machine Feature Store. This manages:
+  * Creation of feature store objects (features, feature sets, training sets, training views)
+  * Deploying feature sets to the database
+  * Creating database triggers to manage the point-in-time versioning of feature values
+  * Creating training datasets for ML development with point-in-time consistency
+  * Enabling discoverability of features/feature sets/training views to users via APIs (and a coming UI)
+  * Tracking models deployed which were trained using feature store training sets
+  * Scheduling statistics calculations for feature sets/training sets (coming soon)
 
 * mlrunner: The Java code to deploy ML models to the database. When users of Splice Machine deploy models to the database, the engine with which those models run is wrtten here. Natively, it can support 5 model types
   * Spark ML
@@ -50,7 +59,7 @@ ML-Workflow is broken into 5 main components:
 
 You can run ml-workflow locally using docker-compose. The docker-comopse  
 is set up, but missing a few fields that the user must provide  
-in a <code>.env</code> file. There is a [.env.example](https://github.com/splicemachine/ml-workflow/blob/DBAAS-4947/.env.example) file you can copy to a .env file and edit accordingly.<br>
+in a <code>.env</code> file. There is a [.env.example](https://github.com/splicemachine/ml-workflow/blob/master/.env.example) file you can copy to a .env file and edit accordingly.<br>
 
 The following fields <b>must</b> be provided:
 * DB_PASSWORD
@@ -77,27 +86,29 @@ After starting the [standalone database](https://www.github.com/splicemachine/sp
   grant all privileges on schema sys to mlmanager;
   grant all privileges on schema splice to mlmanager;
   grant all privileges on schema SYSIBM to mlmanager;
+  create schema featurestore;
+  grant all privileges on schema featurestore to mlmanager;
   ```
 
 Then you can run:
 ```
-docker-compose up mlflow bobby
+docker-compose up mlflow bobby feature_store
 ```
 If you want to include jupyter notebooks in your testing, you can run
 ```
-docker-compose up mlflow bobby jupyter
+docker-compose up mlflow bobby feature_store jupyter
 ```
 
 ### Build for testing
 Update the docker-compose.yaml with a temporary tag for the image name, then run
 ```
-docker-compose build mlflow bobby
-docker-compose up mlflow bobby
+docker-compose build mlflow bobby feature_store
+docker-compose up mlflow bobby feature_store
 ```
 If you want to include jupyter notebooks in your testing, you can run
 ```
-docker-compose build mlflow bobby jupyter 
-docker-compose up mlflow bobby jupyter
+docker-compose build mlflow bobby feature_store jupyter 
+docker-compose up mlflow bobby feature_store jupyter
 ```
 
 
