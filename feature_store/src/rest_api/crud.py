@@ -545,18 +545,24 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     :param fset: The feature set
     :return: List[Feature]
     """
-    old_pk_cols = ','.join(f'OLDW.{p}' for p in __get_pk_columns(fset))
-    old_feature_cols = ','.join(f'OLDW.{f.name}' for f in get_features(db, fset))
+    new_pk_cols = ','.join(f'NEWW.{p}' for p in __get_pk_columns(fset))
+    new_feature_cols = ','.join(f'NEWW.{f.name}' for f in get_features(db, fset))
 
     metadata = MetaData(db.get_bind())
+    
+    insert_trigger_sql = SQL.feature_set_trigger.format(
+        schema=fset.schema_name, table=fset.table_name, action='INSERT', 
+        pk_list=get_pk_column_str(fset), feature_list=get_feature_column_str(db, fset), 
+        new_pk_cols=new_pk_cols, new_feature_cols=new_feature_cols)
 
-    trigger_sql = SQL.feature_set_trigger.format(
-        schema=fset.schema_name, table=fset.table_name, pk_list=get_pk_column_str(fset),
-        feature_list=get_feature_column_str(db, fset), old_pk_cols=old_pk_cols, old_feature_cols=old_feature_cols)
+    update_trigger_sql = SQL.feature_set_trigger.format(
+        schema=fset.schema_name, table=fset.table_name, action='UPDATE', 
+        pk_list=get_pk_column_str(fset), feature_list=get_feature_column_str(db, fset), 
+        new_pk_cols=new_pk_cols, new_feature_cols=new_feature_cols)
 
     logger.info('Creating Feature Set...')
     pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
-    ts_columns = [Column('last_update_ts', TIMESTAMP)]
+    ts_columns = [Column('last_update_ts', TIMESTAMP, nullable=False)]
     feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
     columns = pk_columns + ts_columns + feature_columns
     feature_set = Table(fset.table_name.lower(), metadata, *columns, schema=fset.schema_name.lower())
@@ -565,16 +571,19 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
 
     logger.info('Creating Feature Set History...')
     pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
-    ts_columns = [Column('asof_ts', TIMESTAMP, primary_key=True), Column('until_ts', TIMESTAMP, primary_key=True)]
+    ts_columns = [Column('asof_ts', TIMESTAMP, primary_key=True), Column('ingest_ts', TIMESTAMP)]
     feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
     columns = pk_columns + ts_columns + feature_columns
     history = Table(f'{fset.table_name.lower()}_history', metadata, *columns, schema=fset.schema_name.lower())
     history.create(db.connection())
     logger.info('Done.')
 
-    logger.info('Creating Historian Trigger...')
-    trigger = DDL(trigger_sql)
-    db.execute(trigger)
+    logger.info('Creating Historian Triggers...')
+    #TODO: Add third trigger to ensure online table has newest value
+    insert_trigger = DDL(insert_trigger_sql)
+    db.execute(insert_trigger)
+    update_trigger = DDL(update_trigger_sql)
+    db.execute(update_trigger)
     logger.info('Done.')
 
     logger.info('Updating Metadata...')
@@ -660,7 +669,7 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
         db.add(key)
     logger.info('Done.')
 
-def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: str, table_name: str) -> schemas.TrainingSetMetadata:
+def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str, table_name: str) -> schemas.TrainingSetMetadata:
     """
     Reads Feature Store metadata to retrieve definition of training set used to train the specified model.
     :param schema_name: model schema name
@@ -677,6 +686,7 @@ def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: st
         tv.name,
         d.training_set_start_ts,
         d.training_set_end_ts,
+        d.training_set_create_ts,
         func.string_agg(f.name, literal_column("','"), type_=String).\
             label('features')
     ).\
@@ -691,7 +701,8 @@ def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: st
     )).\
     group_by(tv.name,
         d.training_set_start_ts,
-        d.training_set_end_ts
+        d.training_set_end_ts,
+        d.training_set_create_ts
     ).first()
 
     if not deploy:
@@ -764,3 +775,6 @@ def table_exists(db, schema_name, table_name):
     inspector = peer_into_splice_db(db.get_bind())
     if schema_name.lower() not in [value.lower() for value in inspector.get_schema_names()]: return False
     return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
+
+def get_current_time(db: Session) -> datetime:
+    return db.execute('VALUES(CURRENT_TIMESTAMP)').first()[0]

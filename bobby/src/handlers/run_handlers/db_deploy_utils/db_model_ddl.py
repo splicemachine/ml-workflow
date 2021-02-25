@@ -436,6 +436,7 @@ class DatabaseModelDDL:
             training_set_id=ts.training_set_id,
             training_set_start_ts=key_vals['splice.feature_store.training_set_start_time'],
             training_set_end_ts=key_vals['splice.feature_store.training_set_end_time'],
+            training_set_create_ts=key_vals['splice.feature_store.training_set_create_time'],
             run_id=self.run_id,
             last_update_username=self.request_user
         )
@@ -468,7 +469,7 @@ class DatabaseModelDDL:
         self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
         training_set_params = [f'splice.feature_store.{i}' for i in ['training_set','training_set_start_time',
-                                                                    'training_set_end_time']]
+                                                                    'training_set_end_time', 'training_set_create_time']]
         params: List[SqlParam] = self.session.query(SqlParam)\
             .filter_by(run_uuid=self.run_id)\
             .filter(SqlParam.key.in_(training_set_params))\

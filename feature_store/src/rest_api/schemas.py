@@ -96,10 +96,11 @@ class DeploymentFeatures(DeploymentDescription):
     features: List[Feature]
 
 class TrainingSetMetadata(BaseModel):
-    name: str
-    training_set_start_ts: datetime
-    training_set_end_ts: datetime
-    features: str
+    name: Optional[str] = None
+    training_set_start_ts: Optional[datetime] = None
+    training_set_end_ts: Optional[datetime] = None
+    training_set_create_ts: datetime
+    features: Optional[str] = None
 
     class Config:
         orm_mode = True
