@@ -1,6 +1,6 @@
 
 from sqlalchemy.orm import Session, aliased, load_only
-from typing import List, Dict, Union, Optional, Any
+from typing import List, Dict, Union, Optional, Any, Tuple
 from . import schemas
 from .constants import SQL, SQL_TYPES
 from shared.models import feature_store_models as models
@@ -10,10 +10,11 @@ from fastapi import status
 import re
 import json
 from datetime import datetime
-from sqlalchemy import inspect as peer_into_splice_db
-from sqlalchemy import sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column
+from sqlalchemy import inspect as peer_into_splice_db, text
+from sqlalchemy import update, sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column
 from .utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
 from sys import exc_info as get_stack_trace
+from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
 from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
                                 DECIMAL, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, BOOLEAN)
@@ -29,14 +30,6 @@ def get_db():
     db = SQLAlchemyClient.SessionFactory()
     try:
         yield db
-    except Exception as e:
-        logger.error(e)
-        logger.warning("Rolling back...")
-        db.rollback()
-    else:
-        logger.info("Committing...")
-        db.commit()
-        logger.info("Committed")
     finally:
         logger.info("Closing session")
         db.close()
@@ -58,6 +51,17 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     if len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) > 0:
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
 
+def validate_schema_table(names: List[str]) -> None:
+    """
+    Asserts a list names each conforms to {schema_name.table_name}
+    :param names: the list of names
+    :return: None
+    """
+    if not all([len(name.split('.')) == 2 for name in names]):
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                        message="It seems you've passed in an invalid name. " \
+                                        "Names must conform to '[schema_name].[table_name]'")
+
 def validate_feature(db: Session, name: str) -> None:
     """
     Ensures that the feature doesn't exist as all features have unique names
@@ -68,14 +72,14 @@ def validate_feature(db: Session, name: str) -> None:
     # TODO: Capitalization of feature name column
     # TODO: Make more informative, add which feature set contains existing feature
     str = f"Cannot add feature {name}, feature already exists in Feature Store. Try a new feature name."
-    l = len(db.query(models.Feature.name).filter(models.Feature.name == name.upper()).all())
-    if l > 0:
-        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
-
     if not re.match('^[A-Za-z][A-Za-z0-9_]*$', name, re.IGNORECASE):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
                                      message='Feature name does not conform. Must start with an alphabetic character, '
                                      'and can only contains letters, numbers and underscores')
+
+    l = db.query(models.Feature.name).filter(func.upper(models.Feature.name) == name.upper()).count()
+    if l > 0:
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
 
 def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
     """
@@ -169,7 +173,7 @@ def get_training_view_features(db: Session, training_view: str) -> List[schemas.
         features.append(schemas.Feature(**f))
     return features
 
-def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
+def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
     """
     Returns a list of available feature sets
 
@@ -188,6 +192,9 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, _filter: Di
     queries = []
     if feature_set_ids:
         queries.append(fset.feature_set_id.in_(tuple(set(feature_set_ids))))
+    if feature_set_names:
+        queries.extend([and_(func.upper(fset.schema_name)==name.split('.')[0].upper(), 
+            func.upper(fset.table_name)==name.split('.')[1].upper()) for name in feature_set_names])
     if _filter:
         queries.extend([getattr(fset, name) == value for name, value in _filter.items()])
 
@@ -279,9 +286,9 @@ def get_training_view_id(db: Session, name: str) -> int:
     """
     return db.query(models.TrainingView.view_id).\
         filter(models.TrainingView.name==name).\
-        all()[0][0]
+        first()[0]
 
-def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
+def get_feature_descriptions_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
     """
     Returns a dataframe or list of features whose names are provided
 
@@ -300,7 +307,7 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
 
     # If they don't pass in feature names, get all features 
     if names:
-        df = df.filter(f.name.in_(names))
+        df = df.filter(func.upper(f.name).in_([name.upper() for name in names]))
 
     features = []
     for schema, table, feat in df.all():
@@ -309,6 +316,131 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
         f['tags'] = json.loads(str(f['tags'])) if 'tags' in f else None
         features.append(schemas.FeatureDescription(**f, feature_set_name=f'{schema}.{table}'))
     return features
+
+def _get_feature_set_counts(db) -> List[Tuple[bool,int]]:
+    """
+    Returns the counts of undeployed and deployed feature set as a list of tuples
+    """
+
+    fset = aliased(models.FeatureSet, name='fset')
+    return db.query(fset.deployed, func.count(fset.feature_set_id)).group_by(fset.deployed).all()
+
+def _get_feature_counts(db) -> List[Tuple[bool,int]]:
+    """
+    Returns the counts of undeployed and deployed features as a list of tuples
+    """
+
+    fset = aliased(models.FeatureSet, name='fset')
+    f = aliased(models.FeatureSet, name='f')
+    return db.query(fset.deployed, func.count(fset.feature_set_id)).\
+        join(f, f.feature_set_id==fset.feature_set_id).\
+        group_by(fset.deployed).all()
+
+def _get_num_training_sets(db) -> int:
+    """
+    Returns the number of training sets
+    """
+    return db.query(models.TrainingSet).count()
+
+def _get_num_training_views(db) -> int:
+    """
+    Returns the number of training views
+    """
+    return db.query(models.TrainingView).count()
+
+def _get_num_deployments(db) -> int:
+    """
+    Returns the number of actively deployed models that were trained using training sets from the feature store
+    """
+    return db.query(models.Deployment).count()
+
+def _get_num_pending_feature_sets(db) -> int:
+    """
+    Returns the number of feature sets pending deployment
+    """
+    pend = aliased(models.PendingFeatureSetDeployment, name='pend')
+    return db.query(pend).\
+        filter(pend.status=='PENDING').\
+        count()
+
+def _get_num_created_models(db) -> int:
+    """
+    Returns the number of models that have been created and trained with a feature store training set.
+    This corresponds to the number of mlflow runs with the tag splice.model_name set and the parameter
+    splice.feature_store.training_set set.
+    """
+    return db.query(SqlRun).\
+        join(SqlTag, SqlRun.run_uuid==SqlTag.run_uuid).\
+        join(SqlParam, SqlRun.run_uuid==SqlParam.run_uuid).\
+        filter(SqlParam.key=='splice.feature_store.training_set').\
+        filter(SqlTag.key=='splice.model_name').\
+        count()
+
+def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
+    """
+    This function returns a summary of the feature store including:
+        * Number of feature sets
+        * Number of deployed feature sets
+        * Number of features
+        * Number of deployed features
+        * Number of training sets
+        * Number of training views
+        * Number of associated models - this is a count of the MLManager.RUNS table where the `splice.model_name` tag is set and the `splice.feature_store.training_set` parameter is set
+        * Number of active (deployed) models (that have used the feature store for training)
+        * Number of pending feature sets - this will will require a new table `featurestore.pending_feature_set_deployments` and it will be a count of that
+    """
+
+    feature_set_counts = _get_feature_set_counts(db)
+    num_fsets = sum(i[1] for i in feature_set_counts)
+    num_deployed_fsets = sum(i[1] for i in feature_set_counts if i[0]) # Only sum the ones that have Deployed=True
+
+    feature_counts = _get_feature_counts(db)
+    num_feats = sum(i[1] for i in feature_counts)
+    num_deployed_feats = sum(i[1] for i in feature_counts if i[0]) # Only sum the ones that have Deployed=True
+
+    num_training_sets = _get_num_training_sets(db)
+    num_training_views = _get_num_training_views(db)
+    num_created_models = _get_num_created_models(db)
+    num_deployemnts = _get_num_deployments(db)
+    num_pending_feature_set_deployments = _get_num_pending_feature_sets(db)
+
+    return schemas.FeatureStoreSummary(
+        num_feature_sets=num_fsets,
+        num_deployed_feature_sets=num_deployed_fsets,
+        num_features=num_feats,
+        num_deployed_features=num_deployed_feats,
+        num_training_sets=num_training_sets,
+        num_training_views=num_training_views,
+        num_models=num_created_models,
+        num_deployed_models=num_deployemnts,
+        num_pending_feature_set_deployments=num_pending_feature_set_deployments
+    )
+
+
+def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
+    """
+    Returns a dataframe or list of features whose names are provided
+
+    :param db: SqlAlchemy Session
+    :param names: The list of feature names
+    :return: List[Feature] The list of Feature objects and their metadata. Note, this is not the Feature
+    values, simply the describing metadata about the features. To create a training dataset with Feature values, see
+    :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_feature_dataset`
+    """
+    f = aliased(models.Feature, name='f')
+    fset = aliased(models.FeatureSet, name='fset')
+
+    df = db.query(f, fset.schema_name, fset.table_name, fset.deployed).\
+        select_from(f).\
+        join(fset, f.feature_set_id==fset.feature_set_id)
+
+
+    # If they don't pass in feature names, get all features 
+    if names:
+        df = df.filter(func.upper(f.name).in_([name.upper() for name in names]))
+    
+    return df.all()
+
 
 def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: schemas.TrainingView) -> str:
     """
@@ -397,7 +529,7 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
     :return: List[Feature]
     """
     feat_str = [f for f in features if isinstance(f, str)]
-    str_to_feat = get_features_by_name(db, names=feat_str) if feat_str else []
+    str_to_feat = get_feature_descriptions_by_name(db, names=feat_str) if feat_str else []
     all_features = str_to_feat + [f for f in features if not isinstance(f, str)]
     if not all(
         [isinstance(i, schemas.Feature) for i in all_features]):
@@ -413,18 +545,24 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     :param fset: The feature set
     :return: List[Feature]
     """
-    old_pk_cols = ','.join(f'OLDW.{p}' for p in __get_pk_columns(fset))
-    old_feature_cols = ','.join(f'OLDW.{f.name}' for f in get_features(db, fset))
+    new_pk_cols = ','.join(f'NEWW.{p}' for p in __get_pk_columns(fset))
+    new_feature_cols = ','.join(f'NEWW.{f.name}' for f in get_features(db, fset))
 
     metadata = MetaData(db.get_bind())
+    
+    insert_trigger_sql = SQL.feature_set_trigger.format(
+        schema=fset.schema_name, table=fset.table_name, action='INSERT', 
+        pk_list=get_pk_column_str(fset), feature_list=get_feature_column_str(db, fset), 
+        new_pk_cols=new_pk_cols, new_feature_cols=new_feature_cols)
 
-    trigger_sql = SQL.feature_set_trigger.format(
-        schema=fset.schema_name, table=fset.table_name, pk_list=get_pk_column_str(fset),
-        feature_list=get_feature_column_str(db, fset), old_pk_cols=old_pk_cols, old_feature_cols=old_feature_cols)
+    update_trigger_sql = SQL.feature_set_trigger.format(
+        schema=fset.schema_name, table=fset.table_name, action='UPDATE', 
+        pk_list=get_pk_column_str(fset), feature_list=get_feature_column_str(db, fset), 
+        new_pk_cols=new_pk_cols, new_feature_cols=new_feature_cols)
 
     logger.info('Creating Feature Set...')
     pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
-    ts_columns = [Column('last_update_ts', TIMESTAMP)]
+    ts_columns = [Column('last_update_ts', TIMESTAMP, nullable=False)]
     feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
     columns = pk_columns + ts_columns + feature_columns
     feature_set = Table(fset.table_name.lower(), metadata, *columns, schema=fset.schema_name.lower())
@@ -433,20 +571,30 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
 
     logger.info('Creating Feature Set History...')
     pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
-    ts_columns = [Column('asof_ts', TIMESTAMP, primary_key=True), Column('until_ts', TIMESTAMP, primary_key=True)]
+    ts_columns = [Column('asof_ts', TIMESTAMP, primary_key=True), Column('ingest_ts', TIMESTAMP)]
     feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
     columns = pk_columns + ts_columns + feature_columns
     history = Table(f'{fset.table_name.lower()}_history', metadata, *columns, schema=fset.schema_name.lower())
     history.create(db.connection())
     logger.info('Done.')
 
-    logger.info('Creating Historian Trigger...')
-    trigger = DDL(trigger_sql)
-    db.execute(trigger)
+    logger.info('Creating Historian Triggers...')
+    #TODO: Add third trigger to ensure online table has newest value
+    insert_trigger = DDL(insert_trigger_sql)
+    db.execute(insert_trigger)
+    update_trigger = DDL(update_trigger_sql)
+    db.execute(update_trigger)
     logger.info('Done.')
 
     logger.info('Updating Metadata...')
-    db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id==fset.feature_set_id).update({models.FeatureSet.deployed: True})
+    # Due to an issue with our sqlalchemy driver, we cannot update in the standard way with timestamps. TODO
+    # So we create the update, compile it, and execute it directly
+    # db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id==fset.feature_set_id).\
+    #     update({models.FeatureSet.deployed: True, models.FeatureSet.deploy_ts: datetime.now()})
+    updt = update(models.FeatureSet).where(models.FeatureSet.feature_set_id==fset.feature_set_id).\
+        values(deployed=True, deploy_ts=text('CURRENT_TIMESTAMP'))
+    stmt = updt.compile(dialect=db.get_bind().dialect, compile_kwargs={"literal_binds": True})
+    db.execute(str(stmt))
     fset.deployed = True
     logger.info('Done.')
     return fset
@@ -521,7 +669,7 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
         db.add(key)
     logger.info('Done.')
 
-def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: str, table_name: str) -> Dict[str, Union[str, datetime]]:
+def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str, table_name: str) -> schemas.TrainingSetMetadata:
     """
     Reads Feature Store metadata to retrieve definition of training set used to train the specified model.
     :param schema_name: model schema name
@@ -538,6 +686,7 @@ def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: st
         tv.name,
         d.training_set_start_ts,
         d.training_set_end_ts,
+        d.training_set_create_ts,
         func.string_agg(f.name, literal_column("','"), type_=String).\
             label('features')
     ).\
@@ -552,13 +701,48 @@ def retrieve_training_set_metadata_from_deployement(db: Session, schema_name: st
     )).\
     group_by(tv.name,
         d.training_set_start_ts,
-        d.training_set_end_ts
+        d.training_set_end_ts,
+        d.training_set_create_ts
     ).first()
 
     if not deploy:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST, 
                                         message=f"No deployment found for {schema_name}.{table_name}")
-    return deploy._asdict()
+    return schemas.TrainingSetMetadata(**deploy._asdict())
+
+def delete_feature(db: Session, feature: models.Feature) -> None:
+    db.delete(feature)
+
+def get_deployments(db: Session, _filter: Dict[str, str] = None) -> List[schemas.DeploymentDescription]:
+    d = aliased(models.Deployment, name='d')
+    ts = aliased(models.TrainingSet, name='ts')
+    
+    q = db.query(ts.name, d).\
+        join(ts, ts.training_set_id==d.training_set_id)
+    
+    if _filter:
+        # if filter key is a column in Training_Set, get compare Training_Set column, else compare to Deployment column
+        q = q.filter(and_(*[(getattr(ts, name) if hasattr(ts, name) else getattr(d, name)) == value 
+                                for name, value in _filter.items()]))
+    deployments = []
+    for name, deployment in q.all():
+        deployments.append(schemas.DeploymentDescription(**deployment.__dict__, training_set_name=name))
+    return deployments
+
+def get_features_from_deployment(db: Session, tsid: int) -> List[schemas.Feature]:
+    ids = db.query(models.TrainingSetFeature.feature_id).\
+        filter(models.TrainingSetFeature.training_set_id==tsid).\
+        subquery('ids')
+
+    q = db.query(models.Feature).filter(models.Feature.feature_id.in_(ids))
+    
+    features = []
+    for f in q.all():
+        # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
+        d = f.__dict__
+        d['tags'] = json.loads(d['tags']) if 'tags' in d else None
+        features.append(schemas.Feature(**d))
+    return features
 
 # Feature/FeatureSet specific
 
@@ -591,3 +775,6 @@ def table_exists(db, schema_name, table_name):
     inspector = peer_into_splice_db(db.get_bind())
     if schema_name.lower() not in [value.lower() for value in inspector.get_schema_names()]: return False
     return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
+
+def get_current_time(db: Session) -> datetime:
+    return db.execute('VALUES(CURRENT_TIMESTAMP)').first()[0]

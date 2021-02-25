@@ -39,8 +39,28 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     description: Column = Column(String(500), nullable=True)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
-    deployed: Column = Column(Boolean)
+    deployed: Column = Column(Boolean, default=False)
+    deploy_ts: Column = Column(DateTime, nullable=True)
 
+class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
+    """
+    A queue of feature sets that have been requested to be deployed, but have not been approved.
+    """
+    __tablename__: str = "pending_feature_set_deployment"
+    feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id), primary_key=True)
+    request_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    request_username: Column = Column(String(128), nullable=False)
+    status: Column = Column(String(128), nullable=True, default='PENDING')
+    approver_username: Column = Column(String(128), nullable=False)
+    status_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    # Table Options Configuration
+    __table_args__: tuple = (
+        CheckConstraint(
+            status.in_(('PENDING', 'ACCEPTED', 'REJECTED'))
+        ),
+        {'schema': 'featurestore'}
+    )
+    deployed: Column = Column(Boolean)
 
 class FeatureSetKey(SQLAlchemyClient.SpliceBase):
     """
@@ -194,6 +214,7 @@ class Deployment(SQLAlchemyClient.SpliceBase):
     training_set_id: Column = Column(Integer)  # ,ForeignKey(TrainingSet.training_set_id)
     training_set_start_ts: Column = Column(DateTime)
     training_set_end_ts: Column = Column(DateTime)
+    training_set_create_ts: Column = Column(DateTime)
     run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
@@ -212,6 +233,7 @@ class DeploymentHistory(SQLAlchemyClient.SpliceBase):
     training_set_id: Column = Column(Integer)
     training_set_start_ts: Column = Column(DateTime)
     training_set_end_ts: Column = Column(DateTime)
+    training_set_create_ts: Column = Column(DateTime)
     run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
@@ -263,6 +285,9 @@ def create_deploy_historian():
         )
 
 
+TABLES = [FeatureSet, PendingFeatureSetDeployment, FeatureSetKey, Feature, TrainingView, TrainingViewKey, TrainingSet,
+          TrainingSetFeature, TrainingSetFeatureStats, Deployment, DeploymentHistory, DeploymentFeatureStats]
+
 def create_feature_store_tables(_sleep_secs=1) -> None:
     """
     Function that creates all of the tables in a retry loop in case the database.py doesn't exist
@@ -279,7 +304,7 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
         # if env.get('MODE') != 'TESTING':
         create_deploy_historian()
         logger.warning("Creating Feature Store Splice Tables inside Splice DB...")
-        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
+        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True, tables=[t.__table__ for t in TABLES])
         logger.info("Created Tables")
     except Exception:
         logger.exception(f"Encountered Error while initializing")  # logger might have failed
@@ -291,10 +316,10 @@ def wait_for_runs_table() -> None:
     logger.info("Checking for mlmanager.runs table...")
     exists = False
     while not exists:
-        sleep(10)
         inspector = peer_into_splice_db(SQLAlchemyClient.engine)
         exists = ('mlmanager' in [value.lower() for value in inspector.get_schema_names()] and 
             'runs' in [value.lower() for value in inspector.get_table_names(schema='mlmanager')])
         if not exists:
             logger.info("mlmanager.runs does not exist. Checking again in 10s")
+            sleep(10)
     logger.info("Found mlmanager.runs")
