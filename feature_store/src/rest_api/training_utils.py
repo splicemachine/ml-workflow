@@ -142,7 +142,7 @@ def _generate_training_set_sql(features: List[Feature], feature_sets: List[Featu
     return sql
 
 
-def _create_temp_training_view(features: List[Feature], feature_sets: List[FeatureSet]) -> TrainingView:
+def _create_temp_training_view(features: List[Feature], feature_sets: List[FeatureSet], create_time: datetime) -> TrainingView:
     """
     Internal function to create a temporary Training View for training set retrieval using a Feature Set. When
     a user created
@@ -155,7 +155,7 @@ def _create_temp_training_view(features: List[Feature], feature_sets: List[Featu
     anchor_pk_column_sql = ','.join(__get_pk_columns(anchor_fset))
     ts_col = 'LAST_UPDATE_TS'
     schema_table_name = f'{anchor_fset.schema_name}.{anchor_fset.table_name}_history'
-    view_sql = f'SELECT {anchor_pk_column_sql}, ASOF_TS as {ts_col} FROM {schema_table_name}'
+    view_sql = f"SELECT {anchor_pk_column_sql}, ASOF_TS as {ts_col} FROM {schema_table_name} WHERE INGEST_TS <= timestamp('{str(create_time)}')"
     return TrainingView(view_id=0, pk_columns=__get_pk_columns(anchor_fset), ts_column=ts_col, view_sql=view_sql,
                         description=None, name=None, label_column=None)
 
@@ -177,7 +177,7 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
     if current:
         sql = _generate_training_set_sql(features, fsets)
     else:
-        temp_vw = _create_temp_training_view(features, fsets)
+        temp_vw = _create_temp_training_view(features, fsets, create_time)
         sql = _generate_training_set_history_sql(temp_vw, features, fsets, start_time=start_time, end_time=end_time, create_time=create_time)
     
     metadata = TrainingSetMetadata(training_set_start_ts=start_time, training_set_end_ts=end_time, training_set_create_ts=create_time)
