@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status
 from typing import List, Union, Optional, Dict
-from .schemas import Feature, FeatureSet, TrainingView, TrainingSet
+from .schemas import Feature, FeatureSet, TrainingView, TrainingSet, TrainingSetMetadata
 from . import crud
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -56,7 +56,7 @@ def _get_anchor_feature_set(features: List[Feature], feature_sets: List[FeatureS
 
 
 def _generate_training_set_history_sql(tvw: TrainingView, features: List[Feature],
-                                       feature_sets: List[FeatureSet], start_time=None, end_time=None) -> str:
+                                       feature_sets: List[FeatureSet], start_time=None, end_time=None, create_time=None) -> str:
     """
     Generates the SQL query for creating a training set from a TrainingView and a List of Features.
     This performs the coalesces necessary to aggregate Features over time in a point-in-time consistent way
@@ -75,7 +75,7 @@ def _generate_training_set_history_sql(tvw: TrainingView, features: List[Feature
 
     # TODO: ensure these features exist and fail gracefully if not
     for feature in features:
-        sql += f'\n\tCOALESCE(fset{feature.feature_set_id}.{feature.name},fset{feature.feature_set_id}h.{feature.name}) {feature.name},'  # Collect all features over time
+        sql += f'\n\tfset{feature.feature_set_id}h.{feature.name},'  # Collect all features over time
 
     # Select the optional label col
     if tvw.label_column:
@@ -88,14 +88,14 @@ def _generate_training_set_history_sql(tvw: TrainingView, features: List[Feature
 
     # JOIN clause
     for fset in feature_sets:
-        # Join Feature Set
-        sql += f'\nLEFT OUTER JOIN {fset.schema_name}.{fset.table_name} fset{fset.feature_set_id} \n\tON '
-        for pkcol in __get_pk_columns(fset):
-            sql += f'fset{fset.feature_set_id}.{pkcol}=ctx.{pkcol} AND '
-        sql += f' ctx.{tvw.ts_column} >= fset{fset.feature_set_id}.LAST_UPDATE_TS '
-
         # Join Feature Set History
-        sql += f'\nLEFT OUTER JOIN {fset.schema_name}.{fset.table_name}_history fset{fset.feature_set_id}h \n\tON '
+        sql += f'''\nLEFT OUTER JOIN ( 
+                        SELECT h.*,coalesce(min(h.asof_ts) over (partition by h.customerid order by h.ASOF_TS ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING), timestamp('{str(create_time)}')) until_ts 
+                        FROM {fset.schema_name}.{fset.table_name}_history h
+                        WHERE INGEST_TS <= timestamp('{str(create_time)}')     
+                    ) fset{fset.feature_set_id}h
+                        ON
+                '''
         for pkcol in __get_pk_columns(fset):
             sql += f' fset{fset.feature_set_id}h.{pkcol}=ctx.{pkcol} AND '
         sql += f' ctx.{tvw.ts_column} >= fset{fset.feature_set_id}h.ASOF_TS AND ctx.{tvw.ts_column} < fset{fset.feature_set_id}h.UNTIL_TS'
@@ -142,7 +142,7 @@ def _generate_training_set_sql(features: List[Feature], feature_sets: List[Featu
     return sql
 
 
-def _create_temp_training_view(features: List[Feature], feature_sets: List[FeatureSet]) -> TrainingView:
+def _create_temp_training_view(features: List[Feature], feature_sets: List[FeatureSet], create_time: datetime) -> TrainingView:
     """
     Internal function to create a temporary Training View for training set retrieval using a Feature Set. When
     a user created
@@ -155,7 +155,7 @@ def _create_temp_training_view(features: List[Feature], feature_sets: List[Featu
     anchor_pk_column_sql = ','.join(__get_pk_columns(anchor_fset))
     ts_col = 'LAST_UPDATE_TS'
     schema_table_name = f'{anchor_fset.schema_name}.{anchor_fset.table_name}_history'
-    view_sql = f'SELECT {anchor_pk_column_sql}, ASOF_TS as {ts_col} FROM {schema_table_name}'
+    view_sql = f"SELECT {anchor_pk_column_sql}, ASOF_TS as {ts_col} FROM {schema_table_name} WHERE INGEST_TS <= timestamp('{str(create_time)}')"
     return TrainingView(view_id=0, pk_columns=__get_pk_columns(anchor_fset), ts_column=ts_col, view_sql=view_sql,
                         description=None, name=None, label_column=None)
 
@@ -166,8 +166,8 @@ def _get_training_view_by_name(db: Session, name: str) -> List[TrainingView]:
                                         message=f'Could not find training view with name "{name}"')
     return tvs
 
-def _get_training_set(db: Session, features: Union[List[Feature], List[str]], start_time: datetime = None, end_time: datetime = None, 
-                            current: bool = False) -> TrainingSet:
+def _get_training_set(db: Session, features: Union[List[Feature], List[str]], create_time: datetime, start_time: datetime = None, 
+                            end_time: datetime = None, current: bool = False) -> TrainingSet:
     # Get List[Feature]
     features = crud.process_features(db, features)
 
@@ -177,12 +177,14 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], st
     if current:
         sql = _generate_training_set_sql(features, fsets)
     else:
-        temp_vw = _create_temp_training_view(features, fsets)
-        sql = _generate_training_set_history_sql(temp_vw, features, fsets, start_time=start_time, end_time=end_time)
-    return TrainingSet(sql=sql, features=features)
+        temp_vw = _create_temp_training_view(features, fsets, create_time)
+        sql = _generate_training_set_history_sql(temp_vw, features, fsets, start_time=start_time, end_time=end_time, create_time=create_time)
+    
+    metadata = TrainingSetMetadata(training_set_start_ts=start_time, training_set_end_ts=end_time, training_set_create_ts=create_time)
+    return TrainingSet(sql=sql, features=features, metadata=metadata)
 
-def _get_training_set_from_view(db: Session, view: str, features: Union[List[Feature], List[str]] = None, start_time: Optional[datetime] = None, 
-                                end_time: Optional[datetime] = None) -> TrainingSet:
+def _get_training_set_from_view(db: Session, view: str, create_time: datetime, features: Union[List[Feature], List[str]] = None, 
+                                start_time: Optional[datetime] = None, end_time: Optional[datetime] = None) -> TrainingSet:
     # Get features as list of Features
     features = crud.process_features(db, features) if features else crud.get_training_view_features(db, view)
 
@@ -192,6 +194,8 @@ def _get_training_set_from_view(db: Session, view: str, features: Union[List[Fea
 
     # Get training view information (view primary key column(s), inference ts column, )
     tvw = _get_training_view_by_name(db, view)[0]
+
     # Generate the SQL needed to create the dataset
-    sql = _generate_training_set_history_sql(tvw, features, feature_sets, start_time=start_time, end_time=end_time)
-    return TrainingSet(sql=sql, training_view=tvw, features=features)
+    sql = _generate_training_set_history_sql(tvw, features, feature_sets, start_time=start_time, end_time=end_time, create_time=create_time)
+    metadata = TrainingSetMetadata(training_set_start_ts=start_time, training_set_end_ts=end_time, training_set_create_ts=create_time)
+    return TrainingSet(sql=sql, training_view=tvw, features=features, metadata=metadata)

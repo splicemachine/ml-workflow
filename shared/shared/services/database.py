@@ -156,8 +156,8 @@ class DatabaseSQL:
     ON FeatureStore.deployment
     REFERENCING OLD AS od
     FOR EACH ROW 
-    INSERT INTO FeatureStore.deployment_history ( model_schema_name, model_table_name, asof_ts, training_set_id, training_set_start_ts, training_set_end_ts, run_id, last_update_ts, last_update_username)
-    VALUES ( od.model_schema_name, od.model_table_name, CURRENT_TIMESTAMP, od.training_set_id, od.training_set_start_ts, od.training_set_end_ts, od.run_id, od.last_update_ts, od.last_update_username)
+    INSERT INTO FeatureStore.deployment_history ( model_schema_name, model_table_name, asof_ts, training_set_id, training_set_start_ts, training_set_end_ts, training_set_create_ts, run_id, last_update_ts, last_update_username)
+    VALUES ( od.model_schema_name, od.model_table_name, CURRENT_TIMESTAMP, od.training_set_id, od.training_set_start_ts, od.training_set_end_ts, od.training_set_create_ts, od.run_id, od.last_update_ts, od.last_update_username)
     """
 
     live_status_view_selector: str = \
@@ -226,10 +226,10 @@ class DatabaseSQL:
     """
     INSERT INTO FEATURESTORE.DEPLOYMENT(
         model_schema_name, model_table_name, training_set_id, 
-        training_set_start_ts, training_set_end_ts, run_id, last_update_username
+        training_set_start_ts, training_set_end_ts, training_set_create_ts, run_id, last_update_username
     ) VALUES (
         '{model_schema_name}', '{model_table_name}', {training_set_id}, 
-        '{training_set_start_ts}', '{training_set_end_ts}', '{run_id}', '{last_update_username}')
+        '{training_set_start_ts}', '{training_set_end_ts}', '{training_set_create_ts}', '{run_id}', '{last_update_username}')
     """
 
     update_feature_store_deployment = \
@@ -239,6 +239,7 @@ class DatabaseSQL:
             training_set_id={training_set_id},
             training_set_start_ts='{training_set_start_ts}',
             training_set_end_ts='{training_set_end_ts}',
+            training_set_create_ts='{training_set_create_ts}',
             last_update_username='{last_update_username}',
             run_id='{run_id}'
         WHERE

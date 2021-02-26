@@ -177,10 +177,8 @@ async def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False,
     all Feature Sets, the Feature Set with the most primary keys is selected. If more than 1 Feature Set has the same
     maximum number of primary keys, the Feature Set is chosen by alphabetical order (schema_name, table_name).
     """
-
-    return _get_training_set(db, ftf.features, ftf.start_time, ftf.end_time, current)
-
-
+    create_time = crud.get_current_time(db)
+    return _get_training_set(db, ftf.features, create_time, ftf.start_time, ftf.end_time, current)
 
 @SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Returns the training set as a Spark Dataframe from a Training View", 
@@ -199,8 +197,8 @@ async def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, d
     This tracking will occur in the current run (if there is an active run)
     or in the next run that is started after calling this function (if no run is currently active).
     """
-
-    return _get_training_set_from_view(db, view, ftf.features, ftf.start_time, ftf.end_time)
+    create_time = crud.get_current_time(db)
+    return _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time, ftf.end_time)
 
 @SYNC_ROUTER.get('/training-sets', status_code=status.HTTP_200_OK, response_model=Dict[str, Optional[str]],
                 description="Returns a dictionary a training sets available, with the map name -> description.", 
@@ -336,17 +334,18 @@ async def get_training_set_from_deployment(schema: str, table: str, db: Session 
     Reads Feature Store metadata to rebuild orginal training data set used for the given deployed model.
     """
     # database stores object names in upper case
-    metadata = crud.retrieve_training_set_metadata_from_deployement(db, schema, table)
+    metadata = crud.retrieve_training_set_metadata_from_deployment(db, schema, table)
     features = metadata.features.split(',')
     tv_name = metadata.name
     start_time = metadata.training_set_start_ts
     end_time = metadata.training_set_end_ts
+    create_time = metadata.training_set_create_ts
 
     if tv_name:
-        ts = _get_training_set_from_view(db, view=tv_name, features=features,
-                                                            start_time=start_time, end_time=end_time)
+        ts = _get_training_set_from_view(db, view=tv_name, create_time=create_time, features=features, 
+                                            start_time=start_time, end_time=end_time)
     else:
-        ts = _get_training_set(db, features=features, start_time=start_time, end_time=end_time)
+        ts = _get_training_set(db, features=features, create_time=create_time, start_time=start_time, end_time=end_time)
 
     ts.metadata = metadata
     return ts

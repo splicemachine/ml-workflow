@@ -3,12 +3,12 @@ class SQL:
     FEATURE_STORE_SCHEMA = 'FeatureStore'
 
     feature_set_trigger = f'''
-    CREATE TRIGGER {{schema}}.{{table}}_history_update 
-    AFTER UPDATE ON {{schema}}.{{table}}
-    REFERENCING OLD AS OLDW NEW AS NEWW
-    FOR EACH ROW 
-        INSERT INTO {{schema}}.{{table}}_history (ASOF_TS, UNTIL_TS, {{pk_list}}, {{feature_list}}) 
-        VALUES( OLDW.LAST_UPDATE_TS, NEWW.LAST_UPDATE_TS, {{old_pk_cols}}, {{old_feature_cols}} )
+    CREATE TRIGGER {{schema}}.{{table}}_history_{{action}} 
+    AFTER {{action}} ON {{schema}}.{{table}}
+    REFERENCING NEW_TABLE AS NEWW
+    FOR EACH STATEMENT
+        INSERT INTO {{schema}}.{{table}}_history (ASOF_TS, INGEST_TS, {{pk_list}}, {{feature_list}}) 
+        SELECT NEWW.LAST_UPDATE_TS, CURRENT_TIMESTAMP, {{new_pk_cols}}, {{new_feature_cols}} FROM NEWW
     '''
 
     training_set_feature_stats = f"""
