@@ -112,7 +112,7 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
     tables = [Table(fset.table_name, metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]), schema=fset.schema_name, autoload=True).\
         alias(f'fset{fset.feature_set_id}') for fset in feature_sets]
     columns = [getattr(table.c, f.name.lower()) for f in feats for table in tables if f.name.lower() in table.c]
-    print(columns)
+
     # For each Feature Set, for each primary key in the given feature set, get primary key value from the user provided dictionary
     filters = [getattr(table.c, pk_col.name)==join_keys[pk_col.name.lower()] 
                 for table in tables for pk_col in table.primary_key]
