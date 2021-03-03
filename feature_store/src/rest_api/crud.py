@@ -4,14 +4,13 @@ from typing import List, Dict, Union, Optional, Any, Tuple
 from . import schemas
 from .constants import SQL, SQL_TYPES
 from shared.models import feature_store_models as models
-from shared.services.database import SQLAlchemyClient
+from shared.services.database import SQLAlchemyClient, DatabaseFunctions
 from shared.logger.logging_config import logger
 from fastapi import status
 import re
 import json
 from datetime import datetime
-from sqlalchemy import inspect as peer_into_splice_db, text
-from sqlalchemy import update, sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column
+from sqlalchemy import update, sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
 from .utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
 from sys import exc_info as get_stack_trace
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
@@ -45,7 +44,7 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     logger.info("Validating Schema")
     str = f'Feature Set {fset.schema_name}.{fset.table_name} already exists. Use a different schema and/or table name.'
     # Validate Table
-    if table_exists(db, fset.schema_name, fset.table_name):
+    if DatabaseFunctions.table_exists(fset.schema_name, fset.table_name, db.get_bind()):
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
     # Validate metadata
     if len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) > 0:
@@ -770,11 +769,6 @@ def get_feature_schema_str(db: Session, fset: schemas.FeatureSet):
 
 def get_feature_column_str(db: Session, fset: schemas.FeatureSet):
     return ','.join([f.name for f in get_features(db, fset)])
-
-def table_exists(db, schema_name, table_name):
-    inspector = peer_into_splice_db(db.get_bind())
-    if schema_name.lower() not in [value.lower() for value in inspector.get_schema_names()]: return False
-    return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
 
 def get_current_time(db: Session) -> datetime:
     return db.execute('VALUES(CURRENT_TIMESTAMP)').first()[0]

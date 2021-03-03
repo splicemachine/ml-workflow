@@ -3,6 +3,7 @@ from typing import List
 from requests.auth import HTTPBasicAuth
 from shared.logger.logging_config import logger
 from shared.models.feature_store_models import Feature, FeatureSet
+from shared.services.database import DatabaseFunctions
 from ..fixtures.conftest import get_my_session, test_app, override_get_db, APP
 from ..fixtures.feature import test_session_create, create_deployed_fset, create_undeployed_fset
 from ..fixtures.feature_set import create_schema
@@ -103,10 +104,5 @@ def test_deploy_good_feature_set(test_app, create_schema):
                              )
     logger.info(f'status: {response.status_code}, -- message: {response.json()}')
     assert response.status_code == 200, 'Should deploy'
-    from sqlalchemy import inspect
-    inspector = inspect(sess.get_bind())
 
-    schema_exists = schema.lower() in [value.lower() for value in inspector.get_schema_names()]
-    table_exists = table.lower() in [value.lower() for value in inspector.get_table_names(schema=schema)]
-
-    assert schema_exists and table_exists, 'Table should exist but does not!'
+    assert DatabaseFunctions.table_exists(schema, table, sess.get_bind()), 'Table should exist but does not!'

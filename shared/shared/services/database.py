@@ -1,6 +1,6 @@
 from os import environ as env_vars
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect as peer_into_splice_db
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 
@@ -315,6 +315,23 @@ class Converters:
         'LONG VARCHAR': 'StringType',
         'CHAR': 'StringType'
     }
+
+class DatabaseFunctions:
+    """
+    Helper functions for the database
+    """
+
+    @staticmethod
+    def table_exists(schema_name: str, table_name: str, engine) -> bool:
+        """
+        Check whether or not a given table exists
+        :param table_name: the table name
+        :param schema_name: schema name
+        :param engine: the SQLAlchemy Engine
+        :return: whether exists or not
+        """
+        inspector = peer_into_splice_db(engine)
+        return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
 
 
 SQLAlchemyClient.create()

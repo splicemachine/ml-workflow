@@ -12,6 +12,7 @@ from ..training_utils import (dict_to_lower,_get_training_view_by_name,
 from ..utils import __validate_feature_data_type
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from ..decorators import managed_transaction
+from shared.services.database import DatabaseFunctions
 
 # Synchronous API Router-- we can mount it to the main API
 SYNC_ROUTER = APIRouter(
@@ -231,7 +232,7 @@ def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db: Sessi
     Add a feature to a feature set
     """
     __validate_feature_data_type(fc.feature_data_type)
-    if crud.table_exists(db, schema, table):
+    if DatabaseFunctions.table_exists(schema, table, db.get_bind()):
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
                                         message=f"Feature Set {schema}.{table} is already deployed. You cannot "
                                         f"add features to a deployed feature set.")
