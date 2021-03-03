@@ -111,8 +111,8 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
 
     tables = [Table(fset.table_name, metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]), schema=fset.schema_name, autoload=True).\
         alias(f'fset{fset.feature_set_id}') for fset in feature_sets]
-    columns = [getattr(table.c, f.name.lower()) for table in tables for f in feats if f.name.lower() in table.c]
-    
+    columns = [getattr(table.c, f.name.lower()) for f in feats for table in tables if f.name.lower() in table.c]
+    print(columns)
     # For each Feature Set, for each primary key in the given feature set, get primary key value from the user provided dictionary
     filters = [getattr(table.c, pk_col.name)==join_keys[pk_col.name.lower()] 
                 for table in tables for pk_col in table.primary_key]
@@ -288,7 +288,7 @@ def get_training_view_id(db: Session, name: str) -> int:
         filter(models.TrainingView.name==name).\
         first()[0]
 
-def get_feature_descriptions_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
+def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool = True) -> List[schemas.FeatureDescription]:
     """
     Returns a dataframe or list of features whose names are provided
 
@@ -315,6 +315,10 @@ def get_feature_descriptions_by_name(db: Session, names: List[str]) -> List[sche
         f = feat.__dict__
         f['tags'] = json.loads(str(f['tags'])) if 'tags' in f else None
         features.append(schemas.FeatureDescription(**f, feature_set_name=f'{schema}.{table}'))
+
+    if sort:
+        indices = {v.upper():i for i,v in enumerate(names)}
+        features = sorted(features, key=lambda f: indices[f.name.upper()])
     return features
 
 def _get_feature_set_counts(db) -> List[Tuple[bool,int]]:
