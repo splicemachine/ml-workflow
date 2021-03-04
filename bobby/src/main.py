@@ -9,7 +9,7 @@ from flask import Flask
 import json
 from handlers.modifier_handlers import (DisableServiceHandler,
                                         EnableServiceHandler)
-from .handlers.run_handlers import (AzureDeploymentHandler,
+from handlers.run_handlers import (AzureDeploymentHandler,
                                    KubernetesDeploymentHandler,
                                    KubernetesUndeploymentHandler,
                                    SageMakerDeploymentHandler,
