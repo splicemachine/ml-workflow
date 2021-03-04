@@ -169,7 +169,8 @@ def get_training_view_features(db: Session, training_view: str) -> List[schemas.
     for feat in q.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         f = feat.__dict__
-        f['tags'] = json.loads(f['tags']) if 'tags' in f else None
+        f['tags'] = f['tags'].split(',') if f.get('tags') else None
+        f['attributes'] = json.loads(f['attributes']) if f.get('attributes') else None
         features.append(schemas.Feature(**f))
     return features
 
@@ -313,7 +314,8 @@ def get_feature_descriptions_by_name(db: Session, names: List[str]) -> List[sche
     for schema, table, feat in df.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         f = feat.__dict__
-        f['tags'] = json.loads(str(f['tags'])) if 'tags' in f else None
+        f['tags'] = f['tags'].split(',') if f.get('tags') else None
+        f['attributes'] = json.loads(f['attributes']) if f.get('attributes') else None
         features.append(schemas.FeatureDescription(**f, feature_set_name=f'{schema}.{table}'))
     return features
 
@@ -512,12 +514,14 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     feature = models.Feature(
         feature_set_id=f.feature_set_id, name=f.name, description=f.description,
         feature_data_type=f.feature_data_type,
-        feature_type=f.feature_type, tags=json.dumps(f.tags)
+        feature_type=f.feature_type, tags=','.join(f.tags) if f.tags else None,
+        attributes=json.dumps(f.attributes) if f.attributes else None
     )
     db.add(feature)
     db.flush()
     fd = feature.__dict__
-    fd['tags'] = json.loads(fd['tags']) if 'tags' in fd else None
+    fd['tags'] = fd['tags'].split(',') if fd.get('tags') else None
+    fd['attributes'] = json.loads(fd['attributes']) if fd.get('attributes') else None
     return schemas.Feature(**fd)
 
 def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -> List[schemas.Feature]:
@@ -740,7 +744,8 @@ def get_features_from_deployment(db: Session, tsid: int) -> List[schemas.Feature
     for f in q.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         d = f.__dict__
-        d['tags'] = json.loads(d['tags']) if 'tags' in d else None
+        d['tags'] = d['tags'].split(',') if d.get('tags') else None
+        d['attributes'] = json.loads(d['attributes']) if d.get('attributes') else None
         features.append(schemas.Feature(**d))
     return features
 
@@ -761,7 +766,8 @@ def get_features(db: Session, fset: schemas.FeatureSet) -> List[schemas.Feature]
         for f in features_rows:
             # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
             d = f.__dict__
-            d['tags'] = json.loads(d['tags']) if 'tags' in d else None
+            d['tags'] = d['tags'].split(',') if d.get('tags') else None
+            d['attributes'] = json.loads(d['attributes']) if d.get('attributes') else None
             features.append(schemas.Feature(**d))
     return features
 

@@ -8,7 +8,8 @@ class FeatureBase(BaseModel):
     description: Optional[str] = None
     feature_data_type: str
     feature_type: str
-    tags: Optional[Dict[str, str]] = None
+    tags: Optional[List[str]] = None
+    attributes: Optional[Dict[str, str]] = None
 
 class FeatureCreate(FeatureBase):
     pass

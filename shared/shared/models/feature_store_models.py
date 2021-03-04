@@ -91,6 +91,7 @@ class Feature(SQLAlchemyClient.SpliceBase):
     feature_type: Column = Column(String(1))  # 'O'rdinal, 'C'ontinuous, 'N'ominal
     cardinality: Column = Column(Integer)  # Number of distint values, -1 if undefined
     tags: Column = Column(String(5000), nullable=True)
+    attributes: Column = Column(String(5000), nullable=True)
     compliance_level: Column = Column(Integer)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
