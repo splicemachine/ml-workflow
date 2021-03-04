@@ -12,7 +12,7 @@ from shared.logger.logging_config import log_operation_status, logger
 from shared.models.model_types import (DeploymentModelType, H2OModelType,
                                        KerasModelType, Metadata,
                                        SklearnModelType, SparkModelType)
-from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL
+from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL, DatabaseFunctions
 from shared.models.feature_store_models import (Deployment, TrainingView,
                                                 TrainingSet, TrainingSetFeature, Feature)
 
@@ -109,17 +109,6 @@ class DatabaseModelDDL:
             raise Exception("Unknown Model Deployment Type")
 
     @staticmethod
-    def _table_exists(table_name, schema_name):
-        """
-        Check whether or not a given table exists
-        :param table_name: the table name
-        :param schema_name: schema name
-        :return: whether exists or not
-        """
-        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
-        return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
-
-    @staticmethod
     def _get_feature_vector_sql(model_columns: List[str], schema_types: Dict[str,str]):
         model_cols = [i.upper() for i in model_columns]
         stypes = {i.upper():j.upper() for i,j in schema_types.items()}
@@ -142,7 +131,7 @@ class DatabaseModelDDL:
         """
         schema_str = self.model.get_metadata(Metadata.SCHEMA_STR)
 
-        if DatabaseModelDDL._table_exists(table_name=self.table_name, schema_name=self.schema_name):
+        if DatabaseFunctions.table_exists(table_name=self.table_name, schema_name=self.schema_name, engine=SQLAlchemyClient.engine):
             raise Exception(
                 f'The table {self.schema_table_name} already exists. To deploy to an existing table, do not pass in a'
                 f' dataframe and/or set create_model_table parameter=False')
@@ -176,7 +165,7 @@ class DatabaseModelDDL:
         """
         self.logger.info("Altering existing model...", send_db=True)
         # Table needs to exist
-        if not DatabaseModelDDL._table_exists(table_name=self.table_name, schema_name=self.schema_name):
+        if not DatabaseFunctions.table_exists(table_name=self.table_name, schema_name=self.schema_name, engine=SQLAlchemyClient.engine):
             raise Exception(
                 f'The table {self.schema_table_name} does not exist. To create a new table for deployment, '
                 f'pass in a dataframe and set the set create_model_table=True')

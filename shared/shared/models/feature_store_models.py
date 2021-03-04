@@ -6,7 +6,7 @@ from time import sleep
 from os import environ as env
 
 from shared.logger.logging_config import logger
-from shared.services.database import SQLAlchemyClient, DatabaseSQL
+from shared.services.database import SQLAlchemyClient, DatabaseSQL, DatabaseFunctions
 from sqlalchemy import event, ForeignKeyConstraint, DDL
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String, Text, DateTime, Numeric)
@@ -315,12 +315,7 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
 
 def wait_for_runs_table() -> None:
     logger.info("Checking for mlmanager.runs table...")
-    exists = False
-    while not exists:
-        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
-        exists = ('mlmanager' in [value.lower() for value in inspector.get_schema_names()] and 
-            'runs' in [value.lower() for value in inspector.get_table_names(schema='mlmanager')])
-        if not exists:
-            logger.info("mlmanager.runs does not exist. Checking again in 10s")
-            sleep(10)
+    while not DatabaseFunctions.table_exists('mlmanager', 'runs', SQLAlchemyClient.engine):
+        logger.info("mlmanager.runs does not exist. Checking again in 10s")
+        sleep(10)
     logger.info("Found mlmanager.runs")
