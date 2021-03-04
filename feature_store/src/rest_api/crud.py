@@ -695,7 +695,8 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
         d.training_set_end_ts,
         d.training_set_create_ts,
         func.string_agg(f.name, literal_column("','"), type_=String).\
-            label('features')
+            label('features'),
+        tv.label_column.label('label')
     ).\
     select_from(d).\
     join(ts, d.training_set_id==ts.training_set_id).\
@@ -709,7 +710,8 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
     group_by(tv.name,
         d.training_set_start_ts,
         d.training_set_end_ts,
-        d.training_set_create_ts
+        d.training_set_create_ts,
+        tv.label_columnn
     ).first()
 
     if not deploy:

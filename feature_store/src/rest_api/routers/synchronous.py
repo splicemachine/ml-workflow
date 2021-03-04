@@ -164,7 +164,7 @@ async def get_feature_description(db: Session = Depends(crud.get_db)):
                 description="Gets a set of feature values across feature sets that is not time dependent (ie for non time series clustering)", 
                 operation_id='get_training_set', tags=['Training Sets'])
 @managed_transaction
-async def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, db: Session = Depends(crud.get_db)):
+async def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label: str = None, db: Session = Depends(crud.get_db)):
     """
     Gets a set of feature values across feature sets that is not time dependent (ie for non time series clustering).
     This feature dataset will be treated and tracked implicitly the same way a training_dataset is tracked from
@@ -179,7 +179,7 @@ async def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False,
     maximum number of primary keys, the Feature Set is chosen by alphabetical order (schema_name, table_name).
     """
     create_time = crud.get_current_time(db)
-    return _get_training_set(db, ftf.features, create_time, ftf.start_time, ftf.end_time, current)
+    return _get_training_set(db, ftf.features, create_time, ftf.start_time, ftf.end_time, current, label)
 
 @SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Returns the training set as a Spark Dataframe from a Training View", 

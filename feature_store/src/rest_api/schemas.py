@@ -58,7 +58,7 @@ class TrainingViewCreate(TrainingViewBase):
     sql_text: str
 
 class TrainingView(TrainingViewBase):
-    view_id: int
+    view_id: Optional[int] = None
     view_sql: str
 
     class Config:
