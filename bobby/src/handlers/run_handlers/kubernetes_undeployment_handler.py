@@ -66,7 +66,7 @@ class KubernetesUndeploymentHandler(BaseDeploymentHandler):
             rendered_templates = check_output(['helm', 'template',
                                                f"{env_vars['SRC_HOME']}/configuration/k8s_serving_helm",
                                                "--values", tf.name])
-
+            self.logger.info("Using template to delete deployment", send_db=True)
             KubernetesAPIService.delete_from_yaml(data=rendered_templates)
 
 

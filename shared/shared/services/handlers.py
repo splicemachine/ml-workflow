@@ -104,7 +104,7 @@ class KnownHandlers:
             payload_args=[
                 Field('run_id'),
             ],
-            name=HandlerNames.deploy_k8s,
+            name=HandlerNames.undeploy_k8s,
             modifiable=True,
             url='/undeploy/kubernetes'
         )
