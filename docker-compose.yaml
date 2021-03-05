@@ -46,7 +46,7 @@ services:
       SAGEMAKER_ROLE: ${SAGEMAKER_ROLE}
       MODE: production
       ENVIRONMENT: ${ENVIRONMENT}
-    image: splicemachine/sm_k8_bobby:0.1.27_spark3
+    image: splicemachine/sm_k8_bobby:0.1.27_spark3_002
     build:
       args:
         server_image_tag: 0.0.15

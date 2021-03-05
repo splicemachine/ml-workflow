@@ -122,6 +122,8 @@ RUN \
   curl -kLs $MLEAP_SPARK_URI -o $SRC_HOME/lib/mleap-spark_$SCALA_VERSION-$MLEAP_VERSION.jar && \
   curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_$SCALA_VERSION-$MLEAP_VERSION.jar
 
+RUN curl -kLs https://splice-demo.s3.amazonaws.com/mlrunner-0.1.6_spark3_001-shaded.jar -o $SRC_HOME/lib/mlrunner_spark3.jar
+
 # Install Shared Lib
 COPY shared /tmp/shared
 RUN pip3 install /tmp/shared && \
