@@ -4,8 +4,9 @@ import java.sql.*;
 
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.sql.Activation;
+import com.splicemachine.db.iapi.sql.conn.LanguageConnectionContext;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
-import com.splicemachine.db.iapi.types.SQLTimestamp;
+import com.splicemachine.db.iapi.types.*;
 import com.splicemachine.db.impl.sql.execute.ValueRow;
 import com.splicemachine.db.vti.VTICosting;
 import com.splicemachine.db.vti.VTIEnvironment;
@@ -14,11 +15,12 @@ import com.splicemachine.derby.stream.iapi.DataSet;
 import com.splicemachine.derby.stream.iapi.DataSetProcessor;
 import com.splicemachine.derby.stream.iapi.OperationContext;
 import com.splicemachine.derby.vti.iapi.DatasetProvider;
-import com.splicemachine.db.iapi.types.DateTimeDataValue;
 import org.joda.time.DateTime;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 
 import io.airlift.log.Logger;
 
@@ -60,8 +62,8 @@ import io.airlift.log.Logger;
 public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
 
     // For VTI Implementation
-    private java.sql.Timestamp startTime = null;
-    private java.sql.Timestamp endTime = null;
+    private String startTime = null;
+    private String endTime = null;
     private int intervalType = 0;
     private int numberOfUnitsPerInterval = 0;
 
@@ -69,6 +71,9 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
     //Provide external context which can be carried with the operation
     protected OperationContext operationContext;
     private static final Logger LOG = Logger.get(TimestampGeneratorVTI.class);
+
+
+
 
     @Override
     public DataSet<ExecRow> getDataSet(SpliceOperation spliceOperation, DataSetProcessor dataSetProcessor, ExecRow execRow) throws StandardException {
@@ -79,17 +84,28 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
             operationContext = dataSetProcessor.createOperationContext((Activation) null);
         ArrayList<ExecRow> items = new ArrayList<ExecRow>();
 
+
+
+
         try {
+
+            Activation activation = operationContext.getActivation();
+            LanguageConnectionContext lcc = activation.getLanguageConnectionContext();
+            DataValueFactory dvf=lcc.getDataValueFactory();
+            DataValueDescriptor dvdStart = dvf.getTimestamp( new SQLChar(this.startTime));
+            DataValueDescriptor dvdEnd = dvf.getTimestamp( new SQLChar(this.endTime));
+
+
 
             Calendar calendar = Calendar.getInstance();
             Calendar end = Calendar.getInstance();
-            calendar.setTime(this.startTime);
-            end.setTime(this.endTime);
+            calendar.setTime(dvdStart.getDateTime().toDate());
+            end.setTime(dvdEnd.getDateTime().toDate());
 
             while( calendar.compareTo(end) < 0) {
                 ExecRow valueRow = new ValueRow(1);
 
-                valueRow.setColumn(1, new SQLTimestamp(new DateTime(calendar.getTimeInMillis())));
+                valueRow.setColumn(1, dvf.getTimestamp( new SQLTimestamp(new DateTime(calendar.getTimeInMillis()))));
 
                 switch (this.intervalType) {
                     case DateTimeDataValue.FRAC_SECOND_INTERVAL:
@@ -142,10 +158,10 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
         return this.operationContext;
     }
 
-    public static DatasetProvider getTimestampGeneratorVTI(final Object startTime,
-                                                           final Object endTime,
-                                                           final int intervalType,
-                                                           final int intervalLength) {
+    public static DatasetProvider getTimestampGeneratorVTI(final String startTime,
+                                                           final String endTime,
+                                                           final Integer intervalType,
+                                                           final Integer intervalLength) {
         return new TimestampGeneratorVTI( startTime, endTime, intervalType, intervalLength );
     }
 
@@ -159,27 +175,30 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
      * @param intervalType
      * @param numberOfUnitsPerInterval
      */
-    public TimestampGeneratorVTI(final java.sql.Timestamp startTime, final java.sql.Timestamp endTime,
-                                 final int intervalType, final int numberOfUnitsPerInterval) {
+    public TimestampGeneratorVTI(final String startTime, final String endTime,
+                                 final Integer intervalType, final Integer numberOfUnitsPerInterval) {
+
         this.startTime = startTime;
         this.endTime = endTime;
         this.intervalType = intervalType;
         this.numberOfUnitsPerInterval = numberOfUnitsPerInterval;
     }
 
-    public TimestampGeneratorVTI(final Object startTime, final Object endTime,
-                                 final int intervalType, final int numberOfUnitsPerInterval) {
-        LOG.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" + startTime.toString());
-        this.startTime = (java.sql.Timestamp)startTime;
-        this.endTime = (java.sql.Timestamp)endTime;
-        this.intervalType = intervalType;
-        this.numberOfUnitsPerInterval = numberOfUnitsPerInterval;
+    public TimestampGeneratorVTI() {
+        this.startTime = "1900-01-01 00:00:00";
+        this.endTime = "1900-01-01 01:00:00";
+        this.intervalType = 1;
+        this.numberOfUnitsPerInterval = 60;
     }
 
     @Override
     public double getEstimatedRowCount(VTIEnvironment vtiEnvironment) throws SQLException {
-        long start_ms = this.startTime.getTime();
-        long end_ms = this.endTime.getTime();
+
+        if ((this.startTime == null) || (this.endTime==null))
+            return 1;
+
+        long start_ms = Timestamp.valueOf(this.startTime).getTime();
+        long end_ms = Timestamp.valueOf(this.endTime).getTime();
         long intervalUnitMillis;
 
         switch (this.intervalType)
@@ -234,3 +253,7 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
         return false;
     }
 }
+
+
+
+
