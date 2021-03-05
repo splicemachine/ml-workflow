@@ -204,7 +204,7 @@ def initiate_job_rest() -> dict:
     """
     handler: Handler = KnownHandlers.MAPPING.get(request.json['handler_name'].upper())
     if not handler:
-        message: str = f"Handler {handler} is an unknown service"
+        message: str = f"Handler {request.json['handler_name']} is an unknown service"
         logger.error(message)
         return HTTP.responses['malformed'](create_json(status=APIStatuses.failure, message=message))
 
