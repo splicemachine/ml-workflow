@@ -21,7 +21,7 @@ services:
       FRAMEWORK_NAME: my-framework
       MODE: development
       ENVIRONMENT: ${ENVIRONMENT}
-    image: splicemachine/sm_k8_mlflow:0.1.27
+    image: splicemachine/sm_k8_mlflow:0.1.28
     ports:
       - "5001:5001"
       - "5003:5003"
@@ -46,7 +46,7 @@ services:
       SAGEMAKER_ROLE: ${SAGEMAKER_ROLE}
       MODE: production
       ENVIRONMENT: ${ENVIRONMENT}
-    image: splicemachine/sm_k8_bobby:0.1.27
+    image: splicemachine/sm_k8_bobby:0.1.28
     build:
       args:
         server_image_tag: 0.0.15
@@ -61,7 +61,7 @@ services:
       FRAMEWORK_NAME: my-framework
       MODE: development
       ENVIRONMENT: ${ENVIRONMENT}
-    image: splicemachine/sm_k8_feature_store:0.0.1
+    image: splicemachine/sm_k8_feature_store:0.0.2
     ports:
       - "8000:8000"
     build:
