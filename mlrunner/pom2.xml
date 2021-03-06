@@ -7,10 +7,8 @@
     <artifactId>mlrunner</artifactId>
     <version>0.1.7</version>
     <properties>
-        <scala.binary.version>2.12</scala.binary.version>
-        <scala.version>2.12.12</scala.version>
-        <spark.version>3.0.1</spark.version>
-        <spark.major.version>spark3.0</spark.major.version>
+        <scala.binary.version>2.11</scala.binary.version>
+        <spark.version>2.4.4</spark.version>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
@@ -57,17 +55,17 @@
         <dependency>
             <groupId>ai.h2o</groupId>
             <artifactId>h2o-genmodel</artifactId>
-            <version>3.32.0.4</version>
+            <version>3.28.1.2</version>
         </dependency>
         <dependency>
             <groupId>ai.h2o</groupId>
             <artifactId>h2o-genmodel-ext-xgboost</artifactId>
-            <version>3.32.0.4</version>
+            <version>3.28.1.2</version>
         </dependency>
         <dependency>
             <groupId>ml.combust.mleap</groupId>
             <artifactId>mleap-runtime_${scala.binary.version}</artifactId>
-            <version>0.16.0</version>
+            <version>0.15.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -85,7 +83,7 @@
         <dependency>
             <groupId>ml.combust.bundle</groupId>
             <artifactId>bundle-hdfs_${scala.binary.version}</artifactId>
-            <version>0.16.0</version>
+            <version>0.15.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
