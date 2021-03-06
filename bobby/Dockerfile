@@ -122,7 +122,9 @@ RUN \
   curl -kLs $MLEAP_SPARK_URI -o $SRC_HOME/lib/mleap-spark_$SCALA_VERSION-$MLEAP_VERSION.jar && \
   curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_$SCALA_VERSION-$MLEAP_VERSION.jar
 
-RUN curl -kLs https://splice-demo.s3.amazonaws.com/mlrunner-0.1.6_spark3_001-shaded.jar -o $SRC_HOME/lib/mlrunner_spark3.jar
+ARG MLRUNNER_VERSION='0.1.7'
+ARG MLRUNNER_URI=http://repository.splicemachine.com/nexus/content/repositories/releases/com/splicemachine/mlrunner/$MLRUNNER_VERSION/mlrunner-$MLRUNNER_VERSION-shaded.jar
+RUN curl -kLs $MLRUNNER_URI -o $SRC_HOME/lib/mlrunner.jar
 
 # Install Shared Lib
 COPY shared /tmp/shared
