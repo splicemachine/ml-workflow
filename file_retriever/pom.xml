@@ -7,7 +7,7 @@
     <artifactId>fileretriever</artifactId>
     <version>0.0.3</version>
     <properties>
-        <scala.binary.version>2.11</scala.binary.version>
+        <scala.binary.version>2.12</scala.binary.version>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
@@ -15,19 +15,19 @@
         <dependency>
             <groupId>ml.combust.mleap</groupId>
             <artifactId>mleap-runtime_${scala.binary.version}</artifactId>
-            <version>0.15.0</version>
+            <version>0.16.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>ml.combust.mleap</groupId>
             <artifactId>mleap-spark_${scala.binary.version}</artifactId>
-            <version>0.15.0</version>
+            <version>0.16.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>ml.combust.mleap</groupId>
             <artifactId>mleap-spark-base_${scala.binary.version}</artifactId>
-            <version>0.15.0</version>
+            <version>0.16.0</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
