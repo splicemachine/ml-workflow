@@ -110,7 +110,8 @@ class SQLAlchemyClient:
             )
             SQLAlchemyClient.SpliceBase.metadata.bind = SQLAlchemyClient.engine
             logger.debug("Created engine...")
-            SQLAlchemyClient.SessionMaker = sessionmaker(bind=SQLAlchemyClient.engine, expire_on_commit=False)
+            SQLAlchemyClient.SessionMaker = sessionmaker(bind=SQLAlchemyClient.engine,
+                                                         expire_on_commit=False, autoflush=False)
             logger.debug("Created session maker")
             SQLAlchemyClient.SessionFactory = scoped_session(SQLAlchemyClient.SessionMaker)
             logger.debug("created session factory")
