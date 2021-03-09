@@ -38,7 +38,7 @@ RUN cd $BUILD_HOME && \
 
 # Install Python dependencies
 COPY mlflow/splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
-RUN pip3 install -r $BUILD_HOME/requirements.txt && \
+RUN pip3 install -q -r $BUILD_HOME/requirements.txt && \
     pip3 install  $BUILD_HOME/splice_mlflow_plugin
 
 # Remove Build Directories and Create source directory

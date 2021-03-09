@@ -13,6 +13,7 @@ from shared.logger.logging_config import logger
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from shared.models.feature_store_models import wait_for_runs_table, create_feature_store_tables
+from shared.services.database import SQLAlchemyClient
 
 APP: FastAPI = FastAPI(
     title="Feature Store API",
@@ -77,6 +78,13 @@ async def health_check():
     """
     Returns 'OK'
     """
+    logger.info('Getting DB')
+    sess = SQLAlchemyClient.SessionMaker()
+    logger.info('Testing connection')
+    x = sess.execute('select top 1 * from sys.systables').fetchall()
+    logger.info('Closing DB session')
+    sess.commit()
+    sess.close()
     return 'OK'
 
 # APP.include_router(

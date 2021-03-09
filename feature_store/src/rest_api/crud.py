@@ -26,13 +26,14 @@ def get_db():
     """
     Provides SqlAlchemy Session object to path operations
     """
-    db = SQLAlchemyClient.SessionFactory()
+    db = SQLAlchemyClient.SessionMaker()
     try:
         yield db
     finally:
+        logger.info('Committing session') # Always need to commit, otherwise we get stale transactions
+        db.commit()
         logger.info("Closing session")
         db.close()
-        SQLAlchemyClient.SessionFactory.remove()
 
 def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     """
@@ -186,7 +187,7 @@ def feature_set_is_deployed(db: Session, fset_id: int) -> bool:
         all()[0]
 
 def delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
-                       training_sets: List[id] = None):
+                       training_sets: Set[int] = None):
     """
     Deletes a Feature Set. Drops the table
 
@@ -198,26 +199,32 @@ def delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bo
     """
     logger.info("Dropping table")
     DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, feature_set.table_name, db.get_bind())
-    if cascade:
+    logger.info("Dropping history table")
+    DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, f'{feature_set.table_name}_history', db.get_bind())
+    if cascade and training_sets:
+        logger.info(f'linked training sets: {training_sets}')
         # Delete training set features if any
         logger.info("Removing training set features")
-        t = models.TrainingSetFeature.__table__
-        t.delete().where(models.TrainingSetFeature.training_set_id.in_(training_sets)).execute()
+        db.query(models.TrainingSetFeature).filter(models.TrainingSetFeature.training_set_id.in_(training_sets)).\
+            delete(synchronize_session='fetch')
         # Delete training sets
         logger.info("Removing training sets")
-        t = models.TrainingSet.__table__
-        t.delete().where(models.TrainingSet.training_set_id.in_(training_sets)).execute()
+        db.query(models.TrainingSet).filter(models.TrainingSet.training_set_id.in_(training_sets)).\
+            delete(synchronize_session='fetch')
     # Delete features
     logger.info("Removing features")
-    f = models.Feature.__table__
-    f.delete().where(models.Feature.feature_set_id == feature_set.feature_set_id)
+    db.query(models.Feature).filter(models.Feature.feature_set_id == feature_set.feature_set_id).delete()
+    # Delete Feature Set Keys
+    logger.info("Removing feature set keys")
+    db.query(models.FeatureSetKey).filter(models.FeatureSetKey.feature_set_id == feature_set.feature_set_id).\
+        delete(synchronize_session='fetch')
+
     # Delete feature set
     logger.info("Removing features set")
-    fs = models.FeatureSet.__table__
-    fs.delete().where(models.FeatureSet.feature_set_id == feature_set.feature_set_id)
+    db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id == feature_set.feature_set_id).delete()
 
 
-def feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, Set[Any]]:
+def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, Set[Any]]:
     """
     Returns the model deployments and training sets that rely on the given feature set
 
@@ -226,20 +233,20 @@ def feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, Set[
     :return: True if the feature set is deployed
     """
     # return db.query(models.FeatureSet.deployed).filter(models.FeatureSet.feature_set_id==feature_set_id).all()[0]
-    fset = aliased(models.FeatureSet, name='fset')
+    f = aliased(models.Feature, name='f')
     tset = aliased(models.TrainingSet, name='tset')
     tset_feat = aliased(models.TrainingSetFeature, name='tset_feat')
     d = aliased(models.Deployment, name='d')
 
-    p = db.query(fset.feature_id).filter(fset.feature_set_id==feature_set_id).subquery('p')
+    p = db.query(f.feature_id).filter(f.feature_set_id==feature_set_id).subquery('p')
     p1 = db.query(tset_feat.training_set_id).filter(tset_feat.feature_id.in_(p)).subquery('p1')
     r = db.query(tset.training_set_id, d.model_schema_name, d.model_table_name).\
         select_from(tset).\
         join(d,d.training_set_id==tset.training_set_id, isouter=True).\
         filter(tset.training_set_id.in_(p1)).all()
     deps = dict(
-        models = set([f'{schema}.{table}' for _, schema, table in r]),
-        training_sets = set([tid for tid, _, _ in r])
+        model = set([f'{schema}.{table}' for _, schema, table in r if schema and table]),
+        training_set = set([tid for tid, _, _ in r])
     )
     return deps
 
@@ -407,7 +414,7 @@ def _get_feature_counts(db) -> List[Tuple[bool,int]]:
     """
 
     fset = aliased(models.FeatureSet, name='fset')
-    f = aliased(models.FeatureSet, name='f')
+    f = aliased(models.Feature, name='f')
     return db.query(fset.deployed, func.count(fset.feature_set_id)).\
         join(f, f.feature_set_id==fset.feature_set_id).\
         group_by(fset.deployed).all()
