@@ -123,11 +123,11 @@ async def get_feature_vector(fjk: schemas.FeatureJoinKeys, sql: bool = False, db
                 description="Returns the parameterized feature retrieval SQL used for online model serving.", 
                 operation_id='get_feature_vector_sql_from_training_view', tags=['Features'])
 @managed_transaction
-async def get_feature_vector_sql_from_training_view(features: List[schemas.Feature], view: str, db: Session = Depends(crud.get_db)):
+async def get_feature_vector_sql_from_training_view(features: List[Union[schemas.Feature, str]], view: str, db: Session = Depends(crud.get_db)):
     """
     Returns the parameterized feature retrieval SQL used for online model serving.
     """
-    feats = crud.process_features(features)
+    feats = crud.process_features(db, features)
 
     tctx = _get_training_view_by_name(db, view)[0]
 

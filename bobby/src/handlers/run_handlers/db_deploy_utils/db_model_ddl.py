@@ -4,7 +4,7 @@ to Splice Machine
 """
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import inspect as peer_into_splice_db, text
+from sqlalchemy import inspect as peer_into_splice_db, text, func
 from sqlalchemy.orm import Session
 from mlflow.store.tracking.dbmodels.models import SqlParam
 
@@ -393,7 +393,7 @@ class DatabaseModelDDL:
             .filter(SqlParam.key.like('splice.feature_store.training_set_feature%')).all()
         self.logger.info("Done. Getting feature IDs for each feature...")
         features: List[Feature] =  self.session.query(Feature)\
-            .filter(Feature.name.in_([feat.value for feat in training_set_features])).all()
+            .filter(func.upper(Feature.name).in_([feat.value.upper() for feat in training_set_features])).all()
 
         self.logger.info(f"Done. Registering all {len(features)} features")
         for feat in features:
@@ -402,7 +402,7 @@ class DatabaseModelDDL:
                     training_set_id=ts.training_set_id,
                     feature_id=feat.feature_id, # The mlflow param's value is the feature name
                     last_update_username=self.request_user,
-                    is_label=(feat.name.lower() == key_vals['training_set_label'].lower())
+                    is_label=(feat.name.lower() == key_vals['splice.feature_store.training_set_label'].lower())
                 )
             )
     def _register_model_deployment(self, ts: TrainingSet, key_vals: Dict[str,str]):
