@@ -96,9 +96,33 @@ async def get_features_by_name(names: List[str] = Query([], alias="name"), db: S
 @SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK, description="Removes a feature set", 
                     operation_id='remove_feature_set', tags=['Feature Sets'])
 @managed_transaction
-def remove_feature_set(db: Session = Depends(crud.get_db)):
-    # TODO
-    raise NotImplementedError
+def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session = Depends(crud.get_db)) :
+    """
+    Deletes a feature set if appropriate. You can currently delete a feature set in two scenarios:
+    1. The feature set has not been deployed
+    2. The feature set has been deployed, but not linked to any training sets/model deployments
+
+    :param db: SQLAlchemy Session
+    :return: None
+    """
+    fset = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])[0]
+    if not crud.feature_set_is_deployed(fset.feature_set_id):
+        crud.delete_feature_set(db, fset, cascade=False)
+    else:
+        deps = crud.feature_set_dependencies(db, fset.feature_set_id)
+        if deps['model']:
+            raise SpliceMachineException('You cannot drop a Feature Set that has an associated model deployment. The '
+                                         'Following models have been deployed with Training Sets that depend on this '
+                                         f'Feature Set: {deps["model"]}')
+        elif deps['training_set']:
+            if not purge:
+                raise SpliceMachineException('You cannot delete a Feature Set that has associated Training Sets. The '
+                                             f'following Training Sets depend on this Feature Set: {deps["training_set"]}. '
+                                             f'To drop this Feature Set anyway, set purge=True (be careful!)')
+            else:
+                crud.delete_feature_set(db, fset, cascade=True)
+        else: # No dependencies
+            crud.delete_feature_set(db, fset, cascade=False)
 
 @SYNC_ROUTER.post('/feature-vector', status_code=status.HTTP_200_OK, response_model=Union[Dict[str, Any], str],
                 description="Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets", 

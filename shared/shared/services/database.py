@@ -1,8 +1,9 @@
 from os import environ as env_vars
 
-from sqlalchemy import create_engine, inspect as peer_into_splice_db
+from sqlalchemy import create_engine, inspect as peer_into_splice_db, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.schema import MetaData
 
 from mlflow.store.db.base_sql_model import Base as MLFlowBase
 from shared.logger.logging_config import logger
@@ -325,13 +326,25 @@ class DatabaseFunctions:
     def table_exists(schema_name: str, table_name: str, engine) -> bool:
         """
         Check whether or not a given table exists
-        :param table_name: the table name
         :param schema_name: schema name
+        :param table_name: the table name
         :param engine: the SQLAlchemy Engine
         :return: whether exists or not
         """
         inspector = peer_into_splice_db(engine)
         return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
+
+    @staticmethod
+    def drop_table_if_exists(schema_name: str, table_name: str, engine):
+        """
+        Drops table if exists
+        :param schema_name: schema name
+        :param table_name: the table name
+        :param engine: the SQLAlchemy Engine
+        """
+        if DatabaseFunctions.table_exists(schema_name, table_name, engine):
+            t = Table(table_name.upper(), MetaData(engine), schema=schema_name.upper(), autoload=True)
+            t.drop(engine)
 
 
 SQLAlchemyClient.create()
