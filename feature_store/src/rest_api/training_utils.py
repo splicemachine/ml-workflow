@@ -207,6 +207,7 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
     :param create_time: datetime The creation time for the Training Set
     :param start_time: datetime The start time for the Training Set
     :param end_time: datetime The end time for the Training Set
+    :param current: bool If you only want the most recent values of the features
     :param label: str (Optional) Label for the training set
     :param return_pk_cols: bool Whether or not the returned sql should include the primary key column(s)
     :param return_ts_cols: bool Whether or not the returned sql should include the timestamp column
