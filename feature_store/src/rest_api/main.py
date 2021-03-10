@@ -12,7 +12,6 @@ from .routers.synchronous import SYNC_ROUTER
 from shared.logger.logging_config import logger
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from shared.services.database import SQLAlchemyClient
 
 APP: FastAPI = FastAPI(
     title="Feature Store API",
@@ -32,22 +31,24 @@ APP.add_middleware(
 )
 
 @APP.on_event(event_type='startup')
-async def on_startup():
+def on_startup():
     """
     Runs when the API Server starts up
     """
+    logger.info("Getting database connection")
+    from shared.services.database import SQLAlchemyClient
     logger.info("****** API IS STARTING UP ******")
 
 
 @APP.on_event(event_type='shutdown')
-async def on_shutdown():
+def on_shutdown():
     """
     Runs when the API Server shuts down
     """
     logger.info("****** API IS SHUTTING DOWN ******")
 
 @APP.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+def validation_exception_handler(request: Request, exc: RequestValidationError):
     logger.error(exc)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST, 
@@ -55,7 +56,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 @APP.exception_handler(SpliceMachineException)
-async def splice_machine_exception_handler(request: Request, exc: SpliceMachineException):
+def splice_machine_exception_handler(request: Request, exc: SpliceMachineException):
     logger.error(exc)
     return JSONResponse(
         status_code=exc.status_code,
@@ -63,7 +64,7 @@ async def splice_machine_exception_handler(request: Request, exc: SpliceMachineE
     )
 
 @APP.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+def http_exception_handler(request: Request, exc: StarletteHTTPException):
     logger.error(exc)
     return JSONResponse(
         status_code=exc.status_code,
@@ -73,17 +74,19 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @APP.get('/health', description='Health check', response_model=str, operation_id='healthcheck', tags=['Mgmt'],
          status_code=status.HTTP_200_OK)
-async def health_check():
+def health_check():
     """
     Returns 'OK'
     """
     logger.info('Getting DB')
-    sess = SQLAlchemyClient.SessionMaker()
+    from shared.services.database import SQLAlchemyClient
+    sess = SQLAlchemyClient.SessionFactory()
     logger.info('Testing connection')
     x = sess.execute('select top 1 * from sys.systables').fetchall()
     logger.info('Closing DB session')
     sess.commit()
     sess.close()
+    SQLAlchemyClient.SessionFactory.remove()
     return 'OK'
 
 # APP.include_router(

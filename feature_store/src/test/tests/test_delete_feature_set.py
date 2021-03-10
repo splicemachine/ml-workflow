@@ -22,7 +22,7 @@ purge = {'schema':'TEST_FS', 'table': 'FSET_1', 'purge':True}
 def test_delete_feature_set_no_auth(test_app, create_undeployed_fset):
     APP.dependency_overrides[crud.get_db] = lambda: (yield create_undeployed_fset)
 
-    response = test_app.post('/feature-sets', json=no_purge)
+    response = test_app.delete('/feature-sets', json=no_purge)
     assert response.status_code == 401, 'Should fail because there is no authentication'
     mes = response.json()['message']
     assert mes == 'Not authenticated', mes
@@ -36,7 +36,7 @@ def test_delete_feature_set(test_app, create_undeployed_fset):
     assert len(create_undeployed_fset.query(FeatureSetKey).all()) == 1, 'setup'
     assert len(create_undeployed_fset.query(FeatureSet).all()) == 1, 'setup'
 
-    response = test_app.post('/feature-sets', json=no_purge, auth=basic_auth)
+    response = test_app.delete('/feature-sets', json=no_purge, auth=basic_auth)
 
     logger.info(f'status: {response.status_code}, -- message: {response.json()}')
 
@@ -56,7 +56,7 @@ def test_delete_deployed_feature_set(test_app, create_fset_with_features):
 
     assert DatabaseFunctions.table_exists('TEST_FS', 'FSET_1', create_fset_with_features.get_bind()), 'Table should exist but does not!'
 
-    response = test_app.post('/feature-sets', json=no_purge, auth=basic_auth)
+    response = test_app.delete('/feature-sets', json=no_purge, auth=basic_auth)
 
     logger.info(f'status: {response.status_code}, -- message: {response.json()}')
 
@@ -74,7 +74,7 @@ def test_delete_feature_set_with_training_set(test_app, create_training_set):
     """
     APP.dependency_overrides[crud.get_db] = lambda: (yield create_training_set) # Give the "server" the same db session
 
-    response = test_app.post('/feature-sets', json=no_purge, auth=basic_auth)
+    response = test_app.delete('/feature-sets', json=no_purge, auth=basic_auth)
 
     logger.info(f'status: {response.status_code}, -- message: {response.json()}')
 
@@ -88,7 +88,7 @@ def test_delete_feature_set_with_training_set_purge(test_app, create_training_se
     """
     APP.dependency_overrides[crud.get_db] = lambda: (yield create_training_set) # Give the "server" the same db session
 
-    response = test_app.post('/feature-sets', json=purge, auth=basic_auth)
+    response = test_app.delete('/feature-sets', json=purge, auth=basic_auth)
 
     logger.info(f'status: {response.status_code}, -- message: {response.json()}')
 
@@ -106,7 +106,7 @@ def test_delete_feature_set_with_training_set_purge(test_app, create_training_se
 #     """
 #     APP.dependency_overrides[crud.get_db] = lambda: (yield create_schema) # Give the "server" the same db session
 #
-#     response = test_app.post('/feature-sets', json=feature_set_null_pk, auth=basic_auth)
+#     response = test_app.delete('/feature-sets', json=feature_set_null_pk, auth=basic_auth)
 #
 #     logger.info(f'status: {response.status_code}, -- message: {response.json()}')
 #
@@ -120,7 +120,7 @@ def test_delete_feature_set_with_training_set_purge(test_app, create_training_se
 #     """
 #     APP.dependency_overrides[crud.get_db] = lambda: (yield create_schema) # Give the "server" the same db session
 #
-#     response = test_app.post('/feature-sets', json=feature_set_bad_pk_bad_datatype, auth=basic_auth)
+#     response = test_app.delete('/feature-sets', json=feature_set_bad_pk_bad_datatype, auth=basic_auth)
 #
 #     logger.info(f'status: {response.status_code}, -- message: {response.json()}')
 #
