@@ -26,7 +26,6 @@ def get_db():
     """
     Provides SqlAlchemy Session object to path operations
     """
-    # db = SQLAlchemyClient.SessionMaker()
     db = SQLAlchemyClient.SessionFactory()
     try:
         yield db
