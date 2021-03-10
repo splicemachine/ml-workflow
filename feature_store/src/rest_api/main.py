@@ -80,13 +80,12 @@ def health_check():
     """
     logger.info('Getting DB')
     from shared.services.database import SQLAlchemyClient
-    sess = SQLAlchemyClient.SessionFactory()
+    sess = SQLAlchemyClient.SessionMaker()
     logger.info('Testing connection')
     x = sess.execute('select top 1 * from sys.systables').fetchall()
     logger.info('Closing DB session')
     sess.commit()
     sess.close()
-    SQLAlchemyClient.SessionFactory.remove()
     return 'OK'
 
 # APP.include_router(

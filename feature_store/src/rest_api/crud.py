@@ -26,13 +26,12 @@ def get_db():
     """
     Provides SqlAlchemy Session object to path operations
     """
-    db = SQLAlchemyClient.SessionFactory()
+    db = SQLAlchemyClient.SessionMaker()
     try:
         yield db
     finally:
         logger.info("Closing session")
         db.close()
-        SQLAlchemyClient.SessionFactory.remove()
 
 def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     """

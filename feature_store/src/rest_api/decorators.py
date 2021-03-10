@@ -21,6 +21,9 @@ def managed_transaction(func):
             logger.warning("Rolling back...")
             db.rollback()
             raise e
+        finally:
+            logger.info("Flushing...")
+            db.flush()
         # don't close session here, or you won't be able to response
         return result
 

@@ -39,6 +39,7 @@ class DatabaseEngineConfig:
     max_overflow: int = env_vars.get('MAX_OVERFLOW',-1)
     echo: bool = env_vars['MODE'] == 'development'
     pool_pre_ping: bool = True
+    pool_recycle = 500
 
     @staticmethod
     def as_dict():
@@ -50,7 +51,8 @@ class DatabaseEngineConfig:
             'pool_size': DatabaseEngineConfig.pool_size,
             'max_overflow': DatabaseEngineConfig.max_overflow,
             'echo': DatabaseEngineConfig.echo,
-            'pool_pre_ping': DatabaseEngineConfig.pool_pre_ping
+            'pool_pre_ping': DatabaseEngineConfig.pool_pre_ping,
+            'pool_recycle': DatabaseEngineConfig.pool_recycle
         }
 
 class SQLAlchemyClient:
