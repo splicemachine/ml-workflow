@@ -57,7 +57,6 @@ def get_summary(db: Session = Depends(crud.get_db)):
         * Number of active (deployed) models (that have used the feature store for training)
         * Number of pending feature sets - this will will require a new table `featurestore.pending_feature_set_deployments` and it will be a count of that
     """
-    logger.info("Call to fs summary")
     return crud.get_fs_summary(db)
 
 @SYNC_ROUTER.get('/training-views', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingView],
