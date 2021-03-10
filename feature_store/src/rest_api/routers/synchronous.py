@@ -373,19 +373,22 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
     :param db: SQLAlchemy Session
     :return: None
     """
-    fset = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])[0]
+    fset = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])
+    if not fset:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST)
+    fset = fset[0]
     if not crud.feature_set_is_deployed(db, fset.feature_set_id):
         crud.delete_feature_set(db, fset, cascade=False)
     else:
         deps = crud.get_feature_set_dependencies(db, fset.feature_set_id)
         if deps['model']:
-            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+            raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
                                          message='You cannot drop a Feature Set that has an associated model deployment.'
                                          ' The Following models have been deployed with Training Sets that depend on this'
                                          f' Feature Set: {deps["model"]}')
         elif deps['training_set']:
             if not purge:
-                raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
                                              message='You cannot delete a Feature Set that has associated Training Sets. '
                                                      f'The following Training Sets depend on this Feature Set: '
                                                      f'{deps["training_set"]}. To drop this Feature Set anyway, '
