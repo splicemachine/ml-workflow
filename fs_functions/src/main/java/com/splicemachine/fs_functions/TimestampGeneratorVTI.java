@@ -191,17 +191,10 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
         this.numberOfUnitsPerInterval = 60;
     }
 
-    @Override
-    public double getEstimatedRowCount(VTIEnvironment vtiEnvironment) throws SQLException {
+    private static long getIntervalMillis(int intervalType){
+        long intervalUnitMillis=0;
 
-        if ((this.startTime == null) || (this.endTime==null))
-            return 1;
-
-        long start_ms = Timestamp.valueOf(this.startTime).getTime();
-        long end_ms = Timestamp.valueOf(this.endTime).getTime();
-        long intervalUnitMillis;
-
-        switch (this.intervalType)
+        switch (intervalType)
         {
             case DateTimeDataValue.FRAC_SECOND_INTERVAL:
                 intervalUnitMillis = 1L;
@@ -235,9 +228,37 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
                 break;
         }
 
+        return intervalUnitMillis;
+    }
+
+    public static Timestamp getSnappedTimestamp( Timestamp sourceTS, int intervalType, int intervalLength) throws StandardException {
+        Timestamp result = null;
+
+
+        long start_ms = sourceTS.getTime();
+        long millisPerPeriod = getIntervalMillis(intervalType) * intervalLength;
+
+        long snappedMultiple;
+
+        if ( millisPerPeriod>0) {
+            snappedMultiple = (long)(Math.ceil(start_ms / millisPerPeriod)) * millisPerPeriod;
+            result = new Timestamp(snappedMultiple);
+        }
+        return result;
+    }
+
+    @Override
+    public double getEstimatedRowCount(VTIEnvironment vtiEnvironment) throws SQLException {
+
+        if ((this.startTime == null) || (this.endTime==null))
+            return 1;
+
+        long start_ms = Timestamp.valueOf(this.startTime).getTime();
+        long end_ms = Timestamp.valueOf(this.endTime).getTime();
+        long intervalUnitMillis = getIntervalMillis( this.intervalType);
+
         // if interval is inverted there are no results
         if (end_ms<start_ms) return 0;
-
 
         long l = (end_ms - start_ms) / (intervalUnitMillis * this.numberOfUnitsPerInterval);
         return (double)l;
