@@ -59,8 +59,9 @@ def _get_anchor_feature_set(features: List[Feature], feature_sets: List[FeatureS
     return anchor_fset
 
 
-def _generate_training_set_history_sql(tvw: TrainingView, features: List[Feature],
-                                       feature_sets: List[FeatureSet], start_time=None, end_time=None, create_time=None) -> str:
+def _generate_training_set_history_sql(tvw: TrainingView, features: List[Feature], feature_sets: List[FeatureSet], 
+                                        start_time=None, end_time=None, create_time=None, 
+                                        return_pk_cols: bool = False, return_ts_col: bool = False) -> str:
     """
     Generates the SQL query for creating a training set from a TrainingView and a List of Features.
     This performs the coalesces necessary to aggregate Features over time in a point-in-time consistent way
@@ -72,10 +73,13 @@ def _generate_training_set_history_sql(tvw: TrainingView, features: List[Feature
     """
     # SELECT clause
     sql = 'SELECT '
-    for pkcol in tvw.pk_columns:  # Select primary key column(s)
-        sql += f'\n\tctx.{pkcol},'
+    
+    if return_pk_cols:
+        for pkcol in tvw.pk_columns:  # Select primary key column(s)
+            sql += f'\n\tctx.{pkcol},'
 
-    sql += f'\n\tctx.{tvw.ts_column}, '  # Select timestamp column
+    if return_ts_col:
+        sql += f'\n\tctx.{tvw.ts_column}, '  # Select timestamp column
 
     # TODO: ensure these features exist and fail gracefully if not
     for feature in features:
@@ -116,7 +120,7 @@ def _generate_training_set_history_sql(tvw: TrainingView, features: List[Feature
     return sql
 
 
-def _generate_training_set_sql(features: List[Feature], feature_sets: List[FeatureSet], label: Feature = None) -> str:
+def _generate_training_set_sql(features: List[Feature], feature_sets: List[FeatureSet], label: Feature = None, return_pk_cols = False) -> str:
     """
     Generates the SQL query for creating a training set from a List of Features (NO TrainingView).
 
@@ -133,7 +137,9 @@ def _generate_training_set_sql(features: List[Feature], feature_sets: List[Featu
     feature_names = ','.join([f'fset{feature.feature_set_id}.{feature.name}' for feature in features])
     # Include the pk columns of the anchor feature set
     pk_cols = ','.join([f'{alias}.{pk}' for pk in __get_pk_columns(anchor_fset)])
-    all_feature_columns = feature_names + ',' + pk_cols
+    all_feature_columns = feature_names
+    if return_pk_cols:
+        all_feature_columns += ',' + pk_cols
 
     sql = f'SELECT {all_feature_columns} \nFROM {anchor_fset_schema}'
 
@@ -160,12 +166,12 @@ def _create_temp_training_view(features: List[Feature], feature_sets: List[Featu
     anchor_columns = __get_pk_columns(anchor_fset)
     if label:
         anchor_columns.append(label.name)
-    anchor_column_sql = ','.join(anchor_columns)
+    anchor_column_sql = ', '.join(anchor_columns)
     ts_col = 'LAST_UPDATE_TS'
     schema_table_name = f'{anchor_fset.schema_name}.{anchor_fset.table_name}_history'
     view_sql = f"SELECT {anchor_column_sql}, ASOF_TS as {ts_col} FROM {schema_table_name} WHERE INGEST_TS <= timestamp('{str(create_time)}')"
     return TrainingView(view_id=None, pk_columns=__get_pk_columns(anchor_fset), ts_column=ts_col, view_sql=view_sql,
-                        description=None, name=None, label_column=label.name)
+                        description=None, name=None, label_column=(label.name if label else None))
 
 def _get_training_view_by_name(db: Session, name: str) -> List[TrainingView]:
     tvs = crud.get_training_views(db, {'name': name})
@@ -175,7 +181,8 @@ def _get_training_view_by_name(db: Session, name: str) -> List[TrainingView]:
     return tvs
 
 def _get_training_set(db: Session, features: Union[List[Feature], List[str]], create_time: datetime, start_time: datetime = None, 
-                            end_time: datetime = None, current: bool = False, label: str = None) -> TrainingSet:
+                            end_time: datetime = None, current: bool = False, label: str = None, return_pk_cols: bool = False, 
+                            return_ts_col: bool = False) -> TrainingSet:
     if label:
         if any([(f if isinstance(f, str) else f.name).lower() == label.lower() for f in features]):
             raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
@@ -189,24 +196,28 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
     fsets = crud.get_feature_sets(db, list({f.feature_set_id for f in features}))
 
     # Get the label Feature
-    ind = next((i for i, f in enumerate(features) if f.name.lower() == label.lower()), None)
-    if not ind:
-        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
-                                    message=f"Unable to find label feature '{label}'")
-    label = features.pop(ind)
+    if label:
+        ind = next((i for i, f in enumerate(features) if f.name.lower() == label.lower()), None)
+        if not ind:
+            raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Unable to find label feature '{label}'")
+        label = features.pop(ind)
 
     if current:
-        sql = _generate_training_set_sql(features, fsets, label)
+        sql = _generate_training_set_sql(features, fsets, label, return_pk_cols)
     else:
         temp_vw = _create_temp_training_view(features, fsets, create_time, label)
-        sql = _generate_training_set_history_sql(temp_vw, features, fsets, start_time=start_time, end_time=end_time, create_time=create_time)
+        sql = _generate_training_set_history_sql(temp_vw, features, fsets, start_time=start_time, end_time=end_time, create_time=create_time,
+            return_pk_cols=return_pk_cols, return_ts_col=return_ts_col)
     
     metadata = TrainingSetMetadata(training_set_start_ts=start_time, training_set_end_ts=end_time, training_set_create_ts=create_time)
-    features.append(label)
+    if label:
+        features.append(label)
     return TrainingSet(sql=sql, training_view=temp_vw, features=features, metadata=metadata)
 
 def _get_training_set_from_view(db: Session, view: str, create_time: datetime, features: Union[List[Feature], List[str]] = None, 
-                                start_time: Optional[datetime] = None, end_time: Optional[datetime] = None) -> TrainingSet:
+                                start_time: Optional[datetime] = None, end_time: Optional[datetime] = None,
+                                return_pk_cols: bool = False, return_ts_col: bool = False) -> TrainingSet:
     # Get features as list of Features
     features = crud.process_features(db, features) if features else crud.get_training_view_features(db, view)
 
@@ -218,6 +229,7 @@ def _get_training_set_from_view(db: Session, view: str, create_time: datetime, f
     tvw = _get_training_view_by_name(db, view)[0]
 
     # Generate the SQL needed to create the dataset
-    sql = _generate_training_set_history_sql(tvw, features, feature_sets, start_time=start_time, end_time=end_time, create_time=create_time)
+    sql = _generate_training_set_history_sql(tvw, features, feature_sets, start_time=start_time, end_time=end_time, create_time=create_time,
+        return_pk_cols=return_pk_cols, return_ts_col=return_ts_col)
     metadata = TrainingSetMetadata(training_set_start_ts=start_time, training_set_end_ts=end_time, training_set_create_ts=create_time)
     return TrainingSet(sql=sql, training_view=tvw, features=features, metadata=metadata)
