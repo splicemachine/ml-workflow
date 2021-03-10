@@ -375,7 +375,10 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
     """
     fset = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])
     if not fset:
-        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST)
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
+                                     message=f'The feature set ({schema}.{table}) you are trying to delete has not '
+                                             'been deployed, or the table has been dropped. Please ensure the feature '
+                                             'set has been deployed and the table exists.')
     fset = fset[0]
     if not crud.feature_set_is_deployed(db, fset.feature_set_id):
         crud.delete_feature_set(db, fset, cascade=False)

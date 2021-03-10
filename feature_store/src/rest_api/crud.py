@@ -30,7 +30,6 @@ def get_db():
     try:
         yield db
     finally:
-        logger.info('Committing session') # Always need to commit, otherwise we get stale transactions
         logger.info("Closing session")
         db.close()
 
