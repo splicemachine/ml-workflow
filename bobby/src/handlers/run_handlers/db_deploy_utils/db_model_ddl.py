@@ -385,6 +385,7 @@ class DatabaseModelDDL:
         """
         Registers the features of a training set for a deployment
         :param ts: The TrainingSet
+        :param key_vals: Dictionary containing the relevant keys for the training set
         :return:
         """
 

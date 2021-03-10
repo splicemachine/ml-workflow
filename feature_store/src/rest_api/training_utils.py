@@ -24,12 +24,12 @@ def dict_to_lower(dict):
 
 def _get_anchor_feature_set(features: List[Feature], feature_sets: List[FeatureSet], label: Feature = None) -> FeatureSet:
     """
-    From a dataframe of feature set rows, where each row has columns feature_set_id, schema_name, table_name
-    and pk_cols where pk_cols is a pipe delimited string of Primary Key column names,
-    this function finds which row has the superset of all primary key columns, raising an exception if none exist
+    From a list of features and corresponding feature sets, this function finds which feature set 
+    has the superset of all primary key columns, raising an exception if none exist
 
-    :param fset_keys: Pandas Dataframe containing FEATURE_SET_ID, SCHEMA_NAME, TABLE_NAME, and PK_COLUMNS, which
-    is a | delimited string of column names
+    :param features: List[Features]
+    :param feature_sets: List[FeatureSet]
+    :param label: (Optional) label for the training set
     :return: FeatureSet
     :raise: SpliceMachineException
     """
@@ -52,8 +52,9 @@ def _get_anchor_feature_set(features: List[Feature], feature_sets: List[FeatureS
             bad_features += [f.name for f in features if f.feature_set_id == fset.feature_set_id]
 
     if bad_features:
+        explainer = f' with label {label.name}' if label else ''
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
-                                    message=f"The provided features do not have a common join key."
+                                    message=f"The provided features do not have a common join key{explainer}."
                                      f"Remove features {bad_features} from your request")
 
     return anchor_fset
@@ -69,6 +70,11 @@ def _generate_training_set_history_sql(tvw: TrainingView, features: List[Feature
     :param tvw: The TrainingView
     :param features: List[Feature] The group of Features desired to be returned
     :param feature_sets: List[FeatureSets] the group of all Feature Sets of which Features are being selected
+    :param start_time: datetime The start time for the Training Set
+    :param end_time: datetime The end time for the Training Set
+    :param create_time: datetime The creation time for the Training Set
+    :param return_pk_cols: bool Whether or not the returned sql should include the primary key column(s)
+    :param return_ts_cols: bool Whether or not the returned sql should include the timestamp column
     :return: str the SQL necessary to execute
     """
     # SELECT clause
@@ -126,6 +132,8 @@ def _generate_training_set_sql(features: List[Feature], feature_sets: List[Featu
 
     :param features: List[Feature] The group of Features desired to be returned
     :param feature_sets: List of Feature Sets
+    :param label: str (Optional) Label for the training set
+    :param return_pk_cols: bool Whether or not the returned sql should include the primary key column(s)
     :return: str the SQL necessary to execute
     """
     anchor_fset: FeatureSet = _get_anchor_feature_set(features, feature_sets, label)
@@ -160,6 +168,8 @@ def _create_temp_training_view(features: List[Feature], feature_sets: List[Featu
 
     :param fsets: List[FeatureSet]
     :param features: List[Feature]
+    :param create_time: datetime The creation time for the Training Set
+    :param label: str (Optional) Label for the training view
     :return: Generated Training View
     """
     anchor_fset = _get_anchor_feature_set(features, feature_sets, label)
@@ -174,6 +184,13 @@ def _create_temp_training_view(features: List[Feature], feature_sets: List[Featu
                         description=None, name=None, label_column=(label.name if label else None))
 
 def _get_training_view_by_name(db: Session, name: str) -> List[TrainingView]:
+    """
+    Internal function to retrieve a training view from the db by name
+    :param db: Session The database connection
+    :param name: str The Training View name
+    :return: Training View
+    :raise: SpliceMachineException
+    """
     tvs = crud.get_training_views(db, {'name': name})
     if not tvs:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
@@ -183,6 +200,19 @@ def _get_training_view_by_name(db: Session, name: str) -> List[TrainingView]:
 def _get_training_set(db: Session, features: Union[List[Feature], List[str]], create_time: datetime, start_time: datetime = None, 
                             end_time: datetime = None, current: bool = False, label: str = None, return_pk_cols: bool = False, 
                             return_ts_col: bool = False) -> TrainingSet:
+    """
+    Creates a training set without a training view from a list of features
+    :param db: Session The database connection
+    :param features: List[Feature] The group of Features desired to be returned
+    :param create_time: datetime The creation time for the Training Set
+    :param start_time: datetime The start time for the Training Set
+    :param end_time: datetime The end time for the Training Set
+    :param label: str (Optional) Label for the training set
+    :param return_pk_cols: bool Whether or not the returned sql should include the primary key column(s)
+    :param return_ts_cols: bool Whether or not the returned sql should include the timestamp column
+    :return: Training Set
+    :raise: SpliceMachineException
+    """
     if label:
         if any([(f if isinstance(f, str) else f.name).lower() == label.lower() for f in features]):
             raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
@@ -218,6 +248,19 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
 def _get_training_set_from_view(db: Session, view: str, create_time: datetime, features: Union[List[Feature], List[str]] = None, 
                                 start_time: Optional[datetime] = None, end_time: Optional[datetime] = None,
                                 return_pk_cols: bool = False, return_ts_col: bool = False) -> TrainingSet:
+    """
+    Creates a training set from a training view
+    :param db: Session The database connection
+    :param view: str The name of the Training View
+    :param create_time: datetime The creation time for the Training Set
+    :param features: List[Feature] The group of Features desired to be returned
+    :param start_time: datetime The start time for the Training Set
+    :param end_time: datetime The end time for the Training Set
+    :param return_pk_cols: bool Whether or not the returned sql should include the primary key column(s)
+    :param return_ts_cols: bool Whether or not the returned sql should include the timestamp column
+    :return: Training Set
+    :raise: SpliceMachineException
+    """
     # Get features as list of Features
     features = crud.process_features(db, features) if features else crud.get_training_view_features(db, view)
 
