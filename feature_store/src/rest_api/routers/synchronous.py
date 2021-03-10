@@ -260,7 +260,7 @@ def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Depends(c
             status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
             message="Name of training view cannot be None!")
 
-    crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.label_column)
+    crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.pk_columns, tv.label_column)
     crud.create_training_view(db, tv)
 
 @SYNC_ROUTER.post('/deploy-feature-set', status_code=status.HTTP_200_OK, response_model=schemas.FeatureSet,
