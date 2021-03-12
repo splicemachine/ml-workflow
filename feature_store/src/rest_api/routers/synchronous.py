@@ -1,11 +1,8 @@
-from fastapi import APIRouter, status, Depends, Body, Query
+from fastapi import APIRouter, status, Depends, Query
 from typing import List, Dict, Optional, Union, Any
 from shared.logger.logging_config import logger
-from shared.models.feature_store_models import FeatureSet, TrainingView, Feature
 from sqlalchemy.orm import Session
-from datetime import datetime
 from .auth import authenticate
-from ..constants import SQL
 from .. import schemas, crud
 from ..training_utils import (dict_to_lower,_get_training_view_by_name, 
                                 _get_training_set, _get_training_set_from_view)
@@ -23,7 +20,7 @@ SYNC_ROUTER = APIRouter(
 @SYNC_ROUTER.get('/feature-sets', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSet],
                 description="Returns a list of available feature sets", operation_id='get_feature_sets', tags=['Feature Sets'])
 @managed_transaction
-async def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
+def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
     """
     Returns a list of available feature sets
     """
@@ -47,7 +44,7 @@ def remove_training_view(override=False, db: Session = Depends(crud.get_db)):
 @SYNC_ROUTER.get('/summary', status_code=status.HTTP_200_OK, response_model=schemas.FeatureStoreSummary,
                 description="Returns feature store summary metrics", operation_id='get_summary', tags=['Feature Store'])
 @managed_transaction
-async def get_summary(db: Session = Depends(crud.get_db)):
+def get_summary(db: Session = Depends(crud.get_db)):
     """
     This function returns a summary of the feature store including:
         * Number of feature sets
@@ -65,7 +62,7 @@ async def get_summary(db: Session = Depends(crud.get_db)):
 @SYNC_ROUTER.get('/training-views', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingView],
                 description="Returns a list of all available training views with an optional filter", operation_id='get_training_views', tags=['Training Views'])
 @managed_transaction
-async def get_training_views(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
+def get_training_views(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Returns a list of all available training views with an optional filter
     """
@@ -77,7 +74,7 @@ async def get_training_views(name: Optional[str] = None, db: Session = Depends(c
 @SYNC_ROUTER.get('/training-view-id', status_code=status.HTTP_200_OK, response_model=int,
                 description="Returns the unique view ID from a name", operation_id='get_training_view_id', tags=['Training Views'])
 @managed_transaction
-async def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
+def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
     """
     Returns the unique view ID from a name
     """
@@ -86,25 +83,18 @@ async def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
 @SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureDescription],
                 description="Returns a list of all (or the specified) features", operation_id='get_features', tags=['Features'])
 @managed_transaction
-async def get_features_by_name(names: List[str] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
+def get_features_by_name(names: List[str] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
     """
     Returns a list of features whose names are provided
 
     """
     return crud.get_feature_descriptions_by_name(db, names)
 
-@SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK, description="Removes a feature set", 
-                    operation_id='remove_feature_set', tags=['Feature Sets'])
-@managed_transaction
-def remove_feature_set(db: Session = Depends(crud.get_db)):
-    # TODO
-    raise NotImplementedError
-
 @SYNC_ROUTER.post('/feature-vector', status_code=status.HTTP_200_OK, response_model=Union[Dict[str, Any], str],
                 description="Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets", 
                 operation_id='get_feature_vector', tags=['Features'])
 @managed_transaction
-async def get_feature_vector(fjk: schemas.FeatureJoinKeys, sql: bool = False, db: Session = Depends(crud.get_db)):
+def get_feature_vector(fjk: schemas.FeatureJoinKeys, sql: bool = False, db: Session = Depends(crud.get_db)):
     """
     Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets
     """
@@ -137,7 +127,7 @@ async def get_feature_vector_sql_from_training_view(features: List[Union[schemas
                 description="Returns a dictionary mapping each individual feature to its primary key(s).", 
                 operation_id='get_feature_primary_keys', tags=['Features'])
 @managed_transaction
-async def get_feature_primary_keys(features: List[str] = Query([], alias="feature"), db: Session = Depends(crud.get_db)):
+def get_feature_primary_keys(features: List[str] = Query([], alias="feature"), db: Session = Depends(crud.get_db)):
     """
     Returns a dictionary mapping each individual feature to its primary key(s). This function is not yet implemented.
     """
@@ -147,7 +137,7 @@ async def get_feature_primary_keys(features: List[str] = Query([], alias="featur
                 description="Returns the available features for the given a training view name", 
                 operation_id='get_training_view_features', tags=['Training Views'])
 @managed_transaction
-async def get_training_view_features(view: str, db: Session = Depends(crud.get_db)):
+def get_training_view_features(view: str, db: Session = Depends(crud.get_db)):
     """
     Returns the available features for the given a training view name
     """
@@ -156,7 +146,7 @@ async def get_training_view_features(view: str, db: Session = Depends(crud.get_d
 @SYNC_ROUTER.get('/feature-description', status_code=status.HTTP_200_OK, description="Returns the description of the given feature", 
                 operation_id='get_feature_description', tags=['Features'])
 @managed_transaction
-async def get_feature_description(db: Session = Depends(crud.get_db)):
+def get_feature_description(db: Session = Depends(crud.get_db)):
     # TODO
     raise NotImplementedError
 
@@ -187,7 +177,7 @@ async def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False,
                 description="Returns the training set as a Spark Dataframe from a Training View", 
                 operation_id='get_training_set_from_view', tags=['Training Sets'])
 @managed_transaction
-async def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_pk_cols: bool = Query(False, alias='pks'), 
+def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_pk_cols: bool = Query(False, alias='pks'), 
                                         return_ts_col: bool = Query(False, alias='ts'), db: Session = Depends(crud.get_db)):
     """
     Returns the training set as a Spark Dataframe from a Training View. When a user calls this function (assuming they have registered
@@ -208,7 +198,7 @@ async def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, r
                 description="Returns a dictionary a training sets available, with the map name -> description.", 
                 operation_id='list_training_sets', tags=['Training Sets'])
 @managed_transaction
-async def list_training_sets(db: Session = Depends(crud.get_db)):
+def list_training_sets(db: Session = Depends(crud.get_db)):
     """
     Returns a dictionary a training sets available, with the map name -> description. If there is no description,
     the value will be an emtpy string
@@ -288,7 +278,7 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
                 description="Returns a description of all feature sets, with all features in the feature sets and whether the feature set is deployed", 
                 operation_id='get_feature_set_descriptions', tags=['Feature Sets'])
 @managed_transaction
-async def get_feature_set_descriptions(schema: Optional[str] = None, table: Optional[str] = None, db: Session = Depends(crud.get_db)):
+def get_feature_set_descriptions(schema: Optional[str] = None, table: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Returns a description of all feature sets, with all features in the feature sets and whether the feature
     set is deployed
@@ -305,7 +295,7 @@ async def get_feature_set_descriptions(schema: Optional[str] = None, table: Opti
                 description="Returns a description of all (or the specified) training views, the ID, name, description and optional label", 
                 operation_id='get_training_view_descriptions', tags=['Training Views'])
 @managed_transaction
-async def get_training_view_descriptions(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
+def get_training_view_descriptions(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Returns a description of all (or the specified) training views, the ID, name, description and optional label
     """
@@ -333,7 +323,7 @@ def set_feature_description(db: Session = Depends(crud.get_db)):
                 description="Reads Feature Store metadata to rebuild orginal training data set used for the given deployed model.", 
                 operation_id='get_training_set_from_deployment', tags=['Training Sets'])
 @managed_transaction
-async def get_training_set_from_deployment(schema: str, table: str, label: str = None, 
+def get_training_set_from_deployment(schema: str, table: str, label: str = None, 
                             return_pk_cols: bool = Query(False, alias='pks'), return_ts_col: bool = Query(False, alias='ts'), 
                             db: Session = Depends(crud.get_db)):
     """
@@ -374,10 +364,50 @@ def remove_feature(name: str, db: Session = Depends(crud.get_db)):
                                         message=f"Cannot delete Feature {feature.name} from deployed Feature Set {schema}.{table}")
     crud.delete_feature(db, feature)
 
+@SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK, description="Removes a feature set",
+                    operation_id='remove_feature_set', tags=['Feature Sets'])
+@managed_transaction
+def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session = Depends(crud.get_db)) :
+    """
+    Deletes a feature set if appropriate. You can currently delete a feature set in two scenarios:
+    1. The feature set has not been deployed
+    2. The feature set has been deployed, but not linked to any training sets/model deployments
+
+    :param db: SQLAlchemy Session
+    :return: None
+    """
+    fset = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])
+    if not fset:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
+                                     message=f'The feature set ({schema}.{table}) you are trying to delete has not '
+                                             'been deployed, or the table has been dropped. Please ensure the feature '
+                                             'set has been deployed and the table exists.')
+    fset = fset[0]
+    if not crud.feature_set_is_deployed(db, fset.feature_set_id):
+        crud.delete_feature_set(db, fset, cascade=False)
+    else:
+        deps = crud.get_feature_set_dependencies(db, fset.feature_set_id)
+        if deps['model']:
+            raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                         message='You cannot drop a Feature Set that has an associated model deployment.'
+                                         ' The Following models have been deployed with Training Sets that depend on this'
+                                         f' Feature Set: {deps["model"]}')
+        elif deps['training_set']:
+            if not purge:
+                raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                             message='You cannot delete a Feature Set that has associated Training Sets. '
+                                                     f'The following Training Sets depend on this Feature Set: '
+                                                     f'{deps["training_set"]}. To drop this Feature Set anyway, '
+                                                     f'set purge=True (be careful!)')
+            else:
+                crud.delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
+        else: # No dependencies
+            crud.delete_feature_set(db, fset, cascade=False)
+
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
                 description="Get all deployments", operation_id='get_deployments', tags=['Deployments'])
 @managed_transaction
-async def get_deployments(schema: Optional[str] = None, table: Optional[str] = None, name: Optional[str] = None, 
+def get_deployments(schema: Optional[str] = None, table: Optional[str] = None, name: Optional[str] = None, 
                             db: Session = Depends(crud.get_db)):
     """
     Returns a list of available deployments
@@ -392,7 +422,7 @@ async def get_deployments(schema: Optional[str] = None, table: Optional[str] = N
                 description="Returns a training set and the features associated with it", 
                 operation_id='get_training_set_features', tags=['Training Sets'])
 @managed_transaction
-async def get_training_set_features(name: str, db: Session = Depends(crud.get_db)):
+def get_training_set_features(name: str, db: Session = Depends(crud.get_db)):
     """
     Returns a training set and the features associated with it
     """
@@ -400,7 +430,7 @@ async def get_training_set_features(name: str, db: Session = Depends(crud.get_db
     schema, table = name.split('.')
     deployments = crud.get_deployments(db, _filter={ 'model_schema_name': schema.upper(), 'model_table_name': table.upper()})
     if not deployments:
-        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
                                         message=f"Could not find Training Set {schema}.{table}")
     ts = deployments[0]
     features = crud.get_features_from_deployment(db, ts.training_set_id)
