@@ -66,6 +66,6 @@ services:
       - "8000:8000"
     build:
       args:
-        splice_base_image_version: 0.0.3
+        splice_base_image_version: 0.0.2
       context: ./
       dockerfile: ./feature_store/Dockerfile
