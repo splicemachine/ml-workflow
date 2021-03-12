@@ -175,6 +175,7 @@ class TrainingSetFeature(SQLAlchemyClient.SpliceBase):
     __table_args__ = {'schema': 'featurestore'}  # , ForeignKey(TrainingSet.training_set_id)
     training_set_id: Column = Column(Integer, primary_key=True)
     feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True )
+    is_label: Column = Column(Boolean, default=False)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 

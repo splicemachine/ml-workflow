@@ -618,6 +618,12 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                         message="It seems you've passed in Features that are neither" \
                                         " a feature name (string) or a Feature object")
+    if len(all_features) != len(features):
+        old_names = set([(f if isinstance(f, str) else f.name).upper() for f in features])
+        new_names = set([f.name.upper() for f in all_features])
+        missing = ', '.join(old_names - new_names)
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f'Could not find the following features: {missing}')
     return all_features
 
 def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.FeatureSet:
@@ -681,7 +687,7 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     logger.info('Done.')
     return fset
 
-def validate_training_view(db: Session, name, sql_text, join_keys, label_col=None) -> None:
+def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, label_col=None) -> None:
     """
     Validates that the training view doesn't already exist.
 
@@ -689,6 +695,7 @@ def validate_training_view(db: Session, name, sql_text, join_keys, label_col=Non
     :param name: The training view name
     :param sql: The training view provided SQL
     :param join_keys: The provided join keys when creating the training view
+    :param pk_cols: The primary keys of the training view
     :param label_col: The label column
     :return: None
     """
@@ -709,12 +716,20 @@ def validate_training_view(db: Session, name, sql_text, join_keys, label_col=Non
         raise e
 
     # Ensure the label column specified is in the output of the SQL
-    if label_col and not label_col in valid_df.keys():
+    if label_col and not label_col.upper() in valid_df.keys():
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
                                         message=f"Provided label column {label_col} is not available in the provided SQL")
+
+    # Ensure the primary key columns are in the output of the SQL
+    pks = set(key.upper() for key in pk_cols)
+    missing_keys = pks - set(valid_df.keys())
+    if missing_keys:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided primary key(s) {missing_keys} are not available in the provided SQL")
+
     # Confirm that all join_keys provided correspond to primary keys of created feature sets
-    pks = set(i[0].upper() for i in db.query(distinct(models.FeatureSetKey.key_column_name)).all())
-    missing_keys = set(i.upper() for i in join_keys) - pks
+    jks = set(i[0].upper() for i in db.query(distinct(models.FeatureSetKey.key_column_name)).all())
+    missing_keys = set(i.upper() for i in join_keys) - jks
     if missing_keys:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
                                 message=f"Not all provided join keys exist. Remove {missing_keys} or " \
@@ -770,7 +785,8 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
         d.training_set_end_ts,
         d.training_set_create_ts,
         func.string_agg(f.name, literal_column("','"), type_=String).\
-            label('features')
+            label('features'),
+        tv.label_column.label('label')
     ).\
     select_from(d).\
     join(ts, d.training_set_id==ts.training_set_id).\
@@ -784,7 +800,8 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
     group_by(tv.name,
         d.training_set_start_ts,
         d.training_set_end_ts,
-        d.training_set_create_ts
+        d.training_set_create_ts,
+        tv.label_columnn
     ).first()
 
     if not deploy:

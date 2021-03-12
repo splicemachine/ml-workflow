@@ -4,7 +4,7 @@ to Splice Machine
 """
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import inspect as peer_into_splice_db, text
+from sqlalchemy import inspect as peer_into_splice_db, text, func
 from sqlalchemy.orm import Session
 from mlflow.store.tracking.dbmodels.models import SqlParam
 
@@ -381,10 +381,11 @@ class DatabaseModelDDL:
         self.session.merge(ts) # Get the training_set_id
         return ts
 
-    def _register_training_set_features(self, ts: TrainingSet):
+    def _register_training_set_features(self, ts: TrainingSet, key_vals: Dict[str,str]):
         """
         Registers the features of a training set for a deployment
         :param ts: The TrainingSet
+        :param key_vals: Dictionary containing the relevant keys for the training set
         :return:
         """
 
@@ -393,7 +394,7 @@ class DatabaseModelDDL:
             .filter(SqlParam.key.like('splice.feature_store.training_set_feature%')).all()
         self.logger.info("Done. Getting feature IDs for each feature...")
         features: List[Feature] =  self.session.query(Feature)\
-            .filter(Feature.name.in_([feat.value for feat in training_set_features])).all()
+            .filter(func.upper(Feature.name).in_([feat.value.upper() for feat in training_set_features])).all()
 
         self.logger.info(f"Done. Registering all {len(features)} features")
         for feat in features:
@@ -401,7 +402,8 @@ class DatabaseModelDDL:
                 TrainingSetFeature(
                     training_set_id=ts.training_set_id,
                     feature_id=feat.feature_id, # The mlflow param's value is the feature name
-                    last_update_username=self.request_user
+                    last_update_username=self.request_user,
+                    is_label=(feat.name.lower() == key_vals['splice.feature_store.training_set_label'].lower())
                 )
             )
     def _register_model_deployment(self, ts: TrainingSet, key_vals: Dict[str,str]):
@@ -458,7 +460,7 @@ class DatabaseModelDDL:
         self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
         training_set_params = [f'splice.feature_store.{i}' for i in ['training_set','training_set_start_time',
-                                                                    'training_set_end_time', 'training_set_create_time']]
+                                                                    'training_set_end_time', 'training_set_create_time', 'training_set_label']]
         params: List[SqlParam] = self.session.query(SqlParam)\
             .filter_by(run_uuid=self.run_id)\
             .filter(SqlParam.key.in_(training_set_params))\
@@ -469,7 +471,7 @@ class DatabaseModelDDL:
             self.logger.info("Training set found! Registering...", send_db=True)
             ts: TrainingSet = self._register_training_set(key_vals)
             self.logger.info(f"Done. Gathering individual features...", send_db=True)
-            self._register_training_set_features(ts)
+            self._register_training_set_features(ts, key_vals)
             self.logger.info("Done. Registering deployment with Feature Store")
             self._register_model_deployment(ts, key_vals)
             self.logger.info("Done!", send_db=True)

@@ -113,11 +113,11 @@ def get_feature_vector(fjk: schemas.FeatureJoinKeys, sql: bool = False, db: Sess
                 description="Returns the parameterized feature retrieval SQL used for online model serving.", 
                 operation_id='get_feature_vector_sql_from_training_view', tags=['Features'])
 @managed_transaction
-def get_feature_vector_sql_from_training_view(features: List[schemas.Feature], view: str, db: Session = Depends(crud.get_db)):
+async def get_feature_vector_sql_from_training_view(features: List[Union[schemas.Feature, str]], view: str, db: Session = Depends(crud.get_db)):
     """
     Returns the parameterized feature retrieval SQL used for online model serving.
     """
-    feats = crud.process_features(features)
+    feats = crud.process_features(db, features)
 
     tctx = _get_training_view_by_name(db, view)[0]
 
@@ -154,7 +154,9 @@ def get_feature_description(db: Session = Depends(crud.get_db)):
                 description="Gets a set of feature values across feature sets that is not time dependent (ie for non time series clustering)", 
                 operation_id='get_training_set', tags=['Training Sets'])
 @managed_transaction
-def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, db: Session = Depends(crud.get_db)):
+async def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label: str = None, 
+                            return_pk_cols: bool = Query(False, alias='pks'), return_ts_col: bool = Query(False, alias='ts'), 
+                            db: Session = Depends(crud.get_db)):
     """
     Gets a set of feature values across feature sets that is not time dependent (ie for non time series clustering).
     This feature dataset will be treated and tracked implicitly the same way a training_dataset is tracked from
@@ -169,13 +171,14 @@ def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, db: S
     maximum number of primary keys, the Feature Set is chosen by alphabetical order (schema_name, table_name).
     """
     create_time = crud.get_current_time(db)
-    return _get_training_set(db, ftf.features, create_time, ftf.start_time, ftf.end_time, current)
+    return _get_training_set(db, ftf.features, create_time, ftf.start_time, ftf.end_time, current, label, return_pk_cols, return_ts_col)
 
 @SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Returns the training set as a Spark Dataframe from a Training View", 
                 operation_id='get_training_set_from_view', tags=['Training Sets'])
 @managed_transaction
-def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, db: Session = Depends(crud.get_db)):
+def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_pk_cols: bool = Query(False, alias='pks'), 
+                                        return_ts_col: bool = Query(False, alias='ts'), db: Session = Depends(crud.get_db)):
     """
     Returns the training set as a Spark Dataframe from a Training View. When a user calls this function (assuming they have registered
     the feature store with mlflow using :py:meth:`~mlflow.register_feature_store` )
@@ -189,7 +192,7 @@ def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, db: Ses
     or in the next run that is started after calling this function (if no run is currently active).
     """
     create_time = crud.get_current_time(db)
-    return _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time, ftf.end_time)
+    return _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time, ftf.end_time, return_pk_cols, return_ts_col)
 
 @SYNC_ROUTER.get('/training-sets', status_code=status.HTTP_200_OK, response_model=Dict[str, Optional[str]],
                 description="Returns a dictionary a training sets available, with the map name -> description.", 
@@ -250,7 +253,7 @@ def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Depends(c
             status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
             message="Name of training view cannot be None!")
 
-    crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.label_column)
+    crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.pk_columns, tv.label_column)
     crud.create_training_view(db, tv)
 
 @SYNC_ROUTER.post('/deploy-feature-set', status_code=status.HTTP_200_OK, response_model=schemas.FeatureSet,
@@ -320,7 +323,9 @@ def set_feature_description(db: Session = Depends(crud.get_db)):
                 description="Reads Feature Store metadata to rebuild orginal training data set used for the given deployed model.", 
                 operation_id='get_training_set_from_deployment', tags=['Training Sets'])
 @managed_transaction
-def get_training_set_from_deployment(schema: str, table: str, db: Session = Depends(crud.get_db)):
+def get_training_set_from_deployment(schema: str, table: str, label: str = None, 
+                            return_pk_cols: bool = Query(False, alias='pks'), return_ts_col: bool = Query(False, alias='ts'), 
+                            db: Session = Depends(crud.get_db)):
     """
     Reads Feature Store metadata to rebuild orginal training data set used for the given deployed model.
     """
@@ -333,10 +338,11 @@ def get_training_set_from_deployment(schema: str, table: str, db: Session = Depe
     create_time = metadata.training_set_create_ts
 
     if tv_name:
-        ts = _get_training_set_from_view(db, view=tv_name, create_time=create_time, features=features, 
-                                            start_time=start_time, end_time=end_time)
+        ts = _get_training_set_from_view(db, view=tv_name, create_time=create_time, features=features, start_time=start_time, 
+                                            end_time=end_time, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col)
     else:
-        ts = _get_training_set(db, features=features, create_time=create_time, start_time=start_time, end_time=end_time)
+        ts = _get_training_set(db, features=features, create_time=create_time, start_time=start_time, end_time=end_time,
+                                label=label, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col)
 
     ts.metadata = metadata
     return ts
