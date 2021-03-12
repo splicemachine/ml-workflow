@@ -543,6 +543,12 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                         message="It seems you've passed in Features that are neither" \
                                         " a feature name (string) or a Feature object")
+    if len(all_features) != len(features):
+        old_names = set([(f if isinstance(f, str) else f.name).upper() for f in features])
+        new_names = set([f.name.upper() for f in all_features])
+        missing = ', '.join(old_names - new_names)
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f'Could not find the following features: {missing}')
     return all_features
 
 def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.FeatureSet:
@@ -704,7 +710,8 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
         d.training_set_end_ts,
         d.training_set_create_ts,
         func.string_agg(f.name, literal_column("','"), type_=String).\
-            label('features')
+            label('features'),
+        tv.label_column.label('label')
     ).\
     select_from(d).\
     join(ts, d.training_set_id==ts.training_set_id).\
@@ -718,7 +725,8 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
     group_by(tv.name,
         d.training_set_start_ts,
         d.training_set_end_ts,
-        d.training_set_create_ts
+        d.training_set_create_ts,
+        tv.label_columnn
     ).first()
 
     if not deploy:
