@@ -1,5 +1,6 @@
 package com.splicemachine.fs_functions;
 
+import java.security.InvalidParameterException;
 import java.sql.*;
 
 import com.splicemachine.db.iapi.error.StandardException;
@@ -103,8 +104,9 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
             end.setTime(dvdEnd.getDateTime().toDate());
 
             while( calendar.compareTo(end) < 0) {
-                ExecRow valueRow = new ValueRow(1);
+                ExecRow valueRow = new ValueRow(2);
 
+                //set asof_ts
                 valueRow.setColumn(1, dvf.getTimestamp( new SQLTimestamp(new DateTime(calendar.getTimeInMillis()))));
 
                 switch (this.intervalType) {
@@ -136,6 +138,8 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
                         calendar.add(calendar.YEAR, this.numberOfUnitsPerInterval);
                         break;
                 }
+                //set until_ts
+                valueRow.setColumn(2, dvf.getTimestamp( new SQLTimestamp(new DateTime(calendar.getTimeInMillis()))));
                 items.add(valueRow);
             }
             operationContext.pushScopeForOp("Timestamp calculation");
@@ -231,20 +235,90 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
         return intervalUnitMillis;
     }
 
-    public static Timestamp getSnappedTimestamp( Timestamp sourceTS, int intervalType, int intervalLength) throws StandardException {
-        Timestamp result = null;
-
+    public static Timestamp getSnappedTimestamp( Timestamp sourceTS, int intervalType, int intervalLength)
+                                        throws StandardException
+    {
+        if (sourceTS == null) return null;
 
         long start_ms = sourceTS.getTime();
-        long millisPerPeriod = getIntervalMillis(intervalType) * intervalLength;
 
-        long snappedMultiple;
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(start_ms);
 
-        if ( millisPerPeriod>0) {
-            snappedMultiple = (long)(Math.ceil(start_ms / millisPerPeriod)) * millisPerPeriod;
-            result = new Timestamp(snappedMultiple);
-        }
-        return result;
+            switch (intervalType) {
+                case DateTimeDataValue.FRAC_SECOND_INTERVAL:
+                    int val = calendar.get(Calendar.MILLISECOND);
+                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
+                    calendar.set(calendar.MILLISECOND, val);
+                    break;
+                case DateTimeDataValue.SECOND_INTERVAL:
+                    val = calendar.get(Calendar.SECOND);
+                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
+                    calendar.set(calendar.SECOND, val);
+                    calendar.set(calendar.MILLISECOND, 0);
+                    break;
+                case DateTimeDataValue.MINUTE_INTERVAL:
+                    val = calendar.get(Calendar.MINUTE);
+                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
+                    calendar.set(calendar.MINUTE, val);
+                    calendar.set(calendar.SECOND, 0);
+                    calendar.set(calendar.MILLISECOND, 0);
+                    break;
+                case DateTimeDataValue.HOUR_INTERVAL:
+                    val = calendar.get(Calendar.HOUR);
+                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
+                    calendar.set(calendar.HOUR, val);
+                    calendar.set(calendar.MINUTE, 0);
+                    calendar.set(calendar.SECOND, 0);
+                    calendar.set(calendar.MILLISECOND, 0);
+                    break;
+                case DateTimeDataValue.DAY_INTERVAL:
+                    val = calendar.get(Calendar.DAY_OF_YEAR);
+                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
+                    calendar.set(calendar.DAY_OF_YEAR, val);
+                    calendar.set(calendar.HOUR, 0);
+                    calendar.set(calendar.MINUTE, 0);
+                    calendar.set(calendar.SECOND, 0);
+                    calendar.set(calendar.MILLISECOND, 0);
+                    break;
+
+                case DateTimeDataValue.MONTH_INTERVAL:
+                    val = calendar.get(Calendar.MONTH);
+                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
+                    calendar.set(calendar.MONTH, val);
+                    calendar.set(calendar.DAY_OF_MONTH, 0);
+                    calendar.set(calendar.HOUR, 0);
+                    calendar.set(calendar.MINUTE, 0);
+                    calendar.set(calendar.SECOND, 0);
+                    calendar.set(calendar.MILLISECOND, 0);
+                    break;
+
+                case DateTimeDataValue.YEAR_INTERVAL:
+                    val = calendar.get(Calendar.YEAR);
+                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
+                    calendar.set(calendar.YEAR, val);
+                    calendar.set(calendar.MONTH, 0);
+                    calendar.set(calendar.DAY_OF_MONTH, 0);
+                    calendar.set(calendar.HOUR, 0);
+                    calendar.set(calendar.MINUTE, 0);
+                    calendar.set(calendar.SECOND, 0);
+                    calendar.set(calendar.MILLISECOND, 0);
+                    break;
+                default:
+                    throw new InvalidParameterException("Unsupported interval units.");
+            }
+
+//        long millisPerPeriod = getIntervalMillis(intervalType) * intervalLength;
+//
+//        long snappedMultiple;
+//
+//        if ( millisPerPeriod>0) {
+//            snappedMultiple = (long)(Math.ceil(start_ms / millisPerPeriod)) * millisPerPeriod;
+//            result = new Timestamp(snappedMultiple);
+//        }
+
+        return new Timestamp(calendar.getTime().getTime());
+
     }
 
     @Override
