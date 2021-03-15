@@ -38,7 +38,7 @@ RUN cd $BUILD_HOME && \
 
 # Install Python dependencies
 COPY mlflow/splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
-RUN pip3 install -r $BUILD_HOME/requirements.txt && \
+RUN pip3 install -q -r $BUILD_HOME/requirements.txt && \
     pip3 install  $BUILD_HOME/splice_mlflow_plugin
 
 # Remove Build Directories and Create source directory
@@ -61,7 +61,7 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
 COPY shared /tmp/shared
-RUN pip3 install /tmp/shared/.
+RUN pip3 install --user /tmp/shared/.
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 

@@ -3,15 +3,17 @@ This module contains SQLAlchemy Models
 used for the Queue
 """
 from time import sleep
+from os import environ as env
 
 from shared.logger.logging_config import logger
-from shared.services.database import SQLAlchemyClient, DatabaseSQL
+from shared.services.database import SQLAlchemyClient, DatabaseSQL, DatabaseFunctions
 from sqlalchemy import event, ForeignKeyConstraint, DDL
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String, Text, DateTime, Numeric)
 from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.sql.functions import now as db_current_timestamp
 from mlflow.store.tracking.dbmodels.models import SqlRun
+from sqlalchemy import inspect as peer_into_splice_db
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -37,8 +39,28 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     description: Column = Column(String(500), nullable=True)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
-    deployed: Column = Column(Boolean)
+    deployed: Column = Column(Boolean, default=False)
+    deploy_ts: Column = Column(DateTime, nullable=True)
 
+class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
+    """
+    A queue of feature sets that have been requested to be deployed, but have not been approved.
+    """
+    __tablename__: str = "pending_feature_set_deployment"
+    feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id), primary_key=True)
+    request_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    request_username: Column = Column(String(128), nullable=False)
+    status: Column = Column(String(128), nullable=True, default='PENDING')
+    approver_username: Column = Column(String(128), nullable=False)
+    status_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    # Table Options Configuration
+    __table_args__: tuple = (
+        CheckConstraint(
+            status.in_(('PENDING', 'ACCEPTED', 'REJECTED'))
+        ),
+        {'schema': 'featurestore'}
+    )
+    deployed: Column = Column(Boolean)
 
 class FeatureSetKey(SQLAlchemyClient.SpliceBase):
     """
@@ -69,6 +91,7 @@ class Feature(SQLAlchemyClient.SpliceBase):
     feature_type: Column = Column(String(1))  # 'O'rdinal, 'C'ontinuous, 'N'ominal
     cardinality: Column = Column(Integer)  # Number of distint values, -1 if undefined
     tags: Column = Column(String(5000), nullable=True)
+    attributes: Column = Column(String(5000), nullable=True)
     compliance_level: Column = Column(Integer)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
@@ -152,6 +175,7 @@ class TrainingSetFeature(SQLAlchemyClient.SpliceBase):
     __table_args__ = {'schema': 'featurestore'}  # , ForeignKey(TrainingSet.training_set_id)
     training_set_id: Column = Column(Integer, primary_key=True)
     feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True )
+    is_label: Column = Column(Boolean, default=False)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
@@ -192,6 +216,7 @@ class Deployment(SQLAlchemyClient.SpliceBase):
     training_set_id: Column = Column(Integer)  # ,ForeignKey(TrainingSet.training_set_id)
     training_set_start_ts: Column = Column(DateTime)
     training_set_end_ts: Column = Column(DateTime)
+    training_set_create_ts: Column = Column(DateTime)
     run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
@@ -210,6 +235,7 @@ class DeploymentHistory(SQLAlchemyClient.SpliceBase):
     training_set_id: Column = Column(Integer)
     training_set_start_ts: Column = Column(DateTime)
     training_set_end_ts: Column = Column(DateTime)
+    training_set_create_ts: Column = Column(DateTime)
     run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
@@ -252,13 +278,17 @@ class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
     )
 
 
-@event.listens_for(DeploymentHistory.__table__, 'after_create')
-def create_feature_hisorian_trigger(*args, **kwargs):
-    logger.warning("Creating historian trigger for feature store")
-    SQLAlchemyClient.execute(
-        DatabaseSQL.deployment_feature_historian  # Record the old feature in the feature store history table
-    )
+def create_deploy_historian():
+    @event.listens_for(DeploymentHistory.__table__, 'after_create')
+    def create_feature_hisorian_trigger(*args, **kwargs):
+        logger.warning("Creating historian trigger for feature store")
+        SQLAlchemyClient.execute(
+            DatabaseSQL.deployment_feature_historian  # Record the old feature in the feature store history table
+        )
 
+
+TABLES = [FeatureSet, PendingFeatureSetDeployment, FeatureSetKey, Feature, TrainingView, TrainingViewKey, TrainingSet,
+          TrainingSetFeature, TrainingSetFeatureStats, Deployment, DeploymentHistory, DeploymentFeatureStats]
 
 def create_feature_store_tables(_sleep_secs=1) -> None:
     """
@@ -271,11 +301,22 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
 
     # noinspection PyBroadException
     try:
+        # If we are testing with pytest, we cannot create this trigger
+        # Because it causes a segmentation fault
+        # if env.get('MODE') != 'TESTING':
+        create_deploy_historian()
         logger.warning("Creating Feature Store Splice Tables inside Splice DB...")
-        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
+        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True, tables=[t.__table__ for t in TABLES])
         logger.info("Created Tables")
     except Exception:
         logger.exception(f"Encountered Error while initializing")  # logger might have failed
         logger.error(f"Retrying after {_sleep_secs} seconds...")
         sleep(_sleep_secs)
         create_feature_store_tables(_sleep_secs=_sleep_secs * 2)
+
+def wait_for_runs_table() -> None:
+    logger.info("Checking for mlmanager.runs table...")
+    while not DatabaseFunctions.table_exists('mlmanager', 'runs', SQLAlchemyClient.engine):
+        logger.info("mlmanager.runs does not exist. Checking again in 10s")
+        sleep(10)
+    logger.info("Found mlmanager.runs")

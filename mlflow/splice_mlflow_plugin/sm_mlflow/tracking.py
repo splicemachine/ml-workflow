@@ -43,7 +43,7 @@ from shared.logger.logging_config import logger
 from shared.models.mlflow_models import (DatabaseDeployedMetadata, SqlArtifact,
                                          SysTables, SysTriggers, SysUsers,
                                          live_model_status_view)
-from shared.services.database import SQLAlchemyClient
+from shared.services.database import SQLAlchemyClient, DatabaseSQL
 
 # ^ we need this in our global namespace so that alembic will be able to find our dialect during
 # DB migrations

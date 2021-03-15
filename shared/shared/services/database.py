@@ -1,8 +1,9 @@
 from os import environ as env_vars
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect as peer_into_splice_db, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.schema import MetaData
 
 from mlflow.store.db.base_sql_model import Base as MLFlowBase
 from shared.logger.logging_config import logger
@@ -38,6 +39,7 @@ class DatabaseEngineConfig:
     max_overflow: int = env_vars.get('MAX_OVERFLOW',-1)
     echo: bool = env_vars['MODE'] == 'development'
     pool_pre_ping: bool = True
+    pool_recycle = 500
 
     @staticmethod
     def as_dict():
@@ -49,9 +51,9 @@ class DatabaseEngineConfig:
             'pool_size': DatabaseEngineConfig.pool_size,
             'max_overflow': DatabaseEngineConfig.max_overflow,
             'echo': DatabaseEngineConfig.echo,
-            'pool_pre_ping': DatabaseEngineConfig.pool_pre_ping
+            'pool_pre_ping': DatabaseEngineConfig.pool_pre_ping,
+            'pool_recycle': DatabaseEngineConfig.pool_recycle
         }
-
 
 class SQLAlchemyClient:
     """
@@ -110,7 +112,8 @@ class SQLAlchemyClient:
             )
             SQLAlchemyClient.SpliceBase.metadata.bind = SQLAlchemyClient.engine
             logger.debug("Created engine...")
-            SQLAlchemyClient.SessionMaker = sessionmaker(bind=SQLAlchemyClient.engine, expire_on_commit=False)
+            SQLAlchemyClient.SessionMaker = sessionmaker(bind=SQLAlchemyClient.engine,
+                                                         expire_on_commit=False)
             logger.debug("Created session maker")
             SQLAlchemyClient.SessionFactory = scoped_session(SQLAlchemyClient.SessionMaker)
             logger.debug("created session factory")
@@ -157,8 +160,8 @@ class DatabaseSQL:
     ON FeatureStore.deployment
     REFERENCING OLD AS od
     FOR EACH ROW 
-    INSERT INTO FeatureStore.deployment_history ( model_schema_name, model_table_name, asof_ts, training_set_id, training_set_start_ts, training_set_end_ts, run_id, last_update_ts, last_update_username)
-    VALUES ( od.model_schema_name, od.model_table_name, CURRENT_TIMESTAMP, od.training_set_id, od.training_set_start_ts, od.training_set_end_ts, od.run_id, od.last_update_ts, od.last_update_username)
+    INSERT INTO FeatureStore.deployment_history ( model_schema_name, model_table_name, asof_ts, training_set_id, training_set_start_ts, training_set_end_ts, training_set_create_ts, run_id, last_update_ts, last_update_username)
+    VALUES ( od.model_schema_name, od.model_table_name, CURRENT_TIMESTAMP, od.training_set_id, od.training_set_start_ts, od.training_set_end_ts, od.training_set_create_ts, od.run_id, od.last_update_ts, od.last_update_username)
     """
 
     live_status_view_selector: str = \
@@ -227,10 +230,10 @@ class DatabaseSQL:
     """
     INSERT INTO FEATURESTORE.DEPLOYMENT(
         model_schema_name, model_table_name, training_set_id, 
-        training_set_start_ts, training_set_end_ts, run_id, last_update_username
+        training_set_start_ts, training_set_end_ts, training_set_create_ts, run_id, last_update_username
     ) VALUES (
         '{model_schema_name}', '{model_table_name}', {training_set_id}, 
-        '{training_set_start_ts}', '{training_set_end_ts}', '{run_id}', '{last_update_username}')
+        '{training_set_start_ts}', '{training_set_end_ts}', '{training_set_create_ts}', '{run_id}', '{last_update_username}')
     """
 
     update_feature_store_deployment = \
@@ -240,6 +243,7 @@ class DatabaseSQL:
             training_set_id={training_set_id},
             training_set_start_ts='{training_set_start_ts}',
             training_set_end_ts='{training_set_end_ts}',
+            training_set_create_ts='{training_set_create_ts}',
             last_update_username='{last_update_username}',
             run_id='{run_id}'
         WHERE
@@ -315,6 +319,35 @@ class Converters:
         'LONG VARCHAR': 'StringType',
         'CHAR': 'StringType'
     }
+
+class DatabaseFunctions:
+    """
+    Helper functions for the database
+    """
+
+    @staticmethod
+    def table_exists(schema_name: str, table_name: str, engine) -> bool:
+        """
+        Check whether or not a given table exists
+        :param schema_name: schema name
+        :param table_name: the table name
+        :param engine: the SQLAlchemy Engine
+        :return: whether exists or not
+        """
+        inspector = peer_into_splice_db(engine)
+        return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
+
+    @staticmethod
+    def drop_table_if_exists(schema_name: str, table_name: str, engine):
+        """
+        Drops table if exists
+        :param schema_name: schema name
+        :param table_name: the table name
+        :param engine: the SQLAlchemy Engine
+        """
+        if DatabaseFunctions.table_exists(schema_name, table_name, engine):
+            t = Table(table_name.upper(), MetaData(engine), schema=schema_name.upper(), autoload=True)
+            t.drop(engine)
 
 
 SQLAlchemyClient.create()

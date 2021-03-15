@@ -5,7 +5,7 @@ to Splice Machine
 from typing import Dict, List, Optional, Tuple
 from collections import OrderedDict
 
-from sqlalchemy import inspect as peer_into_splice_db, text
+from sqlalchemy import inspect as peer_into_splice_db, text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.engine.result import ResultProxy
 from mlflow.store.tracking.dbmodels.models import SqlParam
@@ -14,7 +14,7 @@ from shared.logger.logging_config import log_operation_status, logger
 from shared.models.model_types import (DeploymentModelType, H2OModelType,
                                        KerasModelType, Metadata,
                                        SklearnModelType, SparkModelType)
-from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL
+from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL, DatabaseFunctions
 from shared.models.feature_store_models import (Deployment, TrainingView,
                                                 TrainingSet, TrainingSetFeature, Feature)
 
@@ -82,8 +82,8 @@ class DatabaseModelDDL:
         self.logger.info("Adding Schema String to model metadata...", send_db=True)
 
         mcols = [m.upper() for m in self.model_columns]
-        self.model.add_metadata(
-            Metadata.MODEL_VECTOR_STR, ', '.join([f'{name} {col_type}' for name, col_type in self.model.get_metadata(
+        self.model.add_metadata( # We split on "(" because columns like DECIMAL(5,2) and VARCHAR(3000) we only want the type
+            Metadata.MODEL_VECTOR_STR, ', '.join([f'{name} {col_type.split("(")[0]}' for name, col_type in self.model.get_metadata(
                 Metadata.SQL_SCHEMA).items() if name.upper() in mcols]) + ','
         )
 
@@ -122,17 +122,6 @@ class DatabaseModelDDL:
             raise Exception("Unknown Model Deployment Type")
 
     @staticmethod
-    def _table_exists(table_name, schema_name):
-        """
-        Check whether or not a given table exists
-        :param table_name: the table name
-        :param schema_name: schema name
-        :return: whether exists or not
-        """
-        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
-        return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
-
-    @staticmethod
     def _get_feature_vector_sql(model_columns: List[str], schema_types: Dict[str,str]):
         model_cols = [i.upper() for i in model_columns]
         stypes = {i.upper():j.upper() for i,j in schema_types.items()}
@@ -155,7 +144,7 @@ class DatabaseModelDDL:
         """
         schema_str = self.model.get_metadata(Metadata.SCHEMA_STR)
 
-        if DatabaseModelDDL._table_exists(table_name=self.table_name, schema_name=self.schema_name):
+        if DatabaseFunctions.table_exists(table_name=self.table_name, schema_name=self.schema_name, engine=SQLAlchemyClient.engine):
             raise Exception(
                 f'The table {self.schema_table_name} already exists. To deploy to an existing table, do not pass in a'
                 f' dataframe and/or set create_model_table parameter=False')
@@ -189,7 +178,7 @@ class DatabaseModelDDL:
         """
         self.logger.info("Altering existing model...", send_db=True)
         # Table needs to exist
-        if not DatabaseModelDDL._table_exists(table_name=self.table_name, schema_name=self.schema_name):
+        if not DatabaseFunctions.table_exists(table_name=self.table_name, schema_name=self.schema_name, engine=SQLAlchemyClient.engine):
             raise Exception(
                 f'The table {self.schema_table_name} does not exist. To create a new table for deployment, '
                 f'pass in a dataframe and set the set create_model_table=True')
@@ -443,10 +432,11 @@ class DatabaseModelDDL:
         self.session.merge(ts) # Get the training_set_id
         return ts
 
-    def _register_training_set_features(self, ts: TrainingSet):
+    def _register_training_set_features(self, ts: TrainingSet, key_vals: Dict[str,str]):
         """
         Registers the features of a training set for a deployment
         :param ts: The TrainingSet
+        :param key_vals: Dictionary containing the relevant keys for the training set
         :return:
         """
 
@@ -455,7 +445,7 @@ class DatabaseModelDDL:
             .filter(SqlParam.key.like('splice.feature_store.training_set_feature%')).all()
         self.logger.info("Done. Getting feature IDs for each feature...")
         features: List[Feature] =  self.session.query(Feature)\
-            .filter(Feature.name.in_([feat.value for feat in training_set_features])).all()
+            .filter(func.upper(Feature.name).in_([feat.value.upper() for feat in training_set_features])).all()
 
         self.logger.info(f"Done. Registering all {len(features)} features")
         for feat in features:
@@ -463,7 +453,8 @@ class DatabaseModelDDL:
                 TrainingSetFeature(
                     training_set_id=ts.training_set_id,
                     feature_id=feat.feature_id, # The mlflow param's value is the feature name
-                    last_update_username=self.request_user
+                    last_update_username=self.request_user,
+                    is_label=(feat.name.lower() == key_vals['splice.feature_store.training_set_label'].lower())
                 )
             )
     def _register_model_deployment(self, ts: TrainingSet, key_vals: Dict[str,str]):
@@ -487,6 +478,7 @@ class DatabaseModelDDL:
             training_set_id=ts.training_set_id,
             training_set_start_ts=key_vals['splice.feature_store.training_set_start_time'],
             training_set_end_ts=key_vals['splice.feature_store.training_set_end_time'],
+            training_set_create_ts=key_vals['splice.feature_store.training_set_create_time'],
             run_id=self.run_id,
             last_update_username=self.request_user
         )
@@ -519,7 +511,7 @@ class DatabaseModelDDL:
         self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
         training_set_params = [f'splice.feature_store.{i}' for i in ['training_set','training_set_start_time',
-                                                                    'training_set_end_time']]
+                                                                    'training_set_end_time', 'training_set_create_time', 'training_set_label']]
         params: List[SqlParam] = self.session.query(SqlParam)\
             .filter_by(run_uuid=self.run_id)\
             .filter(SqlParam.key.in_(training_set_params))\
@@ -530,7 +522,7 @@ class DatabaseModelDDL:
             self.logger.info("Training set found! Registering...", send_db=True)
             ts: TrainingSet = self._register_training_set(key_vals)
             self.logger.info(f"Done. Gathering individual features...", send_db=True)
-            self._register_training_set_features(ts)
+            self._register_training_set_features(ts, key_vals)
             self.logger.info("Done. Registering deployment with Feature Store")
             self._register_model_deployment(ts, key_vals)
             self.logger.info("Done!", send_db=True)

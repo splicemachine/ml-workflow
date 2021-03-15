@@ -11,6 +11,7 @@ from handlers.modifier_handlers import (DisableServiceHandler,
                                         EnableServiceHandler)
 from handlers.run_handlers import (AzureDeploymentHandler,
                                    KubernetesDeploymentHandler,
+                                   KubernetesUndeploymentHandler,
                                    SageMakerDeploymentHandler,
                                    DatabaseDeploymentHandler)
 from pyspark.sql import SparkSession
@@ -24,7 +25,6 @@ from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
 from shared.models.splice_models import create_bobby_tables, Job
-from shared.models.feature_store_models import create_feature_store_tables
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import (HandlerNames, KnownHandlers,
                                       populate_handlers)
@@ -91,6 +91,7 @@ def register_handlers() -> None:
     KnownHandlers.register(HandlerNames.enable_service, EnableServiceHandler)
     KnownHandlers.register(HandlerNames.disable_service, DisableServiceHandler)
     KnownHandlers.register(HandlerNames.deploy_k8s, KubernetesDeploymentHandler)
+    KnownHandlers.register(HandlerNames.undeploy_k8s, KubernetesUndeploymentHandler)
     KnownHandlers.register(HandlerNames.deploy_database, DatabaseDeploymentHandler)
 
 
@@ -181,8 +182,6 @@ def main():
     create_run_contexts()
     logger.info("Creating Splice Tables...")
     create_bobby_tables()
-    logger.info("Creating Feature Store Tables...")
-    create_feature_store_tables()
     logger.info('Registering handlers...')
     register_handlers()
     logger.info('Populating handlers...')

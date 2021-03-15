@@ -10,10 +10,10 @@ ARG odbc_driver_version='2.7.63.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Spark Configuration
-ARG spark_version='2.4.0'
+ARG spark_version='3.0.1'
 
 # File Retriever Configuration
-ARG file_retriever_version='0.0.1'
+ARG file_retriever_version='0.0.3'
 
 # Defining Directories
 ENV SRC_HOME=/opt/bobby
@@ -75,37 +75,56 @@ RUN curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 |
 
 # Install Jars
 RUN mkdir -p $SRC_HOME/lib && \
-    curl https://splicemachine.s3.amazonaws.com/artifacts/fileretriever-0.0.2-shaded.jar -o $SRC_HOME/lib/fileretriever.jar
+    curl https://splicemachine.s3.amazonaws.com/artifacts/fileretriever-$file_retriever_version.jar -o $SRC_HOME/lib/fileretriever.jar
 
-ARG MLEAP_CORE_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-core_2.11/0.15.0/mleap-core_2.11-0.15.0.jar
-ARG MLEAP_RUNTIME_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-runtime_2.11/0.15.0/mleap-runtime_2.11-0.15.0.jar
-ARG MLEAP_BUNDLE_HDFS_URI=https://repo1.maven.org/maven2/ml/combust/bundle/bundle-hdfs_2.11/0.15.0/bundle-hdfs_2.11-0.15.0.jar
-ARG MLEAP_BUNDLE_ML_URI=https://repo1.maven.org/maven2/ml/combust/bundle/bundle-ml_2.11/0.15.0/bundle-ml_2.11-0.15.0.jar
-ARG MLEAP_BASE_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-base_2.11/0.15.0/mleap-base_2.11-0.15.0.jar
-ARG MLEAP_SPARK_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-spark_2.11/0.15.0/mleap-spark_2.11-0.15.0.jar
-ARG MLEAP_SPARK_BASE_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-spark-base_2.11/0.15.0/mleap-spark-base_2.11-0.15.0.jar
-ARG MLEAP_TENSOR_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-tensor_2.11/0.15.0/mleap-tensor_2.11-0.15.0.jar
-ARG SPRAY_JSON_URI=https://repo1.maven.org/maven2/io/spray/spray-json_2.11/1.3.5/spray-json_2.11-1.3.5.jar
+
+ARG SCALA_VERSION=2.12
+ARG MLEAP_VERSION=0.16.0
+
+ARG MLEAP_CORE_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-core_$SCALA_VERSION/$MLEAP_VERSION/mleap-core_$SCALA_VERSION-$MLEAP_VERSION.jar
+ARG MLEAP_RUNTIME_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-runtime_$SCALA_VERSION/$MLEAP_VERSION/mleap-runtime_$SCALA_VERSION-$MLEAP_VERSION.jar
+ARG MLEAP_BUNDLE_HDFS_URI=https://repo1.maven.org/maven2/ml/combust/bundle/bundle-hdfs_$SCALA_VERSION/$MLEAP_VERSION/bundle-hdfs_$SCALA_VERSION-$MLEAP_VERSION.jar
+ARG MLEAP_BUNDLE_ML_URI=https://repo1.maven.org/maven2/ml/combust/bundle/bundle-ml_$SCALA_VERSION/$MLEAP_VERSION/bundle-ml_$SCALA_VERSION-$MLEAP_VERSION.jar
+ARG MLEAP_BASE_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-base_$SCALA_VERSION/$MLEAP_VERSION/mleap-base_$SCALA_VERSION-$MLEAP_VERSION.jar
+ARG MLEAP_SPARK_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-spark_$SCALA_VERSION/$MLEAP_VERSION/mleap-spark_$SCALA_VERSION-$MLEAP_VERSION.jar
+ARG MLEAP_SPARK_BASE_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-spark-base_$SCALA_VERSION/$MLEAP_VERSION/mleap-spark-base_$SCALA_VERSION-$MLEAP_VERSION.jar
+ARG MLEAP_TENSOR_URI=https://repo1.maven.org/maven2/ml/combust/mleap/mleap-tensor_$SCALA_VERSION/$MLEAP_VERSION/mleap-tensor_$SCALA_VERSION-$MLEAP_VERSION.jar
+
+
+#ARG MLEAP_BUNDLE_HDFS_URI=https://splice-demo.s3.amazonaws.com/mleap_spark3_repo/bundle-hdfs_2.12-0.17.0-SNAPSHOT.jar
+#ARG MLEAP_CORE_URI=https://splice-demo.s3.amazonaws.com/mleap_spark3_repo/mleap-core_2.12-0.17.0-SNAPSHOT.jar
+#ARG MLEAP_BUNDLE_ML_URI=https://splice-demo.s3.amazonaws.com/mleap_spark3_repo/bundle-ml_2.12-0.17.0-SNAPSHOT.jar
+#ARG MLEAP_BASE_URI=https://splice-demo.s3.amazonaws.com/mleap_spark3_repo/mleap-base_2.12-0.17.0-SNAPSHOT.jar
+#ARG MLEAP_RUNTIME_URI=https://splice-demo.s3.amazonaws.com/mleap_spark3_repo/mleap-runtime_2.12-0.17.0-SNAPSHOT.jar
+#ARG MLEAP_SPARK_URI=https://splice-demo.s3.amazonaws.com/mleap_spark3_repo/mleap-spark_2.12-0.17.0-SNAPSHOT.jar
+#ARG MLEAP_SPARK_BASE_URI=https://splice-demo.s3.amazonaws.com/mleap_spark3_repo/mleap-spark-base_2.12-0.17.0-SNAPSHOT.jar
+#ARG MLEAP_TENSOR_URI=https://splice-demo.s3.amazonaws.com/mleap_spark3_repo/mleap-tensor_2.12-0.17.0-SNAPSHOT.jar
+
+ARG SPRAY_JSON_URI=https://repo1.maven.org/maven2/io/spray/spray-json_$SCALA_VERSION/1.3.5/spray-json_$SCALA_VERSION-1.3.5.jar
 ARG TYPESAFE_CONFIG_URI=https://repo1.maven.org/maven2/com/typesafe/config/1.4.0/config-1.4.0.jar
-ARG SCALAPB_RUNTIME_URI=https://repo1.maven.org/maven2/com/thesamet/scalapb/scalapb-runtime_2.11/0.9.0/scalapb-runtime_2.11-0.9.0.jar
-ARG SCALAPB_LENSES_URI=https://repo1.maven.org/maven2/com/thesamet/scalapb/lenses_2.11/0.9.0/lenses_2.11-0.9.0.jar
-ARG SCALA_ARM_URI=https://repo1.maven.org/maven2/com/jsuereth/scala-arm_2.11/2.0/scala-arm_2.11-2.0.jar
+ARG SCALAPB_RUNTIME_URI=https://repo1.maven.org/maven2/com/thesamet/scalapb/scalapb-runtime_$SCALA_VERSION/0.9.0/scalapb-runtime_$SCALA_VERSION-0.9.0.jar
+ARG SCALAPB_LENSES_URI=https://repo1.maven.org/maven2/com/thesamet/scalapb/lenses_$SCALA_VERSION/0.9.0/lenses_$SCALA_VERSION-0.9.0.jar
+ARG SCALA_ARM_URI=https://repo1.maven.org/maven2/com/jsuereth/scala-arm_$SCALA_VERSION/2.0/scala-arm_$SCALA_VERSION-2.0.jar
 ARG PROTOBUF_JAVA_URI=https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.11.1/protobuf-java-3.11.1.jar
 RUN \
-  curl -kLs $MLEAP_CORE_URI      -o $SRC_HOME/lib/mleap-core_2.11-0.15.0.jar && \
-  curl -kLs $MLEAP_RUNTIME_URI      -o $SRC_HOME/lib/mleap-runtime_2.11-0.15.0.jar && \
-  curl -kLs $MLEAP_BUNDLE_HDFS_URI      -o $SRC_HOME/lib/bundle-hdfs_2.11-0.15.0.jar && \
-  curl -kLs $MLEAP_BUNDLE_ML_URI        -o $SRC_HOME/lib/bundle-ml_2.11-0.15.0.jar && \
-  curl -kLs $MLEAP_BASE_URI             -o $SRC_HOME/lib/mleap-base_2.11-0.15.0.jar && \
-  curl -kLs $SPRAY_JSON_URI -o $SRC_HOME/lib/spray-json_2.11-1.3.5.jar && \
+  curl -kLs $MLEAP_CORE_URI      -o $SRC_HOME/lib/mleap-core_$SCALA_VERSION-$MLEAP_VERSION.jar && \
+  curl -kLs $MLEAP_RUNTIME_URI      -o $SRC_HOME/lib/mleap-runtime_$SCALA_VERSION-$MLEAP_VERSION.jar && \
+  curl -kLs $MLEAP_BUNDLE_HDFS_URI      -o $SRC_HOME/lib/bundle-hdfs_$SCALA_VERSION-$MLEAP_VERSION.jar && \
+  curl -kLs $MLEAP_BUNDLE_ML_URI        -o $SRC_HOME/lib/bundle-ml_$SCALA_VERSION-$MLEAP_VERSION.jar && \
+  curl -kLs $MLEAP_BASE_URI             -o $SRC_HOME/lib/mleap-base_$SCALA_VERSION-$MLEAP_VERSION.jar && \
+  curl -kLs $SPRAY_JSON_URI -o $SRC_HOME/lib/spray-json_$SCALA_VERSION-1.3.5.jar && \
   curl -kLs $TYPESAFE_CONFIG_URI -o $SRC_HOME/lib/config-1.4.0.jar && \
-  curl -kLs $SCALAPB_RUNTIME_URI -o  $SRC_HOME/lib/scalapb-runtime_2.11-0.9.0.jar && \
-  curl -kLs $SCALAPB_LENSES_URI -o $SRC_HOME/lib/lenses_2.11-0.9.0.jar && \
-  curl -kLs $MLEAP_TENSOR_URI -o $SRC_HOME/lib/mleap-tensor_2.11-0.15.0.jar && \
-  curl -kLs $SCALA_ARM_URI -o $SRC_HOME/lib/scala-arm_2.11-2.0.jar && \
+  curl -kLs $SCALAPB_RUNTIME_URI -o  $SRC_HOME/lib/scalapb-runtime_$SCALA_VERSION-0.9.0.jar && \
+  curl -kLs $SCALAPB_LENSES_URI -o $SRC_HOME/lib/lenses_$SCALA_VERSION-0.9.0.jar && \
+  curl -kLs $MLEAP_TENSOR_URI -o $SRC_HOME/lib/mleap-tensor_$SCALA_VERSION-$MLEAP_VERSION.jar && \
+  curl -kLs $SCALA_ARM_URI -o $SRC_HOME/lib/scala-arm_$SCALA_VERSION-2.0.jar && \
   curl -kLs $PROTOBUF_JAVA_URI -o $SRC_HOME/lib/protobuf-java-3.11.1.jar && \
-  curl -kLs $MLEAP_SPARK_URI -o $SRC_HOME/lib/mleap-spark_2.11-0.15.0.jar && \
-  curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_2.11-0.15.0.jar
+  curl -kLs $MLEAP_SPARK_URI -o $SRC_HOME/lib/mleap-spark_$SCALA_VERSION-$MLEAP_VERSION.jar && \
+  curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_$SCALA_VERSION-$MLEAP_VERSION.jar
+
+ARG MLRUNNER_VERSION='0.1.7'
+ARG MLRUNNER_URI=http://repository.splicemachine.com/nexus/content/repositories/releases/com/splicemachine/mlrunner/$MLRUNNER_VERSION/mlrunner-$MLRUNNER_VERSION-shaded.jar
+RUN curl -kLs $MLRUNNER_URI -o $SRC_HOME/lib/mlrunner.jar
 
 # Install Shared Lib
 COPY shared /tmp/shared

@@ -100,6 +100,14 @@ class KnownHandlers:
             name=HandlerNames.deploy_k8s,
             modifiable=True,
             url='/deploy/kubernetes'
+        ),
+        HandlerNames.undeploy_k8s: Handler(
+            payload_args=[
+                Field('run_id'),
+            ],
+            name=HandlerNames.undeploy_k8s,
+            modifiable=True,
+            url='/undeploy/kubernetes'
         )
     }
 

@@ -9,10 +9,11 @@ from time import sleep
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String, Text, DateTime)
 from sqlalchemy.orm import relationship, deferred
+
 from sqlalchemy.sql.elements import TextClause
 from shared.logger.logging_config import logger
 from shared.models.enums import JobStatuses
-from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from shared.services.database import SQLAlchemyClient
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -160,6 +161,7 @@ class Job(SQLAlchemyClient.SpliceBase):
         """
         self.parsed_payload = parse_dict(self.payload)
 
+TABLES = [Handler, Job]
 
 def create_bobby_tables(_sleep_secs=1) -> None:
     """
@@ -173,7 +175,7 @@ def create_bobby_tables(_sleep_secs=1) -> None:
     # noinspection PyBroadException
     try:
         logger.warning("Creating Splice Tables inside Splice DB...")
-        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True)
+        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True, tables=[t.__table__ for t in TABLES])
         logger.info("Created Tables")
     except Exception:
         logger.exception(f"Encountered Error while initializing")  # logger might have failed
