@@ -3,8 +3,9 @@ from sqlalchemy.sql.elements import TextClause
 from .conftest import *
 from sqlalchemy.types import Float, DateTime
 from json import dumps
-from shared.models.feature_store_models import TrainingView, TrainingViewKey, TrainingSet, TrainingSetFeature
-from .feature_set import create_deployed_fset, cleanup
+from mlflow.store.tracking.dbmodels.models import SqlRun, SqlExperiment
+from shared.models.feature_store_models import TrainingView, TrainingViewKey, TrainingSet, TrainingSetFeature, Deployment
+from .feature_set import create_deployed_fset, cleanup, create_fset_with_features
 
 @pytest.fixture(scope='function')
 def create_schema(get_my_session):
@@ -24,13 +25,13 @@ def create_schema(get_my_session):
     yield sess
 
 @pytest.fixture(scope='function')
-def create_training_set(create_deployed_fset):
+def create_training_set(create_fset_with_features):
     """
     Gets a database session as a fixture, drops and recreates all FS tables, and adds a single FeatureSet entry
     to the database, and a Feature Set Key (as to emulate the existence of an undeployed feature set)
     """
     logger.info("getting postgres database")
-    sess = create_deployed_fset
+    sess = create_fset_with_features
 
     # cleanup(sess)
 
@@ -57,7 +58,8 @@ def create_training_set(create_deployed_fset):
         view_id=1,
         name='test_vw',
         description='a test view',
-        sql_text=sql
+        sql_text=sql,
+        ts_column = 'ts_col'
     ))
     sess.flush()
     logger.info("adding tvw keys")
@@ -87,10 +89,37 @@ def create_training_set(create_deployed_fset):
     try:
         yield sess
     finally:
-        # Base.metadata.drop_all(sess.get_bind(), tables=[raw_table])
-        sess.execute('truncate table featurestore.training_set_feature')
-        sess.execute('truncate table featurestore.training_set')
-        sess.execute('truncate table featurestore.training_view_key')
-        sess.execute('truncate table featurestore.training_view')
         sess.commit()
 
+
+@pytest.fixture(scope='function')
+def create_deployment(create_training_set):
+    """
+    Creates a deployment entry from the existing training view
+    """
+    exp = SqlExperiment(experiment_id=0,name='default')
+    run = SqlRun(run_uuid='45d02ded28f7', experiment_id=0)
+    sess = create_training_set
+    sess.add(exp)
+    sess.add(run)
+    sess.flush()
+    d = Deployment(
+        model_schema_name='splice',
+        model_table_name='deployment_table',
+        training_set_id = 1,
+        run_id = '45d02ded28f7'
+    )
+    sess.add(d)
+    sess.commit()
+    try:
+        yield sess
+    finally:
+        sess.commit()
+
+    # sql = """
+    # insert into featurestore.deployment
+    #     (MODEL_SCHEMA_NAME,MODEL_TABLE_NAME,TRAINING_SET_ID,TRAINING_SET_START_TS,
+    #     TRAINING_SET_END_TS,TRAINING_SET_CREATE_TS,RUN_ID)
+    # values ('splice','deployment_table',1,timestamp('1990-01-01 00:00:00'), current_timestamp,
+    # current_timestamp, '45d02ded28f7');
+    # """

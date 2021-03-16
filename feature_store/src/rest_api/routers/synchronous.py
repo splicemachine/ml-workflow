@@ -27,20 +27,6 @@ def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"), db: S
     crud.validate_schema_table(names)
     return crud.get_feature_sets(db, feature_set_names=names)
 
-@SYNC_ROUTER.delete('/training-views', status_code=status.HTTP_200_OK,description="Removes a training view", 
-                operation_id='remove_training_view', tags=['Training Views'])
-@managed_transaction
-def remove_training_view(override=False, db: Session = Depends(crud.get_db)):
-    """
-    Note: This function is not yet implemented.
-    Removes a training view. This will run 2 checks.
-        1. See if the training view is being used by a model in a deployment. If this is the case, the function will fail, always.
-        2. See if the training view is being used in any mlflow runs (non-deployed models). This will fail and return
-        a warning Telling the user that this training view is being used in mlflow runs (and the run_ids) and that
-        they will need to "override" this function to forcefully remove the training view.
-    """
-    raise NotImplementedError
-
 @SYNC_ROUTER.get('/summary', status_code=status.HTTP_200_OK, response_model=schemas.FeatureStoreSummary,
                 description="Returns feature store summary metrics", operation_id='get_summary', tags=['Feature Store'])
 @managed_transaction
@@ -364,7 +350,7 @@ def remove_feature(name: str, db: Session = Depends(crud.get_db)):
                                         message=f"Cannot delete Feature {feature.name} from deployed Feature Set {schema}.{table}")
     crud.delete_feature(db, feature)
 
-@SYNC_ROUTER.delete('/training_views', status_code=status.HTTP_200_OK, description="Remove a training view", 
+@SYNC_ROUTER.delete('/training-views', status_code=status.HTTP_200_OK, description="Remove a training view",
                     operation_id='remove_training_view', tags=['Training Views'])
 @managed_transaction
 def remove_training_view(name: str, db: Session = Depends(crud.get_db)):

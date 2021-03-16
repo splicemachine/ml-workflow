@@ -323,7 +323,7 @@ def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, 
     )
     return deps
 
-def get_training_view_dependencies(db: Session, vid: int) -> List[Dict[str:str]]:
+def get_training_view_dependencies(db: Session, vid: int) -> List[Dict[str,str]]:
     """
     Returns the mlflow run ID and model deployment name that rely on the given training view
 
@@ -331,7 +331,6 @@ def get_training_view_dependencies(db: Session, vid: int) -> List[Dict[str:str]]
     :param feature_set_id: The Feature Set ID in question
     """
     tset = aliased(models.TrainingSet, name='tset')
-    tvw= aliased(models.TrainingView, name='tvw')
     d = aliased(models.Deployment, name='d')
 
     p = db.query(tset.training_set_id).filter(tset.view_id == vid).subquery('p')
@@ -340,7 +339,7 @@ def get_training_view_dependencies(db: Session, vid: int) -> List[Dict[str:str]]
     deps = [{
         'run_id': run_id, 
         'deployment': f'{schema}.{table}'
-        } for schema, table, run_id, tset_id in res]
+        } for schema, table, run_id in res]
     
     return deps
 
