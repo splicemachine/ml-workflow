@@ -37,7 +37,7 @@ RUN cd $BUILD_HOME && \
     sh ./install.sh -q
 
 # Install Python dependencies
-RUN pip3 install -r $BUILD_HOME/requirements.txt
+RUN pip3 install -q -r $BUILD_HOME/requirements.txt
 
 # Remove Build Directories and Create source directory
 RUN rm -rf $BUILD_HOME/* && \
