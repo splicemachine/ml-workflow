@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.splicemachine</groupId>
     <artifactId>mlrunner</artifactId>
-    <version>0.1.6_VTI061</version>
+    <version>0.1.6_VTI062</version>
     <properties>
         <scala.binary.version>2.12</scala.binary.version>
         <scala.version>2.12.12</scala.version>
@@ -51,7 +51,6 @@
         <dependency>
             <groupId>com.splicemachine</groupId>
             <artifactId>splice_machine</artifactId>
-            <version>3.0.1.1997</version>
             <version>3.0.1.1999</version>
             <scope>provided</scope>
         </dependency>

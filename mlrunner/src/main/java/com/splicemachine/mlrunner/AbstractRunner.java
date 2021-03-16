@@ -4,10 +4,7 @@ import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.lang.reflect.InvocationTargetException;
-import java.sql.Blob;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -16,10 +13,8 @@ import com.splicemachine.EngineDriver;
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.services.io.Formatable;
 import com.splicemachine.db.iapi.sql.Activation;
-import com.splicemachine.db.iapi.sql.PreparedStatement;
 import com.splicemachine.db.iapi.sql.conn.LanguageConnectionContext;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
-import com.splicemachine.db.iapi.sql.ResultSet;
 import com.splicemachine.db.impl.sql.GenericStorablePreparedStatement;
 import hex.genmodel.easy.exception.PredictException;
 import com.splicemachine.db.iapi.services.io.StoredFormatIds;
@@ -44,43 +39,44 @@ public abstract class AbstractRunner implements Formatable {
     
 
       // FIXME: Trying Jun's fix below
-//    public static Object[] getModelBlob(final String modelID) throws SQLException {
-//        Connection conn = EngineDriver.driver().getInternalConnection();
-//        java.sql.PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
-//        pstmt.setString(1, modelID);
-//        Object [] obj = null;
-//        java.sql.ResultSet rs = pstmt.executeQuery();
-//        if (rs.next()) {
-//            final Blob blobModel = rs.getBlob(1);
-//            final String library = rs.getString(2);
-//            obj = new Object[]{blobModel, library};
-//        }
-//        if(obj == null){
-//            throw new SQLException("Model not found in Database!");
-//        }
-//        else{
-//            return obj;
-//        }
-//    }
     public static Object[] getModelBlob(final String modelID) throws SQLException {
-        try(Connection conn = DriverManager.getConnection("jdbc:default:connection");){
-            java.sql.PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
-            pstmt.setString(1, modelID);
-            java.sql.ResultSet rs = pstmt.executeQuery();
-            Object [] obj = null;
-            if (rs.next()) {
-                final Blob blobModel = rs.getBlob(1);
-                final String library = rs.getString(2);
-                obj = new Object[]{blobModel, library};
-            }
-            if(obj == null){
-                throw new SQLException("Model not found in Database!");
-            }
-            else{
-                return obj;
-            }
+        Connection conn = EngineDriver.driver().getInternalConnection();
+        java.sql.PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
+        pstmt.setString(1, modelID);
+        Object [] obj = null;
+        java.sql.ResultSet rs = pstmt.executeQuery();
+        if (rs.next()) {
+            final Blob blobModel = rs.getBlob(1);
+            final String library = rs.getString(2);
+            obj = new Object[]{blobModel, library};
+        }
+        if(obj == null){
+            throw new SQLException("Model not found in Database!");
+        }
+        else{
+            return obj;
         }
     }
+
+//    public static Object[] getModelBlob(final String modelID) throws SQLException {
+//        try(Connection conn = DriverManager.getConnection("jdbc:default:connection");){
+//            java.sql.PreparedStatement pstmt = conn.prepareStatement("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID=?");
+//            pstmt.setString(1, modelID);
+//            java.sql.ResultSet rs = pstmt.executeQuery();
+//            Object [] obj = null;
+//            if (rs.next()) {
+//                final Blob blobModel = rs.getBlob(1);
+//                final String library = rs.getString(2);
+//                obj = new Object[]{blobModel, library};
+//            }
+//            if(obj == null){
+//                throw new SQLException("Model not found in Database!");
+//            }
+//            else{
+//                return obj;
+//            }
+//        }
+//    }
 
 //    public static Object[] getModelBlob(final String modelID, LanguageConnectionContext languageConnectionContext) throws SQLException, StandardException {
 //        final String sql = String.format("select database_binary, file_extension from mlmanager.artifacts where DATABASE_BINARY IS NOT NULL AND RUN_UUID='%s'",modelID);
