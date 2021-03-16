@@ -32,25 +32,24 @@ def create_training_set(create_deployed_fset):
     logger.info("getting postgres database")
     sess = create_deployed_fset
 
-    cleanup(sess)
+    # cleanup(sess)
 
-    logger.info('creating table for training view')
-    raw_table = Table(
-        'FSET_1',Base.metadata,
-        Column('pk', Integer, primary_key = True),
-        Column('moment_key', Integer),
-        Column('ts', DateTime, server_default=(TextClause("CURRENT_TIMESTAMP"))),
-        schema='test_fs',
-        extend_existing=True
-    )
-    Base.metadata.create_all(sess.get_bind(), tables=[raw_table])
-    for i in range(1,6):
-        ins = raw_table.insert().values(pk=i, moment_key=i)
-        sess.engine.execute(ins)
+    # logger.info('creating table for training view')
+    # raw_table = Table(
+    #     'JOIN_TABLE',Base.metadata,
+    #     Column('pk', Integer, primary_key = True),
+    #     Column('moment_key', Integer),
+    #     Column('ts', DateTime, server_default=(TextClause("CURRENT_TIMESTAMP"))),
+    #     schema='splice',
+    #     extend_existing=True
+    # )
+    # Base.metadata.create_all(sess.get_bind(), tables=[raw_table])
+    # for i in range(1,6):
+    #     ins = raw_table.insert().values(pk=i, moment_key=i)
+    #     sess.engine.execute(ins)
 
     logger.info('Creating Training View')
-    sql = '''
-    select
+    sql = '''select
     ts,pk,moment_key
     from splice.join_table
     '''
@@ -60,6 +59,7 @@ def create_training_set(create_deployed_fset):
         description='a test view',
         sql_text=sql
     ))
+    sess.flush()
     logger.info("adding tvw keys")
     sess.add(TrainingViewKey(
         view_id=1,
@@ -77,6 +77,7 @@ def create_training_set(create_deployed_fset):
         name='ts1',
         view_id=1
     ))
+    sess.flush()
     logger.info('Adding training set feature')
     sess.add(TrainingSetFeature(
         training_set_id=1,
@@ -86,9 +87,10 @@ def create_training_set(create_deployed_fset):
     try:
         yield sess
     finally:
-        Base.metadata.drop_all(sess.get_bind(), tables=[raw_table])
+        # Base.metadata.drop_all(sess.get_bind(), tables=[raw_table])
         sess.execute('truncate table featurestore.training_set_feature')
         sess.execute('truncate table featurestore.training_set')
         sess.execute('truncate table featurestore.training_view_key')
         sess.execute('truncate table featurestore.training_view')
         sess.commit()
+

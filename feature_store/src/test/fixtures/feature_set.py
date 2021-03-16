@@ -66,6 +66,13 @@ def create_deployed_fset(get_my_session):
     sess.add(fset_key)
     sess.flush()
 
+     # Add fset key
+    logger.info('Done. Adding Feature')
+    fset_key = Feature(feature_set_id=fset.feature_set_id,feature_id=1, name='Test_Feature', feature_data_type='INT',
+                       feature_type='C')
+    sess.add(fset_key)
+    sess.flush()
+
     # Create table
     logger.info("Creating table")
     sess.execute('create schema if not exists test_fs')
@@ -148,3 +155,5 @@ def create_fset_with_features(get_my_session):
     finally:
         # Cleanup temp table
         Base.metadata.drop_all(sess.get_bind(), tables=[fset_1,fset_2])
+
+
