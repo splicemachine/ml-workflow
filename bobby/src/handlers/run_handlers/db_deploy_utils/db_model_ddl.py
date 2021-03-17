@@ -296,7 +296,7 @@ class DatabaseModelDDL:
 
         trigger_sql += f'{vti_output_cols}) = ('
         trigger_sql += f'SELECT {output_cols_vti_reference} FROM {prediction_call}' \
-                       f' as b ({output_cols_schema_str}) WHERE '
+                       f' as b ({output_cols_schema_str}) --splice-properties useSpark=False, joinStrategy = sortmerge \nWHERE '
 
 
         trigger_sql += ' AND '.join([f'{self.schema_table_name}.{index} = b.{index}' for index in self.primary_key])
