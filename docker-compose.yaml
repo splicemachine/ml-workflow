@@ -4,7 +4,6 @@ services:
     user: root
     volumes:
       - "./notebooks:/home/joyvan/work"
-      - "~/Documents/repositories/pysplice:/tmp/pysplice"
     environment:
       GRANT_SUDO: "yes"
     ports:
