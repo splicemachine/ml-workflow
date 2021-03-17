@@ -26,6 +26,7 @@ public class SKRunner extends AbstractRunner implements Formatable {
     ByteBuffer model;
     private static final Logger LOG = Logger.get(MLRunner.class);
 
+    public SKRunner(){};
     public SKRunner(final Blob modelBlob) throws SQLException, IOException {
         this.deserModel = new SQLBlob(modelBlob);
         InputStream is = modelBlob.getBinaryStream();

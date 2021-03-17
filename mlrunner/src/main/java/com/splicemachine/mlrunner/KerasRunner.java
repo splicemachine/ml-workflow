@@ -29,6 +29,7 @@ public class KerasRunner extends AbstractRunner implements Formatable {
     // For serializing and deserializing across spark
     SQLBlob deserModel;
 
+    public KerasRunner(){};
     public KerasRunner(Blob modelBlob) throws SQLException, UnsupportedKerasConfigurationException, IOException, InvalidKerasConfigurationException {
         this.deserModel = new SQLBlob(modelBlob);
         InputStream is = modelBlob.getBinaryStream();

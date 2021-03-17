@@ -41,6 +41,7 @@ public class MLeapRunner extends AbstractRunner implements Formatable {
     static Class[] parameterTypes = { String.class };
     private static final Logger LOG = Logger.get(MLRunner.class);
 
+    public MLeapRunner(){};
     public MLeapRunner(final Blob modelBlob) throws IOException, ClassNotFoundException, SQLException {
         this.deserModel = new SQLBlob(modelBlob);
         final InputStream bis = modelBlob.getBinaryStream();
