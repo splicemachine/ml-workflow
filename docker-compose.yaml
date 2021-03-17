@@ -4,6 +4,7 @@ services:
     user: root
     volumes:
       - "./notebooks:/home/joyvan/work"
+      - "~/Documents/repositories/pysplice:/tmp/pysplice"
     environment:
       GRANT_SUDO: "yes"
     ports:
@@ -21,7 +22,7 @@ services:
       FRAMEWORK_NAME: my-framework
       MODE: development
       ENVIRONMENT: ${ENVIRONMENT}
-    image: splicemachine/sm_k8_mlflow:0.1.29
+    image: splicemachine/sm_k8_mlflow:0.1.27_mn001
     ports:
       - "5001:5001"
       - "5003:5003"
@@ -46,7 +47,7 @@ services:
       SAGEMAKER_ROLE: ${SAGEMAKER_ROLE}
       MODE: production
       ENVIRONMENT: ${ENVIRONMENT}
-    image: splicemachine/sm_k8_bobby:0.1.29
+    image: splicemachine/sm_k8_bobby:0.1.27_mn003
     build:
       args:
         server_image_tag: 0.0.15
@@ -61,7 +62,10 @@ services:
       FRAMEWORK_NAME: my-framework
       MODE: development
       ENVIRONMENT: ${ENVIRONMENT}
-    image: splicemachine/sm_k8_feature_store:0.0.3
+      AIRFLOW_URL: "http://host.docker.internal:8081/api/v1"
+      AIRFLOW_USER: airflow
+      AIRFLOW_PASSWORD: airflow
+    image: splicemachine/sm_k8_feature_store:0.0.1_mn005
     ports:
       - "8000:8000"
     build:

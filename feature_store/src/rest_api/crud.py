@@ -11,7 +11,7 @@ import re
 import json
 from datetime import datetime
 from sqlalchemy import update, sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
-from .utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
+from .utils.utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
 from sys import exc_info as get_stack_trace
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
