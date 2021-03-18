@@ -1,5 +1,6 @@
 package com.splicemachine.mlrunner;
 
+import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
@@ -11,17 +12,12 @@ import java.util.Queue;
 
 import com.splicemachine.EngineDriver;
 import com.splicemachine.db.iapi.error.StandardException;
-import com.splicemachine.db.iapi.services.io.Formatable;
-import com.splicemachine.db.iapi.sql.Activation;
-import com.splicemachine.db.iapi.sql.conn.LanguageConnectionContext;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
-import com.splicemachine.db.impl.sql.GenericStorablePreparedStatement;
 import hex.genmodel.easy.exception.PredictException;
-import com.splicemachine.db.iapi.services.io.StoredFormatIds;
 import io.airlift.log.Logger;
 import jep.JepException;
 
-public abstract class AbstractRunner implements Formatable {
+public abstract class AbstractRunner implements Externalizable {
 
     private static final Logger LOG = Logger.get(MLRunner.class);
 
@@ -112,15 +108,6 @@ public abstract class AbstractRunner implements Formatable {
 //        throw new SQLException("Model not found in Database!");
 //    }
 
-    /**
-     * Get the formatID which corresponds to this class.
-     * didn't see 99 taken
-     * https://github.com/splicemachine/spliceengine/blob/master/db-engine/src/main/java/com/splicemachine/db/iapi/services/io/StoredFormatIds.java
-     *
-     *	@return	the formatID of this class
-     */
-    @Override
-    public	int	getTypeFormatId()	{ return StoredFormatIds.MIN_ID_2 + 99; }
 
     @Override
     public abstract void writeExternal(ObjectOutput out) throws IOException;

@@ -111,7 +111,6 @@ class DatabaseModelMetadataPreparer:
         if self.model_type == KerasModelType.MULTI_PRED_DOUBLE:
             output_shape = library_model.layers[-1].output_shape
             if not self._classes:
-                # If they provide a pred threshold and it's 1 node output, then we want 2 classes
                 num_classes = output_shape[-1] if not pred_threshold else output_shape[-1]+1
                 self._classes = ['PREDICTION'] + [f'OUT{i}' for i in range(num_classes)]
                 self.logger.info(f"Classes were not specified... using {self._classes} as fallback", send_db=True)

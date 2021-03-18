@@ -1,7 +1,6 @@
 package com.splicemachine.mlrunner;
 
 import com.splicemachine.db.iapi.error.StandardException;
-import com.splicemachine.db.iapi.services.io.Formatable;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.iapi.types.SQLBlob;
 import com.splicemachine.db.iapi.types.SQLDouble;
@@ -11,6 +10,7 @@ import java.io.*;
 import java.sql.Blob;
 import java.sql.SQLException;
 
+import io.airlift.log.Logger;
 import org.deeplearning4j.nn.modelimport.keras.KerasModelImport;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.nd4j.linalg.api.ndarray.INDArray;
@@ -23,7 +23,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
-public class KerasRunner extends AbstractRunner implements Formatable {
+public class KerasRunner extends AbstractRunner implements Externalizable {
+    private static final Logger LOG = Logger.get(KerasRunner.class);
+
     MultiLayerNetwork model;
 
     // For serializing and deserializing across spark
@@ -57,13 +59,18 @@ public class KerasRunner extends AbstractRunner implements Formatable {
                                      List<String> featureColumnNames) throws SQLException {
         // Create array that is numRows X numFeaturesPerRow
         assert unprocessedRows.peek() != null: "There are no rows in the Queue!";
-        INDArray features = Nd4j.zeros(unprocessedRows.size(), unprocessedRows.peek().nColumns());
+        INDArray features = Nd4j.zeros(unprocessedRows.size(), modelFeaturesIndexes.size());
+        LOG.info("In parse!");
+        LOG.info("Size of unprocessed rows: " + unprocessedRows.size());
+        LOG.info("Number of features: " + unprocessedRows.peek().nColumns());
+        LOG.info("Model feature indexes size: " + modelFeaturesIndexes.size());
         int rowNum = 0;
         try {
             Iterator<ExecRow> unpr = unprocessedRows.descendingIterator();
             while(unpr.hasNext()){
                 ExecRow row = unpr.next();
                 for (int ind = 0; ind < modelFeaturesIndexes.size(); ind++) {
+                    LOG.info("Adding index " + ind);
                     features.putScalar(rowNum, ind, row.getColumn(modelFeaturesIndexes.get(ind)).getDouble());
                 }
                 rowNum++;
@@ -72,6 +79,8 @@ public class KerasRunner extends AbstractRunner implements Formatable {
         catch(Exception e){
             throw new SQLException("Expected input to be of type Double but wasn't\n" , e);
         }
+        LOG.info("shape of features: " + features.shapeInfoToString());
+        LOG.info("number of columns: " + features.columns());
         return features;
     }
 
@@ -117,6 +126,9 @@ public class KerasRunner extends AbstractRunner implements Formatable {
                 double rawOut = ndRow.getDouble();
                 int classPred = rawOut > threshold ? 1 : 0;
                 transformedRow.setColumnValue(predictionColIndex, new SQLVarchar(predictionLabels.get(classPred)));
+                // if prediction is 0.8 and the threshold is 0.5, then prediction = class 1. So class 0 is (1-0.8) = 0.2
+                transformedRow.setColumnValue(predictionLabelIndexes.get(0), new SQLDouble(1-rawOut)); // 0 class
+                transformedRow.setColumnValue(predictionLabelIndexes.get(1), new SQLDouble(rawOut));       // 1 class
                 transformedRows.add(transformedRow);
             }
         }
@@ -124,7 +136,7 @@ public class KerasRunner extends AbstractRunner implements Formatable {
             for (ExecRow transformedRow : rows) { // DB Row
                 INDArray ndRow = output.getRow(rowNum); // Keras NN Row
                 int pred = (int) ndRow.argMax(1).getDouble();
-                for (int colNum = 0; colNum < output.size(0); colNum++) {
+                for (int colNum = 0; colNum < predictionLabelIndexes.size(); colNum++) {
                     transformedRow.setColumnValue(predictionLabelIndexes.get(colNum), new SQLDouble(ndRow.getDouble(colNum)));
                 }
                 transformedRow.setColumnValue(predictionColIndex, new SQLVarchar(predictionLabels.get(pred)));
@@ -199,8 +211,5 @@ public class KerasRunner extends AbstractRunner implements Formatable {
             e.printStackTrace();
         }
     }
-
-    @Override
-    public int getTypeFormatId() {return super.getTypeFormatId();}
 
 }

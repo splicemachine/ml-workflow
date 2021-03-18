@@ -8,7 +8,6 @@ import java.sql.SQLException;
 import java.util.*;
 
 import com.splicemachine.db.iapi.error.StandardException;
-import com.splicemachine.db.iapi.services.io.Formatable;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.iapi.types.*;
 import hex.genmodel.easy.exception.PredictException;
@@ -18,7 +17,7 @@ import jep.SharedInterpreter;
 import jep.JepException;
 
 import static java.nio.ByteBuffer.allocateDirect;
-public class SKRunner extends AbstractRunner implements Formatable {
+public class SKRunner extends AbstractRunner implements Externalizable {
 
     // For serializing and deserializing across spark
     SQLBlob deserModel;
@@ -373,7 +372,7 @@ public class SKRunner extends AbstractRunner implements Formatable {
     @Override
     public void writeExternal(ObjectOutput out) throws IOException
     {
-        out.writeObject(this.deserModel);
+        out.writeObject(deserModel);
     }
 
     /**
@@ -404,6 +403,4 @@ public class SKRunner extends AbstractRunner implements Formatable {
         this.model = allocateDirect(fileSize).put(allBytes);
     }
 
-    @Override
-    public int getTypeFormatId() {return super.getTypeFormatId();}
 }

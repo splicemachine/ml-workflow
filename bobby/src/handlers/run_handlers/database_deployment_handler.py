@@ -41,6 +41,8 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.jvm = self.spark_session._jvm
         self.model: Optional[Model] = None
 
+        self.Session.execute('SAVEPOINT predeploy')
+
     def _validate_primary_key(self):
         """
         Validates the primary key passed by the user conforms to SQL. If the user is deploying to an existing table
@@ -213,7 +215,8 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
     def exception_handler(self, exc: Exception):
         self.logger.info("Rolling back...",send_db=True)
-        self.Session.rollback()
+        # self.Session.rollback()
+        self.Session.execute('ROLLBACK to SAVEPOINT predeploy')
         self._cleanup()  # always run cleanup, regardless of success or failure
         raise exc
 

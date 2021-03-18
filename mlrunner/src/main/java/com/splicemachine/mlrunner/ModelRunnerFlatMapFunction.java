@@ -2,20 +2,20 @@ package com.splicemachine.mlrunner;
 
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.iapi.types.ArrayImpl;
-import com.splicemachine.db.iapi.services.io.Formatable;
 import com.splicemachine.derby.iapi.sql.execute.SpliceOperation;
 import com.splicemachine.derby.stream.function.SpliceFlatMapFunction;
 import com.splicemachine.derby.stream.iapi.OperationContext;
 
 import io.airlift.log.Logger;
 
+import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.sql.SQLException;
 import java.util.*;
 
-public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOperation, Iterator<ExecRow>, ExecRow> implements Iterator<ExecRow>, Formatable {
+public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOperation, Iterator<ExecRow>, ExecRow> implements Iterator<ExecRow>, Externalizable {
     private static final Logger LOG = Logger.get(MLRunner.class);
     AbstractRunner runner;
     String modelCategory, predictCall, predictArgs;
@@ -149,6 +149,17 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
         out.writeObject(new ArrayImpl("null",-1,this.featureColumnNames.toArray())); //List<String>
     }
 
+    public List<Integer> arrayImplToIntList(ArrayImpl array) throws SQLException {
+        Object[] mfio = (Object[]) array.getArray();
+        Integer[] mfii = Arrays.asList(mfio).toArray(new Integer[0]);
+        return Arrays.asList(mfii);
+    }
+    public List<String> arrayImplToStringList(ArrayImpl array) throws SQLException {
+        Object[] mfio = (Object[]) array.getArray();
+        String[] mfii = Arrays.asList(mfio).toArray(new String[0]);
+        return Arrays.asList(mfii);
+    }
+
     @Override
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         super.readExternal(in);
@@ -169,25 +180,33 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
             // Then to a List<Integer>
 //            this.modelFeaturesIndexes = Arrays.asList(((Integer[]) ((ArrayImpl) in.readObject()).getArray()));
 
-            ArrayImpl mfia = (ArrayImpl) in.readObject();
-            Object[] mfio = (Object[]) mfia.getArray();
-            Integer[] mfii = Arrays.asList(mfio).toArray(new Integer[0]);
-            this.modelFeaturesIndexes = Arrays.asList(mfii);
+//            ArrayImpl mfia = (ArrayImpl) in.readObject();
+//            Object[] mfio = (Object[]) mfia.getArray();
+//            Integer[] mfii = Arrays.asList(mfio).toArray(new Integer[0]);
+//            this.modelFeaturesIndexes = Arrays.asList(mfii);
 
-            ArrayImpl pla = (ArrayImpl) in.readObject();
-            Object[] plo = (Object[]) pla.getArray();
-            String[] pls = Arrays.asList(plo).toArray(new String[0]);
-            this.predictionLabels = Arrays.asList(pls);
+            this.modelFeaturesIndexes = arrayImplToIntList((ArrayImpl) in.readObject());
 
-            ArrayImpl plia = (ArrayImpl) in.readObject();
-            Object[] plio = (Object[]) plia.getArray();
-            Integer[] plii = Arrays.asList(plio).toArray(new Integer[0]);
-            this.predictionLabelIndexes = Arrays.asList(plii);
+//            ArrayImpl pla = (ArrayImpl) in.readObject();
+//            Object[] plo = (Object[]) pla.getArray();
+//            String[] pls = Arrays.asList(plo).toArray(new String[0]);
+//            this.predictionLabels = Arrays.asList(pls);
+            this.predictionLabels = arrayImplToStringList((ArrayImpl) in.readObject());
 
-            ArrayImpl fcna = (ArrayImpl) in.readObject();
-            Object[] fcno = (Object[]) fcna.getArray();
-            String[] fcns = Arrays.asList(fcno).toArray(new String[0]);
-            this.featureColumnNames = Arrays.asList(fcns);
+
+//            ArrayImpl plia = (ArrayImpl) in.readObject();
+//            Object[] plio = (Object[]) plia.getArray();
+//            Integer[] plii = Arrays.asList(plio).toArray(new Integer[0]);
+//            this.predictionLabelIndexes = Arrays.asList(plii);
+
+            this.predictionLabelIndexes = arrayImplToIntList((ArrayImpl) in.readObject());
+
+            this.featureColumnNames = arrayImplToStringList((ArrayImpl) in.readObject());
+
+//            ArrayImpl fcna = (ArrayImpl) in.readObject();
+//            Object[] fcno = (Object[]) fcna.getArray();
+//            String[] fcns = Arrays.asList(fcno).toArray(new String[0]);
+//            this.featureColumnNames = Arrays.asList(fcns);
 
 //            this.predictionLabels = Arrays.asList(((String[]) ((ArrayImpl) in.readObject()).getArray()));
 //            this.predictionLabelIndexes = Arrays.asList(((Integer[]) ((ArrayImpl) in.readObject()).getArray()));
@@ -196,11 +215,6 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
         catch(SQLException sqlException){
             throw new IOException("Could not deserialize arraylists due to error: " + sqlException.getMessage());
         }
-    }
-
-    @Override
-    public int getTypeFormatId() {
-        return 0;
     }
 }
 

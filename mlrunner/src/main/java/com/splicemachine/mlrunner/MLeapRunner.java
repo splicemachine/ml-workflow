@@ -1,7 +1,6 @@
 package com.splicemachine.mlrunner;
 
 import com.splicemachine.db.iapi.error.StandardException;
-import com.splicemachine.db.iapi.services.io.Formatable;
 import com.splicemachine.db.iapi.types.SQLBlob;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.iapi.types.DataValueDescriptor;
@@ -31,7 +30,7 @@ import java.util.regex.Pattern;
 /**
  * Scalar function for making predictions via mleap
  */
-public class MLeapRunner extends AbstractRunner implements Formatable {
+public class MLeapRunner extends AbstractRunner implements Externalizable {
     private static LeapFrameBuilder frameBuilder = new LeapFrameBuilder();
     // For serializing and deserializing across spark
     SQLBlob deserModel;
@@ -387,9 +386,6 @@ public class MLeapRunner extends AbstractRunner implements Formatable {
         final ObjectInputStream ois = new ObjectInputStream(bis);
         this.model = (Transformer) ois.readObject();
     }
-
-    @Override
-    public int getTypeFormatId() {return super.getTypeFormatId();}
 }
 
 

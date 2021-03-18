@@ -107,7 +107,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     }
 
     /**
-     * @deprecated  As of release 2.4.0-k8, VTI only now
+     * @deprecated  As of release 2.6.0-k8, VTI only now
      */
     @Deprecated public static String predictClassification(final String modelID, final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
@@ -122,7 +122,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     }
 
     /**
-     * @deprecated  As of release 2.5.0-k8, VTI only now
+     * @deprecated  As of release 2.6.0-k8, VTI only now
      */
     @Deprecated public static Double predictRegression(final String modelID, final String rawData, final String schema)
             throws ClassNotFoundException, UnsupportedLibraryExcetion, SQLException, IOException,
@@ -138,7 +138,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     }
 
     /**
-     * @deprecated  As of release 2.4.0-k8, VTI only now
+     * @deprecated  As of release 2.6.0-k8, VTI only now
      */
     @Deprecated public static String predictClusterProbabilities(final String modelID, final String rawData, final String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException,
             UnsupportedLibraryExcetion, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
@@ -152,7 +152,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     }
 
     /**
-     * @deprecated  As of release 2.4.0-k8, VTI only now
+     * @deprecated  As of release 2.6.0-k8, VTI only now
      */
     @Deprecated public static int predictCluster(final String modelID, final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
@@ -167,7 +167,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     }
 
     /**
-     * @deprecated  As of release 2.4.0-k8, VTI only now
+     * @deprecated  As of release 2.6.0-k8, VTI only now
      */
     @Deprecated public static double[] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
@@ -225,10 +225,12 @@ public class MLRunner implements DatasetProvider, VTICosting {
         ResultColumnDescriptor[] cd = languageConnectionContext.getTriggerExecutionContext().getTemporaryRowHolder().getResultSet().getResultDescription().getColumnInfo();
         HashMap<String, Integer> colIndexes= new HashMap<>();
         for(ResultColumnDescriptor rcd : cd)    colIndexes.put(rcd.getName(), rcd.getColumnPosition());
-
+        LOG.info("HERE!: Values in the feature column names");
         for(String col : this.featureColumnNames) {
+            LOG.info("Col is: " + col);
             modelFeaturesIndexes.add(colIndexes.get(col.toUpperCase()));
         }
+        LOG.info("Number of indexes: " + modelFeaturesIndexes.size());
         for(String col : this.predictionLabels){
             if(!col.equalsIgnoreCase("PREDICTION")) { // Keep prediction col separate
                 predictionLabelIndexes.add(colIndexes.get(col.toUpperCase()));
@@ -239,12 +241,6 @@ public class MLRunner implements DatasetProvider, VTICosting {
         catch (Exception e){
             predictionColIndex=-1;
         }
-
-        // TODO code from Jun
-//        PreparedStatement ps = languageConnectionContext.prepareInternalStatement(SQL);
-//        Activation activation = ps.getActivation(lcc, false);
-//        ((GenericStorablePreparedStatement)ps).setNeedsSavepoint(false);
-//        ResultSet rs = ps.execute(activation, 0);
 
         // Initialize runner
         LOG.warn("Getting runner");
@@ -264,7 +260,6 @@ public class MLRunner implements DatasetProvider, VTICosting {
         LOG.warn("Finished getting runner");
         LOG.warn("Runner is null " + (runner==null));
         assert runner != null: "runner is null!";
-        LOG.warn("Got runner " + runner.getTypeFormatId());
 
         // Get the row(s) of data and transform them
         DataSet<ExecRow> rows = this.newTransitionRows.getDataSet(spliceOperation, dataSetProcessor, execRow);
