@@ -41,7 +41,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.jvm = self.spark_session._jvm
         self.model: Optional[Model] = None
 
-        self.Session.execute('SAVEPOINT predeploy')
+        self.Session.begin_nested() # Create a savepoint in case of errors
 
     def _validate_primary_key(self):
         """
@@ -215,8 +215,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
     def exception_handler(self, exc: Exception):
         self.logger.info("Rolling back...",send_db=True)
-        # self.Session.rollback()
-        self.Session.execute('ROLLBACK to SAVEPOINT predeploy')
+        self.Session.rollback()
         self._cleanup()  # always run cleanup, regardless of success or failure
         raise exc
 
