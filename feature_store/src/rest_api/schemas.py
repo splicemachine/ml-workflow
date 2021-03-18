@@ -67,6 +67,35 @@ class TrainingView(TrainingViewBase):
 class TrainingViewDescription(TrainingView):
     features: List[FeatureDescription]
 
+
+class Source(BaseModel):
+    name: str
+    sql_text: str
+    event_ts_column: str
+    update_ts_column: str
+    source_id: int
+    pk_columns: List[str]
+
+
+class FeatureAggregation(BaseModel):
+    column_name: str
+    agg_functions: List[str]
+    agg_windows: List[str]
+    feature_name_prefix: Optional[str] = None
+    agg_default_value: Optional[float] = None
+
+class SourceFeatureSetAgg(BaseModel):
+    source_name: str
+    schema: str
+    table: str
+    start_time: datetime
+    schedule_interval: str
+    aggregations: List[FeatureAggregation]
+    backfill_start_time: Optional[datetime] = None
+    backfill_interval: Optional[str] = None
+
+
+
 # Basically just for neat documentation
 class FeatureTimeframe(BaseModel):
     features: Union[List[Feature], List[str]] = None
@@ -122,3 +151,5 @@ class FeatureStoreSummary(BaseModel):
     num_models: int
     num_deployed_models: int
     num_pending_feature_set_deployments: int
+
+

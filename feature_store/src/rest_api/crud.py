@@ -689,7 +689,8 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
 
 def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, label_col=None) -> None:
     """
-    Validates that the training view doesn't already exist.
+    Validates that the training view doesn't already exist, that the provided sql is valid, and that the pk_cols and
+    label_col provided are valid
 
     :param db: SqlAlchemy Session
     :param name: The training view name
@@ -707,7 +708,8 @@ def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, labe
     # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
     from sqlalchemy.exc import ProgrammingError
     try:
-        valid_df = db.execute(sql_text).first()
+        sql = f'select * from ({sql_text}) x where 1=0' # So we get column names but don't actually execute their sql
+        valid_df = db.execute(sql)
     except ProgrammingError as e:
         if '[Splice Machine][Splice]' in str(e):
             raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
@@ -734,6 +736,7 @@ def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, labe
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
                                 message=f"Not all provided join keys exist. Remove {missing_keys} or " \
                                 f"create a feature set that uses the missing keys")
+
 
 def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
     """
@@ -765,6 +768,122 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
         key = models.TrainingViewKey(view_id=vid, key_column_name=i.upper(), key_type='P')
         db.add(key)
     logger.info('Done.')
+
+def get_source(db: Session, name) -> schemas.Source:
+    """
+    Gets a Source by name
+
+    :param db: Session
+    :param name: Source name
+    :return: Source
+    """
+    s = db.query(models.Source).filter(models.Source.name == name).first()
+    if not s:
+        return
+
+    sk = db.query(models.SourceKey.key_column_name).filter(models.SourceKey.source_id == s.source_id).all()
+    sch = s.__dict__
+    sch['pk_columns'] = [i[0] for i in sk]
+    return schemas.Source(**sch)
+
+def get_source_pk_types(db: Session, sql: str) -> Dict[str,str]:
+    """
+    Gets the primary key column names and SQL data types for a source
+
+    :param db: Session
+    :param sql: SQL of the source
+    :return: Primary Keys with their types
+    """
+    lazy_sql = f'select * from ({sql}) x where 1=0'
+    valid_df = db.execute(sql)
+    col_descriptions = valid_df.cursor.description
+
+
+
+def validate_source(db: Session, name, sql_text, pk_columns, event_ts_column, update_ts_column) -> None:
+    """
+    Validates that the Source doesn't already exist, that the provided sql is valid, and that the pk_cols and
+    event_ts_column/update_ts_column provided are valid (meaning they exist from the SQL)
+
+    :param db: SqlAlchemy Session
+    :param name: The source name
+    :param sql: The source provided SQL
+    :param pk_columns: The primary keys of the source
+    :param event_ts_column: The event_ts_col name
+    :param event_ts_column: The update_ts_col name
+    :return: None
+    """
+    # Validate name doesn't exist
+    if get_source(db, name):
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS,
+                                     message=f"Source {name} already exists!")
+
+    # Column comparison
+    # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
+    from sqlalchemy.exc import ProgrammingError
+    try:
+        sql = f'select * from ({sql_text}) x where 1=0' # So we get column names but don't actually execute their sql
+        valid_df = db.execute(sql)
+    except ProgrammingError as e:
+        if '[Splice Machine][Splice]' in str(e):
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                            message=f'The provided SQL is incorrect. The following error was raised during '
+                                            f'validation:\n\n{str(e)}') from None
+        raise e
+
+    if valid_df.is_insert:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided SQL seems to be an insert statement. Source SQL must be a "
+                                                f"SELECT")
+    if not valid_df.returns_rows:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided does not seem to be a SELECT statement that should return "
+                                                f"rows. The provided source SQL must be able to return rows.")
+
+    # Ensure the event_ts_column specified is in the output of the SQL
+    if event_ts_column.upper() not in valid_df.keys():
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided event_ts_column column {event_ts_column} is not available in the provided SQL")
+
+    # Ensure the event_ts_column specified is in the output of the SQL
+    if update_ts_column.upper() not in valid_df.keys():
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided update_ts_column column {update_ts_column} is not available in the provided SQL")
+
+    # Ensure the primary key columns are in the output of the SQL
+    pks = set(key.upper() for key in pk_columns)
+    missing_keys = pks - set(valid_df.keys())
+    if missing_keys:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided primary key(s) {missing_keys} are not available in the provided SQL")
+
+def create_source(db: Session, name, sql_text, pk_columns, event_ts_column, update_ts_column) -> None:
+    """
+    Creates a Source and stores the metadata in the Feature Store
+
+    :param db: SqlAlchemy Session
+    :param name: The source name
+    :param sql: The source provided SQL
+    :param pk_columns: The primary keys of the source
+    :param event_ts_column: The event_ts_col name
+    :param event_ts_column: The update_ts_col name
+    :return: None
+    """
+    s = models.Source(
+        name=name,
+        sql_text=sql_text,
+        event_ts_column=event_ts_column,
+        update_ts_column=update_ts_column,
+
+    )
+    db.add(s)
+    db.flush() # Get source ID
+    for k in pk_columns:
+        sk = models.SourceKey(
+            source_id = s.source_id,
+            key_column_name = k
+        )
+        db.add(sk)
 
 def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str, table_name: str) -> schemas.TrainingSetMetadata:
     """

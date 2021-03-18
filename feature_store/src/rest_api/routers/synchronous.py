@@ -4,6 +4,7 @@ from shared.logger.logging_config import logger
 from sqlalchemy.orm import Session
 from .auth import authenticate
 from .. import schemas, crud
+from datetime import datetime
 from ..training_utils import (dict_to_lower,_get_training_view_by_name, 
                                 _get_training_set, _get_training_set_from_view)
 from ..utils import __validate_feature_data_type
@@ -435,3 +436,60 @@ def get_training_set_features(name: str, db: Session = Depends(crud.get_db)):
     ts = deployments[0]
     features = crud.get_features_from_deployment(db, ts.training_set_id)
     return schemas.DeploymentFeatures(**ts.__dict__, features=features)
+
+@SYNC_ROUTER.post('/source', status_code=status.HTTP_201_CREATED, description="Creates a Source for Pipeline usage",
+                  operation_id='create_source', tags=['Source', 'Pipeline'])
+@managed_transaction
+def create_source(source: schemas.Source, db: Session = Depends(crud.get_db)):
+    """
+    Creates a new Source
+    """
+    crud.validate_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
+    logger.info(f'Registering source {source.name} in Feature Store')
+    crud.create_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
+
+@SYNC_ROUTER.get('/source', status_code=status.HTTP_201_CREATED, response_model=schemas.Source,
+                 description="Gets a Source by name", operation_id='create_source', tags=['Source', 'Pipeline'])
+@managed_transaction
+def create_source(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Gets a Source
+    """
+    return crud.get_source(db, name)
+
+
+@SYNC_ROUTER.post('/agg-feature-set-from-source', status_code=status.HTTP_201_CREATED,
+                  description="Creates an aggregation feature set from a Source",
+                  operation_id='create_agg_feature_set_from_source', tags=['Feature_Set', 'Source', 'Pipeline'])
+@managed_transaction
+def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, db: Session = Depends(crud.get_db)):
+    """
+    Creates a temporal aggregation feature set by creating a pipeline linking a source to a feature set. Provided
+    aggregations will generate the features for the feature set. If the feature set already exists, the feature names
+    must match the generated feature names. Otherwise, this will create the feature set along with aggregation
+    calculations to create features
+    """
+    source = crud.get_source(db, sf.source_name)
+    if not source:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Source {sf.source_name} does not exist. Please provide a valid source")
+
+    source_pk_types = crud.get_source_pk_types(db, source.sql_text)
+
+    crud.validate_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
+    logger.info(f'Registering source {source.name} in Feature Store')
+    crud.create_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
+
+@SYNC_ROUTER.get('/source', status_code=status.HTTP_201_CREATED, response_model=schemas.Source,
+                 description="Gets a Source by name", operation_id='create_source', tags=['Source', 'Pipeline'])
+@managed_transaction
+def create_source(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Gets a Source
+    """
+    return crud.get_source(db, name)
+
+
+
+
+
