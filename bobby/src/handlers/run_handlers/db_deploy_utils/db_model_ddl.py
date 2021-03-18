@@ -462,7 +462,7 @@ class DatabaseModelDDL:
         tvw: TrainingView = self.session.query(TrainingView)\
             .filter_by(view_id=view_id).one_or_none()
         if not tvw:
-            raise Exception(f"The training view (name:{tvw.name}, id:{tvw.view_id}) used for this run has been deleted."
+            raise Exception(f"The training view (id:{view_id}) used for this run has been deleted."
                             f" You cannot deploy a model that was trained using a training view that no longer exists.")
 
     def register_feature_store_deployment(self):
