@@ -91,7 +91,7 @@ class DatabaseModelMetadataPreparer:
                                     f"{SparkUtils.get_num_classes(model_stage)} classes. You will likely see issues with "
                                     f"model inference.", send_db=True)
         else:
-            if self.model_type in {SparkModelType.SINGLE_PRED_INT, SparkModelType.MULTI_PRED_INT}:
+            if self.model_type == SparkModelType.MULTI_PRED_INT:
                 self._classes = [f'C{label_idx}' for label_idx in range(SparkUtils.get_num_classes(model_stage))]
                 self.logger.warning(f"No classes were specified, so using {self._classes} as fallback...", send_db=True)
 

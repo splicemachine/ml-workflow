@@ -76,7 +76,7 @@ public class SKRunner extends AbstractRunner implements Externalizable {
             interp.set("jmodel", javaModel);
 
             interp.eval("model = pickle.loads(jmodel)");
-            interp.eval("pred = model.predict(X)");
+            interp.eval("preds = model.predict(X)");
 
 
             Object result = ((NDArray<Number[]>)interp.getValue("preds")).getData();
@@ -159,12 +159,12 @@ public class SKRunner extends AbstractRunner implements Externalizable {
                 Object preds;
                 Object extras; //covariance or std
                 if(predictArgs.equals("return_std")){
-                    interp.eval("res = model.predict([X], return_std=True)");
+                    interp.eval("preds = model.predict([X], return_std=True)");
                     preds = ((NDArray<?>)interp.getValue("preds[0]")).getData();
                     extras = ((NDArray<?>)interp.getValue("preds[1]")).getData();
                 }
                 else{ //return_cov
-                    interp.eval("res = model.predict(X, return_cov=True)");
+                    interp.eval("preds = model.predict(X, return_cov=True)");
                     preds = ((NDArray<?>)interp.getValue("preds[0]")).getData();
                     extras = ((NDArray<?>)interp.getValue("preds[1].diagonal()")).getData();
                 }
@@ -248,12 +248,54 @@ public class SKRunner extends AbstractRunner implements Externalizable {
         }
     }
 
+    //////////////////////////////////////////////
+    //
+    // FORMATABLE
+    // Jep model class ByteBuffer does not implement serializable so we need to implement it on the SQLBlob (which does)
+    //
+    //////////////////////////////////////////////
 
+    /** @exception  IOException thrown on error */
+    @Override
+    public void writeExternal(ObjectOutput out) throws IOException
+    {
+        out.writeObject(deserModel);
+    }
+
+    /**
+     * @see java.io.Externalizable#readExternal
+     *
+     * @exception IOException on error
+     * @exception ClassNotFoundException on error
+     */
+    @Override
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+        SQLBlob sqlModelBlob = (SQLBlob) in.readObject();
+        Blob modelBlob;
+        InputStream is = null;
+        int fileSize = 0;
+        try {
+            modelBlob = (Blob) (sqlModelBlob.getObject());
+            is = modelBlob.getBinaryStream();
+            fileSize = (int)modelBlob.length();
+
+        } catch (StandardException e) {
+            e.printStackTrace();
+        }
+        catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+        final byte[] allBytes = new byte[fileSize];
+        is.read(allBytes);
+        this.model = allocateDirect(fileSize).put(allBytes);
+    }
+
+    @Deprecated
     @Override
     public String predictClassification(String rawData, String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException, PredictException {
         return null;
     }
-
+    @Deprecated
     @Override
     public Double predictRegression(String rawData, String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException, PredictException, JepException {
         try (SharedInterpreter interp = new SharedInterpreter())
@@ -277,11 +319,12 @@ public class SKRunner extends AbstractRunner implements Externalizable {
         }
     }
 
+    @Deprecated
     @Override
     public String predictClusterProbabilities(String rawData, String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException {
         return null;
     }
-
+    @Deprecated
     @Override
     public int predictCluster(String rawData, String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException, PredictException, JepException {
         try (SharedInterpreter interp = new SharedInterpreter())
@@ -305,6 +348,7 @@ public class SKRunner extends AbstractRunner implements Externalizable {
         }
     }
 
+    @Deprecated
     @Override
     public double[] predictKeyValue(String rawData, String schema, String predictCall, String predictArgs, double threshold) throws PredictException, JepException {
         try (SharedInterpreter interp = new SharedInterpreter())
@@ -361,46 +405,5 @@ public class SKRunner extends AbstractRunner implements Externalizable {
         }
     }
 
-    //////////////////////////////////////////////
-    //
-    // FORMATABLE
-    // Jep model class ByteBuffer does not implement serializable so we need to implement it on the SQLBlob (which does)
-    //
-    //////////////////////////////////////////////
-
-    /** @exception  IOException thrown on error */
-    @Override
-    public void writeExternal(ObjectOutput out) throws IOException
-    {
-        out.writeObject(deserModel);
-    }
-
-    /**
-     * @see java.io.Externalizable#readExternal
-     *
-     * @exception IOException on error
-     * @exception ClassNotFoundException on error
-     */
-    @Override
-    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        SQLBlob sqlModelBlob = (SQLBlob) in.readObject();
-        Blob modelBlob;
-        InputStream is = null;
-        int fileSize = 0;
-        try {
-            modelBlob = (Blob) (sqlModelBlob.getObject());
-            is = modelBlob.getBinaryStream();
-            fileSize = (int)modelBlob.length();
-
-        } catch (StandardException e) {
-            e.printStackTrace();
-        }
-        catch (SQLException throwables) {
-            throwables.printStackTrace();
-        }
-        final byte[] allBytes = new byte[fileSize];
-        is.read(allBytes);
-        this.model = allocateDirect(fileSize).put(allBytes);
-    }
 
 }

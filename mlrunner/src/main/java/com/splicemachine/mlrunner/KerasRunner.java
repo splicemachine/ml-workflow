@@ -60,17 +60,12 @@ public class KerasRunner extends AbstractRunner implements Externalizable {
         // Create array that is numRows X numFeaturesPerRow
         assert unprocessedRows.peek() != null: "There are no rows in the Queue!";
         INDArray features = Nd4j.zeros(unprocessedRows.size(), modelFeaturesIndexes.size());
-        LOG.info("In parse!");
-        LOG.info("Size of unprocessed rows: " + unprocessedRows.size());
-        LOG.info("Number of features: " + unprocessedRows.peek().nColumns());
-        LOG.info("Model feature indexes size: " + modelFeaturesIndexes.size());
         int rowNum = 0;
         try {
             Iterator<ExecRow> unpr = unprocessedRows.descendingIterator();
             while(unpr.hasNext()){
                 ExecRow row = unpr.next();
                 for (int ind = 0; ind < modelFeaturesIndexes.size(); ind++) {
-                    LOG.info("Adding index " + ind);
                     features.putScalar(rowNum, ind, row.getColumn(modelFeaturesIndexes.get(ind)).getDouble());
                 }
                 rowNum++;
@@ -79,8 +74,6 @@ public class KerasRunner extends AbstractRunner implements Externalizable {
         catch(Exception e){
             throw new SQLException("Expected input to be of type Double but wasn't\n" , e);
         }
-        LOG.info("shape of features: " + features.shapeInfoToString());
-        LOG.info("number of columns: " + features.columns());
         return features;
     }
 

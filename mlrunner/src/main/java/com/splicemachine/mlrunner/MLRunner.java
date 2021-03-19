@@ -225,12 +225,9 @@ public class MLRunner implements DatasetProvider, VTICosting {
         ResultColumnDescriptor[] cd = languageConnectionContext.getTriggerExecutionContext().getTemporaryRowHolder().getResultSet().getResultDescription().getColumnInfo();
         HashMap<String, Integer> colIndexes= new HashMap<>();
         for(ResultColumnDescriptor rcd : cd)    colIndexes.put(rcd.getName(), rcd.getColumnPosition());
-        LOG.info("HERE!: Values in the feature column names");
         for(String col : this.featureColumnNames) {
-            LOG.info("Col is: " + col);
             modelFeaturesIndexes.add(colIndexes.get(col.toUpperCase()));
         }
-        LOG.info("Number of indexes: " + modelFeaturesIndexes.size());
         for(String col : this.predictionLabels){
             if(!col.equalsIgnoreCase("PREDICTION")) { // Keep prediction col separate
                 predictionLabelIndexes.add(colIndexes.get(col.toUpperCase()));

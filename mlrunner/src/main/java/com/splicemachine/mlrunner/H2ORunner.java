@@ -241,6 +241,7 @@ public class H2ORunner extends AbstractRunner implements Externalizable {
                         int ind = 0;
                         for(double vec : embeddings.get(word)) {
                             transformedRow.setColumnValue(predictionLabelIndexes.get(ind), new SQLDouble(vec));
+                            ind++;
                         }
                         transformedRows.add(transformedRow);
                     }

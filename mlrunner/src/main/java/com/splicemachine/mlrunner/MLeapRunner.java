@@ -1,11 +1,8 @@
 package com.splicemachine.mlrunner;
 
 import com.splicemachine.db.iapi.error.StandardException;
-import com.splicemachine.db.iapi.types.SQLBlob;
+import com.splicemachine.db.iapi.types.*;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
-import com.splicemachine.db.iapi.types.DataValueDescriptor;
-import com.splicemachine.db.iapi.types.SQLDouble;
-import com.splicemachine.db.iapi.types.SQLVarchar;
 import io.airlift.log.Logger;
 import ml.combust.mleap.core.types.DataType;
 import ml.combust.mleap.core.types.StructField;
@@ -274,7 +271,7 @@ public class MLeapRunner extends AbstractRunner implements Externalizable {
         while(predictedRows.hasNext()) { // Loop through the predicted rows
             int pred = ((Number)predictedRows.next().get(0)).intValue();
             ExecRow row = rows.remove();
-            row.setColumn(predictionColIndex, new SQLDouble(pred));
+            row.setColumn(predictionColIndex, new SQLInteger(pred));
             transformedRows.add(row);
         }
         return transformedRows;

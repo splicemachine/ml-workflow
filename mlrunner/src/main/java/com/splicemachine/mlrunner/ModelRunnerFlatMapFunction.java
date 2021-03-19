@@ -97,7 +97,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
             // transform all rows in buffer
             // return first row
             try {
-                LOG.info("Doing transformation of size "+ this.unprocessedRows.size());
+                LOG.info("Model Category: " + modelCategory + " doing transformation of size " + unprocessedRows.size());
                 switch (modelCategory) {
                     case "key_value":
                         this.processedRows = this.runner.predictKeyValue(unprocessedRows, modelFeaturesIndexes,
