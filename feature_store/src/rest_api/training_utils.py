@@ -235,6 +235,7 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
         label = features.pop(ind)
 
     if current:
+        temp_vw = None
         sql = _generate_training_set_sql(features, fsets, label, return_pk_cols)
     else:
         temp_vw = _create_temp_training_view(features, fsets, create_time, label)
