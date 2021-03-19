@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from typing import List, Union, Optional, Dict
-from .schemas import Feature, FeatureSet, TrainingView, TrainingSet, TrainingSetMetadata
-from . import crud
+from ..schemas import Feature, FeatureSet, TrainingView, TrainingSet, TrainingSetMetadata
+from .. import crud
 from sqlalchemy.orm import Session
 from datetime import datetime
 from .utils import __get_pk_columns
