@@ -159,7 +159,7 @@ public class SKRunner extends AbstractRunner implements Externalizable {
                 Object preds;
                 Object extras; //covariance or std
                 if(predictArgs.equals("return_std")){
-                    interp.eval("preds = model.predict([X], return_std=True)");
+                    interp.eval("preds = model.predict(X, return_std=True)");
                     preds = ((NDArray<?>)interp.getValue("preds[0]")).getData();
                     extras = ((NDArray<?>)interp.getValue("preds[1]")).getData();
                 }
