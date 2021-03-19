@@ -41,7 +41,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.jvm = self.spark_session._jvm
         self.model: Optional[Model] = None
 
-        self.Session.begin_nested() # Create a savepoint in case of errors
+        self.savepoint = self.Session.begin_nested() # Create a savepoint in case of errors
 
     def _validate_primary_key(self):
         """
@@ -210,12 +210,14 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.logger.info("Flushing", send_db=True)
         self.Session.flush()
         self.logger.warning("Committing Transaction to Database", send_db=True)
+        self.savepoint.commit() # Release the savepoint so we can commit transactions
         self.Session.commit()
         self.logger.info("Committed.", send_db=True)
 
     def exception_handler(self, exc: Exception):
         self.logger.info("Rolling back...",send_db=True)
-        self.Session.rollback()
+        self.logger.info(f"Savepoint is active... {self.savepoint.is_active}")
+        self.savepoint.rollback()
         self._cleanup()  # always run cleanup, regardless of success or failure
         raise exc
 
@@ -237,4 +239,5 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
         for step_no, execute_step in enumerate(steps):
             self.logger.info(f"Running Step {step_no}...")
+            self.logger.info(f"Savepoint is active... {self.savepoint.is_active}")
             execute_step()
