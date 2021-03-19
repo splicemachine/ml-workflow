@@ -305,65 +305,6 @@ class DatabaseModelDDL:
         self.session.execute(trigger_sql)
 
 
-    # def create_prediction_trigger(self):
-    #     """
-    #     Create the actual prediction trigger for insertion
-    #     """
-    #     self.logger.info("Creating Prediction Trigger...", send_db=True)
-    #     schema_types = self.model.get_metadata(Metadata.SQL_SCHEMA)
-    #     # The database function call is dependent on the model type
-    #     prediction_call = self.prediction_data['prediction_call']
-    #
-    #     pred_trigger = f"""CREATE TRIGGER {self.schema_name}.runModel_{self.table_name}_{self.run_id}
-    #                        AFTER INSERT ON {self.schema_table_name} REFERENCING NEW TABLE AS NT
-    #                        FOR EACH STATEMENT UPDATE {self.schema_table_name}
-    #                        SET """
-    #
-    #     pred_trigger += "( PREDICTION ) = ( SELECT PREDICTION FROM (" if self.model.get_metadata(Metadata.TYPE) \
-    #                                          not in {SparkModelType.MULTI_PRED_INT, H2OModelType.MULTI_PRED_INT} \
-    #                                          else self.create_parsing_trigger()
-    #
-    #     # SELECT NT.pk1, NT.pk2.... , MANAGER.PREDICT(run_id,
-    #     pred_trigger += 'SELECT ' + ','.join([f'NT.{k}' for k in self.primary_key]) + f', {prediction_call}(\'{self.run_id}\','
-    #
-    #     pred_trigger += DatabaseModelDDL._get_feature_vector_sql(self.model_columns, schema_types)
-    #
-    #     # Cleanup + schema for PREDICT call
-    #     pred_trigger = pred_trigger[:-5].lstrip('||') + ',\n\'' + self.model.get_metadata(Metadata.MODEL_VECTOR_STR).replace(
-    #         '\t', '').replace('\n', '').rstrip(',') + '\') PREDICTION from NT) \n temp_tbl\n WHERE\n'
-    #
-    #     # Add the where clause on the primary keys for the STATEMENT trigger
-    #     pred_trigger += 'AND '.join([f'temp_tbl.{k}={self.schema_table_name}.{k}' for k in self.primary_key]) + ')'
-    #
-    #     self.logger.info(f"Executing\n{pred_trigger}", send_db=True)
-    #     self.session.execute(pred_trigger)
-
-    # def create_parsing_trigger(self):
-    #     """
-    #     Creates the secondary trigger that parses the results of the first trigger and updates the prediction
-    #     row populating the relevant columns.
-    #     TO be removed when we move to VTI only
-    #     """
-    #     #self.logger.info("Creating parsing trigger...", send_db=True)
-    #
-    #     # SET("class1", "class2"... , PREDICTION) = ( SELECT
-    #     case_sensitive_classes = [f'"{c}"' for c in self.model.get_metadata(Metadata.CLASSES)]
-    #     sql_inner_parse = '(' + ','.join(case_sensitive_classes) + ', PREDICTION ) = ( SELECT '
-    #     set_prediction_case_str = '\n\t\tCASE\n'
-    #     for i, c in enumerate(self.model.get_metadata(Metadata.CLASSES)):
-    #         sql_inner_parse += f'MLMANAGER.PARSEPROBS(temp_tbl.prediction,{i}),'
-    #         set_prediction_case_str += f'\t\tWHEN MLMANAGER.GETPREDICTION(temp_tbl.prediction)={i} then \'{c}\'\n'
-    #     set_prediction_case_str += '\t\tEND '
-    #
-    #     if self.model.get_metadata(Metadata.GENERIC_TYPE) == DeploymentModelType.MULTI_PRED_DOUBLE:
-    #         # These models don't have an actual prediction
-    #         sql_inner_parse = sql_inner_parse[:-1]
-    #     else:
-    #         sql_inner_parse += set_prediction_case_str
-    #
-    #     sql_inner_parse += ' FROM ('
-    #     return sql_inner_parse
-
     def add_model_to_metadata_table(self):
         """
         Add the model to the deployed model metadata table
