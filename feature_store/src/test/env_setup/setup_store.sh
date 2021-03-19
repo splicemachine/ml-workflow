@@ -12,3 +12,4 @@ echo "Creating training views"
 python create_training_view.py
 echo "Creating training sets"
 sqlshell.sh -f create_training_set.sql
+echo "Done!"
