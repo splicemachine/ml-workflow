@@ -114,7 +114,7 @@ def get_feature_vector(fjk: schemas.FeatureJoinKeys, sql: bool = False, db: Sess
                 description="Returns the parameterized feature retrieval SQL used for online model serving.", 
                 operation_id='get_feature_vector_sql_from_training_view', tags=['Features'])
 @managed_transaction
-async def get_feature_vector_sql_from_training_view(features: List[Union[schemas.Feature, str]], view: str, db: Session = Depends(crud.get_db)):
+def get_feature_vector_sql_from_training_view(features: List[Union[schemas.Feature, str]], view: str, db: Session = Depends(crud.get_db)):
     """
     Returns the parameterized feature retrieval SQL used for online model serving.
     """
@@ -155,7 +155,7 @@ def get_feature_description(db: Session = Depends(crud.get_db)):
                 description="Gets a set of feature values across feature sets that is not time dependent (ie for non time series clustering)", 
                 operation_id='get_training_set', tags=['Training Sets'])
 @managed_transaction
-async def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label: str = None, 
+def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label: str = None,
                             return_pk_cols: bool = Query(False, alias='pks'), return_ts_col: bool = Query(False, alias='ts'), 
                             db: Session = Depends(crud.get_db)):
     """

@@ -801,7 +801,7 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
         d.training_set_start_ts,
         d.training_set_end_ts,
         d.training_set_create_ts,
-        tv.label_columnn
+        tv.label_column
     ).first()
 
     if not deploy:
