@@ -61,6 +61,9 @@ services:
       FRAMEWORK_NAME: my-framework
       MODE: development
       ENVIRONMENT: ${ENVIRONMENT:-default}
+      AIRFLOW_URL: "http://host.docker.internal:8081/api/v1"
+      AIRFLOW_USER: airflow
+      AIRFLOW_PASSWORD: airflow
     image: splicemachine/sm_k8_feature_store:0.0.3
     ports:
       - "8000:8000"

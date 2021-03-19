@@ -4,12 +4,13 @@ from shared.logger.logging_config import logger
 from sqlalchemy.orm import Session
 from .auth import authenticate
 from .. import schemas, crud
-from ..training_utils import (dict_to_lower,_get_training_view_by_name, 
+from ..utils.training_utils import (dict_to_lower,_get_training_view_by_name, 
                                 _get_training_set, _get_training_set_from_view)
-from ..utils import __validate_feature_data_type
+from ..utils.utils import __validate_feature_data_type
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from ..decorators import managed_transaction
 from shared.services.database import DatabaseFunctions
+from ..utils import airflow_utils as airflow
 
 # Synchronous API Router-- we can mount it to the main API
 SYNC_ROUTER = APIRouter(
@@ -258,7 +259,9 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
             status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
             message=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
             f"feature set using fs.create_feature_set before deploying.")
-    return crud.deploy_feature_set(db, fset)
+    fset = crud.deploy_feature_set(db, fset)
+    airflow.schedule_feature_set_calculation(f'{schema}.{table}')
+    return fset
 
 @SYNC_ROUTER.get('/feature-set-descriptions', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDescription],
                 description="Returns a description of all feature sets, with all features in the feature sets and whether the feature set is deployed", 
@@ -411,6 +414,7 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
                 crud.full_delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
         else: # No dependencies
             crud.full_delete_feature_set(db, fset, cascade=False)
+    airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
                 description="Get all deployments", operation_id='get_deployments', tags=['Deployments'])
