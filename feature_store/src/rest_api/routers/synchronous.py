@@ -216,7 +216,15 @@ def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(cru
     """
     crud.validate_feature_set(db, fset)
     logger.info(f'Registering feature set {fset.schema_name}.{fset.table_name} in Feature Store')
-    return crud.register_feature_set_metadata(db, fset)
+    created_fset = crud.register_feature_set_metadata(db, fset)
+    if fset.features:
+        logger.info("Validating features")
+        for fc in fset.features:
+            crud.validate_feature(db, fc.name)
+            fc.feature_set_id = created_fset.feature_set_id
+        logger.info("Done. Bulk registering features")
+        crud.bulk_register_feature_metadata(db, fset.features)
+    return created_fset
 
 @SYNC_ROUTER.post('/features', status_code=status.HTTP_201_CREATED, response_model=schemas.Feature,
                 description="Add a feature to a feature set", operation_id='create_feature', tags=['Features'])
@@ -273,6 +281,11 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
             status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
             message=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
             f"feature set using fs.create_feature_set before deploying.")
+    if fset.deployed:
+        raise SpliceMachineException(
+            status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
+            message=f"Feature set {schema}.{table} is already deployed.")
+
     fset = crud.deploy_feature_set(db, fset)
     airflow.schedule_feature_set_calculation(f'{schema}.{table}')
     return fset
