@@ -91,6 +91,10 @@ then
     export MODE="development"
 fi
 
+# Fix for the UI code being enbedded in an iframe
+# Replace window.parent.location.origin with *
+sed -i 's/window\.parent\.location\.origin)/"*")/' /usr/local/lib/python3.6/site-packages/mlflow/server/js/build/static/js/main.cc1b77ea.chunk.js
+
 
 echo "Starting Job Tracking UI on port :${GUI_PORT}"
 nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
