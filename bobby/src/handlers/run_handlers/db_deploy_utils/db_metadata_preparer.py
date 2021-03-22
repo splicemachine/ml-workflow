@@ -9,7 +9,7 @@ from shared.logger.logging_config import logger
 from shared.models.enums import FileExtensions
 from shared.models.model_types import (H2OModelType, KerasModelType,
                                               Metadata, ModelTypeMapper,
-                                              Representations,
+                                              Representations, DeploymentModelType,
                                               SklearnModelType, SparkModelType)
 
 from .preparation.h2o_utils import H2OUtils
@@ -51,11 +51,16 @@ class DatabaseModelMetadataPreparer:
         self.logger.info("Preparing Model Metadata for Deployment...", send_db=True)
         self.preparer()
         # Register Model Metadata
-        self.model.add_metadata(Metadata.CLASSES, self._classes)
         self.model.add_metadata(Metadata.TYPE, self.model_type)
         self.model.add_metadata(Metadata.GENERIC_TYPE, ModelTypeMapper.get_model_type(self.model_type))
         # Constant for every model
         self.model.add_metadata(Metadata.RESERVED_COLUMNS, ['EVAL_TIME', 'CUR_USER', 'RUN_ID', 'PREDICTION'])
+
+        # MULTI_PRED_INT model type needs an extra "class" for the actual PREDICTION (applied to H2O and Spark)
+        if self.model.get_metadata(Metadata.GENERIC_TYPE) == DeploymentModelType.MULTI_PRED_INT:
+            self._classes = ["PREDICTION"] + self._classes
+        self.model.add_metadata(Metadata.CLASSES, self._classes)
+
 
     def _prepare_spark(self):
         """
@@ -69,6 +74,8 @@ class DatabaseModelMetadataPreparer:
             library_representation, prediction_col=model_stage.getOrDefault('predictionCol'))
 
         self.logger.info(f"Classes: {self._classes} were specified", send_db=True)
+
+        SparkUtils.try_run_model(self.model)
 
         if self._classes:
             if self.model_type not in {SparkModelType.SINGLE_PRED_INT, SparkModelType.MULTI_PRED_INT}:
@@ -84,7 +91,7 @@ class DatabaseModelMetadataPreparer:
                                     f"{SparkUtils.get_num_classes(model_stage)} classes. You will likely see issues with "
                                     f"model inference.", send_db=True)
         else:
-            if self.model_type in {SparkModelType.SINGLE_PRED_INT, SparkModelType.MULTI_PRED_INT}:
+            if self.model_type == SparkModelType.MULTI_PRED_INT:
                 self._classes = [f'C{label_idx}' for label_idx in range(SparkUtils.get_num_classes(model_stage))]
                 self.logger.warning(f"No classes were specified, so using {self._classes} as fallback...", send_db=True)
 
@@ -104,16 +111,21 @@ class DatabaseModelMetadataPreparer:
         if self.model_type == KerasModelType.MULTI_PRED_DOUBLE:
             output_shape = library_model.layers[-1].output_shape
             if not self._classes:
-                self._classes = ['prediction'] + [f'C{i}' for i in range(output_shape[-1])]
+                num_classes = output_shape[-1] if not pred_threshold else output_shape[-1]+1
+                self._classes = ['PREDICTION'] + [f'OUT{i}' for i in range(num_classes)]
                 self.logger.info(f"Classes were not specified... using {self._classes} as fallback", send_db=True)
             else:
                 self.logger.info(f"Classes were specified... using {self._classes}", send_db=True)
-                if len(self._classes) != output_shape[-1]:
+                if len(self._classes) != output_shape[-1] and not pred_threshold:
                     self.logger.warning(f"You've passed in {len(self._classes)} classes but it looks like your model expects "
                                     f"{output_shape[-1]} classes. You will likely see issues with model inference.",send_db=True)
-                self._classes.insert(0, 'prediction')
+                if pred_threshold and len(self._classes) != 2:
+                    self.logger.warning(f"You've passed in a prediction threshold, but not 2 classes. We will make"
+                                        f"your {len(self._classes)} classes into 2 classes")
+                    self._classes = self._classes[:2] if len(self._classes) > 2 else self._classes + ["OUT2"]
+                self._classes.insert(0, 'PREDICTION')
 
-            if len(self._classes) > 2 and pred_threshold:
+            if len(self._classes) > 3 and pred_threshold:
                 self.logger.warning("Found multiclass model with prediction threshold specified... Ignoring "
                                     "threshold.", send_db=True)
 
@@ -151,7 +163,7 @@ class DatabaseModelMetadataPreparer:
                                                                 model_params.get('n_components') or 2)]
                     self.logger.info(f"Using transform operation with classes {self._classes}", send_db=True)
                 elif 'predict_args' in sklearn_args:
-                    self._classes = ['prediction', sklearn_args.get('predict_args').lstrip('return_')]
+                    self._classes = ['PREDICTION', sklearn_args.get('predict_args').lstrip('return_')]
                     self.logger.info(f"Found predict arguments... classes are {self._classes}", send_db=True)
                 elif hasattr(library_model, 'classes_') and library_model.classes_.size != 0:
                     self._classes = [f'C{cls}' for cls in library_model.classes_]
@@ -166,7 +178,7 @@ class DatabaseModelMetadataPreparer:
                     raise Exception("Could not locate classes from the model. Pass in classes parameter.")
 
         if sklearn_args.get('predict_call') == 'predict_proba':
-            self._classes.insert(0, 'prediction')
+            self._classes.insert(0, 'PREDICTION')
 
     def _prepare_h2o(self):
         """
@@ -206,3 +218,4 @@ class DatabaseModelMetadataPreparer:
 
                 }[model_category]()
             self.logger.info(f"Using Classes: {self._classes}")
+

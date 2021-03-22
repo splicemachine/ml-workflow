@@ -7,7 +7,7 @@ from os import environ as env
 
 from shared.logger.logging_config import logger
 from shared.services.database import SQLAlchemyClient, DatabaseSQL, DatabaseFunctions
-from sqlalchemy import event, ForeignKeyConstraint, DDL
+from sqlalchemy import event, ForeignKeyConstraint, DDL, UniqueConstraint
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String, Text, DateTime, Numeric)
 from sqlalchemy.sql.elements import TextClause
@@ -32,7 +32,6 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     This is a top level metadata artifact of the feature store that a user will interact with
     """
     __tablename__: str = "feature_set"
-    __table_args__ = {'schema': 'featurestore'}
     feature_set_id: Column = Column(Integer, primary_key=True, autoincrement=True)
     schema_name: Column = Column(String(128), nullable=False)
     table_name: Column = Column(String(128), nullable=False)
@@ -41,6 +40,13 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
     deployed: Column = Column(Boolean, default=False)
     deploy_ts: Column = Column(DateTime, nullable=True)
+    __table_args__: tuple = (
+        UniqueConstraint(
+            schema_name, table_name
+        ),
+        {'schema': 'featurestore'}
+    )
+
 
 class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
     """

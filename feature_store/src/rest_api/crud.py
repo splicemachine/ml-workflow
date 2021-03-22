@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session, aliased, load_only
 from typing import List, Dict, Union, Optional, Any, Tuple, Set
 from . import schemas
-from .constants import SQL, SQL_TYPES
+from .constants import SQL, SQLALCHEMY_TYPES
 from shared.models import feature_store_models as models
 from shared.services.database import SQLAlchemyClient, DatabaseFunctions
 from shared.logger.logging_config import logger
@@ -10,7 +10,7 @@ from fastapi import status
 import re
 import json
 from datetime import datetime
-from sqlalchemy import update, sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
+from sqlalchemy import update, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
 from .utils.utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
 from sys import exc_info as get_stack_trace
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
@@ -19,8 +19,6 @@ from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, 
                                 DECIMAL, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, BOOLEAN)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
-SQLALCHEMY_TYPES = dict(zip(SQL_TYPES, [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
-                        DECIMAL, FLOAT, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, SMALLINT, BOOLEAN, INTEGER]))
 
 def get_db():
     """
@@ -107,7 +105,7 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
     """
     metadata = MetaData(db.get_bind())
 
-    tables = [Table(fset.table_name, metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]), schema=fset.schema_name, autoload=True).\
+    tables = [Table(fset.table_name.lower(), metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]), schema=fset.schema_name.lower(), autoload=True).\
         alias(f'fset{fset.feature_set_id}') for fset in feature_sets]
     columns = [getattr(table.c, f.name.lower()) for f in feats for table in tables if f.name.lower() in table.c]
 
@@ -116,12 +114,13 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
                 for table in tables for pk_col in table.primary_key]
 
     q = db.query(*columns).filter(and_(*filters))
+    sql = str(q.statement.compile(db.get_bind(), compile_kwargs={"literal_binds": True}))
 
     if return_sql:
-        return str(q.statement.compile(db.get_bind(), compile_kwargs={"literal_binds": True}))
+        return sql
     
-    vector = q.first()
-    return vector._asdict() if vector else {}
+    vector = db.execute(sql).first()
+    return dict(vector) if vector else {}
 
 def get_training_view_features(db: Session, training_view: str) -> List[schemas.Feature]:
     """
@@ -693,7 +692,7 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     Registers the feature's existence in the feature store
     :param db: SqlAlchemy Session
     :param f: (Feature) the feature to register
-    :return: None
+    :return: The feature metadata
     """
     feature = models.Feature(
         feature_set_id=f.feature_set_id, name=f.name, description=f.description,
@@ -707,6 +706,26 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     fd['tags'] = fd['tags'].split(',') if fd.get('tags') else None
     fd['attributes'] = json.loads(fd['attributes']) if fd.get('attributes') else None
     return schemas.Feature(**fd)
+
+def bulk_register_feature_metadata(db: Session, feats: List[schemas.FeatureCreate]) -> None:
+    """
+    Registers many features' existences in the feature store
+    :param db: SqlAlchemy Session
+    :param feats: (List[Feature]) the features to register
+    :return: None
+    """
+
+    features: List[models.Feature] = [
+        models.Feature(
+            feature_set_id=f.feature_set_id, name=f.name, description=f.description,
+            feature_data_type=f.feature_data_type,
+            feature_type=f.feature_type, tags=','.join(f.tags) if f.tags else None,
+            attributes=json.dumps(f.attributes) if f.attributes else None
+        )
+        for f in feats
+    ]
+    db.bulk_save_objects(features)
+
 
 def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -> List[schemas.Feature]:
     """
@@ -907,7 +926,7 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
         d.training_set_start_ts,
         d.training_set_end_ts,
         d.training_set_create_ts,
-        tv.label_columnn
+        tv.label_column
     ).first()
 
     if not deploy:

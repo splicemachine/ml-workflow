@@ -135,7 +135,6 @@ COPY bobby/src $SRC_HOME
 
 # make the entrypoint executable by all users
 RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh
-
 VOLUME /var/lib/docker
 EXPOSE 2375
 CMD $SRC_HOME"/scripts/entrypoint.sh"

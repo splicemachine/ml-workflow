@@ -4,7 +4,8 @@ from pyspark.ml import clustering as spark_clustering
 from pyspark.ml import recommendation as spark_recommendation
 from pyspark.ml import regression as spark_regression
 from pyspark.ml.feature import IndexToString
-
+from shared.models.model_types import Metadata, Representations
+from typing import List, Dict
 from shared.models.model_types import SparkModelType
 
 
@@ -75,3 +76,65 @@ class SparkUtils:
             'pyspark.ml.regression': SparkModelType.SINGLE_PRED_DOUBLE,
             'pyspark.ml.clustering': probability_check
         }[model.__module__]
+
+    @staticmethod
+    def do_run_model(sparkmodel, dataframe):
+        sparkmodel.transform(dataframe)
+
+    @staticmethod
+    def try_run_model(model):
+        """
+        Try to run the spark model on the provided df example (selecting model cols if provided).
+        We do this for spark because spark models are case sensitive on columns :( so failure is easy. Better to fail
+        here than after deployment.
+        This function will try 3 things, and throw an exception if all fail:
+            * Transform the created dataframe (selecting the model cols if provided)
+            * Transform the created dataframe with all columns upper cased
+            * Transform the created dataframe with all columns lower cased
+        If 2 or 3 works, this function will then modify the provided dataframe and model_cols to match case. If all fail
+        This function will throw an exception.
+
+        :param model: model representation holder
+        :return: None
+        """
+        # Try to run the model
+        df = model.get_metadata(Metadata.DATAFRAME_EXAMPLE)
+        cols: List[str] = model.get_metadata(Metadata.MODEL_COLUMNS) or df.columns
+        spark_model: PipelineModel = model.get_representation(Representations.LIBRARY)
+        try:
+            spark_model.transform(df.select(cols))
+            return # baseline worked
+        except:
+            pass
+        # Regular failed, try uppercase
+        cols = [i.upper() for i in cols]
+        for i in df.columns:
+            df = df.withColumnRenamed(i, i.upper())
+        try:
+            spark_model.transform(df.select(cols))
+            # modify model to change representation to uppercase
+            sql_schema: Dict[str,str] = model.get_representation(Metadata.SQL_SCHEMA)
+            model.add_representation(Metadata.SQL_SCHEMA, {i.upper(): sql_schema[i] for i in sql_schema})
+            model.add_representation(Metadata.MODEL_COLUMNS, cols)
+        except:
+            pass
+        # Last chance, lowercase
+        cols = [i.lower() for i in cols]
+        for i in df.columns:
+            df = df.withColumnRenamed(i, i.upper())
+        try:
+            spark_model.transform(df.select(cols))
+            # modify model to change representation to uppercase
+            sql_schema: Dict[str,str] = model.get_representation(Metadata.SQL_SCHEMA)
+            model.add_representation(Metadata.SQL_SCHEMA, {i.lower(): sql_schema[i] for i in sql_schema})
+            model.add_representation(Metadata.MODEL_COLUMNS, cols)
+        except:
+            raise Exception("You've tried to deploy a Spark Model, but the case sensitivity of the inputs don't match"
+                            "the models expected inputs. Spark Models are case sensitive, so either the model_cols parameter,"
+                            "spark DF example, or reference schema.table must have the matching case. Or, retrain the model"
+                            "using the reference (df or table) you provided in the function.")
+
+
+
+
+

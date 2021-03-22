@@ -72,7 +72,8 @@ class KnownHandlers:
                     (key.strip(), val.strip()) for key, val in (element.split('=') for element in value.split(','))),
                       callback_on=str),
                 Field('replace', use_default=True, default=False, callback=Field.string_to_boolean_converter,
-                      callback_on=str)
+                      callback_on=str),
+                Field('max_batch_size', use_default=True, default=10000, callback=lambda v: int(float(v)), callback_on=str)
             ],
             name=HandlerNames.deploy_database,
             modifiable=True,
