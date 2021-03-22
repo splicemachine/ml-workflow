@@ -30,10 +30,9 @@ FROM
                 sum(TOTAL_REVENUE)  OVER (PARTITION BY CUSTOMERID ORDER BY INVOICEDATE ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) LIFETIME_VALUE
             FROM RETAIL_RFM.CUSTOMER_CATEGORY_ACTIVITY a --splice-properties splits=50
         )x
-        ON c.TheDate >= x.INVOICEDATE
+        ON c.TheDate = x.INVOICEDATE
 )x  --splice-properties useSpark=true
 ;
-
 
 INSERT INTO retail_fs.CUSTOMER_RFM_BY_CATEGORY_HISTORY
 (
@@ -337,4 +336,3 @@ SELECT * FROM
     )y
     WHERE UNTIL_TS IS NOT NULL
 );
-
