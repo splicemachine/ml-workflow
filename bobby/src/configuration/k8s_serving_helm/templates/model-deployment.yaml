@@ -32,7 +32,10 @@ spec:
             - name: DB_USER
               value: {{ .Values.db.user }}
             - name: DB_PASSWORD
-              value: {{ .Values.db.password }}
+              valueFrom:
+                secretKeyRef:
+                  name: model-{{ .Values.model.runId }}-secrets
+                  key: DB_PASSWORD
             - name: DB_HOST
               value: {{ .Values.db.host }}
             - name: RUN_ID

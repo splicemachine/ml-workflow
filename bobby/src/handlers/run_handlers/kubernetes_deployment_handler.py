@@ -10,6 +10,8 @@ from yaml import dump as dump_yaml
 
 import requests
 from requests.exceptions import ConnectionError
+from requests.auth import HTTPBasicAuth
+from base64 import b64encode as e
 
 from retrying import retry
 
@@ -24,6 +26,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
     """
     DEFAULT_RETRIEVER_TAG = '0.0.13'
     DEFAULT_SERVING_TAG = '0.0.15'
+    MLFLOW_SERVICE = env_vars.get('MLFLOW_SERVICE', 'splicedb-mlflow')
 
     def __init__(self, task_id: int):
         """
@@ -46,7 +49,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
             'k8s': {'namespace': env_vars['NAMESPACE'], 'ownerPod': env_vars['POD_NAME'],
                     'ownerUID': env_vars['POD_UID']},
             'model': {'runId': payload['run_id'], 'name': self.model_dir, 'namespace': env_vars['NAMESPACE']},
-            'db': {'user': env_vars['DB_USER'], 'password': env_vars['DB_PASSWORD'],
+            'db': {'user': env_vars['DB_USER'], 'password': e(bytes(env_vars['DB_PASSWORD'], 'utf-8')), # Secret
                    'host': env_vars['DB_HOST']},
             'versions': {'retriever': env_vars.get('RETRIEVER_IMAGE_TAG',
                                                    KubernetesDeploymentHandler.DEFAULT_RETRIEVER_TAG),
@@ -91,9 +94,14 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
     def _wait_for_endpoint(self):
         self.logger.info("Waiting for Endpoint to be Available... This may take several minutes if "
                          "this is your first k8s deployment", send_db=True)
-        self._try_to_connect()
-
-
+        try:
+            self._try_to_connect()
+        except ConnectionError: # This means it never started. We should remove this deployment from existence
+            self.logger.info('Problem occured while waiting for model. Model deployment failed! Removing deployment',
+                             send_db=True)
+            payload = {'run_id': self.task.parsed_payload['run_id'], 'handler_name': 'UNDEPLOY_KUBERNETES'}
+            requests.post(f'http://{KubernetesDeploymentHandler.MLFLOW_SERVICE}:5003/api/rest/initiate',
+                          json=payload, auth=HTTPBasicAuth(env_vars['DB_USER'], env_vars['DB_PASSWORD']))
 
 
     def execute(self):
