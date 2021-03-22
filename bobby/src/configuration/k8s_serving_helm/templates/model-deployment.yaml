@@ -5,6 +5,7 @@ metadata:
   namespace: {{ .Values.model.namespace }}
   labels:
     identifier: model-{{ .Values.model.runId }}
+    component: model-deployment
   ownerReferences:
     - apiVersion: v1
       controller: true
@@ -20,6 +21,7 @@ spec:
     metadata:
       labels:
         identifier: model-{{ .Values.model.runId }}
+        component: model-deployment
     spec:
       volumes:
         - name: model
