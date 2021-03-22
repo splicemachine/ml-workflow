@@ -10,7 +10,7 @@ from fastapi import status
 import re
 import json
 from datetime import datetime
-from sqlalchemy import update, sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
+from sqlalchemy import update, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
 from .utils.utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
 from sys import exc_info as get_stack_trace
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
@@ -107,7 +107,7 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
     """
     metadata = MetaData(db.get_bind())
 
-    tables = [Table(fset.table_name, metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]), schema=fset.schema_name, autoload=True).\
+    tables = [Table(fset.table_name.lower(), metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]), schema=fset.schema_name.lower(), autoload=True).\
         alias(f'fset{fset.feature_set_id}') for fset in feature_sets]
     columns = [getattr(table.c, f.name.lower()) for f in feats for table in tables if f.name.lower() in table.c]
 
@@ -116,12 +116,13 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
                 for table in tables for pk_col in table.primary_key]
 
     q = db.query(*columns).filter(and_(*filters))
+    sql = str(q.statement.compile(db.get_bind(), compile_kwargs={"literal_binds": True}))
 
     if return_sql:
-        return str(q.statement.compile(db.get_bind(), compile_kwargs={"literal_binds": True}))
+        return sql
     
-    vector = q.first()
-    return vector._asdict() if vector else {}
+    vector = db.execute(sql).first()
+    return dict(vector) if vector else {}
 
 def get_training_view_features(db: Session, training_view: str) -> List[schemas.Feature]:
     """
