@@ -41,6 +41,10 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.jvm = self.spark_session._jvm
         self.model: Optional[Model] = None
 
+        # Going to see some issue due to https://splicemachine.atlassian.net/browse/DBAAS-5247 :(
+        # Exceptions that are thrown due to SQL will not be rolled back. Code-based exceptions will be
+        self.savepoint = self.Session.begin_nested() # Create a savepoint in case of errors
+
     def _validate_primary_key(self):
         """
         Validates the primary key passed by the user conforms to SQL. If the user is deploying to an existing table
@@ -51,12 +55,18 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         primary_key = self.task.parsed_payload['primary_key']
 
         if create_model_table and not primary_key:
-            raise Exception("If you are creating a new table for your deployment, you must specify the primary_keys parameter")
+            raise Exception("If you are creating a new table for your deployment, you must specify the primary_keys "
+                            "parameter. You've specified to "
+                            "create a model table, so you must pass in a primary_key parameter, like 'primary_key={'ID':'INT'}'")
 
         if not create_model_table:
-            primary_keys = inspector.get_primary_keys(self.task.parsed_payload['db_table'],
-                                                      schema=self.task.parsed_payload['db_schema'])
-            assert primary_keys, "No primary keys were found for the specified table"
+            s = self.task.parsed_payload['db_schema']
+            t = self.task.parsed_payload['db_table']
+            primary_keys = inspector.get_primary_keys(t, schema=s)
+            assert primary_keys, "You've specified to deploy your model to an existing table, but either that table does " \
+                                 "not exist or there are no primary keys associated to it. Either pass " \
+                                 "create_model_table=True and a primary_key to the deploy function, or alter the " \
+                                 "existing table {s}.{t} and add a primary key.".format(s=s, t=t)
             self.task.parsed_payload['primary_key'] = {pk: None for pk in primary_keys}
 
         if primary_key:
@@ -76,6 +86,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.creator.get_library_representation(from_dir=self.downloaded_model_path)
         self.model = self.creator.model
         self.logger.info("Done.", send_db=True)
+
 
     def _add_model_examples_from_df(self):
         """
@@ -111,7 +122,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         columns = inspector.get_columns(table_name, schema=schema_name)
 
         if len(columns) == 0:
-            raise Exception("Either the table has no columns, or the table cannot be found.")
+            raise Exception("Either the table provided has no columns, or the table cannot be found.")
 
         for field in columns:
             # FIXME: Sqlalchemy assumes lowercase and Splice assumes uppercase. Quoted cols in DB don't translate
@@ -138,6 +149,9 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         reference_table = self.task.parsed_payload['reference_table']
         reference_schema = self.task.parsed_payload['reference_schema']
 
+        if self.task.parsed_payload['model_cols']:
+            self.model.add_metadata(Metadata.MODEL_COLUMNS, self.task.parsed_payload['model_cols'])
+
         if self.task.parsed_payload['create_model_table']:
             self.logger.info("Adding Model Schema and DF...", send_db=True)
             if reference_table and reference_schema:
@@ -147,7 +161,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
             elif specified_df_schema:
                 self._add_model_examples_from_df()
             else:
-                raise Exception("Either db schema or reference table+schema must be specified")
+                raise Exception("Either reference dataframe or reference schema&table must be specified")
         else:
             self._add_model_examples_from_db(table_name=self.task.parsed_payload['db_table'],
                                              schema_name=self.task.parsed_payload['db_schema'])
@@ -190,16 +204,25 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         payload = self.task.parsed_payload
         ddl_creator = DatabaseModelDDL(session=self.Session, model=self.model, run_id=payload['run_id'],
                                        primary_key=payload['primary_key'], schema_name=payload['db_schema'],
-                                       table_name=payload['db_table'], model_columns=payload['model_cols'],
-                                       create_model_table=payload['create_model_table'],
-                                       library_specific_args=payload['library_specific'], logger=self.logger,
-                                       request_user=self.task.user)
+                                       table_name=payload['db_table'], model_columns=self.model.get_metadata(Metadata.MODEL_COLUMNS),
+                                       create_model_table=payload['create_model_table'],logger=self.logger,
+                                       library_specific_args=payload['library_specific'], request_user=self.task.user,
+                                       max_batch_size=payload.get('max_batch_size',10000))
         ddl_creator.create()
         self.logger.info("Flushing", send_db=True)
         self.Session.flush()
         self.logger.warning("Committing Transaction to Database", send_db=True)
+        self.savepoint.commit() # Release the savepoint so we can commit transactions
         self.Session.commit()
         self.logger.info("Committed.", send_db=True)
+
+    def exception_handler(self, exc: Exception):
+        self.logger.info("Rolling back...",send_db=True)
+        self.logger.info(f"Savepoint is active... {self.savepoint.is_active}")
+        self.savepoint.rollback()
+        self.Session.rollback()
+        self._cleanup()  # always run cleanup, regardless of success or failure
+        raise exc
 
     def execute(self) -> None:
         """
@@ -219,4 +242,5 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
         for step_no, execute_step in enumerate(steps):
             self.logger.info(f"Running Step {step_no}...")
+            self.logger.info(f"Savepoint is active... {self.savepoint.is_active}")
             execute_step()

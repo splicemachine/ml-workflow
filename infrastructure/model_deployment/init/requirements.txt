@@ -1,1 +1,1 @@
-splicemachinesa==0.2.0.dev0
+splicemachinesa==0.3.3

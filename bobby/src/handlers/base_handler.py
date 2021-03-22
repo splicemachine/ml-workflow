@@ -45,7 +45,7 @@ class BaseHandler(object):
         self.task_id: int = task_id
         self.task: Optional[Job] = None  # assigned later
 
-        self.Session = SQLAlchemyClient.SessionFactory()
+        self.Session = SQLAlchemyClient.SessionMaker()
 
         # Lifecycle Management
         self.manager: JobLifecycleManager = JobLifecycleManager(task_id=task_id)
