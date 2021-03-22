@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session, aliased, load_only
 from typing import List, Dict, Union, Optional, Any, Tuple, Set
 from . import schemas
-from .constants import SQL, SQL_TYPES
+from .constants import SQL, SQLALCHEMY_TYPES
 from shared.models import feature_store_models as models
 from shared.services.database import SQLAlchemyClient, DatabaseFunctions
 from shared.logger.logging_config import logger
@@ -19,8 +19,6 @@ from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, 
                                 DECIMAL, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, BOOLEAN)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
-SQLALCHEMY_TYPES = dict(zip(SQL_TYPES, [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
-                        DECIMAL, FLOAT, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, SMALLINT, BOOLEAN, INTEGER]))
 
 def get_db():
     """

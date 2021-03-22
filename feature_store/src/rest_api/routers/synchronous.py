@@ -281,6 +281,11 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
             status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
             message=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
             f"feature set using fs.create_feature_set before deploying.")
+    if fset.deployed:
+        raise SpliceMachineException(
+            status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
+            message=f"Feature set {schema}.{table} is already deployed.")
+
     fset = crud.deploy_feature_set(db, fset)
     airflow.schedule_feature_set_calculation(f'{schema}.{table}')
     return fset
@@ -414,7 +419,7 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
                 crud.delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
         else: # No dependencies
             crud.delete_feature_set(db, fset, cascade=False)
-    # airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
+    airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
                 description="Get all deployments", operation_id='get_deployments', tags=['Deployments'])
