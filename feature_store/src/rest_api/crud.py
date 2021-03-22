@@ -183,15 +183,48 @@ def feature_set_is_deployed(db: Session, fset_id: int) -> bool:
         filter(models.FeatureSet.feature_set_id==fset_id).\
         all()[0]
 
-def delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
+
+def delete_features_from_feature_set(db: Session, feature_set_id: int):
+    """
+    Deletes features for a particular feature set
+
+    :param db: Database Session
+    :param features: feature IDs to delete
+    """
+    # Delete features
+    logger.info("Removing features")
+    db.query(models.Feature).filter(models.Feature.feature_set_id == feature_set_id).delete(synchronize_session='fetch')
+
+def delete_features_set_keys(db: Session, feature_set_id: int):
+    """
+    Deletes feature set keys for a particular feature set
+
+    :param db: Database Session
+    :param features: feature IDs to delete
+    """
+    # Delete features
+    logger.info("Removing features")
+    db.query(models.FeatureSetKey).filter(models.FeatureSetKey.feature_set_id == feature_set_id).\
+        delete(synchronize_session='fetch')
+
+def delete_feature_set(db: Session, feature_set_id: int):
+    """
+    Deletes a feature set with a given ID
+
+    :param db: Database Session
+    :param feature_set_id: feature set ID to delete
+    """
+    db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id == feature_set_id).delete(synchronize_session='fetch')
+
+def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
                        training_sets: Set[int] = None):
     """
-    Deletes a Feature Set. Drops the table
+    Deletes a Feature Set. Drops the table. Removes keys. Potentially removes training sets if there are dependencies
 
-    :param db:
-    :param feature_set_id:
-    :param training_sets:
-    :param cascade:
+    :param db: Database Session
+    :param feature_set: feature set to delete
+    :param training_sets: Set[int] training sets 
+    :param cascade: whether to delete dependent training sets. If this is True training_sets must be set.
     :return:
     """
     logger.info("Dropping table")
@@ -202,23 +235,66 @@ def delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bo
         logger.info(f'linked training sets: {training_sets}')
         # Delete training set features if any
         logger.info("Removing training set features")
-        db.query(models.TrainingSetFeature).filter(models.TrainingSetFeature.training_set_id.in_(training_sets)).\
-            delete(synchronize_session='fetch')
+        delete_training_set_features(db, training_sets)
+
         # Delete training sets
         logger.info("Removing training sets")
-        db.query(models.TrainingSet).filter(models.TrainingSet.training_set_id.in_(training_sets)).\
-            delete(synchronize_session='fetch')
+        delete_training_sets(db, training_sets)
+
     # Delete features
     logger.info("Removing features")
-    db.query(models.Feature).filter(models.Feature.feature_set_id == feature_set.feature_set_id).delete()
+    delete_features_from_feature_set(db, feature_set.feature_set_id)
     # Delete Feature Set Keys
     logger.info("Removing feature set keys")
-    db.query(models.FeatureSetKey).filter(models.FeatureSetKey.feature_set_id == feature_set.feature_set_id).\
-        delete(synchronize_session='fetch')
+    delete_features_set_keys(db, feature_set.feature_set_id)
 
     # Delete feature set
     logger.info("Removing features set")
-    db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id == feature_set.feature_set_id).delete()
+    delete_feature_set(db, feature_set.feature_set_id)
+
+
+def delete_training_set_features(db: Session, training_sets: Set[int]):
+    """
+    Deletes training set features from training sets with the given IDs
+    
+    :param db: Database Session
+    :param training_sets: training set IDs
+    """
+    db.query(models.TrainingSetFeature).filter(models.TrainingSetFeature.training_set_id.in_(training_sets)).\
+            delete(synchronize_session='fetch')
+
+def delete_training_sets(db: Session, training_sets: Set[int]):
+    """
+    Deletes training sets with the given IDs
+    
+    :param db: Database Session
+    :param training_sets: training set IDs to delete
+    """
+    db.query(models.TrainingSet).filter(models.TrainingSet.training_set_id.in_(training_sets)).\
+            delete(synchronize_session='fetch')
+
+
+def delete_training_view_keys(db: Session, view_id: int):
+    """
+    Deletes training view keys for a particular training view
+
+    :param db: Database Session
+    :param view_id: training view ID
+    """
+    # Delete features
+    logger.info("Removing Training View Keys")
+    db.query(models.TrainingViewKey).filter(models.TrainingViewKey.view_id == view_id).\
+        delete(synchronize_session='fetch')
+
+def delete_training_view(db: Session, view_id: int):
+    """
+    Deletes a training view
+
+    :param db: Database Session
+    :param view_id: training view ID
+    """
+    db.query(models.TrainingView).filter(models.TrainingView.view_id == view_id).\
+        delete(synchronize_session='fetch')
 
 
 def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, Set[Any]]:
@@ -227,7 +303,6 @@ def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, 
 
     :param db:  SqlAlchemy Session
     :param feature_set_id: The Feature Set ID in question
-    :return: True if the feature set is deployed
     """
     # return db.query(models.FeatureSet.deployed).filter(models.FeatureSet.feature_set_id==feature_set_id).all()[0]
     f = aliased(models.Feature, name='f')
@@ -246,6 +321,37 @@ def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, 
         training_set = set([tid for tid, _, _ in r])
     )
     return deps
+
+def get_training_view_dependencies(db: Session, vid: int) -> List[Dict[str,str]]:
+    """
+    Returns the mlflow run ID and model deployment name that rely on the given training view
+
+    :param db:  SqlAlchemy Session
+    :param feature_set_id: The Feature Set ID in question
+    """
+    tset = aliased(models.TrainingSet, name='tset')
+    d = aliased(models.Deployment, name='d')
+
+    p = db.query(tset.training_set_id).filter(tset.view_id == vid).subquery('p')
+    res = db.query(d.model_schema_name, d.model_table_name, d.run_id).filter(d.training_set_id.in_(p)).all()
+
+    deps = [{
+        'run_id': run_id, 
+        'deployment': f'{schema}.{table}'
+        } for schema, table, run_id in res]
+    
+    return deps
+
+def get_training_sets_from_view(db: Session, vid: int) -> List[int]:
+    """
+    Returns a list of training set IDs that were created from the given training view ID
+    
+    :param db: SqlAlchemy Session
+    :param vid: The training view ID
+    """
+    res = db.query(models.TrainingSet.training_set_id).filter(models.TrainingSet.view_id == vid).all()
+    return [i[0] for i in res] # Returns 
+
 
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:

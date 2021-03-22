@@ -12,7 +12,7 @@ def test_session_create(get_my_session):
     cleanup(sess)
 
     logger.info("Done. Adding feature set entry")
-    fset = FeatureSet(schema_name='TEST_FS', table_name='FSET_1', description='Test Fset 1', deployed=False)
+    fset = FeatureSet(schema_name='test_fs', table_name='FSET_1', description='Test Fset 1', deployed=False)
     sess.add(fset)
     sess.flush() # Get the feature_set_id (auto generated)
     logger.info('Done')
@@ -30,7 +30,7 @@ def create_undeployed_fset(get_my_session):
     cleanup(sess)
 
     logger.info("Done. Adding feature set entry")
-    fset = FeatureSet(schema_name='TEST_FS', table_name='FSET_1', description='Test Fset 1', deployed=False)
+    fset = FeatureSet(schema_name='test_fs', table_name='FSET_1', description='Test Fset 1', deployed=False)
     sess.add(fset)
     sess.flush()
 
@@ -55,7 +55,7 @@ def create_deployed_fset(get_my_session):
 
     # Add fset
     logger.info("Done. Adding feature set entry")
-    fset = FeatureSet(schema_name='TEST_FS', table_name='FSET_1', description='Test Fset 1', deployed=True)
+    fset = FeatureSet(schema_name='test_fs', table_name='FSET_1', description='Test Fset 1', deployed=True)
     sess.add(fset)
     sess.flush()
 

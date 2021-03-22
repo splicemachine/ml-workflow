@@ -346,16 +346,15 @@ class DatabaseModelDDL:
 
         self.logger.info(f"Dictionary of params {str(key_vals)}")
 
-        tcx: TrainingView = self.session.query(TrainingView)\
-            .filter_by(name=key_vals['splice.feature_store.training_set']).one_or_none()
+        view_id = key_vals['splice.feature_store.training_view_id']
 
-        if tcx:
-            self.logger.info(f"Found training view with ID {tcx.view_id}")
+        if eval(view_id):
+            self.logger.info(f"Found training view with ID {view_id}")
             self.logger.info(f"Registering new training set for training view {key_vals['splice.feature_store.training_set']}", send_db=True)
 
             # Create training set
             ts = TrainingSet(
-                view_id=tcx.view_id,
+                view_id=view_id,
                 name=key_vals['splice.feature_store.training_set'],
                 last_update_username=self.request_user
             )
@@ -387,6 +386,14 @@ class DatabaseModelDDL:
         self.logger.info("Done. Getting feature IDs for each feature...")
         features: List[Feature] =  self.session.query(Feature)\
             .filter(func.upper(Feature.name).in_([feat.value.upper() for feat in training_set_features])).all()
+
+        # Validate that these features have not been deleted. If they have we cannot deploy
+        if len(features) < len(training_set_features):
+            feats = [f.name.lower() for f in features]
+            tsf = [f.value.lower() for f in training_set_features]
+            missing_features = set(tsf) - set(feats)
+            raise Exception(f"Some of the features used in this model's training have been deleted: {missing_features}"
+                            f" You cannot deploy a model that was trained on features that have been deleted.")
 
         self.logger.info(f"Done. Registering all {len(features)} features")
         for feat in features:
@@ -436,6 +443,19 @@ class DatabaseModelDDL:
                 DatabaseSQL.add_feature_store_deployment.format(**deployment)
             )
 
+    def _validate_training_view(self, view_id):
+        """
+        Validates that a particular training view exists. If a run in mlflow was training using a training set from
+        the feature store, and that training set was taken from a training view that no longer exists, we cannot
+        deploy this model (as we cannot recreate the training set used for training).
+
+        :param view_id: The view ID
+        """
+        tvw: TrainingView = self.session.query(TrainingView)\
+            .filter_by(view_id=view_id).one_or_none()
+        if not tvw:
+            raise Exception(f"The training view (id:{view_id}) used for this run has been deleted."
+                            f" You cannot deploy a model that was trained using a training view that no longer exists.")
 
     def register_feature_store_deployment(self):
         """
@@ -452,7 +472,8 @@ class DatabaseModelDDL:
         self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
         training_set_params = [f'splice.feature_store.{i}' for i in ['training_set','training_set_start_time',
-                                                                    'training_set_end_time', 'training_set_create_time', 'training_set_label']]
+                                                                    'training_set_end_time', 'training_set_create_time',
+                                                                     'training_set_label', 'training_view_id']]
         params: List[SqlParam] = self.session.query(SqlParam)\
             .filter_by(run_uuid=self.run_id)\
             .filter(SqlParam.key.in_(training_set_params))\
@@ -461,6 +482,12 @@ class DatabaseModelDDL:
         if len(params)==len(training_set_params): # Run has associated training set
             key_vals = {param.key:param.value for param in params}
             self.logger.info("Training set found! Registering...", send_db=True)
+
+            # We need to ensure this view hasn't been deleted since the time this run was created
+            if eval(key_vals['splice.feature_store.training_view_id']): # returns 'None' not None so need eval
+                self.logger.info('Validating that the Training View still exists')
+                self._validate_training_view(key_vals['splice.feature_store.training_view_id'])
+
             ts: TrainingSet = self._register_training_set(key_vals)
             self.logger.info(f"Done. Gathering individual features...", send_db=True)
             self._register_training_set_features(ts, key_vals)

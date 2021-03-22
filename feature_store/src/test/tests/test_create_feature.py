@@ -48,7 +48,7 @@ def test_create_feature_existing_feature_set(test_app, create_undeployed_fset):
     APP.dependency_overrides[crud.get_db] = lambda: (yield create_undeployed_fset) # Give the "server" the same db session
     logger.info("============================= Starting test_create_feature_existing_feature_set =============================")
 
-    response = test_app.post('/features',params={'schema': 'TEST_FS', 'table': 'FSET_1'},
+    response = test_app.post('/features',params={'schema': 'test_fs', 'table': 'FSET_1'},
                              json=good_feature, auth=basic_auth)
 
     assert response.status_code == 201, response.json()['message']
@@ -62,7 +62,7 @@ def test_create_feature_deployed_feature_set_upper_case(test_app, create_deploye
     APP.dependency_overrides[crud.get_db] = lambda: (yield create_deployed_fset) # Give the "server" the same db session
     logger.info("============================= Starting test_create_feature_existing_feature_set =============================")
 
-    response = test_app.post('/features',params={'schema': 'TEST_FS', 'table': 'FSET_1'}, # Upper case schema/table
+    response = test_app.post('/features',params={'schema': 'test_fs', 'table': 'FSET_1'}, # Upper case schema/table
                              json=good_feature, auth=basic_auth)
 
     assert response.status_code == 409, f'Should fail because the Feature Set is already deployed. ' \
@@ -73,7 +73,7 @@ def test_create_feature_deployed_feature_set_lower_case(test_app, create_deploye
     APP.dependency_overrides[crud.get_db] = lambda: (yield create_deployed_fset) # Give the "server" the same db session
     logger.info("============================= Starting test_create_feature_existing_feature_set =============================")
 
-    response = test_app.post('/features',params={'schema': 'test_fs', 'table': 'fset_1'}, # Lower case schema/table
+    response = test_app.post('/features',params={'schema': 'test_fs', 'table': 'FSET_1'}, # Lower case schema/table
                              json=good_feature, auth=basic_auth)
 
     assert response.status_code == 409, response.json()['message']

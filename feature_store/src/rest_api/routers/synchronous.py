@@ -28,20 +28,6 @@ def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"), db: S
     crud.validate_schema_table(names)
     return crud.get_feature_sets(db, feature_set_names=names)
 
-@SYNC_ROUTER.delete('/training-views', status_code=status.HTTP_200_OK,description="Removes a training view", 
-                operation_id='remove_training_view', tags=['Training Views'])
-@managed_transaction
-def remove_training_view(override=False, db: Session = Depends(crud.get_db)):
-    """
-    Note: This function is not yet implemented.
-    Removes a training view. This will run 2 checks.
-        1. See if the training view is being used by a model in a deployment. If this is the case, the function will fail, always.
-        2. See if the training view is being used in any mlflow runs (non-deployed models). This will fail and return
-        a warning Telling the user that this training view is being used in mlflow runs (and the run_ids) and that
-        they will need to "override" this function to forcefully remove the training view.
-    """
-    raise NotImplementedError
-
 @SYNC_ROUTER.get('/summary', status_code=status.HTTP_200_OK, response_model=schemas.FeatureStoreSummary,
                 description="Returns feature store summary metrics", operation_id='get_summary', tags=['Feature Store'])
 @managed_transaction
@@ -380,6 +366,29 @@ def remove_feature(name: str, db: Session = Depends(crud.get_db)):
                                         message=f"Cannot delete Feature {feature.name} from deployed Feature Set {schema}.{table}")
     crud.delete_feature(db, feature)
 
+@SYNC_ROUTER.delete('/training-views', status_code=status.HTTP_200_OK, description="Remove a training view",
+                    operation_id='remove_training_view', tags=['Training Views'])
+@managed_transaction
+def remove_training_view(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Removes a Training View from the feature store as long as the training view isn't being used in a deployment
+    """
+    tvw: schemas.TrainingView = _get_training_view_by_name(db, name)[0]
+    deps = crud.get_training_view_dependencies(db, tvw.view_id)
+    if deps:
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                     message=f'The training view {name} cannot be deleted because the following models '
+                                             f'have been deployed using it: {deps}')
+    tset_ids = crud.get_training_sets_from_view(db, tvw.view_id)
+    # Delete the dependent training sets
+    crud.delete_training_set_features(db, set(tset_ids))
+    crud.delete_training_sets(db, set(tset_ids))
+    # Delete the training view components (key and view)
+    crud.delete_training_view_keys(db, tvw.view_id)
+    crud.delete_training_view(db, tvw.view_id)
+
+    
+
 @SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK, description="Removes a feature set",
                     operation_id='remove_feature_set', tags=['Feature Sets'])
 @managed_transaction
@@ -396,11 +405,10 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
     if not fset:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
                                      message=f'The feature set ({schema}.{table}) you are trying to delete has not '
-                                             'been deployed, or the table has been dropped. Please ensure the feature '
-                                             'set has been deployed and the table exists.')
+                                             'been created. Please ensure the feature set exists.')
     fset = fset[0]
     if not crud.feature_set_is_deployed(db, fset.feature_set_id):
-        crud.delete_feature_set(db, fset, cascade=False)
+        crud.full_delete_feature_set(db, fset, cascade=False)
     else:
         deps = crud.get_feature_set_dependencies(db, fset.feature_set_id)
         if deps['model']:
@@ -416,9 +424,9 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
                                                      f'{deps["training_set"]}. To drop this Feature Set anyway, '
                                                      f'set purge=True (be careful!)')
             else:
-                crud.delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
+                crud.full_delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
         else: # No dependencies
-            crud.delete_feature_set(db, fset, cascade=False)
+            crud.full_delete_feature_set(db, fset, cascade=False)
     airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
