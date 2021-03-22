@@ -587,7 +587,7 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     Registers the feature's existence in the feature store
     :param db: SqlAlchemy Session
     :param f: (Feature) the feature to register
-    :return: None
+    :return: The feature metadata
     """
     feature = models.Feature(
         feature_set_id=f.feature_set_id, name=f.name, description=f.description,
@@ -601,6 +601,26 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     fd['tags'] = fd['tags'].split(',') if fd.get('tags') else None
     fd['attributes'] = json.loads(fd['attributes']) if fd.get('attributes') else None
     return schemas.Feature(**fd)
+
+def bulk_register_feature_metadata(db: Session, feats: List[schemas.FeatureCreate]) -> None:
+    """
+    Registers many features' existences in the feature store
+    :param db: SqlAlchemy Session
+    :param feats: (List[Feature]) the features to register
+    :return: None
+    """
+
+    features: List[models.Feature] = [
+        models.Feature(
+            feature_set_id=f.feature_set_id, name=f.name, description=f.description,
+            feature_data_type=f.feature_data_type,
+            feature_type=f.feature_type, tags=','.join(f.tags) if f.tags else None,
+            attributes=json.dumps(f.attributes) if f.attributes else None
+        )
+        for f in feats
+    ]
+    db.bulk_save_objects(features)
+
 
 def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -> List[schemas.Feature]:
     """

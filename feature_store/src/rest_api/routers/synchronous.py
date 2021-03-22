@@ -216,7 +216,15 @@ def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(cru
     """
     crud.validate_feature_set(db, fset)
     logger.info(f'Registering feature set {fset.schema_name}.{fset.table_name} in Feature Store')
-    return crud.register_feature_set_metadata(db, fset)
+    created_fset = crud.register_feature_set_metadata(db, fset)
+    if fset.features:
+        logger.info("Validating features")
+        for fc in fset.features:
+            crud.validate_feature(db, fc.name)
+            fc.feature_set_id = created_fset.feature_set_id
+        logger.info("Done. Bulk registering features")
+        crud.bulk_register_feature_metadata(db, fset.features)
+    return created_fset
 
 @SYNC_ROUTER.post('/features', status_code=status.HTTP_201_CREATED, response_model=schemas.Feature,
                 description="Add a feature to a feature set", operation_id='create_feature', tags=['Features'])
@@ -406,7 +414,7 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
                 crud.delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
         else: # No dependencies
             crud.delete_feature_set(db, fset, cascade=False)
-    airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
+    # airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
                 description="Get all deployments", operation_id='get_deployments', tags=['Deployments'])

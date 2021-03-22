@@ -33,6 +33,7 @@ class FeatureSetBase(BaseModel):
     primary_keys: Dict[str, str]
 
 class FeatureSetCreate(FeatureSetBase):
+    features: Optional[List[FeatureCreate]] = None
     pass
 
 class FeatureSet(FeatureSetBase):
