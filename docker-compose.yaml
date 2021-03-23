@@ -60,6 +60,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-admin}
       FRAMEWORK_NAME: my-framework
       MODE: development
+      ROOT_PATH: / # Change this to /featurestore in the cloud
       ENVIRONMENT: ${ENVIRONMENT:-default}
       AIRFLOW_URL: "http://host.docker.internal:8081/api/v1"
       AIRFLOW_USER: airflow

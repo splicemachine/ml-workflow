@@ -15,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 APP: FastAPI = FastAPI(
     title="Feature Store API",
+    root_path=env_vars.get('ROOT_PATH','/'), # Because we run behind a proxy in the cloud, it will be /featurestore
     debug=env_vars.get('DEBUG', False),
     description="API for asynchronous and synchronous calls to the feature store"
 )
