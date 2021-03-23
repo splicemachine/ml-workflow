@@ -832,7 +832,7 @@ def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, labe
     # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
     from sqlalchemy.exc import ProgrammingError
     try:
-        valid_df = db.execute(sql_text).first()
+        valid_df = db.execute(sql_text)
     except ProgrammingError as e:
         if '[Splice Machine][Splice]' in str(e):
             raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
