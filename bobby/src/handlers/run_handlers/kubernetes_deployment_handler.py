@@ -97,11 +97,14 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
         try:
             self._try_to_connect()
         except ConnectionError: # This means it never started. We should remove this deployment from existence
-            self.logger.info('Problem occured while waiting for model. Model deployment failed! Removing deployment',
-                             send_db=True)
+            str = 'Problem occured while waiting for model. Model deployment failed! Removing deployment. Test your ' \
+                  'model locally by downloading your model, extracting the zip file and running mlflow models ' \
+                  'serve -m /pat/to/downloaded_model_folder'
+            self.logger.info(str, send_db=True)
             payload = {'run_id': self.task.parsed_payload['run_id'], 'handler_name': 'UNDEPLOY_KUBERNETES'}
             requests.post(f'http://{KubernetesDeploymentHandler.MLFLOW_SERVICE}:5003/api/rest/initiate',
                           json=payload, auth=HTTPBasicAuth(env_vars['DB_USER'], env_vars['DB_PASSWORD']))
+            raise Exception(str)
 
 
     def execute(self):
