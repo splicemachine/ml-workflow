@@ -31,15 +31,13 @@ COPY bobby/build $BUILD_HOME
 # Azure forces this ugly code upon us. Any workarounds would be appreciated.
 RUN yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo && \
     rpm --import https://packages.microsoft.com/keys/microsoft.asc && \
-    sh -c 'echo -e "[azure-cli]\nname=Azure CLI\nbaseurl=https://packages.microsoft.com/yumrepos/azure-cli\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/azure-cli.repo'
-
-# Install Yum packages.
-RUN yum clean all && \
-    rm -rf /var/cache/yum && \
+    sh -c 'echo -e "[azure-cli]\nname=Azure CLI\nbaseurl=https://packages.microsoft.com/yumrepos/azure-cli\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/azure-cli.repo' && \
     yum -y update && \
     yum -y install $(cat /$BUILD_HOME/yum_packages.txt) && \
     yum -y groupinstall development && \
-    yum -y --enablerepo=extras install epel-release
+    yum -y --enablerepo=extras install epel-release && \
+    yum clean all && \
+    rm -rf /var/cache/yum
 
 # Install ODBC Driver
 RUN cd $BUILD_HOME && \
@@ -135,7 +133,7 @@ COPY bobby/src $SRC_HOME
 
 # make the entrypoint executable by all users
 RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh
-
+RUN pip3 install -q --upgrade pyspark==3.1.1
 VOLUME /var/lib/docker
 EXPOSE 2375
 CMD $SRC_HOME"/scripts/entrypoint.sh"
