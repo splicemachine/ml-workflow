@@ -10,7 +10,7 @@ ARG odbc_driver_version='2.7.63.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Spark Configuration
-ARG spark_version='3.0.1'
+ARG spark_version='3.1.1'
 
 # File Retriever Configuration
 ARG file_retriever_version='0.0.3'
@@ -133,7 +133,7 @@ COPY bobby/src $SRC_HOME
 
 # make the entrypoint executable by all users
 RUN chmod a+x $SRC_HOME/scripts/entrypoint.sh
-RUN pip3 install -q --upgrade pyspark==3.1.1
+#RUN pip3 install -q --upgrade pyspark==3.1.1
 VOLUME /var/lib/docker
 EXPOSE 2375
 CMD $SRC_HOME"/scripts/entrypoint.sh"
