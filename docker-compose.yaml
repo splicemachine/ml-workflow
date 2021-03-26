@@ -17,10 +17,10 @@ services:
     environment:
       DB_HOST: host.docker.internal
       DB_USER: mlmanager
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:-admin}
       FRAMEWORK_NAME: my-framework
       MODE: development
-      ENVIRONMENT: ${ENVIRONMENT}
+      ENVIRONMENT: ${ENVIRONMENT:-default}
     image: splicemachine/sm_k8_mlflow:0.1.29
     ports:
       - "5001:5001"
@@ -35,7 +35,7 @@ services:
     environment:
       DB_HOST: host.docker.internal
       DB_USER: mlmanager
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:-admin}
       FRAMEWORK_NAME: my-framework
       MLFLOW_URL: "http://mlflow:5001"
       CREATOR_ROLE: "true"
@@ -45,7 +45,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       SAGEMAKER_ROLE: ${SAGEMAKER_ROLE}
       MODE: production
-      ENVIRONMENT: ${ENVIRONMENT}
+      ENVIRONMENT: ${ENVIRONMENT:-default}
     image: splicemachine/sm_k8_bobby:0.1.29
     build:
       args:
@@ -57,10 +57,14 @@ services:
     environment:
       DB_HOST: host.docker.internal
       DB_USER: mlmanager
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:-admin}
       FRAMEWORK_NAME: my-framework
       MODE: development
-      ENVIRONMENT: ${ENVIRONMENT}
+      ROOT_PATH: / # Change this to /featurestore in the cloud
+      ENVIRONMENT: ${ENVIRONMENT:-default}
+      AIRFLOW_URL: "http://host.docker.internal:8081/api/v1"
+      AIRFLOW_USER: airflow
+      AIRFLOW_PASSWORD: airflow
     image: splicemachine/sm_k8_feature_store:0.0.3
     ports:
       - "8000:8000"

@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from typing import List, Union, Optional, Dict
-from .schemas import Feature, FeatureSet, TrainingView, TrainingSet, TrainingSetMetadata
-from . import crud
+from ..schemas import Feature, FeatureSet, TrainingView, TrainingSet, TrainingSetMetadata
+from .. import crud
 from sqlalchemy.orm import Session
 from datetime import datetime
 from .utils import __get_pk_columns
@@ -235,6 +235,7 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
         label = features.pop(ind)
 
     if current:
+        temp_vw = None
         sql = _generate_training_set_sql(features, fsets, label, return_pk_cols)
     else:
         temp_vw = _create_temp_training_view(features, fsets, create_time, label)

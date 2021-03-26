@@ -2,16 +2,16 @@
 from sqlalchemy.orm import Session, aliased, load_only
 from typing import List, Dict, Union, Optional, Any, Tuple, Set
 from . import schemas
-from .constants import SQL, SQL_TYPES
+from .constants import SQL, SQLALCHEMY_TYPES
 from shared.models import feature_store_models as models
-from shared.services.database import SQLAlchemyClient, DatabaseFunctions
+from shared.services.database import SQLAlchemyClient, DatabaseFunctions, Converters
 from shared.logger.logging_config import logger
 from fastapi import status
 import re
 import json
 from datetime import datetime
-from sqlalchemy import update, sql, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
-from .utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
+from sqlalchemy import update, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
+from .utils.utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
 from sys import exc_info as get_stack_trace
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
@@ -19,8 +19,6 @@ from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, 
                                 DECIMAL, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, BOOLEAN)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
-SQLALCHEMY_TYPES = dict(zip(SQL_TYPES, [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
-                        DECIMAL, FLOAT, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, SMALLINT, BOOLEAN, INTEGER]))
 
 def get_db():
     """
@@ -107,7 +105,7 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
     """
     metadata = MetaData(db.get_bind())
 
-    tables = [Table(fset.table_name, metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]), schema=fset.schema_name, autoload=True).\
+    tables = [Table(fset.table_name.lower(), metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]), schema=fset.schema_name.lower(), autoload=True).\
         alias(f'fset{fset.feature_set_id}') for fset in feature_sets]
     columns = [getattr(table.c, f.name.lower()) for f in feats for table in tables if f.name.lower() in table.c]
 
@@ -116,12 +114,13 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
                 for table in tables for pk_col in table.primary_key]
 
     q = db.query(*columns).filter(and_(*filters))
+    sql = str(q.statement.compile(db.get_bind(), compile_kwargs={"literal_binds": True}))
 
     if return_sql:
-        return str(q.statement.compile(db.get_bind(), compile_kwargs={"literal_binds": True}))
+        return sql
     
-    vector = q.first()
-    return vector._asdict() if vector else {}
+    vector = db.execute(sql).first()
+    return dict(vector) if vector else {}
 
 def get_training_view_features(db: Session, training_view: str) -> List[schemas.Feature]:
     """
@@ -184,15 +183,48 @@ def feature_set_is_deployed(db: Session, fset_id: int) -> bool:
         filter(models.FeatureSet.feature_set_id==fset_id).\
         all()[0]
 
-def delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
+
+def delete_features_from_feature_set(db: Session, feature_set_id: int):
+    """
+    Deletes features for a particular feature set
+
+    :param db: Database Session
+    :param features: feature IDs to delete
+    """
+    # Delete features
+    logger.info("Removing features")
+    db.query(models.Feature).filter(models.Feature.feature_set_id == feature_set_id).delete(synchronize_session='fetch')
+
+def delete_features_set_keys(db: Session, feature_set_id: int):
+    """
+    Deletes feature set keys for a particular feature set
+
+    :param db: Database Session
+    :param features: feature IDs to delete
+    """
+    # Delete features
+    logger.info("Removing features")
+    db.query(models.FeatureSetKey).filter(models.FeatureSetKey.feature_set_id == feature_set_id).\
+        delete(synchronize_session='fetch')
+
+def delete_feature_set(db: Session, feature_set_id: int):
+    """
+    Deletes a feature set with a given ID
+
+    :param db: Database Session
+    :param feature_set_id: feature set ID to delete
+    """
+    db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id == feature_set_id).delete(synchronize_session='fetch')
+
+def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
                        training_sets: Set[int] = None):
     """
-    Deletes a Feature Set. Drops the table
+    Deletes a Feature Set. Drops the table. Removes keys. Potentially removes training sets if there are dependencies
 
-    :param db:
-    :param feature_set_id:
-    :param training_sets:
-    :param cascade:
+    :param db: Database Session
+    :param feature_set: feature set to delete
+    :param training_sets: Set[int] training sets 
+    :param cascade: whether to delete dependent training sets. If this is True training_sets must be set.
     :return:
     """
     logger.info("Dropping table")
@@ -203,23 +235,66 @@ def delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bo
         logger.info(f'linked training sets: {training_sets}')
         # Delete training set features if any
         logger.info("Removing training set features")
-        db.query(models.TrainingSetFeature).filter(models.TrainingSetFeature.training_set_id.in_(training_sets)).\
-            delete(synchronize_session='fetch')
+        delete_training_set_features(db, training_sets)
+
         # Delete training sets
         logger.info("Removing training sets")
-        db.query(models.TrainingSet).filter(models.TrainingSet.training_set_id.in_(training_sets)).\
-            delete(synchronize_session='fetch')
+        delete_training_sets(db, training_sets)
+
     # Delete features
     logger.info("Removing features")
-    db.query(models.Feature).filter(models.Feature.feature_set_id == feature_set.feature_set_id).delete()
+    delete_features_from_feature_set(db, feature_set.feature_set_id)
     # Delete Feature Set Keys
     logger.info("Removing feature set keys")
-    db.query(models.FeatureSetKey).filter(models.FeatureSetKey.feature_set_id == feature_set.feature_set_id).\
-        delete(synchronize_session='fetch')
+    delete_features_set_keys(db, feature_set.feature_set_id)
 
     # Delete feature set
     logger.info("Removing features set")
-    db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id == feature_set.feature_set_id).delete()
+    delete_feature_set(db, feature_set.feature_set_id)
+
+
+def delete_training_set_features(db: Session, training_sets: Set[int]):
+    """
+    Deletes training set features from training sets with the given IDs
+    
+    :param db: Database Session
+    :param training_sets: training set IDs
+    """
+    db.query(models.TrainingSetFeature).filter(models.TrainingSetFeature.training_set_id.in_(training_sets)).\
+            delete(synchronize_session='fetch')
+
+def delete_training_sets(db: Session, training_sets: Set[int]):
+    """
+    Deletes training sets with the given IDs
+    
+    :param db: Database Session
+    :param training_sets: training set IDs to delete
+    """
+    db.query(models.TrainingSet).filter(models.TrainingSet.training_set_id.in_(training_sets)).\
+            delete(synchronize_session='fetch')
+
+
+def delete_training_view_keys(db: Session, view_id: int):
+    """
+    Deletes training view keys for a particular training view
+
+    :param db: Database Session
+    :param view_id: training view ID
+    """
+    # Delete features
+    logger.info("Removing Training View Keys")
+    db.query(models.TrainingViewKey).filter(models.TrainingViewKey.view_id == view_id).\
+        delete(synchronize_session='fetch')
+
+def delete_training_view(db: Session, view_id: int):
+    """
+    Deletes a training view
+
+    :param db: Database Session
+    :param view_id: training view ID
+    """
+    db.query(models.TrainingView).filter(models.TrainingView.view_id == view_id).\
+        delete(synchronize_session='fetch')
 
 
 def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, Set[Any]]:
@@ -228,7 +303,6 @@ def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, 
 
     :param db:  SqlAlchemy Session
     :param feature_set_id: The Feature Set ID in question
-    :return: True if the feature set is deployed
     """
     # return db.query(models.FeatureSet.deployed).filter(models.FeatureSet.feature_set_id==feature_set_id).all()[0]
     f = aliased(models.Feature, name='f')
@@ -247,6 +321,37 @@ def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, 
         training_set = set([tid for tid, _, _ in r])
     )
     return deps
+
+def get_training_view_dependencies(db: Session, vid: int) -> List[Dict[str,str]]:
+    """
+    Returns the mlflow run ID and model deployment name that rely on the given training view
+
+    :param db:  SqlAlchemy Session
+    :param feature_set_id: The Feature Set ID in question
+    """
+    tset = aliased(models.TrainingSet, name='tset')
+    d = aliased(models.Deployment, name='d')
+
+    p = db.query(tset.training_set_id).filter(tset.view_id == vid).subquery('p')
+    res = db.query(d.model_schema_name, d.model_table_name, d.run_id).filter(d.training_set_id.in_(p)).all()
+
+    deps = [{
+        'run_id': run_id, 
+        'deployment': f'{schema}.{table}'
+        } for schema, table, run_id in res]
+    
+    return deps
+
+def get_training_sets_from_view(db: Session, vid: int) -> List[int]:
+    """
+    Returns a list of training set IDs that were created from the given training view ID
+    
+    :param db: SqlAlchemy Session
+    :param vid: The training view ID
+    """
+    res = db.query(models.TrainingSet.training_set_id).filter(models.TrainingSet.view_id == vid).all()
+    return [i[0] for i in res] # Returns 
+
 
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
@@ -587,7 +692,7 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     Registers the feature's existence in the feature store
     :param db: SqlAlchemy Session
     :param f: (Feature) the feature to register
-    :return: None
+    :return: The feature metadata
     """
     feature = models.Feature(
         feature_set_id=f.feature_set_id, name=f.name, description=f.description,
@@ -601,6 +706,26 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     fd['tags'] = fd['tags'].split(',') if fd.get('tags') else None
     fd['attributes'] = json.loads(fd['attributes']) if fd.get('attributes') else None
     return schemas.Feature(**fd)
+
+def bulk_register_feature_metadata(db: Session, feats: List[schemas.FeatureCreate]) -> None:
+    """
+    Registers many features' existences in the feature store
+    :param db: SqlAlchemy Session
+    :param feats: (List[Feature]) the features to register
+    :return: None
+    """
+
+    features: List[models.Feature] = [
+        models.Feature(
+            feature_set_id=f.feature_set_id, name=f.name, description=f.description,
+            feature_data_type=f.feature_data_type,
+            feature_type=f.feature_type, tags=','.join(f.tags) if f.tags else None,
+            attributes=json.dumps(f.attributes) if f.attributes else None
+        )
+        for f in feats
+    ]
+    db.bulk_save_objects(features)
+
 
 def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -> List[schemas.Feature]:
     """
@@ -797,7 +922,8 @@ def get_source_pk_types(db: Session, sql: str) -> Dict[str,str]:
     lazy_sql = f'select * from ({sql}) x where 1=0'
     valid_df = db.execute(sql)
     col_descriptions = valid_df.cursor.description
-
+    pk_types = {d[0]: Converters.PY_DB_CONVERSIONS[d[1]] for d in col_descriptions}
+    return pk_types
 
 
 def validate_source(db: Session, name, sql_text, pk_columns, event_ts_column, update_ts_column) -> None:
@@ -878,12 +1004,46 @@ def create_source(db: Session, name, sql_text, pk_columns, event_ts_column, upda
     )
     db.add(s)
     db.flush() # Get source ID
+    source_keys: List[models.SourceKey] = []
     for k in pk_columns:
         sk = models.SourceKey(
             source_id = s.source_id,
             key_column_name = k
         )
-        db.add(sk)
+        source_keys.append(sk)
+    db.bulk_save_objects(source_keys)
+
+def create_pipeline(db: Session, sf: schemas.SourceFeatureSetAgg, fset_id: int,
+                    source_id: int, pipeline_url: str) -> None:
+    """
+    Registers a pipeline in the Feature Store that will be scheduled and executed by Airflow. This
+    metadata is for tracking purposes only
+
+    :param db: SqlAlchemy Session
+    :param sf: SourceFeatureSetAgg
+    :param fset_id: Feature Set ID for this Pipeline
+    :param source_id: The ID of the Source SQL
+    :param pipeline_url: The Airflow (or other ETL tool) URL
+    """
+    p = models.Pipeline(
+        feature_set_id = fset_id,
+        source_id = source_id,
+        pipeline_start_ts = sf.start_time,
+        pipeline_interval = sf.schedule_interval,
+        backfill_start_ts = sf.backfill_start_time,
+        backfill_interval = sf.backfill_interval,
+        pipeline_url = pipeline_url
+    )
+    db.add(p)
+
+def create_pipeline_aggregations(db: Session, pipeline_aggs: List[models.PipelineAgg]):
+    """
+    Creates the pipeline aggregation functions and registers them in the Feature Store
+
+    bulk_register_feature_metadata
+    :param pipeline_aggs: The pipeline aggregation functions to add
+    """
+    db.bulk_save_objects(pipeline_aggs)
 
 def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str, table_name: str) -> schemas.TrainingSetMetadata:
     """
@@ -920,7 +1080,7 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
         d.training_set_start_ts,
         d.training_set_end_ts,
         d.training_set_create_ts,
-        tv.label_columnn
+        tv.label_column
     ).first()
 
     if not deploy:

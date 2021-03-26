@@ -325,7 +325,8 @@ class Converters:
         str: "VARCHAR(5000)",
         int: "INT",
         float: 'DOUBLE',
-        datetime: "TIMESTAMP"
+        datetime: "TIMESTAMP",
+        bool: "BOOLEAN"
     }
 
 class DatabaseFunctions:

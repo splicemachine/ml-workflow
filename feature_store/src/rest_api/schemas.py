@@ -33,6 +33,7 @@ class FeatureSetBase(BaseModel):
     primary_keys: Dict[str, str]
 
 class FeatureSetCreate(FeatureSetBase):
+    features: Optional[List[FeatureCreate]] = None
     pass
 
 class FeatureSet(FeatureSetBase):
@@ -93,8 +94,7 @@ class SourceFeatureSetAgg(BaseModel):
     aggregations: List[FeatureAggregation]
     backfill_start_time: Optional[datetime] = None
     backfill_interval: Optional[str] = None
-
-
+    description: Optional[str] = None
 
 # Basically just for neat documentation
 class FeatureTimeframe(BaseModel):

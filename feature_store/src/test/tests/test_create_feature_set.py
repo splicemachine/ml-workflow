@@ -90,7 +90,7 @@ feature_set_bad_pk_schema_location_3 = {
 }
 
 good_feature_set = {
-    "schema_name": 'TEST_FS',
+    "schema_name": 'test_fs',
     "table_name": 'good_table_name',
     "description": 'a feature set that should be created',
     "primary_keys": {'ID': "INTEGER"}

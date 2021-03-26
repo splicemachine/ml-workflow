@@ -1,16 +1,19 @@
+import json
 from fastapi import APIRouter, status, Depends, Query
 from typing import List, Dict, Optional, Union, Any
 from shared.logger.logging_config import logger
 from sqlalchemy.orm import Session
 from .auth import authenticate
 from .. import schemas, crud
-from datetime import datetime
-from ..training_utils import (dict_to_lower,_get_training_view_by_name, 
+from ..utils.training_utils import (dict_to_lower,_get_training_view_by_name,
                                 _get_training_set, _get_training_set_from_view)
-from ..utils import __validate_feature_data_type
+from ..utils.utils import __validate_feature_data_type
+from ..utils.pipeline_utils import create_pipeline_entities
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from ..decorators import managed_transaction
 from shared.services.database import DatabaseFunctions
+import shared.models.feature_store_models as models
+from ..utils import airflow_utils as airflow
 
 # Synchronous API Router-- we can mount it to the main API
 SYNC_ROUTER = APIRouter(
@@ -27,20 +30,6 @@ def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"), db: S
     """
     crud.validate_schema_table(names)
     return crud.get_feature_sets(db, feature_set_names=names)
-
-@SYNC_ROUTER.delete('/training-views', status_code=status.HTTP_200_OK,description="Removes a training view", 
-                operation_id='remove_training_view', tags=['Training Views'])
-@managed_transaction
-def remove_training_view(override=False, db: Session = Depends(crud.get_db)):
-    """
-    Note: This function is not yet implemented.
-    Removes a training view. This will run 2 checks.
-        1. See if the training view is being used by a model in a deployment. If this is the case, the function will fail, always.
-        2. See if the training view is being used in any mlflow runs (non-deployed models). This will fail and return
-        a warning Telling the user that this training view is being used in mlflow runs (and the run_ids) and that
-        they will need to "override" this function to forcefully remove the training view.
-    """
-    raise NotImplementedError
 
 @SYNC_ROUTER.get('/summary', status_code=status.HTTP_200_OK, response_model=schemas.FeatureStoreSummary,
                 description="Returns feature store summary metrics", operation_id='get_summary', tags=['Feature Store'])
@@ -114,7 +103,7 @@ def get_feature_vector(fjk: schemas.FeatureJoinKeys, sql: bool = False, db: Sess
                 description="Returns the parameterized feature retrieval SQL used for online model serving.", 
                 operation_id='get_feature_vector_sql_from_training_view', tags=['Features'])
 @managed_transaction
-async def get_feature_vector_sql_from_training_view(features: List[Union[schemas.Feature, str]], view: str, db: Session = Depends(crud.get_db)):
+def get_feature_vector_sql_from_training_view(features: List[Union[schemas.Feature, str]], view: str, db: Session = Depends(crud.get_db)):
     """
     Returns the parameterized feature retrieval SQL used for online model serving.
     """
@@ -155,7 +144,7 @@ def get_feature_description(db: Session = Depends(crud.get_db)):
                 description="Gets a set of feature values across feature sets that is not time dependent (ie for non time series clustering)", 
                 operation_id='get_training_set', tags=['Training Sets'])
 @managed_transaction
-async def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label: str = None, 
+def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label: str = None,
                             return_pk_cols: bool = Query(False, alias='pks'), return_ts_col: bool = Query(False, alias='ts'), 
                             db: Session = Depends(crud.get_db)):
     """
@@ -216,7 +205,15 @@ def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(cru
     """
     crud.validate_feature_set(db, fset)
     logger.info(f'Registering feature set {fset.schema_name}.{fset.table_name} in Feature Store')
-    return crud.register_feature_set_metadata(db, fset)
+    created_fset = crud.register_feature_set_metadata(db, fset)
+    if fset.features:
+        logger.info("Validating features")
+        for fc in fset.features:
+            crud.validate_feature(db, fc.name)
+            fc.feature_set_id = created_fset.feature_set_id
+        logger.info("Done. Bulk registering features")
+        crud.bulk_register_feature_metadata(db, fset.features)
+    return created_fset
 
 @SYNC_ROUTER.post('/features', status_code=status.HTTP_201_CREATED, response_model=schemas.Feature,
                 description="Add a feature to a feature set", operation_id='create_feature', tags=['Features'])
@@ -273,7 +270,14 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
             status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
             message=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
             f"feature set using fs.create_feature_set before deploying.")
-    return crud.deploy_feature_set(db, fset)
+    if fset.deployed:
+        raise SpliceMachineException(
+            status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
+            message=f"Feature set {schema}.{table} is already deployed.")
+
+    fset = crud.deploy_feature_set(db, fset)
+    airflow.schedule_feature_set_calculation(f'{schema}.{table}')
+    return fset
 
 @SYNC_ROUTER.get('/feature-set-descriptions', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDescription],
                 description="Returns a description of all feature sets, with all features in the feature sets and whether the feature set is deployed", 
@@ -365,6 +369,29 @@ def remove_feature(name: str, db: Session = Depends(crud.get_db)):
                                         message=f"Cannot delete Feature {feature.name} from deployed Feature Set {schema}.{table}")
     crud.delete_feature(db, feature)
 
+@SYNC_ROUTER.delete('/training-views', status_code=status.HTTP_200_OK, description="Remove a training view",
+                    operation_id='remove_training_view', tags=['Training Views'])
+@managed_transaction
+def remove_training_view(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Removes a Training View from the feature store as long as the training view isn't being used in a deployment
+    """
+    tvw: schemas.TrainingView = _get_training_view_by_name(db, name)[0]
+    deps = crud.get_training_view_dependencies(db, tvw.view_id)
+    if deps:
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                     message=f'The training view {name} cannot be deleted because the following models '
+                                             f'have been deployed using it: {deps}')
+    tset_ids = crud.get_training_sets_from_view(db, tvw.view_id)
+    # Delete the dependent training sets
+    crud.delete_training_set_features(db, set(tset_ids))
+    crud.delete_training_sets(db, set(tset_ids))
+    # Delete the training view components (key and view)
+    crud.delete_training_view_keys(db, tvw.view_id)
+    crud.delete_training_view(db, tvw.view_id)
+
+    
+
 @SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK, description="Removes a feature set",
                     operation_id='remove_feature_set', tags=['Feature Sets'])
 @managed_transaction
@@ -381,11 +408,10 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
     if not fset:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
                                      message=f'The feature set ({schema}.{table}) you are trying to delete has not '
-                                             'been deployed, or the table has been dropped. Please ensure the feature '
-                                             'set has been deployed and the table exists.')
+                                             'been created. Please ensure the feature set exists.')
     fset = fset[0]
     if not crud.feature_set_is_deployed(db, fset.feature_set_id):
-        crud.delete_feature_set(db, fset, cascade=False)
+        crud.full_delete_feature_set(db, fset, cascade=False)
     else:
         deps = crud.get_feature_set_dependencies(db, fset.feature_set_id)
         if deps['model']:
@@ -401,9 +427,10 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
                                                      f'{deps["training_set"]}. To drop this Feature Set anyway, '
                                                      f'set purge=True (be careful!)')
             else:
-                crud.delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
+                crud.full_delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
         else: # No dependencies
-            crud.delete_feature_set(db, fset, cascade=False)
+            crud.full_delete_feature_set(db, fset, cascade=False)
+    airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
                 description="Get all deployments", operation_id='get_deployments', tags=['Deployments'])
@@ -448,14 +475,18 @@ def create_source(source: schemas.Source, db: Session = Depends(crud.get_db)):
     logger.info(f'Registering source {source.name} in Feature Store')
     crud.create_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
 
-@SYNC_ROUTER.get('/source', status_code=status.HTTP_201_CREATED, response_model=schemas.Source,
+@SYNC_ROUTER.get('/source', status_code=status.HTTP_200_OK, response_model=schemas.Source,
                  description="Gets a Source by name", operation_id='create_source', tags=['Source', 'Pipeline'])
 @managed_transaction
-def create_source(name: str, db: Session = Depends(crud.get_db)):
+def get_source(name: str, db: Session = Depends(crud.get_db)):
     """
     Gets a Source
     """
-    return crud.get_source(db, name)
+    s = crud.get_source(db, name)
+    if not s:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Source {name} does not exist. Please provide a valid source")
+    return s
 
 
 @SYNC_ROUTER.post('/agg-feature-set-from-source', status_code=status.HTTP_201_CREATED,
@@ -476,18 +507,23 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, db: Sess
 
     source_pk_types = crud.get_source_pk_types(db, source.sql_text)
 
-    crud.validate_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
-    logger.info(f'Registering source {source.name} in Feature Store')
-    crud.create_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
+    fsetc = schemas.FeatureSetCreate(
+        schema_name=sf.schema,
+        table_name=sf.table,
+        description=sf.description,
+        primary_keys=source_pk_types,
+    )
+    fset = create_feature_set(fsetc, db)
 
-@SYNC_ROUTER.get('/source', status_code=status.HTTP_201_CREATED, response_model=schemas.Source,
-                 description="Gets a Source by name", operation_id='create_source', tags=['Source', 'Pipeline'])
-@managed_transaction
-def create_source(name: str, db: Session = Depends(crud.get_db)):
-    """
-    Gets a Source
-    """
-    return crud.get_source(db, name)
+    crud.create_pipeline(db, sf, fset.feature_set_id, source.source_id, 'FIXME')
+    # Create feature aggregations and features
+    # This registers the features and pipeline aggregations in the feature store
+    create_pipeline_entities(db, sf, source, fset.feature_set_id)
+    # Now that the features exist we can deploy the feature set
+    deploy_feature_set(sf.schema, sf.table, db)
+
+
+
 
 
 
