@@ -358,7 +358,7 @@ class PipelineAgg(SQLAlchemyClient.SpliceBase):
     """
     __tablename__: str = "pipeline_agg"
     feature_set_id: Column = Column(Integer, ForeignKey(Pipeline.feature_set_id), primary_key=True)
-    feature_prefix_name: Column = Column(String(128), primary_key=True)
+    feature_name_prefix: Column = Column(String(128), primary_key=True)
     column_name: Column = Column(String(128))
     agg_functions: Column = Column(String(50))
     agg_windows: Column = Column(String(255))

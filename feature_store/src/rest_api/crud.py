@@ -350,11 +350,12 @@ def get_training_sets_from_view(db: Session, vid: int) -> List[int]:
     :param vid: The training view ID
     """
     res = db.query(models.TrainingSet.training_set_id).filter(models.TrainingSet.view_id == vid).all()
-    return [i[0] for i in res] # Returns 
+    return [i for (i,) in res]
 
 
 
-def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
+def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None,
+                     _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
     """
     Returns a list of available feature sets
 
@@ -719,7 +720,7 @@ def bulk_register_feature_metadata(db: Session, feats: List[schemas.FeatureCreat
         models.Feature(
             feature_set_id=f.feature_set_id, name=f.name, description=f.description,
             feature_data_type=f.feature_data_type,
-            feature_type=f.feature_type, tags=','.join(f.tags) if f.tags else None,
+            feature_type=f.feature_type, tags=json.dumps(f.tags) if f.tags else None,
             attributes=json.dumps(f.attributes) if f.attributes else None
         )
         for f in feats
@@ -894,7 +895,7 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
         db.add(key)
     logger.info('Done.')
 
-def get_source(db: Session, name) -> schemas.Source:
+def get_source(db: Session, name: str) -> schemas.Source:
     """
     Gets a Source by name
 
@@ -908,8 +909,22 @@ def get_source(db: Session, name) -> schemas.Source:
 
     sk = db.query(models.SourceKey.key_column_name).filter(models.SourceKey.source_id == s.source_id).all()
     sch = s.__dict__
-    sch['pk_columns'] = [i[0] for i in sk]
+    sch['pk_columns'] = [i for (i,) in sk]
     return schemas.Source(**sch)
+
+def get_pipeline_source(db: Session, id) -> schemas.Source:
+    """
+    Gets the source of a particular Pipeline (since a Pipeline has only 1 source)
+
+    :param db: Session
+    :param id: Pipeline ID
+    :return: Source
+    """
+    s = db.query(models.Source).filter(models.Source.source_id == id).first()
+    if not s:
+        return
+
+    return get_source(db, s.name)
 
 def get_source_pk_types(db: Session, sql: str) -> Dict[str,str]:
     """
@@ -1044,6 +1059,50 @@ def create_pipeline_aggregations(db: Session, pipeline_aggs: List[models.Pipelin
     :param pipeline_aggs: The pipeline aggregation functions to add
     """
     db.bulk_save_objects(pipeline_aggs)
+
+def get_feature_aggregations(db: Session, fset_id: int) -> List[schemas.FeatureAggregation]:
+    """
+    Returns a list of feature aggregations for a particular feature set pipeline
+
+    :param db: Session
+    :param fset_id: The ID of the feature set
+    :return: List[schemas.FeatureAggregations] the feature aggregations for that feature set pipeline
+    """
+    p = aliased(models.PipelineAgg, name='p')
+    feat_aggs = db.query(
+        p.feature_name_prefix, p.column_name, p.agg_functions, p.agg_windows, p.agg_default_value
+    ).filter(p.feature_set_id == fset_id).all()
+    feat_aggs: List[schemas.FeatureAggregation] = [
+        schemas.FeatureAggregation(
+            feature_name_prefix=fnp,
+            column_name=column_name,
+            agg_functions=json.loads(agg_functions),
+            agg_windows=json.loads(agg_windows),
+            agg_default_value=agg_default_val
+        )
+        for fnp, column_name, agg_functions, agg_windows, agg_default_val in feat_aggs
+    ]
+    return feat_aggs
+
+def get_pipeline(db: Session, fset_id: int) -> schemas.Pipeline:
+    """
+    Gets a pipeline from a feature set ID
+
+    :param db: Session
+    :param fset_id: Feature Set ID
+    :return: the pipeline
+    """
+    return db.query(models.Pipeline).filter(models.Pipeline.feature_set_id == fset_id).first()
+
+def get_last_pipeline_run(db: Session, fset_id: int) -> datetime:
+    """
+    Gets the timestamp of the last "extract" (run) of a Feature Set Pipeline. Since they run on a schedule
+    :param db: SQLAlchemy Session
+    :param fset_id: Feature Set ID that the Pipeline is feeding
+    :return: datetime
+    """
+    res = db.query(models.PipelineOps.extract_up_to_ts).filter(models.PipelineOps.feature_set_id == fset_id).first()
+    return res[0] if res else None
 
 def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str, table_name: str) -> schemas.TrainingSetMetadata:
     """

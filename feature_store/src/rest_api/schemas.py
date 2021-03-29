@@ -68,7 +68,6 @@ class TrainingView(TrainingViewBase):
 class TrainingViewDescription(TrainingView):
     features: List[FeatureDescription]
 
-
 class Source(BaseModel):
     name: str
     sql_text: str
@@ -77,6 +76,18 @@ class Source(BaseModel):
     source_id: int
     pk_columns: List[str]
 
+class Pipeline(BaseModel):
+    feature_set_id: int
+    source_id: int
+    pipeline_start_ts: datetime
+    pipeline_interval: str
+    backfill_start_ts: datetime
+    backfill_interval: str
+    pipeline_url: str
+    last_update_ts: datetime
+    last_update_username: str
+    class Config:
+        orm_mode = True
 
 class FeatureAggregation(BaseModel):
     column_name: str

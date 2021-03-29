@@ -1,9 +1,12 @@
 import shared.models.feature_store_models as models
-from .. import schemas, crud
+from ... import schemas, crud
+from . import helpers, constants
 from sqlalchemy.orm import Session
 from typing import List
 import json
-from . import helpers
+from datetime import datetime
+from ...constants import SQL
+
 
 def create_pipeline_entities(db: Session, sf: schemas.SourceFeatureSetAgg, source: schemas.Source, fset_id: int):
     """
@@ -30,7 +33,7 @@ def create_pipeline_entities(db: Session, sf: schemas.SourceFeatureSetAgg, sourc
         pipeline_aggs.append(
             models.PipelineAgg(
                 feature_set_id=fset_id,
-                feature_prefix_name=feat_prefix,
+                feature_name_prefix=feat_prefix,
                 column_name=agg.column_name,
                 agg_functions=json_func,
                 agg_windows=json_windows,
@@ -116,4 +119,83 @@ def generate_backfill_sql(schema: str, table: str, source: schemas.Source, featu
                         ) x 
                    GROUP BY {pk_col_list}
                '''
+    return full_sql
+
+
+def generate_backfill_intervals(db: Session, pipeline: schemas.Pipeline, ) -> List[datetime]:
+    """
+    Gets a list of timestamps to format the backfill SQL. We cannot run the entire backfill SQL at once for a feature set
+    because it may be far too large for a single query, and it may crash the executors. So we break it into many timestamps
+    and run those in a partially parallelized way.  The backfill_sql is always the same, and the intervals returned
+    from this function are passed into that SQL as the `backfill_asof_ts` parameter (the only one in the SQL).
+    for each timestamp returned from this function, you run the backfill SQL once (at that timestamp).
+    :param db: SQLAlchemy Session
+    :param pipeline: The pipeline to run on
+    :return: The list of timestamp intervals to execute the Pipeline SQL with
+    """
+    window_type, window_length = helpers.parse_time_window(pipeline.backfill_interval)
+    window_value = constants.tsi_windows.get(window_type)
+    sql = SQL.backfill_timestamps.format(backfill_start_time=pipeline.backfill_start_ts, pipeline_start_time=pipeline.pipeline_start_ts,
+                     window_value=window_value, window_length=window_length)
+    res = db.execute(sql).fetchall()
+    return [i for (i,) in res] # Unpack the list of tuples
+
+def generate_pipeline_sql(db,  source: schemas.Source, pipeline: schemas.Pipeline, feature_aggs ):
+    """
+    Generates the incremental pipeline SQL for a Feature Set pipeline to run in Airflow
+    :param db: SQLAlchemy Session
+    :param source: The source of the Pipeline (the SELECT in the SQL statement)
+    :param pipeline: The metadata about the pipeline
+    :param feature_aggs: The specific feature aggregations to run
+    :return: 
+    """
+    # find last completed extract timestamp
+    ts_limit = crud.get_last_pipeline_run(db, pipeline.feature_set_id) or pipeline.pipeline_start_ts
+
+    window_type, window_length = helpers.parse_time_window( pipeline.pipeline_interval )
+    window_value = constants.tsi_window_values.get(window_type)
+
+    pk_col_list = ",".join(source.pk_columns)
+    extract_scope_sql = f'''
+        SELECT 
+            DISTINCT {pk_col_list}, 
+            TimestampSnapToInterval(timestamp({source.event_ts_column}), {window_value}, {window_length}) asof_ts 
+        FROM ({source.sql_text}) isrc 
+        WHERE isrc.{source.update_ts_column} > timestamp('{ts_limit}')
+    '''
+
+    ins_column_list = ''
+    expression_list = ''
+
+    # pks
+    qualified_pks = ",".join([ f' x.{f}' for f in source.pk_columns ])
+    expression_list += qualified_pks
+    join_on_clause = " AND ".join ([f"x.{c} = t.{c}" for c in source.pk_columns ])
+    # asof_ts
+    expression_list += f', t.ASOF_TS, CURRENT_TIMESTAMP AS INGEST_TS, MAX(x.{source.update_ts_column}) MAX_UPDATE_TS'
+    as_of_expr = 't.ASOF_TS'
+    all_windows=[]
+    for f in feature_aggs:
+        for func in f.agg_functions:
+            all_windows = all_windows + f.agg_windows
+            for window in f.agg_windows:
+                # The SQL aggregation to perform on the column (SUM, MAX, COUNT etc)
+                agg = helpers.build_agg_expression(func, window, f.column_name, source.event_ts_column,
+                                                   as_of_expr, f.agg_default_value)
+                # The alias which will be the Feature name
+                feature_name = helpers.build_agg_feature_name(f.feature_name_prefix, func, window)
+                expression_list += f", {agg} AS {feature_name} "
+    # find largest window to create lower bound of time for source table scan
+    largest_window_sql = helpers.get_largest_window_sql(all_windows)
+
+    full_sql = f'''SELECT {expression_list} 
+                   FROM ({source.sql_text}) x
+                    INNER JOIN
+                        ({extract_scope_sql}) t 
+                    ON {join_on_clause} 
+                    AND x.{source.event_ts_column} <= {as_of_expr} 
+                    AND x.{source.event_ts_column} >= {as_of_expr} - {largest_window_sql}
+                   GROUP BY {qualified_pks}, {as_of_expr}
+               '''
+
     return full_sql

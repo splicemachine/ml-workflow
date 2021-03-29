@@ -8,14 +8,15 @@ from .. import schemas, crud
 from ..utils.training_utils import (dict_to_lower,_get_training_view_by_name,
                                 _get_training_set, _get_training_set_from_view)
 from ..utils.utils import __validate_feature_data_type
-from ..utils.pipeline_utils import create_pipeline_entities
+from ..utils.pipeline_utils.pipeline_utils import create_pipeline_entities, generate_backfill_sql
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from ..decorators import managed_transaction
 from shared.services.database import DatabaseFunctions
 import shared.models.feature_store_models as models
+from datetime import datetime
 from ..utils import airflow_utils as airflow
 
-# Synchronous API Router-- we can mount it to the main API
+# Synchronous API Router -- we can mount it to the main API
 SYNC_ROUTER = APIRouter(
     dependencies=[Depends(authenticate)]
 )
@@ -489,21 +490,63 @@ def get_source(name: str, db: Session = Depends(crud.get_db)):
     return s
 
 
+@SYNC_ROUTER.get('/backfill-sql', status_code=status.HTTP_200_OK, response_model=str,
+                 description="Get backfill SQL for a feature set/source", operation_id='get_backfill_sql',
+                 tags=['Source', 'Pipeline', 'Backfill', 'SQL'])
+@managed_transaction
+def get_backfill_sql(schema: str, table: str, db: Session = Depends(crud.get_db)):
+    """
+    Generates the backfill SQL for a feature set and source
+    """
+    fset: List[schemas.FeatureSet] = get_feature_sets(names=[f'{schema}.{table}'])
+    if not fset:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Feature Set {schema}.{table} does not exist. Please provide a valid feature set")
+    fset: schemas.FeatureSet = fset[0]
+    pipeline = crud.get_pipeline(db, fset.feature_set_id)
+    source = crud.get_pipeline_source(db, pipeline.source_id)
+    feature_aggs: List[schemas.FeatureAggregation] = crud.get_feature_aggregations(db, fset.feature_set_id)
+    if not feature_aggs:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any aggregations for the feature set {schema}.{table}.")
+    return generate_backfill_sql(schema, table, source, feature_aggs)
+
+@SYNC_ROUTER.get('/backfill-intervals', status_code=status.HTTP_200_OK, response_model=List[datetime],
+                 description="Get backfill intervals for parameterized backfill SQL", operation_id='get_backfill_intervals',
+                 tags=['Source', 'Pipeline', 'Backfill', 'SQL'])
+@managed_transaction
+def get_backfill_intevals(schema: str, table: str, db: Session = Depends(crud.get_db)):
+    """
+    Get backfill intervals for parameterized backfill SQL for a particular feature set.
+    """
+    fset: List[schemas.FeatureSet] = get_feature_sets(names=[f'{schema}.{table}'])
+    if not fset:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Feature Set {schema}.{table} does not exist. Please provide a valid feature set")
+    fset: schemas.FeatureSet = fset[0]
+    pipeline = crud.get_pipeline(db, fset.feature_set_id)
+    source = crud.get_pipeline_source(db, pipeline.source_id)
+    feature_aggs: List[schemas.FeatureAggregation] = crud.get_feature_aggregations(db, fset.feature_set_id)
+    if not feature_aggs:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any aggregations for the feature set {schema}.{table}.")
+    return generate_backfill_sql(schema, table, source, feature_aggs)
+
+
+
 @SYNC_ROUTER.post('/agg-feature-set-from-source', status_code=status.HTTP_201_CREATED,
                   description="Creates an aggregation feature set from a Source",
                   operation_id='create_agg_feature_set_from_source', tags=['Feature_Set', 'Source', 'Pipeline'])
 @managed_transaction
-def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, db: Session = Depends(crud.get_db)):
+def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_backfill: Optional[bool] = True,
+                                       db: Session = Depends(crud.get_db)):
     """
     Creates a temporal aggregation feature set by creating a pipeline linking a source to a feature set. Provided
     aggregations will generate the features for the feature set. If the feature set already exists, the feature names
     must match the generated feature names. Otherwise, this will create the feature set along with aggregation
-    calculations to create features
+    calculations to create features. Optionally runs the backfill at deploy time.
     """
-    source = crud.get_source(db, sf.source_name)
-    if not source:
-        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
-                                    message=f"Source {sf.source_name} does not exist. Please provide a valid source")
+    source = get_source(sf.source_name, db)
 
     source_pk_types = crud.get_source_pk_types(db, source.sql_text)
 
@@ -521,9 +564,36 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, db: Sess
     create_pipeline_entities(db, sf, source, fset.feature_set_id)
     # Now that the features exist we can deploy the feature set
     deploy_feature_set(sf.schema, sf.table, db)
+    if run_backfill:
+        sql = generate_backfill_sql(sf.schema, sf.table, source, crud.get_feature_aggregations(db, fset.feature_set_id))
+        # TODO RUN backfill with Airflow
+    #TODO: RUN incremental pipeline on schedule with Airflow
 
 
+@SYNC_ROUTER.get('/pipeline-sql', status_code=status.HTTP_200_OK, response_model=str,
+                 description="Get incremental pipeline SQL for a feature set/source", operation_id='get_pipeline_sql',
+                 tags=['Source', 'Pipeline', 'SQL'])
+@managed_transaction
+def get_pipeline_sql(schema: str, table: str, source_name: str, db: Session = Depends(crud.get_db)):
+    """
+    Generates the incremental Pipeline SQL for a feature set and source
+    """
+    source = get_source(source_name, db)
+    fset: List[schemas.FeatureSet] = get_feature_sets(db, names=[f'{schema}.{table}'])
+    if not fset:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Feature Set {schema}.{table} does not exist. Please provide a valid feature set")
+    fset: schemas.FeatureSet = fset[0]
+    pipeline: schemas.Pipeline = crud.get_pipeline(db, fset.feature_set_id)
+    if not pipeline:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any pipelines for the feature set {schema}.{table}.")
+    feature_aggs: List[schemas.FeatureAggregation] = crud.get_feature_aggregations(db, fset.feature_set_id)
+    if not feature_aggs:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any feature aggregations for the feature set {schema}.{table}.")
 
+    return generate_backfill_sql(schema, table, source, feature_aggs)
 
 
 

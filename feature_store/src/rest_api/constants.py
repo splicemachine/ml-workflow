@@ -25,6 +25,12 @@ class SQL:
     ({{model_schema_name}}, {{model_table_name}}, {{model_start_ts}}, {{model_end_ts}}, {{feature_id}}, {{feature_cardinality}}, {{feature_histogram}}, {{feature_mean}}, {{feature_median}}, {{feature_count}}, {{feature_stddev}}) 
     """
 
+    backfill_timestamps = """
+    SELECT ASOF_TS
+    FROM new com.splicemachine.fs_functions.TimestampGeneratorVTI('{backfill_start_time}','{pipeline_start_time}',{window_value},{window_length})
+    t (asof_ts TIMESTAMP, until_ts TIMESTAMP)
+    """
+
 class Columns:
     feature = ['feature_id', 'feature_set_id', 'name', 'description', 'feature_data_type', 'feature_type',
                'tags', 'compliance_level', 'last_update_ts', 'last_update_username']
