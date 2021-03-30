@@ -6,7 +6,21 @@ from typing import List
 import json
 from datetime import datetime
 from ...constants import SQL
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
+from fastapi import status
 
+def _get_source(name: str, db: Session):
+    """
+    The implementation of the get_source route with logic here so it can be called by other functions directly
+    :param name: Name of Source
+    :param db: SQLAlchemy Session
+    :return: Source
+    """
+    s = crud.get_source(db, name)
+    if not s:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Source {name} does not exist. Please provide a valid source")
+    return s
 
 def create_pipeline_entities(db: Session, sf: schemas.SourceFeatureSetAgg, source: schemas.Source, fset_id: int):
     """
@@ -24,7 +38,7 @@ def create_pipeline_entities(db: Session, sf: schemas.SourceFeatureSetAgg, sourc
     agg_features: List[schemas.FeatureCreate] = []
     for agg in sf.aggregations:
         # User provided prefix or generated unique by schema/table/column/agg
-        feat_prefix = agg.feature_name_prefix or f'{sf.schema}_{sf.table}_{source.name}_{agg.column_name}'
+        feat_prefix = agg.feature_name_prefix or f'{sf.schema_name}_{sf.table_name}_{source.name}_{agg.column_name}'
 
         # Splice cant store arrays so stringify them
         json_func = json.dumps(agg.agg_functions)
@@ -134,13 +148,14 @@ def generate_backfill_intervals(db: Session, pipeline: schemas.Pipeline, ) -> Li
     :return: The list of timestamp intervals to execute the Pipeline SQL with
     """
     window_type, window_length = helpers.parse_time_window(pipeline.backfill_interval)
-    window_value = constants.tsi_windows.get(window_type)
+    window_value = constants.tsi_window_values.get(window_type) # TODO: tsi_windows or tsi_window_values??
     sql = SQL.backfill_timestamps.format(backfill_start_time=pipeline.backfill_start_ts, pipeline_start_time=pipeline.pipeline_start_ts,
                      window_value=window_value, window_length=window_length)
     res = db.execute(sql).fetchall()
     return [i for (i,) in res] # Unpack the list of tuples
 
-def generate_pipeline_sql(db,  source: schemas.Source, pipeline: schemas.Pipeline, feature_aggs ):
+def generate_pipeline_sql(db,  source: schemas.Source, pipeline: schemas.Pipeline,
+                          feature_aggs: List[schemas.FeatureAggregation] ):
     """
     Generates the incremental pipeline SQL for a Feature Set pipeline to run in Airflow
     :param db: SQLAlchemy Session

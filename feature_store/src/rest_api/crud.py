@@ -18,6 +18,8 @@ from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
 from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
                                 DECIMAL, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, BOOLEAN)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
+from decimal import Decimal
+from copy import deepcopy
 
 
 def get_db():
@@ -58,11 +60,12 @@ def validate_schema_table(names: List[str]) -> None:
                                         message="It seems you've passed in an invalid name. " \
                                         "Names must conform to '[schema_name].[table_name]'")
 
-def validate_feature(db: Session, name: str) -> None:
+def validate_feature(db: Session, name: str, data_type: str) -> None:
     """
     Ensures that the feature doesn't exist as all features have unique names
     :param db: SqlAlchemy Session
     :param name: the Feature name
+    :param data_type: (str) the Feature data type
     :return: None
     """
     # TODO: Capitalization of feature name column
@@ -76,6 +79,12 @@ def validate_feature(db: Session, name: str) -> None:
     l = db.query(models.Feature.name).filter(func.upper(models.Feature.name) == name.upper()).count()
     if l > 0:
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
+    try:
+        db.execute(f'CREATE LOCAL TEMPORARY TABLE COLUMN_TEST({name} {data_type})')
+    except Exception as err:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f'The feature {name} of type {data_type} is invalid. The data type could '
+                                             f'not be parsed, and threw the following error: {str(err)}')
 
 def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
     """
@@ -216,6 +225,23 @@ def delete_feature_set(db: Session, feature_set_id: int):
     """
     db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id == feature_set_id).delete(synchronize_session='fetch')
 
+def delete_pipeline(db: Session, feature_set_id: int):
+    """
+    Deletes pipeline and dependencies from feature store with a given feature set id
+
+    :param db: Database Session
+    :param feature_set_id: feature set ID to delete
+    """
+    # Pipeline Operations
+    db.query(models.PipelineOps).filter(models.PipelineOps.feature_set_id == feature_set_id)\
+        .delete(synchronize_session='fetch')
+    # Pipeline aggregations
+    db.query(models.PipelineAgg).filter(models.PipelineAgg.feature_set_id == feature_set_id)\
+        .delete(synchronize_session='fetch')
+    # Pipeline
+    db.query(models.Pipeline).filter(models.Pipeline.feature_set_id == feature_set_id)\
+        .delete(synchronize_session='fetch')
+
 def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
                        training_sets: Set[int] = None):
     """
@@ -247,6 +273,10 @@ def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascad
     # Delete Feature Set Keys
     logger.info("Removing feature set keys")
     delete_features_set_keys(db, feature_set.feature_set_id)
+
+    # Delete pipeline dependencies
+    logger.info("Deleting any Pipeline dependencies")
+    delete_pipeline(db, feature_set.feature_set_id)
 
     # Delete feature set
     logger.info("Removing features set")
@@ -308,6 +338,7 @@ def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, 
     f = aliased(models.Feature, name='f')
     tset = aliased(models.TrainingSet, name='tset')
     tset_feat = aliased(models.TrainingSetFeature, name='tset_feat')
+    pipe = aliased(models.Pipeline, name='pipeline')
     d = aliased(models.Deployment, name='d')
 
     p = db.query(f.feature_id).filter(f.feature_set_id==feature_set_id).subquery('p')
@@ -752,6 +783,33 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
                                         message=f'Could not find the following features: {missing}')
     return all_features
 
+
+def _sql_to_sqlalchemy_columns(sql_cols: Dict[str,str], pk: bool=False) -> List[Column]:
+    """
+    Takes a dictionary of column_name, column_type and returns a list of SQLAlchemy Columns with the proper SQLAlchemy
+    types
+    :param sql_types: List of SQL data types
+    :param pk: If the list of columns are primary keys
+    :return: List of SQLAlchemy Columns
+    """
+    cols = []
+    for k in sql_cols:
+        sql_type = sql_cols[k]
+        if sql_type.upper() == 'VARCHAR':
+            sql_type, length = sql_type.split('(')
+            length = length.rstrip(')')
+            cols.append(Column(k.lower(), VARCHAR(length), primary_key=pk))
+        elif sql_type.upper() == 'DECIMAL':
+            sql_type, length = sql_type.split('(')
+            prec, rec = length.split(',')
+            rec = rec.rstrip(')')
+            cols.append(Column(k.lower(), DECIMAL(prec, rec), primary_key=pk))
+        else:
+            cols.append(Column(k.lower(), SQLALCHEMY_TYPES._get(sql_cols[k]), primary_key=pk))
+    return cols
+
+
+
 def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.FeatureSet:
     """
     Deploys the current feature set. Equivalent to calling fs.deploy(schema_name, table_name)
@@ -774,19 +832,26 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
         pk_list=get_pk_column_str(fset), feature_list=get_feature_column_str(db, fset), 
         new_pk_cols=new_pk_cols, new_feature_cols=new_feature_cols)
 
+
     logger.info('Creating Feature Set...')
-    pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
+    pk_columns = _sql_to_sqlalchemy_columns(fset.primary_keys, True)
     ts_columns = [Column('last_update_ts', TIMESTAMP, nullable=False)]
-    feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
+    feature_columns = _sql_to_sqlalchemy_columns({f.name.lower(): f.feature_data_type
+                                                  for f in get_features(db, fset)}, False)
     columns = pk_columns + ts_columns + feature_columns
     feature_set = Table(fset.table_name.lower(), metadata, *columns, schema=fset.schema_name.lower())
     feature_set.create(db.connection())
     logger.info('Done.')
 
     logger.info('Creating Feature Set History...')
-    pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
+    # pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
+    # pk_columns = deepcopy(pk_columns)
+    pk_columns = _sql_to_sqlalchemy_columns(fset.primary_keys, True)
     ts_columns = [Column('asof_ts', TIMESTAMP, primary_key=True), Column('ingest_ts', TIMESTAMP)]
-    feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
+    # feature_columns = deepcopy(feature_columns)
+    feature_columns = _sql_to_sqlalchemy_columns({f.name.lower(): f.feature_data_type
+                                                  for f in get_features(db, fset)}, False)
+    # feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
     columns = pk_columns + ts_columns + feature_columns
     history = Table(f'{fset.table_name.lower()}_history', metadata, *columns, schema=fset.schema_name.lower())
     history.create(db.connection())
@@ -926,18 +991,30 @@ def get_pipeline_source(db: Session, id) -> schemas.Source:
 
     return get_source(db, s.name)
 
-def get_source_pk_types(db: Session, sql: str) -> Dict[str,str]:
+def get_source_pk_types(db: Session, source: schemas.Source) -> Dict[str,str]:
     """
     Gets the primary key column names and SQL data types for a source
 
     :param db: Session
-    :param sql: SQL of the source
+    :param source: The Source in question
     :return: Primary Keys with their types
     """
-    lazy_sql = f'select * from ({sql}) x where 1=0'
-    valid_df = db.execute(sql)
+    lazy_sql = f'select * from ({source.sql_text}) x where 1=0'
+    valid_df = db.execute(lazy_sql)
     col_descriptions = valid_df.cursor.description
-    pk_types = {d[0]: Converters.PY_DB_CONVERSIONS[d[1]] for d in col_descriptions}
+    pk_types = {}
+    pks = [d.lower() for d in source.pk_columns]
+    for d in col_descriptions:
+        if d[0].lower() in pks:
+            col, py_type = d[0], d[1]
+            data_type = Converters.PY_DB_CONVERSIONS[py_type]
+            if py_type == Decimal: # handle precision and recall
+                prec, recall = d[3],d[5]
+                data_type += f'({prec},{recall})'
+            elif py_type == str: # handle varchar length
+                length = d[3]
+                data_type += f'({length})'
+            pk_types[col] = data_type
     return pk_types
 
 
@@ -1040,16 +1117,18 @@ def create_pipeline(db: Session, sf: schemas.SourceFeatureSetAgg, fset_id: int,
     :param source_id: The ID of the Source SQL
     :param pipeline_url: The Airflow (or other ETL tool) URL
     """
-    p = models.Pipeline(
+    p = dict(
         feature_set_id = fset_id,
         source_id = source_id,
-        pipeline_start_ts = sf.start_time,
+        pipeline_start_ts = str(sf.start_time),
         pipeline_interval = sf.schedule_interval,
-        backfill_start_ts = sf.backfill_start_time,
+        backfill_start_ts = str(sf.backfill_start_time),
         backfill_interval = sf.backfill_interval,
         pipeline_url = pipeline_url
     )
-    db.add(p)
+    logger.info("Adding pipeline")
+    db.execute(SQL.pipeline.format(**p))
+    db.flush()
 
 def create_pipeline_aggregations(db: Session, pipeline_aggs: List[models.PipelineAgg]):
     """

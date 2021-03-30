@@ -53,7 +53,7 @@ class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
     A queue of feature sets that have been requested to be deployed, but have not been approved.
     """
     __tablename__: str = "pending_feature_set_deployment"
-    feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id), primary_key=True)
+    feature_set_id: Column = Column(Integer, primary_key=True)
     request_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     request_username: Column = Column(String(128), nullable=False)
     status: Column = Column(String(128), nullable=True, default='PENDING')
@@ -288,7 +288,7 @@ class Source(SQLAlchemyClient.SpliceBase):
     This table keeps track of sources of Feature Set tables. This table contains Sources that are defined in SQL, and
     are used to schedule Pipelines to continuously update those Feature Sets (typically using Airflow)
     """
-    __tablename__: str = "source"
+    __tablename__: str = "SOURCE" # Reserved word listed in sqlalchemy so it needs to be uppercase
     source_id: Column = Column(Integer, primary_key=True, autoincrement=True)
     name: Column = Column(String(128), unique=True)
     sql_text: Column = Column(Text)
@@ -362,7 +362,7 @@ class PipelineAgg(SQLAlchemyClient.SpliceBase):
     column_name: Column = Column(String(128))
     agg_functions: Column = Column(String(50))
     agg_windows: Column = Column(String(255))
-    agg_default_value: Column = Column(String(255))
+    agg_default_value: Column = Column(Numeric)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
     __table_args__ = (

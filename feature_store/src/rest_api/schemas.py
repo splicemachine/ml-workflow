@@ -2,18 +2,25 @@ from typing import List, Optional, Dict, Union
 from datetime import datetime
 from pydantic import BaseModel
 
+
+class FeatureDataType(BaseModel):
+    data_type: str
+    length: Optional[int] = None
+    precision: Optional[int] = None
+    scale: Optional[int] = None
+
 class FeatureBase(BaseModel):
     feature_set_id: Optional[int] = None
     name: str
     description: Optional[str] = None
-    feature_data_type: str
+    feature_data_type: str # FeatureDataType
     feature_type: str
     tags: Optional[List[str]] = None
     attributes: Optional[Dict[str, str]] = None
 
 class FeatureCreate(FeatureBase):
     pass
-  
+
 class Feature(FeatureBase):
     feature_id: int
     compliance_level: Optional[int] = None
@@ -30,7 +37,7 @@ class FeatureSetBase(BaseModel):
     schema_name: str
     table_name: str
     description: Optional[str] = None
-    primary_keys: Dict[str, str]
+    primary_keys: Dict[str,str] #List[FeatureDataType]
 
 class FeatureSetCreate(FeatureSetBase):
     features: Optional[List[FeatureCreate]] = None
@@ -73,7 +80,7 @@ class Source(BaseModel):
     sql_text: str
     event_ts_column: str
     update_ts_column: str
-    source_id: int
+    source_id: Optional[int] = None
     pk_columns: List[str]
 
 class Pipeline(BaseModel):
@@ -98,8 +105,8 @@ class FeatureAggregation(BaseModel):
 
 class SourceFeatureSetAgg(BaseModel):
     source_name: str
-    schema: str
-    table: str
+    schema_name: str
+    table_name: str
     start_time: datetime
     schedule_interval: str
     aggregations: List[FeatureAggregation]

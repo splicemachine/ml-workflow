@@ -27,8 +27,13 @@ class SQL:
 
     backfill_timestamps = """
     SELECT ASOF_TS
-    FROM new com.splicemachine.fs_functions.TimestampGeneratorVTI('{backfill_start_time}','{pipeline_start_time}',{window_value},{window_length})
+    FROM new "com.splicemachine.fs_functions.TimestampGeneratorVTI"('{backfill_start_time}','{pipeline_start_time}',{window_value},{window_length})
     t (asof_ts TIMESTAMP, until_ts TIMESTAMP)
+    """
+
+    pipeline = f"""
+    INSERT INTO {FEATURE_STORE_SCHEMA}.pipeline(feature_set_id, source_id, pipeline_start_ts, pipeline_interval, backfill_start_ts, backfill_interval, pipeline_url) 
+    VALUES ({{feature_set_id}}, {{source_id}}, '{{pipeline_start_ts}}', '{{pipeline_interval}}', '{{backfill_start_ts}}', '{{backfill_interval}}', '{{pipeline_url}}') 
     """
 
 class Columns:
@@ -41,5 +46,13 @@ class Columns:
 SQL_TYPES = ['CHAR', 'LONG VARCHAR', 'VARCHAR', 'DATE', 'TIME', 'TIMESTAMP', 'BLOB', 'CLOB', 'TEXT', 'BIGINT',
              'DECIMAL', 'DOUBLE', 'DOUBLE PRECISION', 'FLOAT', 'INTEGER', 'NUMERIC', 'REAL', 'SMALLINT', 'TINYINT', 'BOOLEAN',
              'INT']
-SQLALCHEMY_TYPES = dict(zip(SQL_TYPES, [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
+
+class SQLALCHEMY_TYPES:
+    mapping = dict(zip(SQL_TYPES, [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
                         DECIMAL, FLOAT, FLOAT, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, SMALLINT, BOOLEAN, INTEGER]))
+    @staticmethod
+    def _get(item: str):
+        return SQLALCHEMY_TYPES.mapping[item.split('(')[0]]
+
+# SQLALCHEMY_TYPES = dict(zip(SQL_TYPES, [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
+#                         DECIMAL, FLOAT, FLOAT, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, SMALLINT, BOOLEAN, INTEGER]))

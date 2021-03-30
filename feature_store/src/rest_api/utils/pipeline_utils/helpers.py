@@ -55,7 +55,7 @@ def parse_time_window(time_window: str)-> Tuple[str, int]:
     :param time_window: (str) the window
     :return: Tuple(str, int) the time window split
     """
-    window_type, window_length = re.match("(\d+)(\w+)", time_window).groups()
+    window_length, window_type = re.match("(\d+)(\w+)", time_window).groups()
     if window_type not in c.tsi_windows.keys():
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message=f'The provided window {window_type} is invalid. '
