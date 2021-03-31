@@ -471,9 +471,7 @@ def remove_source(name: str, db: Session = Depends(crud.get_db)):
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
                                      message=f'Source {name} has dependent Feature Sets that are being fed with Pipelines.'
                                              f' Remove the following Feature Sets before removing this Source: {fsets}')
-    crud.validate_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
-    logger.info(f'Registering source {source.name} in Feature Store')
-    crud.create_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
+    crud.delete_source(db, source.source_id)
 
 @SYNC_ROUTER.get('/source', status_code=status.HTTP_200_OK, response_model=schemas.Source,
                  description="Gets a Source by name", operation_id='create_source', tags=['Source', 'Pipeline'])
