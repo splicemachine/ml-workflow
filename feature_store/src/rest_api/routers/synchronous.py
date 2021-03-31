@@ -31,7 +31,7 @@ def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"), db: S
     """
     Returns a list of available feature sets
     """
-    return _get_feature_sets(name, db)
+    return _get_feature_sets(names, db)
 
 @SYNC_ROUTER.get('/summary', status_code=status.HTTP_200_OK, response_model=schemas.FeatureStoreSummary,
                 description="Returns feature store summary metrics", operation_id='get_summary', tags=['Feature Store'])
