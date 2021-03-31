@@ -50,12 +50,12 @@ def get_pk_column_str(fset: FeatureSet, history=False):
 def __get_pk_columns(fset: FeatureSetBase):
     return list(fset.primary_keys.keys())
 
-def process_data_type(typ: DataType) -> str:
+def datatype_to_sql(typ: DataType) -> str:
     """
     Processes a DataType into the SQL compatible string representation
     Ex:
-        process_data_type(DataType('VARCHAR',length=20)) -> VARCHAR(20)
-        process_data_type(DataType('DECIMAL',precision=20, scale=3)) -> DECIMAL(20,3)
+        datatype_to_sql(DataType('VARCHAR',length=20)) -> VARCHAR(20)
+        datatype_to_sql(DataType('DECIMAL',precision=20, scale=3)) -> DECIMAL(20,3)
 
     :param typ: The Data Type
     :return: str the qualified SQL type
@@ -74,8 +74,8 @@ def sql_to_datatype(typ: str) -> DataType:
     """
     Converts a SQL datatype to a DataType object
     ex:
-        sql_to_datatype('VARCHAR(50)') -> DataType(data_type: 'VARCHAR',length=50)
-        sql_to_datatype('DECIMAL(10,2)') -> DataType(data_type: 'DECIMAL',precision=10,scale=2)
+        sql_to_datatype('VARCHAR(50)') -> DataType(data_type= 'VARCHAR',length=50)
+        sql_to_datatype('DECIMAL(10,2)') -> DataType(data_type= 'DECIMAL',precision=10,scale=2)
     :param typ: the SQL data type
     :return: DataType
     """

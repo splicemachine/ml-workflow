@@ -11,7 +11,7 @@ import re
 import json
 from datetime import datetime
 from sqlalchemy import update, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
-from .utils.utils import (__get_pk_columns, get_pk_column_str, process_data_type,
+from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           sql_to_datatype, _sql_to_sqlalchemy_columns, model_to_schema_feature,
                           __validate_feature_data_type, __validate_primary_keys)
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
@@ -695,9 +695,9 @@ def register_feature_set_metadata(db: Session, fset: schemas.FeatureSetCreate) -
     fsid = fset_metadata.feature_set_id
 
     for pk in __get_pk_columns(fset):
-        pk_metadata = models.FeatureSetKey(feature_set_id=fsid, 
-            key_column_name=pk.upper(), 
-            key_column_data_type=process_data_type(fset.primary_keys[pk]))
+        pk_metadata = models.FeatureSetKey(feature_set_id=fsid,
+                                           key_column_name=pk.upper(),
+                                           key_column_data_type=datatype_to_sql(fset.primary_keys[pk]))
         db.add(pk_metadata)
     return schemas.FeatureSet(**fset.__dict__, feature_set_id=fsid)
 
@@ -710,7 +710,7 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     """
     feature = models.Feature(
         feature_set_id=f.feature_set_id, name=f.name, description=f.description,
-        feature_data_type=process_data_type(f.feature_data_type),
+        feature_data_type=datatype_to_sql(f.feature_data_type),
         feature_type=f.feature_type, tags=','.join(f.tags) if f.tags else None,
         attributes=json.dumps(f.attributes) if f.attributes else None
     )
@@ -729,7 +729,7 @@ def bulk_register_feature_metadata(db: Session, feats: List[schemas.FeatureCreat
     features: List[models.Feature] = [
         models.Feature(
             feature_set_id=f.feature_set_id, name=f.name, description=f.description,
-            feature_data_type=process_data_type(f.feature_data_type),
+            feature_data_type=datatype_to_sql(f.feature_data_type),
             feature_type=f.feature_type, tags=','.join(f.tags) if f.tags else None,
             attributes=json.dumps(f.attributes) if f.attributes else None
         )
