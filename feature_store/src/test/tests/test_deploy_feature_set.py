@@ -18,13 +18,13 @@ good_feature_set = {
     "schema_name": 'test_fs',
     "table_name": 'good_table_name',
     "description": 'a feature set that should be created',
-    "primary_keys": {'ID': "INTEGER"}
+    "primary_keys": {'ID': {'data_type':"INTEGER"}}
 }
 
 good_feature = {
     "name": 'good_feature',
     "description": 'a feature that should succeed because there is a feature set',
-    "feature_data_type": 'VARCHAR(250)',
+    "feature_data_type": {'data_type':'VARCHAR','length':250},
     "feature_type": 'C',
     "tags": None
 }

@@ -80,8 +80,10 @@ def sql_to_datatype(typ: str) -> DataType:
     :param typ: the SQL data type
     :return: DataType
     """
-    # If it's a type that has params and those params have been set
+    if isinstance(typ, DataType):
+        return typ
     tsplit = typ.split('(')
+    # If it's a type that has params and those params have been set
     if tsplit[0].upper() in ('DECIMAL', 'FLOAT','NUMERIC') and len(tsplit) == 2:
         dtype, params = tsplit
         if ',' in params:

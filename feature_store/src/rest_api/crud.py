@@ -775,15 +775,15 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     new_feature_cols = ','.join(f'NEWW.{f.name}' for f in get_features(db, fset))
 
     metadata = MetaData(db.get_bind())
-    
+
+    feature_list = get_feature_column_str(db, fset)
     insert_trigger_sql = SQL.feature_set_trigger.format(
         schema=fset.schema_name, table=fset.table_name, action='INSERT', 
-        pk_list=get_pk_column_str(fset), feature_list=get_feature_column_str(db, fset), 
+        pk_list=get_pk_column_str(fset), feature_list=feature_list,
         new_pk_cols=new_pk_cols, new_feature_cols=new_feature_cols)
-
     update_trigger_sql = SQL.feature_set_trigger.format(
         schema=fset.schema_name, table=fset.table_name, action='UPDATE', 
-        pk_list=get_pk_column_str(fset), feature_list=get_feature_column_str(db, fset), 
+        pk_list=get_pk_column_str(fset), feature_list=feature_list,
         new_pk_cols=new_pk_cols, new_feature_cols=new_feature_cols)
 
     logger.info('Creating Feature Set...')
