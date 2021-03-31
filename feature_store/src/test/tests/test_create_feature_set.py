@@ -16,28 +16,28 @@ feature_set_no_schema = {
     "schema_name": '',
     "table_name": 'good_table_name',
     "description": 'a feature set that should fail because there is no feature set table name',
-    "primary_keys": {'ID': "INTEGER"}
+    "primary_keys": {'ID': {'data_type':"INTEGER"}}
 }
 
 feature_set_no_table = {
     "schema_name": 'good_table_name',
     "table_name": '',
     "description": 'a feature set that should fail because there is no feature set table name',
-    "primary_keys": {'ID': "INTEGER"}
+    "primary_keys": {'ID': {'data_type':"INTEGER"}}
 }
 
 feature_set_invalid_table = {
     "schema_name": 'good_schema_name',
     "table_name": '%%stl24!',
     "description": 'a feature set that should fail because there is an invalid feature set table name',
-    "primary_keys": {'ID': "INTEGER"}
+    "primary_keys": {'ID': {'data_type':"INTEGER"}}
 }
 
 feature_set_invalid_schema = {
     "schema_name": '%%stl24!',
     "table_name": 'good_table_name',
     "description": 'a feature set that should fail because there is an invalid feature set schema name',
-    "primary_keys": {'ID': "INTEGER"}
+    "primary_keys": {'ID': {'data_type':"INTEGER"}}
 }
 
 feature_set_null_pk = {
@@ -51,49 +51,49 @@ feature_set_bad_pk_bad_datatype = {
     "schema_name": 'a_schema',
     "table_name": 'good_table_name',
     "description": 'a feature set that should fail because the PK is invalid',
-    "primary_keys": {'ID': "NOTADATATYPE"}
+    "primary_keys": {'ID': {'data_type':"NOTADATATYPE"}}
 }
 
 feature_set_bad_pk_bad_datatype_2 = {
     "schema_name": 'a_schema',
     "table_name": 'good_table_name',
     "description": 'a feature set that should fail because the the PK data type is invalid',
-    "primary_keys": {'ID': "VARCHAR"} # Not valid because the varchar doesnt have a length
+    "primary_keys": {'ID': {'data_type': "VARCHAR"}} # Not valid because the varchar doesnt have a length
 }
 
 feature_set_bad_pk_bad_name = {
     "schema_name": 'a_schema',
     "table_name": 'good_table_name',
     "description": 'a feature set that should fail because the the PK name is invalid',
-    "primary_keys": {'%%stl24!': "DOUBLE"}
+    "primary_keys": {'%%!hw35': {'data_type':"DOUBLE"}}
 }
 
 feature_set_bad_pk_schema_location = {
     "schema_name": 'featurestore', # Cant create feature sets here
     "table_name": 'good_table_name',
     "description": 'a feature set that should fail because the schema is reserved (featurestore)',
-    "primary_keys": {'%%stl24!': "DOUBLE"}
+    "primary_keys": {'pkcol': {'data_type':"DOUBLE"}}
 }
 
 feature_set_bad_pk_schema_location_2 = {
     "schema_name": 'sys', # Cant create feature sets here
     "table_name": 'good_table_name',
     "description": 'a feature set that should fail because the schema is reserved (sys)',
-    "primary_keys": {'%%stl24!': "DOUBLE"}
+    "primary_keys": {'pkcol': {'data_type':"DOUBLE"}}
 }
 
 feature_set_bad_pk_schema_location_3 = {
     "schema_name": 'mlmanager', # Cant create feature sets here
     "table_name": 'good_table_name',
     "description": 'a feature set that should fail because the schema is reserved (mlmanager)',
-    "primary_keys": {'%%stl24!': "DOUBLE"}
+    "primary_keys": {'%%stl24!': {'data_type':"DOUBLE"}}
 }
 
 good_feature_set = {
     "schema_name": 'test_fs',
     "table_name": 'good_table_name',
     "description": 'a feature set that should be created',
-    "primary_keys": {'ID': "INTEGER"}
+    "primary_keys": {'ID': {'data_type':"INTEGER"}}
 }
 
 def test_create_feature_set_no_auth(test_app, create_schema):
@@ -140,7 +140,7 @@ def test_create_feature_set_invalid_table_name(test_app, create_schema):
 
     assert response.status_code in range(400,500), 'Should fail because the feature set has an invalid table name'
     c = response.json()['code']
-    assert 'BAD_ARGUMENTS' in c, f'Should get a validation error but got {c}'
+    assert 'INVALID_FORMAT' in c, f'Should get a validation error but got {c}'
 
 def test_create_feature_set_invalid_schema_name(test_app, create_schema):
     """
@@ -154,7 +154,7 @@ def test_create_feature_set_invalid_schema_name(test_app, create_schema):
 
     assert response.status_code in range(400,500), 'Should fail because the feature set has an invalid schema name'
     c = response.json()['code']
-    assert 'BAD_ARGUMENTS' in c, f'Should get a validation error but got {c}'
+    assert 'INVALID_FORMAT' in c, f'Should get a validation error but got {c}'
 
 
 def test_create_feature_set_null_pk(test_app, create_schema):
@@ -197,7 +197,7 @@ def test_create_feature_set_invalid_pk_datatype_2(test_app, create_schema):
 
     assert response.status_code in range(400,500), 'Should fail because the feature set PK is a varchar without a length'
     c = response.json()['code']
-    assert 'BAD_ARGUMENTS' in c, f'Should get a validation error but got {c}'
+    assert 'BAD_ARGUMENTS' in c, f'Should get a validation error but got {c}... {response.json()}'
 
 def test_create_feature_set_invalid_pk_name(test_app, create_schema):
     """
@@ -211,7 +211,7 @@ def test_create_feature_set_invalid_pk_name(test_app, create_schema):
 
     assert response.status_code in range(400,500), 'Should fail because the feature set PK has an invalid column name'
     c = response.json()['code']
-    assert 'BAD_ARGUMENTS' in c, f'Should get a validation error but got {c}'
+    assert 'INVALID_FORMAT' in c, f'Should get a validation error but got {c}'
 
 def test_create_feature_set_in_featurestore_schema(test_app, create_schema):
     """

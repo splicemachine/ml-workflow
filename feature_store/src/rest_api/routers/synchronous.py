@@ -10,7 +10,7 @@ from ..utils.utils import __validate_feature_data_type
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from ..decorators import managed_transaction
 from shared.services.database import DatabaseFunctions
-from ..utils import airflow_utils as airflow
+from ..utils.airflow_utils import Airflow
 
 # Synchronous API Router-- we can mount it to the main API
 SYNC_ROUTER = APIRouter(
@@ -273,7 +273,8 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
             message=f"Feature set {schema}.{table} is already deployed.")
 
     fset = crud.deploy_feature_set(db, fset)
-    airflow.schedule_feature_set_calculation(f'{schema}.{table}')
+    if Airflow.is_active:
+        Airflow.schedule_feature_set_calculation(f'{schema}.{table}')
     return fset
 
 @SYNC_ROUTER.get('/feature-set-descriptions', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDescription],
@@ -427,7 +428,8 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
                 crud.full_delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
         else: # No dependencies
             crud.full_delete_feature_set(db, fset, cascade=False)
-    airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
+    if Airflow.is_active:
+        Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
                 description="Get all deployments", operation_id='get_deployments', tags=['Deployments'])
