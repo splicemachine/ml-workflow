@@ -969,27 +969,39 @@ def get_source(db: Session, name: str) -> schemas.Source:
     :return: Source
     """
     s = db.query(models.Source).filter(models.Source.name == name).first()
-    if not s:
-        return
-
-    sk = db.query(models.SourceKey.key_column_name).filter(models.SourceKey.source_id == s.source_id).all()
-    sch = s.__dict__
-    sch['pk_columns'] = [i for (i,) in sk]
-    return schemas.Source(**sch)
+    if s:
+        sk = db.query(models.SourceKey.key_column_name).filter(models.SourceKey.source_id == s.source_id).all()
+        sch = s.__dict__
+        sch['pk_columns'] = [i for (i,) in sk]
+        return schemas.Source(**sch)
 
 def get_pipeline_source(db: Session, id) -> schemas.Source:
     """
     Gets the source of a particular Pipeline (since a Pipeline has only 1 source)
 
     :param db: Session
-    :param id: Pipeline ID
+    :param id: Pipeline's source_id
     :return: Source
     """
     s = db.query(models.Source).filter(models.Source.source_id == id).first()
-    if not s:
-        return
+    if s:
+        return get_source(db, s.name)
 
-    return get_source(db, s.name)
+def get_source_dependencies(db: Session, id: int) -> List[str]:
+    """
+    Returns the dependencies of a Source (typically a Pipeline/Feature Set)
+
+    :param db: SQLAlchemy Session
+    :param id: The Source ID
+    :return: The name of the Feature Set being fed by a Pipeline reading from this Source
+    """
+    p = db.query(models.Pipeline.feature_set_id).\
+        filter(models.Pipeline.source_id == id).subquery('p')
+    res = db.query(models.FeatureSet.schema_name, models.FeatureSet.table_name).\
+        filter(models.FeatureSet.feature_set_id.in_(p)).all()
+    fset_names = [f'{s}.{t}' for s, t in res]
+    return fset_names
+
 
 def get_source_pk_types(db: Session, source: schemas.Source) -> Dict[str,str]:
     """
@@ -1104,6 +1116,18 @@ def create_source(db: Session, name, sql_text, pk_columns, event_ts_column, upda
         )
         source_keys.append(sk)
     db.bulk_save_objects(source_keys)
+
+def delete_source(db: Session, id: int):
+    """
+    Deletes a Source and its Keys from the Feature Store
+
+    :param db: SQLAlchemy Session
+    :param id: Source ID
+    """
+    logger.info(f"Delete source keys for source {id}")
+    db.query(models.SourceKey).filter(models.SourceKey.source_id==id).delete(synchronize_session='fetch')
+    logger.info(f"Delete source {id}" )
+    db.query(models.Source).filter(models.Source.source_id==id).delete(synchronize_session='fetch')
 
 def create_pipeline(db: Session, sf: schemas.SourceFeatureSetAgg, fset_id: int,
                     source_id: int, pipeline_url: str) -> None:

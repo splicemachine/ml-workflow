@@ -453,6 +453,28 @@ def create_source(source: schemas.Source, db: Session = Depends(crud.get_db)):
     logger.info(f'Registering source {source.name} in Feature Store')
     crud.create_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
 
+@SYNC_ROUTER.delete('/source', status_code=status.HTTP_200_OK, description="Removes a Source from the Feature Store",
+                  operation_id='remove_source', tags=['Source', 'Pipeline'])
+@managed_transaction
+def remove_source(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Removes a Source if possible. Sources can only be removed if it is not being used in a Pipeline. If you want to
+    remove a Source that is being used in a Pipeline, you must first delete the Feature Set that the pipeline is feeding
+    (which will delete the Pipeline with it).
+    """
+    source: schemas.Source = crud.get_source(db, name)
+    if not source:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Cannot find source with name {name}")
+    fsets = crud.get_source_dependencies(db, source.source_id)
+    if fsets:
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                     message=f'Source {name} has dependent Feature Sets that are being fed with Pipelines.'
+                                             f' Remove the following Feature Sets before removing this Source: {fsets}')
+    crud.validate_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
+    logger.info(f'Registering source {source.name} in Feature Store')
+    crud.create_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
+
 @SYNC_ROUTER.get('/source', status_code=status.HTTP_200_OK, response_model=schemas.Source,
                  description="Gets a Source by name", operation_id='create_source', tags=['Source', 'Pipeline'])
 @managed_transaction
