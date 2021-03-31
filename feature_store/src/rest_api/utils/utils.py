@@ -8,6 +8,7 @@ from .. import schemas
 from sqlalchemy import Column, VARCHAR, DECIMAL
 import json
 import re
+from shared.logger.logging_config import logger
 
 def __validate_feature_data_type(feature_data_type: DataType):
     """
@@ -80,17 +81,18 @@ def sql_to_datatype(typ: str) -> DataType:
     :return: DataType
     """
     # If it's a type that has params and those params have been set
-    if typ in ('DECIMAL', 'FLOAT','NUMERIC') and len(typ.split('(')) == 2:
-        dtype, params = typ.split('(')
+    tsplit = typ.split('(')
+    if tsplit[0].upper() in ('DECIMAL', 'FLOAT','NUMERIC') and len(tsplit) == 2:
+        dtype, params = tsplit
         if ',' in params:
             prec, scale = params.strip(')').split(',')
         else:
             prec, scale = params.strip(')'), None
-        data_type = DataType(data_type=typ, precision=prec, scale=scale)
+        data_type = DataType(data_type=dtype, precision=prec, scale=scale)
     # If it's a type VARCHAR that has a length
-    elif typ == 'VARCHAR' and len(typ.split('(')) == 2:
-        dtype, length = typ.split('(')
-        data_type = DataType(data_type=typ, length=length.strip(')'))
+    elif tsplit[0].upper() == 'VARCHAR' and len(tsplit) == 2:
+        dtype, length = tsplit
+        data_type = DataType(data_type=dtype, length=length.strip(')'))
     else:
         data_type = DataType(data_type=typ)
     return data_type
@@ -108,10 +110,10 @@ def _sql_to_sqlalchemy_columns(sql_cols: Dict[str,schemas.DataType], pk: bool=Fa
         sql_type = sql_cols[k]
         if sql_type.data_type.upper() == 'VARCHAR': # Extract the length (eg VARCHAR(20))
             cols.append(Column(k.lower(), VARCHAR(sql_type.length), primary_key=pk))
-        elif sql_type.data_type.upper() == 'DECIMAL': # Extract precision and scale (eg DECIMAL(10,2))
+        elif sql_type.data_type.upper() in ('DECIMAL', 'FLOAT','NUMERIC'): # Extract precision and scale (eg DECIMAL(10,2))
             cols.append(Column(k.lower(), DECIMAL(sql_type.precision, sql_type.scale), primary_key=pk))
         else:
-            cols.append(Column(k.lower(), SQLALCHEMY_TYPES._get(sql_cols[k]), primary_key=pk))
+            cols.append(Column(k.lower(), SQLALCHEMY_TYPES[sql_type.data_type], primary_key=pk))
     return cols
 
 def model_to_schema_feature(feat: models.Feature) -> schemas.Feature:

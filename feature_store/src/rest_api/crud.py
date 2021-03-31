@@ -55,7 +55,7 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message='You must specify a schema name')
 
-    if fset.schema_name.upper() in ('MLMANAGER', 'SYS', 'SPLICE', 'SYSVW', 'FEATURESTORE'):
+    if fset.schema_name.upper() in ('MLMANAGER', 'SYS', 'SYSVW', 'FEATURESTORE'):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message=f'You cannot create feature sets in the schema {fset.schema_name}')
     if not re.match('^[A-Za-z][A-Za-z0-9_]*$', fset.schema_name, re.IGNORECASE):
