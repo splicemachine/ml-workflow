@@ -114,7 +114,8 @@ def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.MISSING_ARGUMENTS,
                                         message=f"The following keys were not provided and must be: {missing_keys}")
 
-def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, Union[str, int]], feature_sets: List[schemas.FeatureSet], return_sql: bool) -> Union[Dict[str, Any], str]:
+def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, Union[str, int]], feature_sets: List[schemas.FeatureSet], 
+                        return_pks: bool, return_sql: bool) -> Union[Dict[str, Any], str]:
     """
     Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets
 
@@ -122,6 +123,7 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
     :param features: List of Features
     :param join_key_values: (dict) join key values to get the proper Feature values formatted as {join_key_column_name: join_key_value}
     :param feature_sets: List of Feature Sets
+    :param return_pks: Whether to return the Feature Set primary keys in the vector. Default True
     :param return_sql: Whether to return the SQL needed to get the vector or the values themselves. Default False
     :return: Dict or str (SQL statement)
     """
@@ -129,7 +131,14 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
 
     tables = [Table(fset.table_name.lower(), metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]), schema=fset.schema_name.lower(), autoload=True).\
         alias(f'fset{fset.feature_set_id}') for fset in feature_sets]
-    columns = [getattr(table.c, f.name.lower()) for f in feats for table in tables if f.name.lower() in table.c]
+
+    columns = []
+    if return_pks:
+        seen = set()
+        pks = [seen.add(pk_col.name) or getattr(table.c, pk_col.name) for table in tables for pk_col in table.primary_key if pk_col.name not in seen]
+        columns.extend(pks)
+
+    columns.extend([getattr(table.c, f.name.lower()) for f in feats for table in tables if f.name.lower() in table.c])
 
     # For each Feature Set, for each primary key in the given feature set, get primary key value from the user provided dictionary
     filters = [getattr(table.c, pk_col.name)==join_keys[pk_col.name.lower()] 
