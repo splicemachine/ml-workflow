@@ -432,17 +432,39 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
         Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
-                description="Get all deployments", operation_id='get_deployments', tags=['Deployments'])
+                description="Get all deployments given either a deployment (schema/table), a training_view (name), "
+                            "a feature (feat), or a feature set (fset)", operation_id='get_deployments', tags=['Deployments'])
 @managed_transaction
-def get_deployments(schema: Optional[str] = None, table: Optional[str] = None, name: Optional[str] = None, 
-                            db: Session = Depends(crud.get_db)):
+def get_deployments(schema: Optional[str] = None, table: Optional[str] = None, name: Optional[str] = None,
+                    feature = Query('', alias='feat'), feature_set = Query('', alias='fset'),
+                    db: Session = Depends(crud.get_db)):
     """
-    Returns a list of available deployments
+    Returns a list of available deployments. If no parameters are passed in, all deployments are returned.
+    Schema and Table can be passed in to get a specific deployment
+    name can be passed in as a Training View name, and this will return all deployments from tha Training View
+    feat can be passed in and this will return all deployments that use this feature
+    fset can be passed in and this will return all deployments that use this feature set.
+    You cannot pass in more than 1 of these options (schema+table counting as 1 parameter)
     """
     if schema or table or name:
         _filter = { 'model_schema_name': schema, 'model_table_name': table, 'name': name }
         _filter = { k: v for k, v in _filter.items() if v }
         return crud.get_deployments(db, _filter)
+    if feature and feature_set:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message='You cannot pass in both a feature set and a feature. Only 1 is allowed')
+    if feature:
+        f = crud.get_feature_descriptions_by_name(db, [feature])
+        if not f:
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature {feature} does not exist!")
+        return crud.get_deployments(db, feature=f[0])
+    if feature_set:
+        fset = crud.get_feature_sets(db, feature_set_names=[feature_set])
+        if not fset:
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature Set {feature_set} does not exist!")
+        return crud.get_deployments(db, feature_set=fset[0])
     return crud.get_deployments(db)
 
 @SYNC_ROUTER.get('/training-set-features', status_code=status.HTTP_200_OK, response_model=schemas.DeploymentFeatures,

@@ -615,6 +615,16 @@ def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
         num_pending_feature_set_deployments=num_pending_feature_set_deployments
     )
 
+def get_feature(db: Session, name: str) -> schemas.Feature:
+    """
+    Returns a feature by name
+    :param db: Session
+    :param name: Feature Name
+    :return:
+    """
+    f = db.query(models.Feature).filter(func.upper(models.Feature.name) == name.upper()).first()
+    return model_to_schema_feature(f)
+
 
 def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
     """
@@ -952,9 +962,12 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
 def delete_feature(db: Session, feature: models.Feature) -> None:
     db.delete(feature)
 
-def get_deployments(db: Session, _filter: Dict[str, str] = None) -> List[schemas.DeploymentDescription]:
+def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schemas.FeatureDescription = None,
+                    feature_set: schemas.FeatureSet = None) -> List[schemas.DeploymentDescription]:
     d = aliased(models.Deployment, name='d')
     ts = aliased(models.TrainingSet, name='ts')
+    f = aliased(models.Feature, name='f')
+    tsf = aliased(models.TrainingSetFeature, name='tsf')
     
     q = db.query(ts.name, d).\
         join(ts, ts.training_set_id==d.training_set_id)
@@ -963,6 +976,14 @@ def get_deployments(db: Session, _filter: Dict[str, str] = None) -> List[schemas
         # if filter key is a column in Training_Set, get compare Training_Set column, else compare to Deployment column
         q = q.filter(and_(*[(getattr(ts, name) if hasattr(ts, name) else getattr(d, name)) == value 
                                 for name, value in _filter.items()]))
+    elif feature:
+        q = q.join(tsf, tsf.training_set_id==ts.training_set_id).\
+            filter(tsf.feature_id==feature.feature_id)
+    elif feature_set:
+        p = db.query(f.feature_id).filter(f.feature_set_id==feature_set.feature_set_id)
+        q = q.join(tsf, tsf.training_set_id == ts.training_set_id).\
+            filter(tsf.feature_id.in_(p))
+
     deployments = []
     for name, deployment in q.all():
         deployments.append(schemas.DeploymentDescription(**deployment.__dict__, training_set_name=name))
