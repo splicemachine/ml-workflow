@@ -13,14 +13,16 @@ class DataType(BaseModel):
     precision: Optional[int] = None
     scale: Optional[int] = None
 
-class FeatureBase(BaseModel):
+class FeatureMetadata(BaseModel):
+    tags: Optional[List[str]] = None
+    description: Optional[str] = None
+    attributes: Optional[Dict[str, str]] = None
+
+class FeatureBase(FeatureMetadata):
     feature_set_id: Optional[int] = None
     name: str
-    description: Optional[str] = None
     feature_data_type: DataType
     feature_type: str
-    tags: Optional[List[str]] = None
-    attributes: Optional[Dict[str, str]] = None
 
 class FeatureCreate(FeatureBase):
     pass
@@ -34,10 +36,6 @@ class Feature(FeatureBase):
     class Config:
         orm_mode = True
 
-class FeatureMetadata(BaseModel):
-    tags: Optional[List[str]] = None
-    description: Optional[str] = None
-    attributes: Optional[Dict[str, str]] = None
 
 class FeatureDescription(Feature):
     feature_set_name: Optional[str] = None
