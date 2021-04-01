@@ -53,7 +53,7 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
                                      message='You must specify a schema name')
     if not fset.table_name:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
-                                     message='You must specify a schema name')
+                                     message='You must specify a table name')
 
     if fset.schema_name.upper() in ('MLMANAGER', 'SYS', 'SYSVW', 'FEATURESTORE'):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
