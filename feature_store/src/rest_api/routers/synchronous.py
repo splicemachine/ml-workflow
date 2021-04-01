@@ -130,12 +130,6 @@ def get_training_view_features(view: str, db: Session = Depends(crud.get_db)):
     """
     return crud.get_training_view_features(db, view)
 
-@SYNC_ROUTER.get('/feature-description', status_code=status.HTTP_200_OK, description="Returns the description of the given feature", 
-                operation_id='get_feature_description', tags=['Features'])
-@managed_transaction
-def get_feature_description(db: Session = Depends(crud.get_db)):
-    # TODO
-    raise NotImplementedError
 
 @SYNC_ROUTER.post('/training-sets', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Gets a set of feature values across feature sets that is not time dependent (ie for non time series clustering)", 
@@ -316,11 +310,18 @@ def get_training_view_descriptions(name: Optional[str] = None, db: Session = Dep
         descs.append(schemas.TrainingViewDescription(**tcx.__dict__, features=fds))
     return descs
 
-@SYNC_ROUTER.put('/feature-description', status_code=status.HTTP_200_OK, description="Sets a feature's description", 
-                operation_id='set_feature_description', tags=['Features'])
+@SYNC_ROUTER.put('/features', status_code=status.HTTP_200_OK, response_model=schemas.Feature,
+                 description="Updates a feature's metadata (description, tags, attributes)",
+                 operation_id='set_feature_description', tags=['Features'])
 @managed_transaction
-def set_feature_description(db: Session = Depends(crud.get_db)):
-        raise NotImplementedError
+def update_feature_metadata(name: str, metadata: schemas.FeatureMetadata, db: Session = Depends(crud.get_db)):
+        fs = crud.get_feature_descriptions_by_name(db, [name])
+        if not fs:
+            raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature {name} does not exist. Please enter a valid feature.")
+        return crud.update_feature_metadata(db, fs[0].name, desc=metadata.description,
+                                     tags=metadata.tags, attributes=metadata.attributes)
+
 
 @SYNC_ROUTER.get('/training-set-from-deployment', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Reads Feature Store metadata to rebuild orginal training data set used for the given deployed model.", 

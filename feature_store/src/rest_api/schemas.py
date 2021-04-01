@@ -34,6 +34,11 @@ class Feature(FeatureBase):
     class Config:
         orm_mode = True
 
+class FeatureMetadata(BaseModel):
+    tags: Optional[List[str]] = None
+    description: Optional[str] = None
+    attributes: Optional[Dict[str, str]] = None
+
 class FeatureDescription(Feature):
     feature_set_name: Optional[str] = None
 

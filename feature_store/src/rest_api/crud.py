@@ -615,16 +615,27 @@ def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
         num_pending_feature_set_deployments=num_pending_feature_set_deployments
     )
 
-def get_feature(db: Session, name: str) -> schemas.Feature:
+def update_feature_metadata(db: Session, name: str, desc: str = None,
+                            tags: List[str] = None, attributes: Dict[str,str] = None) -> schemas.Feature:
     """
-    Returns a feature by name
+    Updates the metadata of a feature
     :param db: Session
-    :param name: Feature Name
-    :return:
+    :param desc: New description of the feature
+    :param tags: New tags of the feature
+    :param attributes: New attributes of the feature
     """
-    f = db.query(models.Feature).filter(func.upper(models.Feature.name) == name.upper()).first()
-    return model_to_schema_feature(f)
-
+    updates = {}
+    if desc:
+        updates['description'] = desc
+    if tags:
+        updates['tags'] = ','.join(tags)
+    if attributes:
+        updates['attributes'] = json.dumps(attributes)
+    feat = db.query(models.Feature).filter(models.Feature.name == name)
+    feat.update(updates)
+    db.flush()
+    return model_to_schema_feature(feat.first())
+    # db.query(models.Feature).filter(models.Feature.name == name).update(updates)
 
 def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
     """
