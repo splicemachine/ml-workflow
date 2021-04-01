@@ -667,7 +667,6 @@ def update_feature_metadata(db: Session, name: str, desc: str = None,
     feat.update(updates)
     db.flush()
     return model_to_schema_feature(feat.first())
-    # db.query(models.Feature).filter(models.Feature.name == name).update(updates)
 
 def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
     """
