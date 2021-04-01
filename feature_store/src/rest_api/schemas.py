@@ -2,11 +2,22 @@ from typing import List, Optional, Dict, Union
 from datetime import datetime
 from pydantic import BaseModel
 
+class DataType(BaseModel):
+    """
+    A class for representing a SQL data type as an object. Data types can have length, precision,
+    and recall values depending on their type (VARCHAR(50), DECIMAL(15,2) for example.
+    This class enables the breaking up of those data types into objects
+    """
+    data_type: str
+    length: Optional[int] = None
+    precision: Optional[int] = None
+    scale: Optional[int] = None
+
 class FeatureBase(BaseModel):
     feature_set_id: Optional[int] = None
     name: str
     description: Optional[str] = None
-    feature_data_type: str
+    feature_data_type: DataType
     feature_type: str
     tags: Optional[List[str]] = None
     attributes: Optional[Dict[str, str]] = None
@@ -30,7 +41,7 @@ class FeatureSetBase(BaseModel):
     schema_name: str
     table_name: str
     description: Optional[str] = None
-    primary_keys: Dict[str, str]
+    primary_keys: Dict[str, DataType]
 
 class FeatureSetCreate(FeatureSetBase):
     features: Optional[List[FeatureCreate]] = None

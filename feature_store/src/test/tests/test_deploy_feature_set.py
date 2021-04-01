@@ -18,15 +18,23 @@ good_feature_set = {
     "schema_name": 'test_fs',
     "table_name": 'good_table_name',
     "description": 'a feature set that should be created',
-    "primary_keys": {'ID': "INTEGER"}
+    "primary_keys": {'ID': {'data_type':"INTEGER"}}
 }
 
 good_feature = {
     "name": 'good_feature',
     "description": 'a feature that should succeed because there is a feature set',
-    "feature_data_type": 'VARCHAR(250)',
+    "feature_data_type": {'data_type':'VARCHAR','length':250},
     "feature_type": 'C',
-    "tags": None
+    "tags": ['test','tag']
+}
+
+good_feature2 = {
+    "name": 'good_feature_2',
+    "description": 'a feature that should succeed because there is a feature set',
+    "feature_data_type": {'data_type':'DECIMAL','precision':10, 'scale':2},
+    "feature_type": 'C',
+    "tags": ['test','tag']
 }
 
 def test_deploy_feature_set_no_auth(test_app, create_schema):
@@ -94,6 +102,18 @@ def test_deploy_good_feature_set(test_app, create_schema):
     assert response.status_code == 201, "this shouldn't be an issue"
     feats = sess.query(Feature).all()
     assert len(feats) == 1, f'Feature should have been created. There are {len(feats)} features'
+
+    # Create feature
+    response = test_app.post('/features', json=good_feature2, auth=basic_auth,
+                             params={
+                                 'schema': schema,
+                                 'table':  table
+                             })
+    logger.info(f'status: {response.status_code}, -- message: {response.json()}')
+    assert response.status_code == 201, "this shouldn't be an issue"
+    feats = sess.query(Feature).all()
+    assert len(feats) == 2, f'Feature should have been created. There are {len(feats)} features'
+
     logger.info(str(feats[0].__dict__))
 
 

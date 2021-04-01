@@ -11,8 +11,9 @@ import re
 import json
 from datetime import datetime
 from sqlalchemy import update, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
-from .utils.utils import __get_pk_columns, get_pk_column_str, get_pk_schema_str
-from sys import exc_info as get_stack_trace
+from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
+                          sql_to_datatype, _sql_to_sqlalchemy_columns, model_to_schema_feature,
+                          __validate_feature_data_type, __validate_primary_keys)
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
 from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
@@ -46,6 +47,27 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     # Validate metadata
     if len(get_feature_sets(db, _filter={'table_name': fset.table_name, 'schema_name': fset.schema_name})) > 0:
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
+    # Validate names exist
+    if not fset.schema_name:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message='You must specify a schema name')
+    if not fset.table_name:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message='You must specify a table name')
+
+    if fset.schema_name.upper() in ('MLMANAGER', 'SYS', 'SYSVW', 'FEATURESTORE'):
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f'You cannot create feature sets in the schema {fset.schema_name}')
+    if not re.match('^[A-Za-z][A-Za-z0-9_]*$', fset.schema_name, re.IGNORECASE):
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+                                     message=f'Schema {fset.schema_name} does not conform. Must start with an alphabetic character, '
+                                     'and can only contains letters, numbers and underscores')
+    if not re.match('^[A-Za-z][A-Za-z0-9_]*$', fset.table_name, re.IGNORECASE):
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+                                     message=f'Table {fset.table_name} does not conform. Must start with an alphabetic character, '
+                                     'and can only contains letters, numbers and underscores')
+    __validate_primary_keys(fset.primary_keys)
+
 
 def validate_schema_table(names: List[str]) -> None:
     """
@@ -162,13 +184,8 @@ def get_training_view_features(db: Session, training_view: str) -> List[schemas.
 
     q = db.query(f).filter(f.feature_id.in_(fl))
 
-    features = []
-    for feat in q.all():
-        # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
-        f = feat.__dict__
-        f['tags'] = f['tags'].split(',') if f.get('tags') else None
-        f['attributes'] = json.loads(f['attributes']) if f.get('attributes') else None
-        features.append(schemas.Feature(**f))
+
+    features = [model_to_schema_feature(f) for f in q.all()]
     return features
 
 def feature_set_is_deployed(db: Session, fset_id: int) -> bool:
@@ -225,7 +242,6 @@ def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascad
     :param feature_set: feature set to delete
     :param training_sets: Set[int] training sets 
     :param cascade: whether to delete dependent training sets. If this is True training_sets must be set.
-    :return:
     """
     logger.info("Dropping table")
     DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, feature_set.table_name, db.get_bind())
@@ -399,7 +415,7 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set
     for fs, pk_columns, pk_types in q.all():
         pkcols = pk_columns.split('|')
         pktypes = pk_types.split('|')
-        primary_keys = {c: k for c, k in zip(pkcols, pktypes)}
+        primary_keys = {c: sql_to_datatype(k) for c, k in zip(pkcols, pktypes)}
         feature_sets.append(schemas.FeatureSet(**fs.__dict__, primary_keys=primary_keys))
     return feature_sets
 
@@ -493,10 +509,8 @@ def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool =
     features = []
     for schema, table, feat in df.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
-        f = feat.__dict__
-        f['tags'] = f['tags'].split(',') if f.get('tags') else None
-        f['attributes'] = json.loads(f['attributes']) if f.get('attributes') else None
-        features.append(schemas.FeatureDescription(**f, feature_set_name=f'{schema}.{table}'))
+        f = model_to_schema_feature(feat)
+        features.append(schemas.FeatureDescription(**f.__dict__, feature_set_name=f'{schema}.{table}'))
 
     if sort:
         indices = {v.upper():i for i,v in enumerate(names)}
@@ -681,9 +695,9 @@ def register_feature_set_metadata(db: Session, fset: schemas.FeatureSetCreate) -
     fsid = fset_metadata.feature_set_id
 
     for pk in __get_pk_columns(fset):
-        pk_metadata = models.FeatureSetKey(feature_set_id=fsid, 
-            key_column_name=pk.upper(), 
-            key_column_data_type=fset.primary_keys[pk])
+        pk_metadata = models.FeatureSetKey(feature_set_id=fsid,
+                                           key_column_name=pk.upper(),
+                                           key_column_data_type=datatype_to_sql(fset.primary_keys[pk]))
         db.add(pk_metadata)
     return schemas.FeatureSet(**fset.__dict__, feature_set_id=fsid)
 
@@ -696,16 +710,13 @@ def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.
     """
     feature = models.Feature(
         feature_set_id=f.feature_set_id, name=f.name, description=f.description,
-        feature_data_type=f.feature_data_type,
+        feature_data_type=datatype_to_sql(f.feature_data_type),
         feature_type=f.feature_type, tags=','.join(f.tags) if f.tags else None,
         attributes=json.dumps(f.attributes) if f.attributes else None
     )
     db.add(feature)
     db.flush()
-    fd = feature.__dict__
-    fd['tags'] = fd['tags'].split(',') if fd.get('tags') else None
-    fd['attributes'] = json.loads(fd['attributes']) if fd.get('attributes') else None
-    return schemas.Feature(**fd)
+    return model_to_schema_feature(feature)
 
 def bulk_register_feature_metadata(db: Session, feats: List[schemas.FeatureCreate]) -> None:
     """
@@ -718,7 +729,7 @@ def bulk_register_feature_metadata(db: Session, feats: List[schemas.FeatureCreat
     features: List[models.Feature] = [
         models.Feature(
             feature_set_id=f.feature_set_id, name=f.name, description=f.description,
-            feature_data_type=f.feature_data_type,
+            feature_data_type=datatype_to_sql(f.feature_data_type),
             feature_type=f.feature_type, tags=','.join(f.tags) if f.tags else None,
             attributes=json.dumps(f.attributes) if f.attributes else None
         )
@@ -751,6 +762,8 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
                                         message=f'Could not find the following features: {missing}')
     return all_features
 
+
+
 def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.FeatureSet:
     """
     Deploys the current feature set. Equivalent to calling fs.deploy(schema_name, table_name)
@@ -762,30 +775,32 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     new_feature_cols = ','.join(f'NEWW.{f.name}' for f in get_features(db, fset))
 
     metadata = MetaData(db.get_bind())
-    
+
+    feature_list = get_feature_column_str(db, fset)
     insert_trigger_sql = SQL.feature_set_trigger.format(
         schema=fset.schema_name, table=fset.table_name, action='INSERT', 
-        pk_list=get_pk_column_str(fset), feature_list=get_feature_column_str(db, fset), 
+        pk_list=get_pk_column_str(fset), feature_list=feature_list,
         new_pk_cols=new_pk_cols, new_feature_cols=new_feature_cols)
-
     update_trigger_sql = SQL.feature_set_trigger.format(
         schema=fset.schema_name, table=fset.table_name, action='UPDATE', 
-        pk_list=get_pk_column_str(fset), feature_list=get_feature_column_str(db, fset), 
+        pk_list=get_pk_column_str(fset), feature_list=feature_list,
         new_pk_cols=new_pk_cols, new_feature_cols=new_feature_cols)
 
     logger.info('Creating Feature Set...')
-    pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
+    pk_columns = _sql_to_sqlalchemy_columns(fset.primary_keys, True)
     ts_columns = [Column('last_update_ts', TIMESTAMP, nullable=False)]
-    feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
+    feature_columns = _sql_to_sqlalchemy_columns({f.name.lower(): f.feature_data_type
+                                                  for f in get_features(db, fset)}, False)
     columns = pk_columns + ts_columns + feature_columns
     feature_set = Table(fset.table_name.lower(), metadata, *columns, schema=fset.schema_name.lower())
     feature_set.create(db.connection())
     logger.info('Done.')
 
     logger.info('Creating Feature Set History...')
-    pk_columns = [Column(k.lower(), SQLALCHEMY_TYPES[fset.primary_keys[k]], primary_key=True) for k in fset.primary_keys]
+    pk_columns = _sql_to_sqlalchemy_columns(fset.primary_keys, True)
     ts_columns = [Column('asof_ts', TIMESTAMP, primary_key=True), Column('ingest_ts', TIMESTAMP)]
-    feature_columns = [Column(f.name.lower(), SQLALCHEMY_TYPES[f.feature_data_type]) for f in get_features(db, fset)]
+    feature_columns = _sql_to_sqlalchemy_columns({f.name.lower(): f.feature_data_type
+                                                  for f in get_features(db, fset)}, False)
     columns = pk_columns + ts_columns + feature_columns
     history = Table(f'{fset.table_name.lower()}_history', metadata, *columns, schema=fset.schema_name.lower())
     history.create(db.connection())
@@ -959,14 +974,8 @@ def get_features_from_deployment(db: Session, tsid: int) -> List[schemas.Feature
         subquery('ids')
 
     q = db.query(models.Feature).filter(models.Feature.feature_id.in_(ids))
-    
-    features = []
-    for f in q.all():
-        # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
-        d = f.__dict__
-        d['tags'] = d['tags'].split(',') if d.get('tags') else None
-        d['attributes'] = json.loads(d['attributes']) if d.get('attributes') else None
-        features.append(schemas.Feature(**d))
+
+    features = [model_to_schema_feature(f) for f in q.all()]
     return features
 
 # Feature/FeatureSet specific
@@ -983,16 +992,8 @@ def get_features(db: Session, fset: schemas.FeatureSet) -> List[schemas.Feature]
     if fset.feature_set_id:
         features_rows = db.query(models.Feature).\
                         filter(models.Feature.feature_set_id==fset.feature_set_id).all()
-        for f in features_rows:
-            # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
-            d = f.__dict__
-            d['tags'] = d['tags'].split(',') if d.get('tags') else None
-            d['attributes'] = json.loads(d['attributes']) if d.get('attributes') else None
-            features.append(schemas.Feature(**d))
+        features = [model_to_schema_feature(f) for f in features_rows]
     return features
-
-def get_feature_schema_str(db: Session, fset: schemas.FeatureSet):
-    return ','.join([f'\n\t{f.name}  {f.feature_data_type}' for f in get_features(db, fset)])
 
 def get_feature_column_str(db: Session, fset: schemas.FeatureSet):
     return ','.join([f.name for f in get_features(db, fset)])
