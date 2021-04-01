@@ -615,17 +615,6 @@ def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
         num_pending_feature_set_deployments=num_pending_feature_set_deployments
     )
 
-def get_feature(db: Session, name: str) -> schemas.Feature:
-    """
-    Returns a feature by name
-    :param db: Session
-    :param name: Feature Name
-    :return:
-    """
-    f = db.query(models.Feature).filter(func.upper(models.Feature.name) == name.upper()).first()
-    return model_to_schema_feature(f)
-
-
 def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
     """
     Returns a dataframe or list of features whose names are provided
