@@ -44,6 +44,7 @@ def get_summary(db: Session = Depends(crud.get_db)):
         * Number of active (deployed) models (that have used the feature store for training)
         * Number of pending feature sets - this will will require a new table `featurestore.pending_feature_set_deployments` and it will be a count of that
         * 5 Most newly added features
+        * 5 Most used features (across deployments)
     """
     return crud.get_fs_summary(db)
 
