@@ -1,8 +1,8 @@
 
-from sqlalchemy.orm import Session, aliased, load_only
-from typing import List, Dict, Union, Optional, Any, Tuple, Set
+from sqlalchemy.orm import Session, aliased
+from typing import List, Dict, Union, Any, Tuple, Set
 from . import schemas
-from .constants import SQL, SQLALCHEMY_TYPES
+from .constants import SQL
 from shared.models import feature_store_models as models
 from shared.services.database import SQLAlchemyClient, DatabaseFunctions
 from shared.logger.logging_config import logger
@@ -10,14 +10,13 @@ from fastapi import status
 import re
 import json
 from datetime import datetime
-from sqlalchemy import desc, update, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
+from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text
 from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           sql_to_datatype, _sql_to_sqlalchemy_columns, model_to_schema_feature,
                           __validate_feature_data_type, __validate_primary_keys)
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
-from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
-                                DECIMAL, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, BOOLEAN)
+from sqlalchemy.types import TIMESTAMP
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 
 
