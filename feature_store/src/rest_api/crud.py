@@ -10,7 +10,7 @@ from fastapi import status
 import re
 import json
 from datetime import datetime
-from sqlalchemy import update, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
+from sqlalchemy import desc, update, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
 from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           sql_to_datatype, _sql_to_sqlalchemy_columns, model_to_schema_feature,
                           __validate_feature_data_type, __validate_primary_keys)
@@ -576,6 +576,34 @@ def _get_num_created_models(db) -> int:
         filter(SqlTag.key=='splice.model_name').\
         count()
 
+def get_recent_features(db: Session, n: int = 5) -> List[str]:
+    """
+    Gets the top n most recently added features to the feature store
+
+    :param db: Session
+    :param n: How many features to get. Default 5
+    :return: List[str] Feature names
+    """
+    res = db.query(models.Feature.name).order_by(desc(models.Feature.last_update_ts)).limit(n).all()
+    return [i for (i,) in res]
+
+def get_most_used_features(db: Session, n=5) -> List[str]:
+    """
+    Gets the top n most used features (where most used means in the most number of deployments)
+
+    :param db: Session
+    :param n: How many to return. Default 5
+    :return: List[str] Feature Names
+    """
+    p = db.query(models.Deployment.training_set_id).subquery('p')
+    p1 = db.query(models.TrainingSetFeature.feature_id).filter(models.TrainingSetFeature.training_set_id.in_(p))
+    res = db.query(models.Feature.name, func.count().label('feat_count')).\
+        filter(models.Feature.feature_id.in_(p1)).\
+        group_by(models.Feature.name).\
+        subquery('feature_count')
+    res = db.query(res.c.name).order_by(res.c.feat_count).limit(n).all()
+    return [i for (i,) in res]
+
 def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
     """
     This function returns a summary of the feature store including:
@@ -603,6 +631,9 @@ def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
     num_deployemnts = _get_num_deployments(db)
     num_pending_feature_set_deployments = _get_num_pending_feature_sets(db)
 
+    recent_features = get_recent_features(db, 5)
+    most_used_features = get_most_used_features(db, 5)
+
     return schemas.FeatureStoreSummary(
         num_feature_sets=num_fsets,
         num_deployed_feature_sets=num_deployed_fsets,
@@ -612,7 +643,9 @@ def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
         num_training_views=num_training_views,
         num_models=num_created_models,
         num_deployed_models=num_deployemnts,
-        num_pending_feature_set_deployments=num_pending_feature_set_deployments
+        num_pending_feature_set_deployments=num_pending_feature_set_deployments,
+        recent_features=recent_features,
+        most_used_features=most_used_features
     )
 
 def update_feature_metadata(db: Session, name: str, desc: str = None,

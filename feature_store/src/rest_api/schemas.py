@@ -139,3 +139,5 @@ class FeatureStoreSummary(BaseModel):
     num_models: int
     num_deployed_models: int
     num_pending_feature_set_deployments: int
+    recent_features: List[str]
+    most_used_features: List[str]
