@@ -130,12 +130,6 @@ def get_training_view_features(view: str, db: Session = Depends(crud.get_db)):
     """
     return crud.get_training_view_features(db, view)
 
-@SYNC_ROUTER.get('/feature-description', status_code=status.HTTP_200_OK, description="Returns the description of the given feature", 
-                operation_id='get_feature_description', tags=['Features'])
-@managed_transaction
-def get_feature_description(db: Session = Depends(crud.get_db)):
-    # TODO
-    raise NotImplementedError
 
 @SYNC_ROUTER.post('/training-sets', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Gets a set of feature values across feature sets that is not time dependent (ie for non time series clustering)", 
@@ -316,11 +310,18 @@ def get_training_view_descriptions(name: Optional[str] = None, db: Session = Dep
         descs.append(schemas.TrainingViewDescription(**tcx.__dict__, features=fds))
     return descs
 
-@SYNC_ROUTER.put('/feature-description', status_code=status.HTTP_200_OK, description="Sets a feature's description", 
-                operation_id='set_feature_description', tags=['Features'])
+@SYNC_ROUTER.put('/features', status_code=status.HTTP_200_OK, response_model=schemas.Feature,
+                 description="Updates a feature's metadata (description, tags, attributes)",
+                 operation_id='set_feature_description', tags=['Features'])
 @managed_transaction
-def set_feature_description(db: Session = Depends(crud.get_db)):
-        raise NotImplementedError
+def update_feature_metadata(name: str, metadata: schemas.FeatureMetadata, db: Session = Depends(crud.get_db)):
+        fs = crud.get_feature_descriptions_by_name(db, [name])
+        if not fs:
+            raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature {name} does not exist. Please enter a valid feature.")
+        return crud.update_feature_metadata(db, fs[0].name, desc=metadata.description,
+                                     tags=metadata.tags, attributes=metadata.attributes)
+
 
 @SYNC_ROUTER.get('/training-set-from-deployment', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Reads Feature Store metadata to rebuild orginal training data set used for the given deployed model.", 
@@ -432,17 +433,39 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
         Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
-                description="Get all deployments", operation_id='get_deployments', tags=['Deployments'])
+                description="Get all deployments given either a deployment (schema/table), a training_view (name), "
+                            "a feature (feat), or a feature set (fset)", operation_id='get_deployments', tags=['Deployments'])
 @managed_transaction
-def get_deployments(schema: Optional[str] = None, table: Optional[str] = None, name: Optional[str] = None, 
-                            db: Session = Depends(crud.get_db)):
+def get_deployments(schema: Optional[str] = None, table: Optional[str] = None, name: Optional[str] = None,
+                    feature = Query('', alias='feat'), feature_set = Query('', alias='fset'),
+                    db: Session = Depends(crud.get_db)):
     """
-    Returns a list of available deployments
+    Returns a list of available deployments. If no parameters are passed in, all deployments are returned.
+    Schema and Table can be passed in to get a specific deployment
+    name can be passed in as a Training View name, and this will return all deployments from tha Training View
+    feat can be passed in and this will return all deployments that use this feature
+    fset can be passed in and this will return all deployments that use this feature set.
+    You cannot pass in more than 1 of these options (schema+table counting as 1 parameter)
     """
     if schema or table or name:
         _filter = { 'model_schema_name': schema, 'model_table_name': table, 'name': name }
         _filter = { k: v for k, v in _filter.items() if v }
         return crud.get_deployments(db, _filter)
+    if feature and feature_set:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message='You cannot pass in both a feature set and a feature. Only 1 is allowed')
+    if feature:
+        f = crud.get_feature_descriptions_by_name(db, [feature])
+        if not f:
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature {feature} does not exist!")
+        return crud.get_deployments(db, feature=f[0])
+    if feature_set:
+        fset = crud.get_feature_sets(db, feature_set_names=[feature_set])
+        if not fset:
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature Set {feature_set} does not exist!")
+        return crud.get_deployments(db, feature_set=fset[0])
     return crud.get_deployments(db)
 
 @SYNC_ROUTER.get('/training-set-features', status_code=status.HTTP_200_OK, response_model=schemas.DeploymentFeatures,

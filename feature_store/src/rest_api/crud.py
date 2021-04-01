@@ -615,6 +615,27 @@ def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
         num_pending_feature_set_deployments=num_pending_feature_set_deployments
     )
 
+def update_feature_metadata(db: Session, name: str, desc: str = None,
+                            tags: List[str] = None, attributes: Dict[str,str] = None) -> schemas.Feature:
+    """
+    Updates the metadata of a feature
+    :param db: Session
+    :param desc: New description of the feature
+    :param tags: New tags of the feature
+    :param attributes: New attributes of the feature
+    """
+    updates = {}
+    if desc:
+        updates['description'] = desc
+    if tags:
+        updates['tags'] = ','.join(tags)
+    if attributes:
+        updates['attributes'] = json.dumps(attributes)
+    feat = db.query(models.Feature).filter(models.Feature.name == name)
+    feat.update(updates)
+    db.flush()
+    return model_to_schema_feature(feat.first())
+    # db.query(models.Feature).filter(models.Feature.name == name).update(updates)
 
 def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
     """
@@ -952,9 +973,12 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
 def delete_feature(db: Session, feature: models.Feature) -> None:
     db.delete(feature)
 
-def get_deployments(db: Session, _filter: Dict[str, str] = None) -> List[schemas.DeploymentDescription]:
+def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schemas.FeatureDescription = None,
+                    feature_set: schemas.FeatureSet = None) -> List[schemas.DeploymentDescription]:
     d = aliased(models.Deployment, name='d')
     ts = aliased(models.TrainingSet, name='ts')
+    f = aliased(models.Feature, name='f')
+    tsf = aliased(models.TrainingSetFeature, name='tsf')
     
     q = db.query(ts.name, d).\
         join(ts, ts.training_set_id==d.training_set_id)
@@ -963,6 +987,14 @@ def get_deployments(db: Session, _filter: Dict[str, str] = None) -> List[schemas
         # if filter key is a column in Training_Set, get compare Training_Set column, else compare to Deployment column
         q = q.filter(and_(*[(getattr(ts, name) if hasattr(ts, name) else getattr(d, name)) == value 
                                 for name, value in _filter.items()]))
+    elif feature:
+        q = q.join(tsf, tsf.training_set_id==ts.training_set_id).\
+            filter(tsf.feature_id==feature.feature_id)
+    elif feature_set:
+        p = db.query(f.feature_id).filter(f.feature_set_id==feature_set.feature_set_id)
+        q = q.join(tsf, tsf.training_set_id == ts.training_set_id).\
+            filter(tsf.feature_id.in_(p))
+
     deployments = []
     for name, deployment in q.all():
         deployments.append(schemas.DeploymentDescription(**deployment.__dict__, training_set_name=name))
