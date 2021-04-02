@@ -14,7 +14,7 @@ basic_auth = HTTPBasicAuth('user','password')
 bad_feature = {
     "name": 'feature_without_feature_set',
     "description": 'a feature that should fail because there is no feature set',
-    "feature_data_type": 'VARCHAR(250)',
+    "feature_data_type": {'data_type': 'VARCHAR','length':250},#'VARCHAR(250)',
     "feature_type": 'C',
     "tags": None
 }
@@ -22,7 +22,7 @@ bad_feature = {
 good_feature = {
     "name": 'good_feature',
     "description": 'a feature that should succeed because there is a feature set',
-    "feature_data_type": 'VARCHAR(250)',
+    "feature_data_type": {'data_type': 'VARCHAR','length':250},#'VARCHAR(250)',
     "feature_type": 'C',
     "tags": None
 }

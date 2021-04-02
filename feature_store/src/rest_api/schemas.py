@@ -3,20 +3,27 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
-class FeatureDataType(BaseModel):
+class DataType(BaseModel):
+    """
+    A class for representing a SQL data type as an object. Data types can have length, precision,
+    and recall values depending on their type (VARCHAR(50), DECIMAL(15,2) for example.
+    This class enables the breaking up of those data types into objects
+    """
     data_type: str
     length: Optional[int] = None
     precision: Optional[int] = None
     scale: Optional[int] = None
 
-class FeatureBase(BaseModel):
+class FeatureMetadata(BaseModel):
+    tags: Optional[List[str]] = None
+    description: Optional[str] = None
+    attributes: Optional[Dict[str, str]] = None
+
+class FeatureBase(FeatureMetadata):
     feature_set_id: Optional[int] = None
     name: str
-    description: Optional[str] = None
-    feature_data_type: str # FeatureDataType
+    feature_data_type: DataType
     feature_type: str
-    tags: Optional[List[str]] = None
-    attributes: Optional[Dict[str, str]] = None
 
 class FeatureCreate(FeatureBase):
     pass
@@ -30,6 +37,7 @@ class Feature(FeatureBase):
     class Config:
         orm_mode = True
 
+
 class FeatureDescription(Feature):
     feature_set_name: Optional[str] = None
 
@@ -37,7 +45,7 @@ class FeatureSetBase(BaseModel):
     schema_name: str
     table_name: str
     description: Optional[str] = None
-    primary_keys: Dict[str,str] #List[FeatureDataType]
+    primary_keys: Dict[str, DataType]
 
 class FeatureSetCreate(FeatureSetBase):
     features: Optional[List[FeatureCreate]] = None

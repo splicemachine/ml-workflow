@@ -1,11 +1,14 @@
 from .. import crud
 from .. import schemas
+import shared.models.feature_store_models as models
 from sqlalchemy.orm import Session
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from fastapi import status
 from shared.logger.logging_config import logger
-from ..utils import airflow_utils as airflow
+from ..utils.airflow_utils import Airflow
 from typing import List, Optional
+import json
+from .utils import sql_to_datatype
 
 def _deploy_feature_set(schema: str, table: str, db: Session):
     """
@@ -26,7 +29,8 @@ def _deploy_feature_set(schema: str, table: str, db: Session):
             message=f"Feature set {schema}.{table} is already deployed.")
 
     fset = crud.deploy_feature_set(db, fset)
-    #airflow.schedule_feature_set_calculation(f'{schema}.{table}')
+    if Airflow.is_active:
+        Airflow.schedule_feature_set_calculation(f'{schema}.{table}')
     return fset
 
 def _create_feature_set(fset: schemas.FeatureSetCreate, db: Session):
@@ -59,3 +63,20 @@ def _get_feature_sets(names: List[str], db: Session):
     """
     crud.validate_schema_table(names)
     return crud.get_feature_sets(db, feature_set_names=names)
+
+def model_to_schema_feature(feat: models.Feature) -> schemas.Feature:
+    """
+    A function that converts a models.Feature into a schemas.Feature through simple manipulations.
+    Splice Machine does not support complex data types like JSON or Arrays, so we stringify them and store them as
+    Strings in the database, so they need some manipulation when we retrieve them.
+        * Turns tags into a list
+        * Turns attributes into a Dict
+        * Turns feature_data_type into a DataType object (dict)
+    :param feat: The feature from the database
+    :return: The schemas.Feature representation
+    """
+    f = feat.__dict__
+    f['tags'] = f['tags'].split(',') if f.get('tags') else None
+    f['attributes'] = json.loads(f['attributes']) if f.get('attributes') else None
+    f['feature_data_type'] = sql_to_datatype(f['feature_data_type'])
+    return schemas.Feature(**f)
