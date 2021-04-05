@@ -36,7 +36,6 @@ class Feature(FeatureBase):
     class Config:
         orm_mode = True
 
-
 class FeatureDescription(Feature):
     feature_set_name: Optional[str] = None
 
@@ -137,3 +136,5 @@ class FeatureStoreSummary(BaseModel):
     num_models: int
     num_deployed_models: int
     num_pending_feature_set_deployments: int
+    recent_features: List[str]
+    most_used_features: List[str]
