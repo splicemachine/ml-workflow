@@ -1,6 +1,6 @@
 from fastapi import status
 from ..schemas import FeatureSetBase, FeatureSet, DataType
-from ..constants import Columns, SQLALCHEMY_TYPES
+from ..constants import Columns, SQL_TO_SQLALCHEMY
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from typing import Dict, List
 from .. import schemas
@@ -114,6 +114,6 @@ def _sql_to_sqlalchemy_columns(sql_cols: Dict[str,schemas.DataType], pk: bool=Fa
         elif sql_type.data_type.upper() in ('DECIMAL', 'FLOAT','NUMERIC'): # Extract precision and scale (eg DECIMAL(10,2))
             cols.append(Column(k.lower(), DECIMAL(sql_type.precision, sql_type.scale), primary_key=pk))
         else:
-            cols.append(Column(k.lower(), SQLALCHEMY_TYPES[sql_type.data_type], primary_key=pk))
+            cols.append(Column(k.lower(), SQL_TO_SQLALCHEMY[sql_type.data_type], primary_key=pk))
     return cols
 

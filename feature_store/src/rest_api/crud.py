@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session, aliased, load_only
 from typing import List, Dict, Union, Optional, Any, Tuple, Set
 from . import schemas
-from .constants import SQL, SQLALCHEMY_TYPES
+from .constants import SQL, SQL_TO_SQLALCHEMY
 from shared.models import feature_store_models as models
 from shared.services.database import SQLAlchemyClient, DatabaseFunctions, Converters
 from shared.logger.logging_config import logger
@@ -1021,7 +1021,7 @@ def get_source_dependencies(db: Session, id: int) -> List[str]:
     return fset_names
 
 
-def get_source_pk_types(db: Session, source: schemas.Source) -> Dict[str,str]:
+def get_source_pk_types(db: Session, source: schemas.Source) -> Dict[str,schemas.DataType]:
     """
     Gets the primary key column names and SQL data types for a source
 
@@ -1037,13 +1037,15 @@ def get_source_pk_types(db: Session, source: schemas.Source) -> Dict[str,str]:
     for d in col_descriptions:
         if d[0].lower() in pks:
             col, py_type = d[0], d[1]
-            data_type = Converters.PY_DB_CONVERSIONS[py_type]
+            dtype = Converters.PY_DB_CONVERSIONS[py_type]
             if py_type == Decimal: # handle precision and recall
-                prec, recall = d[3],d[5]
-                data_type += f'({prec},{recall})'
+                prec, scale = d[3],d[5]
+                data_type = schemas.DataType(data_type=dtype, prec=prec, scale=scale)
             elif py_type == str: # handle varchar length
                 length = d[3]
-                data_type += f'({length})'
+                data_type = schemas.DataType(data_type=dtype, length=length)
+            else:
+                data_type = schemas.DataType(data_type=dtype)
             pk_types[col] = data_type
     return pk_types
 

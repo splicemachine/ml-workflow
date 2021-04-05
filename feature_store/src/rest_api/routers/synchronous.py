@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from fastapi import APIRouter, status, Depends, Query
 from typing import List, Dict, Optional, Union, Any
 from shared.logger.logging_config import logger
@@ -7,7 +8,6 @@ from .auth import authenticate
 from .. import schemas, crud
 from ..utils.training_utils import (dict_to_lower,_get_training_view_by_name,
                                 _get_training_set, _get_training_set_from_view)
-from ..utils.utils import __validate_feature_data_type
 from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets
 from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, generate_backfill_sql,
                                                     generate_backfill_intervals, generate_pipeline_sql, _get_source)

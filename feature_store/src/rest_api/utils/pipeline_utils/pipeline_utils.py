@@ -6,6 +6,7 @@ from typing import List
 import json
 from datetime import datetime
 from ...constants import SQL
+from ..utils import sql_to_datatype
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from fastapi import status
 
@@ -63,7 +64,7 @@ def create_pipeline_entities(db: Session, sf: schemas.SourceFeatureSetAgg, sourc
                         feature_set_id=fset_id,
                         name=helpers.build_agg_feature_name(feat_prefix,f,w),
                         description=f'{f} of {agg.column_name} over last {w}',
-                        feature_data_type='DOUBLE',
+                        feature_data_type=sql_to_datatype('DOUBLE'),
                         feature_type='C',  # 'C'ontinuous
                         tags=['sql','aggregation','auto'],
                         attributes={'source_col':agg.column_name,'agg_function':
