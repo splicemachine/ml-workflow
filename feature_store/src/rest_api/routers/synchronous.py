@@ -81,7 +81,7 @@ def get_features_by_name(names: List[str] = Query([], alias="name"), db: Session
                 description="Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets", 
                 operation_id='get_feature_vector', tags=['Features'])
 @managed_transaction
-def get_feature_vector(fjk: schemas.FeatureJoinKeys, sql: bool = False, db: Session = Depends(crud.get_db)):
+def get_feature_vector(fjk: schemas.FeatureJoinKeys, pks: bool = True, sql: bool = False, db: Session = Depends(crud.get_db)):
     """
     Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets
     """
@@ -93,7 +93,7 @@ def get_feature_vector(fjk: schemas.FeatureJoinKeys, sql: bool = False, db: Sess
     feature_sets = crud.get_feature_sets(db, [f.feature_set_id for f in feats])
     crud.validate_feature_vector_keys(join_keys, feature_sets)
 
-    return crud.get_feature_vector(db, feats, join_keys, feature_sets, sql)
+    return crud.get_feature_vector(db, feats, join_keys, feature_sets, pks, sql)
 
 
 @SYNC_ROUTER.post('/feature-vector-sql', status_code=status.HTTP_200_OK, response_model=str,
