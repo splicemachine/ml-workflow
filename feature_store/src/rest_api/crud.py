@@ -1,6 +1,6 @@
 
-from sqlalchemy.orm import Session, aliased, load_only
-from typing import List, Dict, Union, Optional, Any, Tuple, Set
+from sqlalchemy.orm import Session, aliased
+from typing import List, Dict, Union, Any, Tuple, Set
 from . import schemas
 from .constants import SQL, SQL_TO_SQLALCHEMY
 from shared.models import feature_store_models as models
@@ -10,15 +10,14 @@ from fastapi import status
 import re
 import json
 from datetime import datetime
-from sqlalchemy import update, Integer, String, func, distinct, cast, and_, Column, event, DateTime, literal_column, text
+from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text
 from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           sql_to_datatype, _sql_to_sqlalchemy_columns,
                           __validate_feature_data_type, __validate_primary_keys)
 from .utils.feature_utils import model_to_schema_feature
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
-from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
-                                DECIMAL, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, BOOLEAN)
+from sqlalchemy.types import TIMESTAMP
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from decimal import Decimal
 from uuid import uuid1
@@ -131,7 +130,8 @@ def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.MISSING_ARGUMENTS,
                                         message=f"The following keys were not provided and must be: {missing_keys}")
 
-def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, Union[str, int]], feature_sets: List[schemas.FeatureSet], return_sql: bool) -> Union[Dict[str, Any], str]:
+def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, Union[str, int]], feature_sets: List[schemas.FeatureSet], 
+                        return_pks: bool, return_sql: bool) -> Union[Dict[str, Any], str]:
     """
     Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets
 
@@ -139,6 +139,7 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
     :param features: List of Features
     :param join_key_values: (dict) join key values to get the proper Feature values formatted as {join_key_column_name: join_key_value}
     :param feature_sets: List of Feature Sets
+    :param return_pks: Whether to return the Feature Set primary keys in the vector. Default True
     :param return_sql: Whether to return the SQL needed to get the vector or the values themselves. Default False
     :return: Dict or str (SQL statement)
     """
@@ -146,7 +147,14 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
 
     tables = [Table(fset.table_name.lower(), metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]), schema=fset.schema_name.lower(), autoload=True).\
         alias(f'fset{fset.feature_set_id}') for fset in feature_sets]
-    columns = [getattr(table.c, f.name.lower()) for f in feats for table in tables if f.name.lower() in table.c]
+
+    columns = []
+    if return_pks:
+        seen = set()
+        pks = [seen.add(pk_col.name) or getattr(table.c, pk_col.name) for table in tables for pk_col in table.primary_key if pk_col.name not in seen]
+        columns.extend(pks)
+
+    columns.extend([getattr(table.c, f.name.lower()) for f in feats for table in tables if f.name.lower() in table.c])
 
     # For each Feature Set, for each primary key in the given feature set, get primary key value from the user provided dictionary
     filters = [getattr(table.c, pk_col.name)==join_keys[pk_col.name.lower()] 
@@ -616,6 +624,34 @@ def _get_num_created_models(db) -> int:
         filter(SqlTag.key=='splice.model_name').\
         count()
 
+def get_recent_features(db: Session, n: int = 5) -> List[str]:
+    """
+    Gets the top n most recently added features to the feature store
+
+    :param db: Session
+    :param n: How many features to get. Default 5
+    :return: List[str] Feature names
+    """
+    res = db.query(models.Feature.name).order_by(desc(models.Feature.last_update_ts)).limit(n).all()
+    return [i for (i,) in res]
+
+def get_most_used_features(db: Session, n=5) -> List[str]:
+    """
+    Gets the top n most used features (where most used means in the most number of deployments)
+
+    :param db: Session
+    :param n: How many to return. Default 5
+    :return: List[str] Feature Names
+    """
+    p = db.query(models.Deployment.training_set_id).subquery('p')
+    p1 = db.query(models.TrainingSetFeature.feature_id).filter(models.TrainingSetFeature.training_set_id.in_(p))
+    res = db.query(models.Feature.name, func.count().label('feat_count')).\
+        filter(models.Feature.feature_id.in_(p1)).\
+        group_by(models.Feature.name).\
+        subquery('feature_count')
+    res = db.query(res.c.name).order_by(res.c.feat_count).limit(n).all()
+    return [i for (i,) in res]
+
 def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
     """
     This function returns a summary of the feature store including:
@@ -643,6 +679,9 @@ def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
     num_deployemnts = _get_num_deployments(db)
     num_pending_feature_set_deployments = _get_num_pending_feature_sets(db)
 
+    recent_features = get_recent_features(db, 5)
+    most_used_features = get_most_used_features(db, 5)
+
     return schemas.FeatureStoreSummary(
         num_feature_sets=num_fsets,
         num_deployed_feature_sets=num_deployed_fsets,
@@ -652,7 +691,9 @@ def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
         num_training_views=num_training_views,
         num_models=num_created_models,
         num_deployed_models=num_deployemnts,
-        num_pending_feature_set_deployments=num_pending_feature_set_deployments
+        num_pending_feature_set_deployments=num_pending_feature_set_deployments,
+        recent_features=recent_features,
+        most_used_features=most_used_features
     )
 
 def update_feature_metadata(db: Session, name: str, desc: str = None,
