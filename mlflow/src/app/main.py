@@ -17,9 +17,10 @@ from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
 from shared.models.splice_models import Handler, Job
-from shared.services.authentication import Authentication, User
+from shared.services.authentication import Authentication
 from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.services.handlers import HandlerNames, KnownHandlers
+from auth_utils import User, basic_auth_required
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -158,7 +159,7 @@ def get_job_logs_ui():
 
 
 @APP.route('/api/rest/logs', methods=['POST'])
-@Authentication.basic_auth_required
+@basic_auth_required
 @HTTP.generate_json_response
 def get_job_logs_api():
     """
@@ -195,7 +196,7 @@ def initiate_job_ui() -> dict:
 
 @APP.route('/api/rest/initiate', methods=['POST'])
 @HTTP.generate_json_response
-@Authentication.basic_auth_required
+@basic_auth_required
 def initiate_job_rest() -> dict:
     """
     Initiate job from the REST API-- returns
