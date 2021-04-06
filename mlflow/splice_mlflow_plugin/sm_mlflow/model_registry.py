@@ -26,4 +26,4 @@ class SpliceMachineModelRegistry(SqlAlchemyStore):
         """
         self.db_type: str = 'splicemachinesa'
         self.engine = SQLAlchemyClient.engine
-        self.ManagedSessionMaker = _get_managed_session_maker(SQLAlchemyClient.SessionMaker)
+        self.ManagedSessionMaker = _get_managed_session_maker(SQLAlchemyClient.SessionMaker, self.db_type)
