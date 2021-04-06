@@ -218,8 +218,10 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
     def exception_handler(self, exc: Exception):
         self.logger.info("Rolling back...",send_db=True)
-        self.logger.info(f"Savepoint is active... {self.savepoint.is_active}")
-        self.savepoint.rollback()
+        try: # SQL based exceptions will cause us to loose our savepoint https://splicemachine.atlassian.net/browse/DBAAS-5247
+            self.savepoint.rollback()
+        except:
+            pass
         self.Session.rollback()
         self._cleanup()  # always run cleanup, regardless of success or failure
         raise exc
@@ -242,5 +244,4 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
         for step_no, execute_step in enumerate(steps):
             self.logger.info(f"Running Step {step_no}...")
-            self.logger.info(f"Savepoint is active... {self.savepoint.is_active}")
             execute_step()
