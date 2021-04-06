@@ -1267,7 +1267,7 @@ def get_last_pipeline_run(db: Session, fset_id: int) -> datetime:
     :param fset_id: Feature Set ID that the Pipeline is feeding
     :return: datetime
     """
-    res = db.query(models.PipelineOps.extract_up_to_ts).filter(models.PipelineOps.feature_set_id == fset_id).first()
+    res = db.query(func.max(models.PipelineOps.extract_up_to_ts)).filter(models.PipelineOps.feature_set_id == fset_id).first()
     return res[0] if res else None
 
 def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str, table_name: str) -> schemas.TrainingSetMetadata:
