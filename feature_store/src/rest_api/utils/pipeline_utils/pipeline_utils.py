@@ -96,7 +96,7 @@ def generate_backfill_sql(schema: str, table: str, source: schemas.Source, featu
     innersource_list = ",".join([ f' innersrc.{f}' for f in source.pk_columns ])
     # asof_ts
     ins_column_list += ', ASOF_TS, INGEST_TS'
-    expression_list += ', {backfill_asof_ts}, CURRENT_TIMESTAMP'
+    expression_list += ", '{backfill_asof_ts}', CURRENT_TIMESTAMP"
     source_list += f", {source.event_ts_column}"
     source_group_by = source_list
 
@@ -111,7 +111,7 @@ def generate_backfill_sql(schema: str, table: str, source: schemas.Source, featu
             for window in f.agg_windows:
                 agg_feature = helpers.build_agg_feature_name(f.feature_name_prefix, func, window )
                 expressions = helpers.build_agg_expression(func, window, f.column_name, source.event_ts_column,
-                                                           "{backfill_asof_ts}", default_value = f.agg_default_value)
+                                                           "'{backfill_asof_ts}'", default_value = f.agg_default_value)
                 ins_column_list += f',{agg_feature}'
                 expression_list += f',{expressions}'
 
@@ -125,15 +125,22 @@ def generate_backfill_sql(schema: str, table: str, source: schemas.Source, featu
 
 
     pk_col_list = ",".join(source.pk_columns)
-    full_sql = f'''{full_sql} {ins_column_list} ) --splice-properties useSpark=True
+    full_sql = f"""{full_sql} {ins_column_list} ) --splice-properties useSpark=True
                    SELECT {expression_list} 
                    FROM (
                            SELECT {source_list}
-                           FROM ( SELECT {innersource_list} FROM ( {source.sql_text} ) innersrc WHERE {source.event_ts_column} <= {{backfill_asof_ts}} AND {source.event_ts_column} >= ( {{backfill_asof_ts}} - {largest_window_sql} ) )src
+                           FROM ( 
+                                SELECT {innersource_list} 
+                                FROM ( 
+                                    {source.sql_text} 
+                                ) innersrc 
+                                WHERE {source.event_ts_column} <= '{{backfill_asof_ts}}' 
+                                AND {source.event_ts_column} >= ( TIMESTAMP('{{backfill_asof_ts}}') - {largest_window_sql} ) 
+                            )src
                            GROUP BY {source_group_by}
                         ) x 
                    GROUP BY {pk_col_list}
-               '''
+               """
     return full_sql
 
 

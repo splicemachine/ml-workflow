@@ -72,8 +72,8 @@ def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
     """
     return crud.get_training_view_id(db, name)
 
-@SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureDescription],
-                description="Returns a list of all (or the specified) features", operation_id='get_features', tags=['Features'])
+@SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureDetail],
+                description="Returns a list of all (or the specified) features and details", operation_id='get_features', tags=['Features'])
 @managed_transaction
 def get_features_by_name(names: List[str] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
     """
@@ -81,6 +81,21 @@ def get_features_by_name(names: List[str] = Query([], alias="name"), db: Session
 
     """
     return crud.get_feature_descriptions_by_name(db, names)
+
+
+@SYNC_ROUTER.get('/feature-details', status_code=status.HTTP_200_OK, response_model=schemas.FeatureDetail,
+                description="Returns Feature Details for a single feature", operation_id='get_feature_details', tags=['Features'])
+@managed_transaction
+def get_features_details(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Returns a list of features whose names are provided. Same as /features but we keep it here for continuity with other
+    routes (Feature Sets and Training Views have a "details" route
+    """
+    dets = crud.get_feature_descriptions_by_name(db, [name])
+    if not dets:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature {name} does not exist. Please enter a valid feature.")
+    return dets[0]
 
 @SYNC_ROUTER.post('/feature-vector', status_code=status.HTTP_200_OK, response_model=Union[Dict[str, Any], str],
                 description="Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets", 
@@ -187,10 +202,10 @@ def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_
 def list_training_sets(db: Session = Depends(crud.get_db)):
     """
     Returns a dictionary a training sets available, with the map name -> description. If there is no description,
-    the value will be an emtpy string
+    the value will be an emtpy string. NOT YET IMPLEMENTED
 
     """
-    raise NotImplementedError("To see available training views, run fs.describe_training_views()")
+    raise SpliceMachineException("To see available training views, run fs.describe_training_views()")
 
 @SYNC_ROUTER.post('/feature-sets', status_code=status.HTTP_201_CREATED, response_model=schemas.FeatureSet, 
                 description="Creates and returns a new feature set", operation_id='create_feature_set', tags=['Feature Sets'])
@@ -251,9 +266,9 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
     """
     return _deploy_feature_set(schema, table, db)
 
-@SYNC_ROUTER.get('/feature-set-descriptions', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDescription],
+@SYNC_ROUTER.get('/feature-set-details', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDetail],
                 description="Returns a description of all feature sets, with all features in the feature sets and whether the feature set is deployed", 
-                operation_id='get_feature_set_descriptions', tags=['Feature Sets'])
+                operation_id='get_feature_set_details', tags=['Feature Sets'])
 @managed_transaction
 def get_feature_set_descriptions(schema: Optional[str] = None, table: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
@@ -266,11 +281,11 @@ def get_feature_set_descriptions(schema: Optional[str] = None, table: Optional[s
     else:
         fsets = crud.get_feature_sets(db)
 
-    return [schemas.FeatureSetDescription(**fset.__dict__, features=crud.get_features(db, fset)) for fset in fsets]
+    return [schemas.FeatureSetDetail(**fset.__dict__, features=crud.get_features(db, fset)) for fset in fsets]
 
-@SYNC_ROUTER.get('/training-view-descriptions', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDescription],
+@SYNC_ROUTER.get('/training-view-details', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDetail],
                 description="Returns a description of all (or the specified) training views, the ID, name, description and optional label", 
-                operation_id='get_training_view_descriptions', tags=['Training Views'])
+                operation_id='get_training_view_details', tags=['Training Views'])
 @managed_transaction
 def get_training_view_descriptions(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
@@ -286,8 +301,8 @@ def get_training_view_descriptions(name: Optional[str] = None, db: Session = Dep
         # Grab the feature set info and their corresponding names (schema.table) for the display table
         feat_sets: List[schemas.FeatureSet] = crud.get_feature_sets(db, feature_set_ids=[f.feature_set_id for f in feats])
         feat_sets: Dict[int, str] = {fset.feature_set_id: f'{fset.schema_name}.{fset.table_name}' for fset in feat_sets}
-        fds = list(map(lambda f, feat_sets=feat_sets: schemas.FeatureDescription(**f.__dict__, feature_set_name=feat_sets[f.feature_set_id]), feats))
-        descs.append(schemas.TrainingViewDescription(**tcx.__dict__, features=fds))
+        fds = list(map(lambda f, feat_sets=feat_sets: schemas.FeatureDetail(**f.__dict__, feature_set_name=feat_sets[f.feature_set_id]), feats))
+        descs.append(schemas.TrainingViewDetail(**tcx.__dict__, features=fds))
     return descs
 
 @SYNC_ROUTER.put('/features', status_code=status.HTTP_200_OK, response_model=schemas.Feature,
@@ -412,7 +427,7 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
     if Airflow.is_active:
         Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
-@SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
+@SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDetail],
                 description="Get all deployments given either a deployment (schema/table), a training_view (name), "
                             "a feature (feat), or a feature set (fset)", operation_id='get_deployments', tags=['Deployments'])
 @managed_transaction
@@ -583,7 +598,10 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
 
 
 @SYNC_ROUTER.get('/pipeline-sql', status_code=status.HTTP_200_OK, response_model=str,
-                 description="Get incremental pipeline SQL for a feature set/source", operation_id='get_pipeline_sql',
+                 description="Get incremental pipeline extract SQL for a feature set/source. This SQL is used to generate"
+                             "the incremental set of data from the source which the pipeline will add to both the history"
+                             "table and the serving table. This does NOT update the history and serving tables. That is done"
+                             "by an external job.", operation_id='get_pipeline_sql',
                  tags=['Source', 'Pipeline', 'SQL'])
 @managed_transaction
 def get_pipeline_sql(schema: str, table: str, db: Session = Depends(crud.get_db)):

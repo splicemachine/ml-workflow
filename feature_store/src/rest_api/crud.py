@@ -2,7 +2,8 @@
 from sqlalchemy.orm import Session, aliased
 from typing import List, Dict, Union, Any, Tuple, Set
 from . import schemas
-from .constants import SQL, SQL_TO_SQLALCHEMY
+from .constants import SQL
+from sqlalchemy.sql.elements import TextClause
 from shared.models import feature_store_models as models
 from shared.services.database import SQLAlchemyClient, DatabaseFunctions, Converters
 from shared.logger.logging_config import logger
@@ -108,8 +109,7 @@ def validate_feature(db: Session, name: str, data_type: schemas.DataType) -> Non
     try:
         sql_type = datatype_to_sql(data_type)
         tmp = str(uuid1()).replace('-','_')
-        db.execute(f'CREATE LOCAL TEMPORARY TABLE COLUMN_TEST_{tmp}({name} {sql_type})')
-        db.execute(f'DROP TABLE COLUMN_TEST_{tmp}')
+        db.execute(f'CREATE LOCAL TEMPORARY TABLE COLUMN_TEST_{tmp}({name} {sql_type})') # Will be deleted when session ends
     except Exception as err:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message=f'The feature {name} of type {data_type} is invalid. The data type could '
@@ -533,7 +533,7 @@ def get_training_view_id(db: Session, name: str) -> int:
         filter(models.TrainingView.name==name).\
         first()[0]
 
-def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool = True) -> List[schemas.FeatureDescription]:
+def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool = True) -> List[schemas.FeatureDetail]:
     """
     Returns a dataframe or list of features whose names are provided
 
@@ -558,9 +558,9 @@ def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool =
     for schema, table, feat in df.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         f = model_to_schema_feature(feat)
-        features.append(schemas.FeatureDescription(**f.__dict__, feature_set_name=f'{schema}.{table}'))
+        features.append(schemas.FeatureDetail(**f.__dict__, feature_set_name=f'{schema}.{table}'))
 
-    if sort:
+    if sort and names:
         indices = {v.upper():i for i,v in enumerate(names)}
         features = sorted(features, key=lambda f: indices[f.name.upper()])
     return features
@@ -717,7 +717,7 @@ def update_feature_metadata(db: Session, name: str, desc: str = None,
     db.flush()
     return model_to_schema_feature(feat.first())
 
-def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
+def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDetail]:
     """
     Returns a dataframe or list of features whose names are provided
 
@@ -902,12 +902,10 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     logger.info('Creating Feature Set History...')
 
     pk_columns = _sql_to_sqlalchemy_columns(fset.primary_keys, True)
-    ts_columns = [Column('asof_ts', TIMESTAMP, primary_key=True), Column('ingest_ts', TIMESTAMP)]
-    feature_columns = _sql_to_sqlalchemy_columns({f.name.lower(): f.feature_data_type
-                                                  for f in get_features(db, fset)}, False)
-
-    pk_columns = _sql_to_sqlalchemy_columns(fset.primary_keys, True)
-    ts_columns = [Column('asof_ts', TIMESTAMP, primary_key=True), Column('ingest_ts', TIMESTAMP)]
+    ts_columns = [
+        Column('asof_ts', TIMESTAMP, primary_key=True),
+        Column('ingest_ts', TIMESTAMP, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    ]
     feature_columns = _sql_to_sqlalchemy_columns({f.name.lower(): f.feature_data_type
                                                   for f in get_features(db, fset)}, False)
     columns = pk_columns + ts_columns + feature_columns
@@ -1242,7 +1240,7 @@ def get_feature_aggregations(db: Session, fset_id: int) -> List[schemas.FeatureA
             column_name=column_name,
             agg_functions=json.loads(agg_functions),
             agg_windows=json.loads(agg_windows),
-            agg_default_value=agg_default_val
+            agg_default_value=float(agg_default_val)
         )
         for fnp, column_name, agg_functions, agg_windows, agg_default_val in feat_aggs
     ]
@@ -1314,8 +1312,8 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
 def delete_feature(db: Session, feature: models.Feature) -> None:
     db.delete(feature)
 
-def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schemas.FeatureDescription = None,
-                    feature_set: schemas.FeatureSet = None) -> List[schemas.DeploymentDescription]:
+def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schemas.FeatureDetail = None,
+                    feature_set: schemas.FeatureSet = None) -> List[schemas.DeploymentDetail]:
     d = aliased(models.Deployment, name='d')
     ts = aliased(models.TrainingSet, name='ts')
     f = aliased(models.Feature, name='f')
@@ -1338,7 +1336,7 @@ def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schema
 
     deployments = []
     for name, deployment in q.all():
-        deployments.append(schemas.DeploymentDescription(**deployment.__dict__, training_set_name=name))
+        deployments.append(schemas.DeploymentDetail(**deployment.__dict__, training_set_name=name))
     return deployments
 
 def get_features_from_deployment(db: Session, tsid: int) -> List[schemas.Feature]:

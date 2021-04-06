@@ -37,7 +37,7 @@ class Feature(FeatureBase):
     class Config:
         orm_mode = True
 
-class FeatureDescription(Feature):
+class FeatureDetail(Feature):
     feature_set_name: Optional[str] = None
 
 class FeatureSetBase(BaseModel):
@@ -58,7 +58,7 @@ class FeatureSet(FeatureSetBase):
     class Config:
         orm_mode = True
 
-class FeatureSetDescription(FeatureSet):
+class FeatureSetDetail(FeatureSet):
     features: List[Feature]
 
 class TrainingViewBase(BaseModel):
@@ -79,8 +79,8 @@ class TrainingView(TrainingViewBase):
     class Config:
         orm_mode = True
 
-class TrainingViewDescription(TrainingView):
-    features: List[FeatureDescription]
+class TrainingViewDetail(TrainingView):
+    features: List[FeatureDetail]
 
 class Source(BaseModel):
     name: str
@@ -128,7 +128,7 @@ class FeatureTimeframe(BaseModel):
     end_time: Optional[datetime] = None
 
 class FeatureJoinKeys(BaseModel):
-    features: List[Union[str, FeatureDescription]]
+    features: List[Union[str, FeatureDetail]]
     join_key_values: Dict[str, Union[str, int]]
 
 class Deployment(BaseModel):
@@ -144,10 +144,10 @@ class Deployment(BaseModel):
     class Config:
         orm_mode = True
 
-class DeploymentDescription(Deployment):
+class DeploymentDetail(Deployment):
     training_set_name: Optional[str] = None
 
-class DeploymentFeatures(DeploymentDescription):
+class DeploymentFeatures(DeploymentDetail):
     features: List[Feature]
 
 class TrainingSetMetadata(BaseModel):

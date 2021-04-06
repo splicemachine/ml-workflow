@@ -33,14 +33,14 @@ def build_agg_expression( agg_function: str, agg_window: str, source_column: str
     tsi_constant = c.tsi_windows.get(window_type) # Convert the window type to a Splice Machine Timestamp type
 
     case = f'CASE WHEN ' \
-           f'TIMESTAMPDIFF({tsi_constant}, x.{source_ts_column}, ({as_of_ts_expr}) ) BETWEEN 1 AND {window_length} ' \
+           f'TIMESTAMPDIFF({tsi_constant}, x.{source_ts_column}, TIMESTAMP({as_of_ts_expr}) ) BETWEEN 1 AND {window_length} ' \
            f'THEN {source_column} END'
 
     if (agg_function.lower()=='avg'):
-        result = f'COALESCE(SUM({case})) / {window_length}'
+        result = f'COALESCE(SUM({case}) / {window_length}'
     else:
         result = f'COALESCE({agg_function}( {case} )'
-    default_text = f'{default_value or "NULL"}'
+    default_text = f'{default_value if default_value != None else "NULL"}'
     result = f'{result}, {default_text} )'
     result = f'CAST( ({result}) AS DOUBLE )'
     return result
