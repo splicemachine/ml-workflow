@@ -54,9 +54,6 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
-COPY shared /tmp/shared
-RUN pip3 install /tmp/shared/.
-
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 
 RUN wget -q \
@@ -65,7 +62,7 @@ RUN wget -q \
     && bash Miniconda3-latest-Linux-x86_64.sh -b \
     && rm -f Miniconda3-latest-Linux-x86_64.sh
 
-ENV PATH="/root/miniconda3/bin:${PATH}"
+ENV PATH="${PATH}:/root/miniconda3/bin"
 # Install Python dependencies
 
 RUN conda install -c anaconda postgresql
@@ -74,6 +71,12 @@ RUN adduser postgres && \
     usermod -aG root postgres && \
     ln -s /root/miniconda3/bin/pg_ctl /usr/bin/pg_ctl
 
+RUN alias pip3=/usr/bin/pip3 && \
+    alias python3=/usr/bin/python3
+
+
+COPY shared /tmp/shared
+RUN pip3 install /tmp/shared/.
 
 # Copy Source into Container
 COPY feature_store/src $SRC_HOME

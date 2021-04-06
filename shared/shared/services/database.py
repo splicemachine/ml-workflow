@@ -4,9 +4,10 @@ from sqlalchemy import create_engine, inspect as peer_into_splice_db, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.schema import MetaData
-
+from datetime import datetime, date, time
 from mlflow.store.db.base_sql_model import Base as MLFlowBase
 from shared.logger.logging_config import logger
+from decimal import Decimal
 
 
 class DatabaseConnectionConfig:
@@ -318,6 +319,18 @@ class Converters:
         'CLOB': 'StringType',
         'LONG VARCHAR': 'StringType',
         'CHAR': 'StringType'
+    }
+
+    # Converts native python types to DB types
+    PY_DB_CONVERSIONS = {
+        str: "VARCHAR",
+        int: "INT",
+        float: 'DOUBLE',
+        datetime: "TIMESTAMP",
+        bool: "BOOLEAN",
+        date: "DATE",
+        time: "TIME",
+        Decimal: 'DECIMAL'
     }
 
 class DatabaseFunctions:

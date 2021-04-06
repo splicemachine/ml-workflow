@@ -1,9 +1,8 @@
 from fastapi import status
 from ..schemas import FeatureSetBase, FeatureSet, DataType
-from ..constants import Columns, SQLALCHEMY_TYPES
+from ..constants import Columns, SQL_TO_SQLALCHEMY
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from typing import Dict, List
-import shared.models.feature_store_models as models
 from .. import schemas
 from sqlalchemy import Column, VARCHAR, DECIMAL
 import json
@@ -115,22 +114,6 @@ def _sql_to_sqlalchemy_columns(sql_cols: Dict[str,schemas.DataType], pk: bool=Fa
         elif sql_type.data_type.upper() in ('DECIMAL', 'FLOAT','NUMERIC'): # Extract precision and scale (eg DECIMAL(10,2))
             cols.append(Column(k.lower(), DECIMAL(sql_type.precision, sql_type.scale), primary_key=pk))
         else:
-            cols.append(Column(k.lower(), SQLALCHEMY_TYPES[sql_type.data_type], primary_key=pk))
+            cols.append(Column(k.lower(), SQL_TO_SQLALCHEMY[sql_type.data_type], primary_key=pk))
     return cols
 
-def model_to_schema_feature(feat: models.Feature) -> schemas.Feature:
-    """
-    A function that converts a models.Feature into a schemas.Feature through simple manipulations.
-    Splice Machine does not support complex data types like JSON or Arrays, so we stringify them and store them as
-    Strings in the database, so they need some manipulation when we retrieve them.
-        * Turns tags into a list
-        * Turns attributes into a Dict
-        * Turns feature_data_type into a DataType object (dict)
-    :param feat: The feature from the database
-    :return: The schemas.Feature representation
-    """
-    f = feat.__dict__
-    f['tags'] = f['tags'].split(',') if f.get('tags') else None
-    f['attributes'] = json.loads(f['attributes']) if f.get('attributes') else None
-    f['feature_data_type'] = sql_to_datatype(f['feature_data_type'])
-    return schemas.Feature(**f)

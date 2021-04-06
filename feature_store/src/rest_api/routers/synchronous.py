@@ -1,18 +1,22 @@
+import json
+from datetime import datetime
 from fastapi import APIRouter, status, Depends, Query
 from typing import List, Dict, Optional, Union, Any
 from shared.logger.logging_config import logger
 from sqlalchemy.orm import Session
 from .auth import authenticate
 from .. import schemas, crud
-from ..utils.training_utils import (dict_to_lower,_get_training_view_by_name, 
+from ..utils.training_utils import (dict_to_lower,_get_training_view_by_name,
                                 _get_training_set, _get_training_set_from_view)
-from ..utils.utils import __validate_feature_data_type
+from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets
+from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, generate_backfill_sql,
+                                                    generate_backfill_intervals, generate_pipeline_sql, _get_source)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from ..decorators import managed_transaction
 from shared.services.database import DatabaseFunctions
 from ..utils.airflow_utils import Airflow
 
-# Synchronous API Router-- we can mount it to the main API
+# Synchronous API Router -- we can mount it to the main API
 SYNC_ROUTER = APIRouter(
     dependencies=[Depends(authenticate)]
 )
@@ -25,8 +29,7 @@ def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"), db: S
     """
     Returns a list of available feature sets
     """
-    crud.validate_schema_table(names)
-    return crud.get_feature_sets(db, feature_set_names=names)
+    return _get_feature_sets(names, db)
 
 @SYNC_ROUTER.get('/summary', status_code=status.HTTP_200_OK, response_model=schemas.FeatureStoreSummary,
                 description="Returns feature store summary metrics", operation_id='get_summary', tags=['Feature Store'])
@@ -69,8 +72,8 @@ def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
     """
     return crud.get_training_view_id(db, name)
 
-@SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureDescription],
-                description="Returns a list of all (or the specified) features", operation_id='get_features', tags=['Features'])
+@SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureDetail],
+                description="Returns a list of all (or the specified) features and details", operation_id='get_features', tags=['Features'])
 @managed_transaction
 def get_features_by_name(names: List[str] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
     """
@@ -78,6 +81,21 @@ def get_features_by_name(names: List[str] = Query([], alias="name"), db: Session
 
     """
     return crud.get_feature_descriptions_by_name(db, names)
+
+
+@SYNC_ROUTER.get('/feature-details', status_code=status.HTTP_200_OK, response_model=schemas.FeatureDetail,
+                description="Returns Feature Details for a single feature", operation_id='get_feature_details', tags=['Features'])
+@managed_transaction
+def get_features_details(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Returns a list of features whose names are provided. Same as /features but we keep it here for continuity with other
+    routes (Feature Sets and Training Views have a "details" route
+    """
+    dets = crud.get_feature_descriptions_by_name(db, [name])
+    if not dets:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Feature {name} does not exist. Please enter a valid feature.")
+    return dets[0]
 
 @SYNC_ROUTER.post('/feature-vector', status_code=status.HTTP_200_OK, response_model=Union[Dict[str, Any], str],
                 description="Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets", 
@@ -184,10 +202,10 @@ def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_
 def list_training_sets(db: Session = Depends(crud.get_db)):
     """
     Returns a dictionary a training sets available, with the map name -> description. If there is no description,
-    the value will be an emtpy string
+    the value will be an emtpy string. NOT YET IMPLEMENTED
 
     """
-    raise NotImplementedError("To see available training views, run fs.describe_training_views()")
+    raise SpliceMachineException("To see available training views, run fs.describe_training_views()")
 
 @SYNC_ROUTER.post('/feature-sets', status_code=status.HTTP_201_CREATED, response_model=schemas.FeatureSet, 
                 description="Creates and returns a new feature set", operation_id='create_feature_set', tags=['Feature Sets'])
@@ -196,17 +214,7 @@ def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(cru
     """
     Creates and returns a new feature set
     """
-    crud.validate_feature_set(db, fset)
-    logger.info(f'Registering feature set {fset.schema_name}.{fset.table_name} in Feature Store')
-    created_fset = crud.register_feature_set_metadata(db, fset)
-    if fset.features:
-        logger.info("Validating features")
-        for fc in fset.features:
-            crud.validate_feature(db, fc.name)
-            fc.feature_set_id = created_fset.feature_set_id
-        logger.info("Done. Bulk registering features")
-        crud.bulk_register_feature_metadata(db, fset.features)
-    return created_fset
+    return _create_feature_set(fset, db)
 
 @SYNC_ROUTER.post('/features', status_code=status.HTTP_201_CREATED, response_model=schemas.Feature,
                 description="Add a feature to a feature set", operation_id='create_feature', tags=['Features'])
@@ -215,7 +223,7 @@ def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db: Sessi
     """
     Add a feature to a feature set
     """
-    __validate_feature_data_type(fc.feature_data_type)
+
     if DatabaseFunctions.table_exists(schema, table, db.get_bind()):
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
                                         message=f"Feature Set {schema}.{table} is already deployed. You cannot "
@@ -226,7 +234,7 @@ def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db: Sessi
                                         message=f"Feature Set {schema}.{table} does not exist. Please enter "
                                         f"a valid feature set.")
     fset = fsets[0]
-    crud.validate_feature(db, fc.name)
+    crud.validate_feature(db, fc.name, fc.feature_data_type)
     fc.feature_set_id = fset.feature_set_id
     logger.info(f'Registering feature {fc.name} in Feature Store')
     return crud.register_feature_metadata(db, fc)
@@ -256,26 +264,11 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
     As of now, once deployed you cannot delete the feature set or add/delete features.
     The feature set must have already been created with :py:meth:`~features.FeatureStore.create_feature_set`
     """
-    try:
-        fset = crud.get_feature_sets(db, _filter={'schema_name': schema, 'table_name': table})[0]
-    except:
-        raise SpliceMachineException(
-            status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
-            message=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
-            f"feature set using fs.create_feature_set before deploying.")
-    if fset.deployed:
-        raise SpliceMachineException(
-            status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
-            message=f"Feature set {schema}.{table} is already deployed.")
+    return _deploy_feature_set(schema, table, db)
 
-    fset = crud.deploy_feature_set(db, fset)
-    if Airflow.is_active:
-        Airflow.schedule_feature_set_calculation(f'{schema}.{table}')
-    return fset
-
-@SYNC_ROUTER.get('/feature-set-descriptions', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDescription],
+@SYNC_ROUTER.get('/feature-set-details', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDetail],
                 description="Returns a description of all feature sets, with all features in the feature sets and whether the feature set is deployed", 
-                operation_id='get_feature_set_descriptions', tags=['Feature Sets'])
+                operation_id='get_feature_set_details', tags=['Feature Sets'])
 @managed_transaction
 def get_feature_set_descriptions(schema: Optional[str] = None, table: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
@@ -288,11 +281,11 @@ def get_feature_set_descriptions(schema: Optional[str] = None, table: Optional[s
     else:
         fsets = crud.get_feature_sets(db)
 
-    return [schemas.FeatureSetDescription(**fset.__dict__, features=crud.get_features(db, fset)) for fset in fsets]
+    return [schemas.FeatureSetDetail(**fset.__dict__, features=crud.get_features(db, fset)) for fset in fsets]
 
-@SYNC_ROUTER.get('/training-view-descriptions', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDescription],
+@SYNC_ROUTER.get('/training-view-details', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDetail],
                 description="Returns a description of all (or the specified) training views, the ID, name, description and optional label", 
-                operation_id='get_training_view_descriptions', tags=['Training Views'])
+                operation_id='get_training_view_details', tags=['Training Views'])
 @managed_transaction
 def get_training_view_descriptions(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
@@ -308,8 +301,8 @@ def get_training_view_descriptions(name: Optional[str] = None, db: Session = Dep
         # Grab the feature set info and their corresponding names (schema.table) for the display table
         feat_sets: List[schemas.FeatureSet] = crud.get_feature_sets(db, feature_set_ids=[f.feature_set_id for f in feats])
         feat_sets: Dict[int, str] = {fset.feature_set_id: f'{fset.schema_name}.{fset.table_name}' for fset in feat_sets}
-        fds = list(map(lambda f, feat_sets=feat_sets: schemas.FeatureDescription(**f.__dict__, feature_set_name=feat_sets[f.feature_set_id]), feats))
-        descs.append(schemas.TrainingViewDescription(**tcx.__dict__, features=fds))
+        fds = list(map(lambda f, feat_sets=feat_sets: schemas.FeatureDetail(**f.__dict__, feature_set_name=feat_sets[f.feature_set_id]), feats))
+        descs.append(schemas.TrainingViewDetail(**tcx.__dict__, features=fds))
     return descs
 
 @SYNC_ROUTER.put('/features', status_code=status.HTTP_200_OK, response_model=schemas.Feature,
@@ -434,7 +427,7 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
     if Airflow.is_active:
         Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
-@SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDescription],
+@SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDetail],
                 description="Get all deployments given either a deployment (schema/table), a training_view (name), "
                             "a feature (feat), or a feature set (fset)", operation_id='get_deployments', tags=['Deployments'])
 @managed_transaction
@@ -487,3 +480,152 @@ def get_training_set_features(name: str, db: Session = Depends(crud.get_db)):
     ts = deployments[0]
     features = crud.get_features_from_deployment(db, ts.training_set_id)
     return schemas.DeploymentFeatures(**ts.__dict__, features=features)
+
+@SYNC_ROUTER.post('/source', status_code=status.HTTP_201_CREATED, description="Creates a Source for Pipeline usage",
+                  operation_id='create_source', tags=['Source', 'Pipeline'])
+@managed_transaction
+def create_source(source: schemas.Source, db: Session = Depends(crud.get_db)):
+    """
+    Creates a new Source
+    """
+    crud.validate_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
+    logger.info(f'Registering source {source.name} in Feature Store')
+    crud.create_source(db, source.name, source.sql_text, source.pk_columns, source.event_ts_column, source.update_ts_column)
+
+@SYNC_ROUTER.delete('/source', status_code=status.HTTP_200_OK, description="Removes a Source from the Feature Store",
+                  operation_id='remove_source', tags=['Source', 'Pipeline'])
+@managed_transaction
+def remove_source(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Removes a Source if possible. Sources can only be removed if it is not being used in a Pipeline. If you want to
+    remove a Source that is being used in a Pipeline, you must first delete the Feature Set that the pipeline is feeding
+    (which will delete the Pipeline with it).
+    """
+    source: schemas.Source = crud.get_source(db, name)
+    if not source:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Cannot find source with name {name}")
+    fsets = crud.get_source_dependencies(db, source.source_id)
+    if fsets:
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                     message=f'Source {name} has dependent Feature Sets that are being fed with Pipelines.'
+                                             f' Remove the following Feature Sets before removing this Source: {fsets}')
+    crud.delete_source(db, source.source_id)
+
+@SYNC_ROUTER.get('/source', status_code=status.HTTP_200_OK, response_model=schemas.Source,
+                 description="Gets a Source by name", operation_id='create_source', tags=['Source', 'Pipeline'])
+@managed_transaction
+def get_source(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Gets a Source by name
+    """
+    return _get_source(name, db)
+
+
+@SYNC_ROUTER.get('/backfill-sql', status_code=status.HTTP_200_OK, response_model=str,
+                 description="Get backfill SQL for a feature set/source", operation_id='get_backfill_sql',
+                 tags=['Source', 'Pipeline', 'Backfill', 'SQL'])
+@managed_transaction
+def get_backfill_sql(schema: str, table: str, db: Session = Depends(crud.get_db)):
+    """
+    Generates the backfill SQL for a feature set and source
+    """
+    fset: List[schemas.FeatureSet] = _get_feature_sets(names=[f'{schema}.{table}'], db=db)
+    if not fset:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Feature Set {schema}.{table} does not exist. Please provide a valid feature set")
+    fset: schemas.FeatureSet = fset[0]
+    pipeline = crud.get_pipeline(db, fset.feature_set_id)
+    source = crud.get_pipeline_source(db, pipeline.source_id)
+    feature_aggs: List[schemas.FeatureAggregation] = crud.get_feature_aggregations(db, fset.feature_set_id)
+    if not feature_aggs:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any aggregations for the feature set {schema}.{table}.")
+    return generate_backfill_sql(schema, table, source, feature_aggs)
+
+@SYNC_ROUTER.get('/backfill-intervals', status_code=status.HTTP_200_OK, response_model=List[datetime],
+                 description="Get backfill intervals for parameterized backfill SQL", operation_id='get_backfill_intervals',
+                 tags=['Source', 'Pipeline', 'Backfill', 'SQL'])
+@managed_transaction
+def get_backfill_intevals(schema: str, table: str, db: Session = Depends(crud.get_db)):
+    """
+    Get backfill intervals for parameterized backfill SQL for a particular feature set.
+    """
+    fset: List[schemas.FeatureSet] = _get_feature_sets(names=[f'{schema}.{table}'], db=db)
+    if not fset:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Feature Set {schema}.{table} does not exist. Please provide a valid feature set")
+    fset: schemas.FeatureSet = fset[0]
+    pipeline = crud.get_pipeline(db, fset.feature_set_id)
+    return generate_backfill_intervals(db, pipeline)
+
+
+@SYNC_ROUTER.post('/agg-feature-set-from-source', status_code=status.HTTP_201_CREATED,
+                  description="Creates an aggregation feature set from a Source",
+                  operation_id='create_agg_feature_set_from_source', tags=['Feature_Set', 'Source', 'Pipeline'])
+@managed_transaction
+def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_backfill: Optional[bool] = False,
+                                       db: Session = Depends(crud.get_db)):
+    """
+    Creates a temporal aggregation feature set by creating a pipeline linking a source to a feature set. Provided
+    aggregations will generate the features for the feature set. If the feature set already exists, the feature names
+    must match the generated feature names. Otherwise, this will create the feature set along with aggregation
+    calculations to create features. Optionally runs the backfill at deploy time.
+    """
+    source = _get_source(sf.source_name, db)
+
+    source_pk_types = crud.get_source_pk_types(db, source)
+
+    fsetc = schemas.FeatureSetCreate(
+        schema_name=sf.schema_name,
+        table_name=sf.table_name,
+        description=sf.description,
+        primary_keys=source_pk_types,
+    )
+    fset = _create_feature_set(fsetc, db)
+
+    crud.create_pipeline(db, sf, fset.feature_set_id, source.source_id, 'FIXME')
+    # Create feature aggregations and features
+    # This registers the features and pipeline aggregations in the feature store
+    create_pipeline_entities(db, sf, source, fset.feature_set_id)
+    # Now that the features exist we can deploy the feature set
+    _deploy_feature_set(sf.schema_name, sf.table_name, db)
+    if run_backfill:
+        sql = generate_backfill_sql(sf.schema_name, sf.table_name, source, crud.get_feature_aggregations(db, fset.feature_set_id))
+        # TODO RUN backfill with Airflow
+    #TODO: RUN incremental pipeline on schedule with Airflow
+    return fset
+
+
+@SYNC_ROUTER.get('/pipeline-sql', status_code=status.HTTP_200_OK, response_model=str,
+                 description="Get incremental pipeline extract SQL for a feature set/source. This SQL is used to generate"
+                             "the incremental set of data from the source which the pipeline will add to both the history"
+                             "table and the serving table. This does NOT update the history and serving tables. That is done"
+                             "by an external job.", operation_id='get_pipeline_sql',
+                 tags=['Source', 'Pipeline', 'SQL'])
+@managed_transaction
+def get_pipeline_sql(schema: str, table: str, db: Session = Depends(crud.get_db)):
+    """
+    Generates the incremental Pipeline SQL for a feature set and source
+    """
+
+    fset: List[schemas.FeatureSet] = _get_feature_sets(names=[f'{schema}.{table}'], db=db)
+    if not fset:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Feature Set {schema}.{table} does not exist. Please provide a valid feature set")
+    fset: schemas.FeatureSet = fset[0]
+    pipeline: schemas.Pipeline = crud.get_pipeline(db, fset.feature_set_id)
+    if not pipeline:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any pipelines for the feature set {schema}.{table}.")
+    feature_aggs: List[schemas.FeatureAggregation] = crud.get_feature_aggregations(db, fset.feature_set_id)
+    if not feature_aggs:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any feature aggregations for the feature set {schema}.{table}.")
+    source = crud.get_pipeline_source(db, pipeline.source_id)
+    return generate_pipeline_sql(db, source, pipeline, feature_aggs)
+
+
+
+
+

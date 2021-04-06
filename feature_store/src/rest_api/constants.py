@@ -25,6 +25,17 @@ class SQL:
     ({{model_schema_name}}, {{model_table_name}}, {{model_start_ts}}, {{model_end_ts}}, {{feature_id}}, {{feature_cardinality}}, {{feature_histogram}}, {{feature_mean}}, {{feature_median}}, {{feature_count}}, {{feature_stddev}}) 
     """
 
+    backfill_timestamps = """
+    SELECT ASOF_TS
+    FROM new "com.splicemachine.fs_functions.TimestampGeneratorVTI"('{backfill_start_time}','{pipeline_start_time}',{window_value},{window_length})
+    t (asof_ts TIMESTAMP, until_ts TIMESTAMP)
+    """
+
+    pipeline = f"""
+    INSERT INTO {FEATURE_STORE_SCHEMA}.pipeline(feature_set_id, source_id, pipeline_start_ts, pipeline_interval, backfill_start_ts, backfill_interval, pipeline_url) 
+    VALUES ({{feature_set_id}}, {{source_id}}, '{{pipeline_start_ts}}', '{{pipeline_interval}}', '{{backfill_start_ts}}', '{{backfill_interval}}', '{{pipeline_url}}') 
+    """
+
 class Columns:
     feature = ['feature_id', 'feature_set_id', 'name', 'description', 'feature_data_type', 'feature_type',
                'tags', 'compliance_level', 'last_update_ts', 'last_update_username']
@@ -35,5 +46,17 @@ class Columns:
 SQL_TYPES = ['CHAR', 'LONG VARCHAR', 'VARCHAR', 'DATE', 'TIME', 'TIMESTAMP', 'BLOB', 'CLOB', 'TEXT', 'BIGINT',
              'DECIMAL', 'DOUBLE', 'DOUBLE PRECISION', 'FLOAT', 'INTEGER', 'NUMERIC', 'REAL', 'SMALLINT', 'TINYINT', 'BOOLEAN',
              'INT']
-SQLALCHEMY_TYPES = dict(zip(SQL_TYPES, [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
-                        DECIMAL, FLOAT, FLOAT, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, SMALLINT, BOOLEAN, INTEGER]))
+
+SQLALCHEMY_TYPES = [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT, DECIMAL, FLOAT, FLOAT,
+                    FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, SMALLINT, BOOLEAN, INTEGER]
+
+# class SQLALCHEMY_TYPES:
+#     mapping = dict(zip(SQL_TYPES, [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
+#                         DECIMAL, FLOAT, FLOAT, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, SMALLINT, BOOLEAN, INTEGER]))
+#     @staticmethod
+#     def _get(item: str):
+#         return SQLALCHEMY_TYPES.mapping[item.split('(')[0]]
+
+SQL_TO_SQLALCHEMY = dict(
+    zip(SQL_TYPES,SQLALCHEMY_TYPES)
+)

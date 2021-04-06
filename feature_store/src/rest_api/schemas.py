@@ -2,6 +2,7 @@ from typing import List, Optional, Dict, Union
 from datetime import datetime
 from pydantic import BaseModel
 
+
 class DataType(BaseModel):
     """
     A class for representing a SQL data type as an object. Data types can have length, precision,
@@ -26,7 +27,7 @@ class FeatureBase(FeatureMetadata):
 
 class FeatureCreate(FeatureBase):
     pass
-  
+
 class Feature(FeatureBase):
     feature_id: int
     compliance_level: Optional[int] = None
@@ -36,7 +37,7 @@ class Feature(FeatureBase):
     class Config:
         orm_mode = True
 
-class FeatureDescription(Feature):
+class FeatureDetail(Feature):
     feature_set_name: Optional[str] = None
 
 class FeatureSetBase(BaseModel):
@@ -57,7 +58,7 @@ class FeatureSet(FeatureSetBase):
     class Config:
         orm_mode = True
 
-class FeatureSetDescription(FeatureSet):
+class FeatureSetDetail(FeatureSet):
     features: List[Feature]
 
 class TrainingViewBase(BaseModel):
@@ -78,8 +79,47 @@ class TrainingView(TrainingViewBase):
     class Config:
         orm_mode = True
 
-class TrainingViewDescription(TrainingView):
-    features: List[FeatureDescription]
+class TrainingViewDetail(TrainingView):
+    features: List[FeatureDetail]
+
+class Source(BaseModel):
+    name: str
+    sql_text: str
+    event_ts_column: str
+    update_ts_column: str
+    source_id: Optional[int] = None
+    pk_columns: List[str]
+
+class Pipeline(BaseModel):
+    feature_set_id: int
+    source_id: int
+    pipeline_start_ts: datetime
+    pipeline_interval: str
+    backfill_start_ts: datetime
+    backfill_interval: str
+    pipeline_url: str
+    last_update_ts: datetime
+    last_update_username: str
+    class Config:
+        orm_mode = True
+
+class FeatureAggregation(BaseModel):
+    column_name: str
+    agg_functions: List[str]
+    agg_windows: List[str]
+    feature_name_prefix: Optional[str] = None
+    agg_default_value: Optional[float] = None
+
+class SourceFeatureSetAgg(BaseModel):
+    source_name: str
+    schema_name: str
+    table_name: str
+    start_time: datetime
+    schedule_interval: str
+    aggregations: List[FeatureAggregation]
+    backfill_start_time: Optional[datetime] = None
+    backfill_interval: Optional[str] = None
+    description: Optional[str] = None
 
 # Basically just for neat documentation
 class FeatureTimeframe(BaseModel):
@@ -88,7 +128,7 @@ class FeatureTimeframe(BaseModel):
     end_time: Optional[datetime] = None
 
 class FeatureJoinKeys(BaseModel):
-    features: List[Union[str, FeatureDescription]]
+    features: List[Union[str, FeatureDetail]]
     join_key_values: Dict[str, Union[str, int]]
 
 class Deployment(BaseModel):
@@ -104,10 +144,10 @@ class Deployment(BaseModel):
     class Config:
         orm_mode = True
 
-class DeploymentDescription(Deployment):
+class DeploymentDetail(Deployment):
     training_set_name: Optional[str] = None
 
-class DeploymentFeatures(DeploymentDescription):
+class DeploymentFeatures(DeploymentDetail):
     features: List[Feature]
 
 class TrainingSetMetadata(BaseModel):
