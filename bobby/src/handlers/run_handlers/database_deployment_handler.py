@@ -41,7 +41,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.jvm = self.spark_session._jvm
         self.model: Optional[Model] = None
 
-        # Going to see some issue due to https://splicemachine.atlassian.net/browse/DBAAS-5247 :(
+        # Going to see some issue due to https://splicemachine.atlassian.net/browse/DB-11749 :(
         # Exceptions that are thrown due to SQL will not be rolled back. Code-based exceptions will be
         self.savepoint = self.Session.begin_nested() # Create a savepoint in case of errors
 
@@ -218,7 +218,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
     def exception_handler(self, exc: Exception):
         self.logger.info("Rolling back...",send_db=True)
-        try: # SQL based exceptions will cause us to loose our savepoint https://splicemachine.atlassian.net/browse/DBAAS-5247
+        try: # SQL based exceptions will cause us to loose our savepoint https://splicemachine.atlassian.net/browse/DB-11749
             self.savepoint.rollback()
         except:
             pass
