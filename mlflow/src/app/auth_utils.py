@@ -3,6 +3,10 @@ from flask import Response, request
 from flask_login import UserMixin
 from shared.services.authentication import Authentication
 from shared.api.responses import HTTP
+from os import environ as env_vars
+import jwt
+
+AUTH0_CERT = env_vars['JUP_AUTH0_CERT']
 
 class User(UserMixin):
     """
@@ -15,7 +19,7 @@ class User(UserMixin):
         """
         self.id = username
 
-def basic_auth_required(f) -> object:
+def auth_required(f) -> object:
     """
     Decorator that ensures basic authentication
     credentials are valid before executing Flask Route
@@ -33,11 +37,17 @@ def basic_auth_required(f) -> object:
         :return: (Response) flask response or 401 response
         """
         auth = request.authorization
-        if not auth or not auth.username or not auth.password or not \
-                Authentication.validate_auth(auth.username, auth.password):
-            return Response('Access Denied. Basic Auth Credentials Denied.',
-                            HTTP.codes['unauthorized'],
-                            {'WWW-Authenticate': 'Basic realm="Login!"'})
-        return f(*args, **kwargs)
+        if auth and auth.username and auth.password and Authentication.validate_auth(auth.username, auth.password):
+            return f(*args, **kwargs)
+
+        token = request.headers.get('Authorization')
+        if token:
+            token = token.replace('Bearer ', '')
+            if jwt.decode(token, AUTH0_CERT, verify=False).get('email'):
+                return f(*args, **kwargs)
+
+        return Response('Access Denied. Basic Auth Credentials Denied.',
+                        HTTP.codes['unauthorized'],
+                        {'WWW-Authenticate': 'Basic realm="Login!"'})
 
     return wrapper

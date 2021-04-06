@@ -102,7 +102,6 @@ class Authentication:
         :param password: (str) the password to validate
         :return: (bool) whether or not the user is authenticated
         """
-        logger.info(token)
         gate = Authentication.create_gateway()
         java_import(gate.jvm, "com.splicemachine.shiro.SpliceDatabaseJWTRealm.*")
         realm = gate.jvm.com.splicemachine.shiro.SpliceDatabaseJWTRealm()
@@ -119,7 +118,6 @@ class Authentication:
         logger.info('Token created')
         # when shiro authentication fails, it throws an error
         username = jwt.getUserId()
-        # token = jwt.getToken()
         try:
             logger.info('Attempting login')
             u = f'"{username}"' if '@' in username else username

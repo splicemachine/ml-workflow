@@ -11,7 +11,7 @@ ARG SHIRO_WEB_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_web_ve
 ARG SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/$splice_shiro_version.jar
 
 # ODBC Driver Configuration
-ARG odbc_driver_version='2.7.63.0'
+ARG odbc_driver_version='2.8.74.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Defining Root Directory
@@ -47,24 +47,17 @@ RUN rm -rf $BUILD_HOME/* && \
 RUN \
   curl -kLs $SHIRO_CORE_URI      -o $SRC_HOME/lib/$shiro_core_version.jar && \
   curl -kLs $SHIRO_WEB_URI       -o $SRC_HOME/lib/$shiro_web_version.jar && \
-#   curl -kLs $SPLICE_SHIRO_URI    -o $SRC_HOME/lib/$splice_shiro_version.jar && \
+  curl -kLs $SPLICE_SHIRO_URI    -o $SRC_HOME/lib/$splice_shiro_version.jar && \
   curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28.jar && \
   curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-sources.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-sources.jar && \
   curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-javadoc.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-javadoc.jar && \
   curl -kls https://repo1.maven.org/maven2/javax/javaee-api/7.0/javaee-api-7.0.jar                     -o $SRC_HOME/lib/javaee-api-7.0.jar && \
-#   curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-api/0.11.2/jjwt-api-0.11.2.jar -o $SRC_HOME/lib/jjwt-api-0.11.2.jar && \
-#   curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-impl/0.11.2/jjwt-impl-0.11.2.jar -o $SRC_HOME/lib/jjwt-impl-0.11.2.jar && \
-#   curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-jackson/0.11.2/jjwt-jackson-0.11.2.jar -o $SRC_HOME/lib/jjwt-jackson-0.11.2.jar && \
-  curl -kls https://repo1.maven.org/maven2/com/nimbusds/nimbus-jose-jwt/4.26.1/nimbus-jose-jwt-4.26.1.jar -o $SRC_HOME/lib/nimbus-jose-jwt-4.26.1.jar && \
-  curl -kls https://repo1.maven.org/maven2/net/minidev/json-smart/1.0.6.3/json-smart-1.0.6.3.jar -o $SRC_HOME/lib/json-smart-1.0.6.3.jar && \
+  curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-api/0.11.2/jjwt-api-0.11.2.jar -o $SRC_HOME/lib/jjwt-api-0.11.2.jar && \
+  curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-impl/0.11.2/jjwt-impl-0.11.2.jar -o $SRC_HOME/lib/jjwt-impl-0.11.2.jar && \
+  curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-jackson/0.11.2/jjwt-jackson-0.11.2.jar -o $SRC_HOME/lib/jjwt-jackson-0.11.2.jar && \
   curl -kls https://repo1.maven.org/maven2/org/glassfish/javax.json/1.1.4/javax.json-1.1.4.jar -o $SRC_HOME/lib/javax.json-1.1.4.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
-
-# RUN curl -kLs https://splicemachine.s3.amazonaws.com/artifacts/splice-shiro-3.1.0.2007.jar -o $SRC_HOME/lib/splice-shiro-3.1.0.2007.jar
-
-COPY feature_store/src/lib/original-splice-shiro-3.1.0.2007.jar $SRC_HOME/lib/splice-shiro-3.1.0.2007.jar
-COPY feature_store/src/lib/slf4j-api-1.7.28.jar $SRC_HOME/lib/slf4j-api-1.7.28.jar
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 
