@@ -1017,7 +1017,7 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
         db.add(key)
     logger.info('Done.')
 
-def get_source(db: Session, name: str) -> schemas.Source:
+def get_source(db: Session, name: str = None, pipe_id: int = None) -> schemas.Source:
     """
     Gets a Source by name
 
@@ -1025,7 +1025,13 @@ def get_source(db: Session, name: str) -> schemas.Source:
     :param name: Source name
     :return: Source
     """
-    s = db.query(models.Source).filter(models.Source.name == name).first()
+
+    s = db.query(models.Source)
+    if name:
+        s = s.filter(func.upper(models.Source.name) == name.upper())
+    if pipe_id:
+        s = s.filter(models.Source.source_id == pipe_id)
+    s = s.first()
     if s:
         sk = db.query(models.SourceKey.key_column_name).filter(models.SourceKey.source_id == s.source_id).all()
         sch = s.__dict__
@@ -1040,9 +1046,7 @@ def get_pipeline_source(db: Session, id) -> schemas.Source:
     :param id: Pipeline's source_id
     :return: Source
     """
-    s = db.query(models.Source).filter(models.Source.source_id == id).first()
-    if s:
-        return get_source(db, s.name)
+    return get_source(db, pipe_id=id)
 
 def get_source_dependencies(db: Session, id: int) -> List[str]:
     """
