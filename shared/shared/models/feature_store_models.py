@@ -53,7 +53,7 @@ class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
     A queue of feature sets that have been requested to be deployed, but have not been approved.
     """
     __tablename__: str = "pending_feature_set_deployment"
-    feature_set_id: Column = Column(Integer, primary_key=True)
+    feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id), primary_key=True)
     request_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     request_username: Column = Column(String(128), nullable=False)
     status: Column = Column(String(128), nullable=True, default='PENDING')
