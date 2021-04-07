@@ -74,9 +74,8 @@ RUN conda install -c anaconda postgresql
 
 RUN adduser postgres && \
     usermod -aG root postgres && \
-    ln -s /root/miniconda3/bin/pg_ctl /usr/bin/pg_ctl
-
-RUN alias pip3=/usr/bin/pip3 && \
+    ln -s /root/miniconda3/bin/pg_ctl /usr/bin/pg_ctl && \
+    alias pip3=/usr/bin/pip3 && \
     alias python3=/usr/bin/python3
 
 COPY shared /tmp/shared
