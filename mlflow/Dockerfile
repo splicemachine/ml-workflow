@@ -27,42 +27,42 @@ COPY mlflow/build $BUILD_HOME
 # Install development packages.
 RUN yum clean all && \
     rm -rf /var/cache/yum && \
-    yum -y install $(cat /$BUILD_HOME/yum_packages.txt) && \
-    pip3 install -q -r $BUILD_HOME/requirements.txt
+    yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
 
 # Install ODBC Driver
 RUN cd $BUILD_HOME && \
     wget -O splice_odbc.tar.gz $ODBC_DRIVER_ARTIFACT && \
     tar xzf splice_odbc.tar.gz && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
-    sh ./install.sh -q && \
-    mkdir -p $SRC_HOME/lib
-
-# Copy Shiro (and dependencies) for authentication
-RUN \
-  curl -kL $SHIRO_CORE_URI      -o $SRC_HOME/lib/$shiro_core_version.jar && \
-  curl -kL $SHIRO_WEB_URI       -o $SRC_HOME/lib/$shiro_web_version.jar && \
-  curl -kL $SPLICE_SHIRO_URI    -o $SRC_HOME/lib/$splice_shiro_version.jar && \
-  curl -kl https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28.jar && \
-  curl -kl https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-sources.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-sources.jar && \
-  curl -kl https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-javadoc.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-javadoc.jar && \
-  curl -kL http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
-  curl -kL http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
+    sh ./install.sh -q
 
 # Install Python dependencies
 COPY mlflow/splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
-RUN  pip3 install  $BUILD_HOME/splice_mlflow_plugin && \
-     rm -rf $BUILD_HOME/*
+RUN pip3 install -q -r $BUILD_HOME/requirements.txt && \
+    pip3 install  $BUILD_HOME/splice_mlflow_plugin
+
+# Remove Build Directories and Create source directory
+RUN rm -rf $BUILD_HOME/* && \
+    mkdir -p $SRC_HOME/lib
 
 # Copy Source into Container
 COPY mlflow/src $SRC_HOME
 COPY mlflow/src/lib $SRC_HOME/lib
 
+# Copy Shiro (and dependencies) for authentication
+RUN \
+  curl -kLs $SHIRO_CORE_URI      -o $SRC_HOME/lib/$shiro_core_version.jar && \
+  curl -kLs $SHIRO_WEB_URI       -o $SRC_HOME/lib/$shiro_web_version.jar && \
+  curl -kLs $SPLICE_SHIRO_URI    -o $SRC_HOME/lib/$splice_shiro_version.jar && \
+  curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28.jar && \
+  curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-sources.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-sources.jar && \
+  curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-javadoc.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-javadoc.jar && \
+  curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
+  curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
+
 COPY shared /tmp/shared
 RUN pip3 install --user /tmp/shared/.
 
-COPY mlflow/39d1c3be5f05_add_is_nan_constraint_for_metrics_tables_if_necessary.py /usr/local/lib/python3.6/site-packages/mlflow/store/db_migrations/versions/
-
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
-
+COPY mlflow/39d1c3be5f05_add_is_nan_constraint_for_metrics_tables_if_necessary.py /usr/local/lib/python3.6/site-packages/mlflow/store/db_migrations/versions/
 CMD $SRC_HOME"/scripts/entrypoint.sh"
