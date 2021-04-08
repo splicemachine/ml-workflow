@@ -4,27 +4,21 @@ from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from shared.services.authentication import Authentication
 from shared.logger.logging_config import logger
 import base64
-import jwt
-from os import environ as env_vars
-
-AUTH0_CERT = env_vars['JUP_AUTH0_CERT']
 
 security = HTTPBasic()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
  
 def verify_jwt(token: str = Depends(oauth2_scheme)):
     logger.info('Verifying JWT Token')
-    # credentials_exception = SpliceMachineException(status_code=status.HTTP_401_UNAUTHORIZED, code=ExceptionCodes.NOT_AUTHORIZED,
-    #                                     message="Could not validate credentials")
-    # try:
-    #     # email = 'test'
-    #     email = Authentication.validate_token(token)
-    #     # email = Authentication.validate_auth('splice', 'admin')
-    #     if email is None:
-    #         raise credentials_exception
-    # except:
-    #     raise credentials_exception
-    return jwt.decode(token, AUTH0_CERT, verify=False).get('email')
+    credentials_exception = SpliceMachineException(status_code=status.HTTP_401_UNAUTHORIZED, code=ExceptionCodes.NOT_AUTHORIZED,
+                                        message="Could not validate credentials")
+    try:
+        email = Authentication.validate_token(token)
+        if email is None:
+            raise credentials_exception
+    except:
+        raise credentials_exception
+    return email
 
 def verify_basic(credentials: HTTPBasicCredentials = Depends(security)):
     logger.info('Verifying Basic Auth')

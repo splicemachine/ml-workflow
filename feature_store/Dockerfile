@@ -52,9 +52,11 @@ RUN \
   curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-sources.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-sources.jar && \
   curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-javadoc.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-javadoc.jar && \
   curl -kls https://repo1.maven.org/maven2/javax/javaee-api/7.0/javaee-api-7.0.jar                     -o $SRC_HOME/lib/javaee-api-7.0.jar && \
-  curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-api/0.11.2/jjwt-api-0.11.2.jar -o $SRC_HOME/lib/jjwt-api-0.11.2.jar && \
-  curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-impl/0.11.2/jjwt-impl-0.11.2.jar -o $SRC_HOME/lib/jjwt-impl-0.11.2.jar && \
-  curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-jackson/0.11.2/jjwt-jackson-0.11.2.jar -o $SRC_HOME/lib/jjwt-jackson-0.11.2.jar && \
+#   curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-api/0.11.2/jjwt-api-0.11.2.jar -o $SRC_HOME/lib/jjwt-api-0.11.2.jar && \
+#   curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-impl/0.11.2/jjwt-impl-0.11.2.jar -o $SRC_HOME/lib/jjwt-impl-0.11.2.jar && \
+#   curl -kls https://repo1.maven.org/maven2/io/jsonwebtoken/jjwt-jackson/0.11.2/jjwt-jackson-0.11.2.jar -o $SRC_HOME/lib/jjwt-jackson-0.11.2.jar && \
+#   curl -kls https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.9.10.4/jackson-databind-2.9.10.4.jar -o $SRC_HOME/lib/jackson-databind-2.9.10.4.jar && \
+#   curl -kls https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.9.10/jackson-annotations-2.9.10.jar -o $SRC_HOME/lib/jackson-annotations-2.9.10.jar && \
   curl -kls https://repo1.maven.org/maven2/org/glassfish/javax.json/1.1.4/javax.json-1.1.4.jar -o $SRC_HOME/lib/javax.json-1.1.4.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
