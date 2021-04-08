@@ -121,7 +121,7 @@ def generate_backfill_sql(schema: str, table: str, source: schemas.Source, featu
     # Get the SQL integer value of the smallest window and it's length (see function description)
     min_window_length, min_window_value = helpers.get_min_window_sql(all_windows)
 
-    innersource_list += f", TimestampSnapToInterval(timestamp({source.event_ts_column}), {min_window_value},{min_window_length}) {source.event_ts_column}"
+    innersource_list += f", FeatureStore.TimestampSnapToInterval(timestamp({source.event_ts_column}), {min_window_value},{min_window_length}) {source.event_ts_column}"
 
 
     pk_col_list = ",".join(source.pk_columns)
@@ -182,7 +182,7 @@ def generate_pipeline_sql(db,  source: schemas.Source, pipeline: schemas.Pipelin
     extract_scope_sql = f'''
         SELECT 
             DISTINCT {pk_col_list}, 
-            TimestampSnapToInterval(timestamp({source.event_ts_column}), {window_value}, {window_length}) asof_ts 
+            FeatureStore.TimestampSnapToInterval(timestamp({source.event_ts_column}), {window_value}, {window_length}) asof_ts 
         FROM ({source.sql_text}) isrc 
         WHERE isrc.{source.update_ts_column} > timestamp('{ts_limit}')
     '''
