@@ -28,9 +28,9 @@ public class H2ORunner extends AbstractRunner implements Externalizable {
 
     public H2ORunner(){};
 
-    public H2ORunner(final Blob modelBlob) throws SQLException, IOException, ClassNotFoundException {
+    public H2ORunner(final byte[] modelBlob) throws SQLException, IOException, ClassNotFoundException {
         this.deserModel = new SQLBlob(modelBlob);
-        final InputStream bis = modelBlob.getBinaryStream();
+        final InputStream bis = new ByteArrayInputStream(modelBlob);
         final ObjectInputStream ois = new ObjectInputStream(bis);
         this.model = (EasyPredictModelWrapper) ois.readObject();
     }

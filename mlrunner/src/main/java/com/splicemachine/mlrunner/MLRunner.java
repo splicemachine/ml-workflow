@@ -73,7 +73,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
             // Get the model blob and the library
             final Object[] modelAndLibrary = AbstractRunner.getModelBlob(modelID);
             final String lib = ((String) modelAndLibrary[1]).toLowerCase();
-            Blob model = (Blob) modelAndLibrary[0];
+            byte[] model = (byte[]) modelAndLibrary[0];
             switch (lib) {
                 case "h2o":
                     runner = new H2ORunner(model);

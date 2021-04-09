@@ -40,7 +40,8 @@ public abstract class AbstractRunner implements Externalizable {
         Object [] obj = null;
         java.sql.ResultSet rs = pstmt.executeQuery();
         if (rs.next()) {
-            final Blob blobModel = rs.getBlob(1);
+            final Blob bm = rs.getBlob(1);
+            final byte[] blobModel = bm.getBytes(1,(int)bm.length());
             final String library = rs.getString(2);
             obj = new Object[]{blobModel, library};
         }

@@ -32,9 +32,9 @@ public class KerasRunner extends AbstractRunner implements Externalizable {
     SQLBlob deserModel;
 
     public KerasRunner(){};
-    public KerasRunner(Blob modelBlob) throws SQLException, UnsupportedKerasConfigurationException, IOException, InvalidKerasConfigurationException {
+    public KerasRunner(byte[] modelBlob) throws SQLException, UnsupportedKerasConfigurationException, IOException, InvalidKerasConfigurationException {
         this.deserModel = new SQLBlob(modelBlob);
-        InputStream is = modelBlob.getBinaryStream();
+        InputStream is =new ByteArrayInputStream(modelBlob);
         this.model = KerasModelImport.importKerasSequentialModelAndWeights(is, true);
     }
 
