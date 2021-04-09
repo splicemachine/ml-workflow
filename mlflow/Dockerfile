@@ -63,6 +63,9 @@ RUN \
 COPY shared /tmp/shared
 RUN pip3 install --user /tmp/shared/.
 
+# Bug fix for the mlflow 1.15 release
+COPY mlflow/build/39d1c3be5f05_add_is_nan_constraint_for_metrics_tables_if_necessary.py /usr/local/lib/python3.6/site-packages/mlflow/store/db_migrations/versions/
+
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
-COPY mlflow/39d1c3be5f05_add_is_nan_constraint_for_metrics_tables_if_necessary.py /usr/local/lib/python3.6/site-packages/mlflow/store/db_migrations/versions/
+
 CMD $SRC_HOME"/scripts/entrypoint.sh"
