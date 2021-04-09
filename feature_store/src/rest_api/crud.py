@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session, aliased
 from typing import List, Dict, Union, Any, Tuple, Set
 from . import schemas
 from .constants import SQL
+from sqlalchemy.sql.elements import TextClause
 from shared.models import feature_store_models as models
-from shared.services.database import SQLAlchemyClient, DatabaseFunctions
+from shared.services.database import SQLAlchemyClient, DatabaseFunctions, Converters
 from shared.logger.logging_config import logger
 from fastapi import status
 import re
@@ -12,13 +13,15 @@ import json
 from datetime import datetime
 from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text
 from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
-                          sql_to_datatype, _sql_to_sqlalchemy_columns, model_to_schema_feature,
+                          sql_to_datatype, _sql_to_sqlalchemy_columns,
                           __validate_feature_data_type, __validate_primary_keys)
+from .utils.feature_utils import model_to_schema_feature
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
 from sqlalchemy.types import TIMESTAMP
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
-
+from decimal import Decimal
+from uuid import uuid1
 
 def get_db():
     """
@@ -79,16 +82,17 @@ def validate_schema_table(names: List[str]) -> None:
                                         message="It seems you've passed in an invalid name. " \
                                         "Names must conform to '[schema_name].[table_name]'")
 
-def validate_feature(db: Session, name: str) -> None:
+def validate_feature(db: Session, name: str, data_type: schemas.DataType) -> None:
     """
     Ensures that the feature doesn't exist as all features have unique names
     :param db: SqlAlchemy Session
     :param name: the Feature name
+    :param data_type: (str) the Feature data type
     :return: None
     """
     # TODO: Capitalization of feature name column
     # TODO: Make more informative, add which feature set contains existing feature
-    str = f"Cannot add feature {name}, feature already exists in Feature Store. Try a new feature name."
+
     if not re.match('^[A-Za-z][A-Za-z0-9_]*$', name, re.IGNORECASE):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
                                      message='Feature name does not conform. Must start with an alphabetic character, '
@@ -96,7 +100,20 @@ def validate_feature(db: Session, name: str) -> None:
 
     l = db.query(models.Feature.name).filter(func.upper(models.Feature.name) == name.upper()).count()
     if l > 0:
-        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=str)
+        err_str = f"Cannot add feature {name}, feature already exists in Feature Store. Try a new feature name."
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS,
+                                     message=err_str)
+    __validate_feature_data_type(data_type)
+    # Last resort if all else passes. Create a temporary table with the column name and data type. If this fails,
+    # you won't be able to deploy this feature
+    try:
+        sql_type = datatype_to_sql(data_type)
+        tmp = str(uuid1()).replace('-','_')
+        db.execute(f'CREATE LOCAL TEMPORARY TABLE COLUMN_TEST_{tmp}({name} {sql_type})') # Will be deleted when session ends
+    except Exception as err:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f'The feature {name} of type {data_type} is invalid. The data type could '
+                                             f'not be parsed, and threw the following error: {str(err)}')
 
 def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
     """
@@ -241,6 +258,23 @@ def delete_feature_set(db: Session, feature_set_id: int):
     """
     db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id == feature_set_id).delete(synchronize_session='fetch')
 
+def delete_pipeline(db: Session, feature_set_id: int):
+    """
+    Deletes pipeline and dependencies from feature store with a given feature set id
+
+    :param db: Database Session
+    :param feature_set_id: feature set ID to delete
+    """
+    # Pipeline Operations
+    db.query(models.PipelineOps).filter(models.PipelineOps.feature_set_id == feature_set_id)\
+        .delete(synchronize_session='fetch')
+    # Pipeline aggregations
+    db.query(models.PipelineAgg).filter(models.PipelineAgg.feature_set_id == feature_set_id)\
+        .delete(synchronize_session='fetch')
+    # Pipeline
+    db.query(models.Pipeline).filter(models.Pipeline.feature_set_id == feature_set_id)\
+        .delete(synchronize_session='fetch')
+
 def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
                        training_sets: Set[int] = None):
     """
@@ -271,6 +305,10 @@ def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascad
     # Delete Feature Set Keys
     logger.info("Removing feature set keys")
     delete_features_set_keys(db, feature_set.feature_set_id)
+
+    # Delete pipeline dependencies
+    logger.info("Deleting any Pipeline dependencies")
+    delete_pipeline(db, feature_set.feature_set_id)
 
     # Delete feature set
     logger.info("Removing features set")
@@ -332,6 +370,7 @@ def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, 
     f = aliased(models.Feature, name='f')
     tset = aliased(models.TrainingSet, name='tset')
     tset_feat = aliased(models.TrainingSetFeature, name='tset_feat')
+    pipe = aliased(models.Pipeline, name='pipeline')
     d = aliased(models.Deployment, name='d')
 
     p = db.query(f.feature_id).filter(f.feature_set_id==feature_set_id).subquery('p')
@@ -374,11 +413,12 @@ def get_training_sets_from_view(db: Session, vid: int) -> List[int]:
     :param vid: The training view ID
     """
     res = db.query(models.TrainingSet.training_set_id).filter(models.TrainingSet.view_id == vid).all()
-    return [i[0] for i in res] # Returns 
+    return [i for (i,) in res]
 
 
 
-def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None, _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
+def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None,
+                     _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
     """
     Returns a list of available feature sets
 
@@ -493,7 +533,7 @@ def get_training_view_id(db: Session, name: str) -> int:
         filter(models.TrainingView.name==name).\
         first()[0]
 
-def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool = True) -> List[schemas.FeatureDescription]:
+def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool = True) -> List[schemas.FeatureDetail]:
     """
     Returns a dataframe or list of features whose names are provided
 
@@ -518,9 +558,9 @@ def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool =
     for schema, table, feat in df.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         f = model_to_schema_feature(feat)
-        features.append(schemas.FeatureDescription(**f.__dict__, feature_set_name=f'{schema}.{table}'))
+        features.append(schemas.FeatureDetail(**f.__dict__, feature_set_name=f'{schema}.{table}'))
 
-    if sort:
+    if sort and names:
         indices = {v.upper():i for i,v in enumerate(names)}
         features = sorted(features, key=lambda f: indices[f.name.upper()])
     return features
@@ -677,7 +717,7 @@ def update_feature_metadata(db: Session, name: str, desc: str = None,
     db.flush()
     return model_to_schema_feature(feat.first())
 
-def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDescription]:
+def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDetail]:
     """
     Returns a dataframe or list of features whose names are provided
 
@@ -789,9 +829,12 @@ def bulk_register_feature_metadata(db: Session, feats: List[schemas.FeatureCreat
 
     features: List[models.Feature] = [
         models.Feature(
-            feature_set_id=f.feature_set_id, name=f.name, description=f.description,
+            feature_set_id=f.feature_set_id,
+            name=f.name,
+            description=f.description,
             feature_data_type=datatype_to_sql(f.feature_data_type),
-            feature_type=f.feature_type, tags=','.join(f.tags) if f.tags else None,
+            feature_type=f.feature_type,
+            tags=','.join(f.tags) if f.tags else None,
             attributes=json.dumps(f.attributes) if f.attributes else None
         )
         for f in feats
@@ -810,8 +853,7 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
     feat_str = [f for f in features if isinstance(f, str)]
     str_to_feat = get_feature_descriptions_by_name(db, names=feat_str) if feat_str else []
     all_features = str_to_feat + [f for f in features if not isinstance(f, str)]
-    if not all(
-        [isinstance(i, schemas.Feature) for i in all_features]):
+    if not all([isinstance(i, schemas.Feature) for i in all_features]):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                         message="It seems you've passed in Features that are neither" \
                                         " a feature name (string) or a Feature object")
@@ -822,7 +864,6 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
                                         message=f'Could not find the following features: {missing}')
     return all_features
-
 
 
 def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.FeatureSet:
@@ -847,6 +888,7 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
         pk_list=get_pk_column_str(fset), feature_list=feature_list,
         new_pk_cols=new_pk_cols, new_feature_cols=new_feature_cols)
 
+
     logger.info('Creating Feature Set...')
     pk_columns = _sql_to_sqlalchemy_columns(fset.primary_keys, True)
     ts_columns = [Column('last_update_ts', TIMESTAMP, nullable=False)]
@@ -858,11 +900,16 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     logger.info('Done.')
 
     logger.info('Creating Feature Set History...')
+
     pk_columns = _sql_to_sqlalchemy_columns(fset.primary_keys, True)
-    ts_columns = [Column('asof_ts', TIMESTAMP, primary_key=True), Column('ingest_ts', TIMESTAMP)]
+    ts_columns = [
+        Column('asof_ts', TIMESTAMP, primary_key=True),
+        Column('ingest_ts', TIMESTAMP, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    ]
     feature_columns = _sql_to_sqlalchemy_columns({f.name.lower(): f.feature_data_type
                                                   for f in get_features(db, fset)}, False)
     columns = pk_columns + ts_columns + feature_columns
+
     history = Table(f'{fset.table_name.lower()}_history', metadata, *columns, schema=fset.schema_name.lower())
     history.create(db.connection())
     logger.info('Done.')
@@ -890,7 +937,8 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
 
 def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, label_col=None) -> None:
     """
-    Validates that the training view doesn't already exist.
+    Validates that the training view doesn't already exist, that the provided sql is valid, and that the pk_cols and
+    label_col provided are valid
 
     :param db: SqlAlchemy Session
     :param name: The training view name
@@ -908,7 +956,8 @@ def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, labe
     # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
     from sqlalchemy.exc import ProgrammingError
     try:
-        valid_df = db.execute(sql_text)
+        sql = f'select * from ({sql_text}) x where 1=0' # So we get column names but don't actually execute their sql
+        valid_df = db.execute(sql)
     except ProgrammingError as e:
         if '[Splice Machine][Splice]' in str(e):
             raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
@@ -935,6 +984,7 @@ def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, labe
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
                                 message=f"Not all provided join keys exist. Remove {missing_keys} or " \
                                 f"create a feature set that uses the missing keys")
+
 
 def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
     """
@@ -966,6 +1016,259 @@ def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
         key = models.TrainingViewKey(view_id=vid, key_column_name=i.upper(), key_type='P')
         db.add(key)
     logger.info('Done.')
+
+def get_source(db: Session, name: str = None, pipe_id: int = None) -> schemas.Source:
+    """
+    Gets a Source by name
+
+    :param db: Session
+    :param name: Source name
+    :return: Source
+    """
+
+    s = db.query(models.Source)
+    if name:
+        s = s.filter(func.upper(models.Source.name) == name.upper())
+    if pipe_id:
+        s = s.filter(models.Source.source_id == pipe_id)
+    s = s.first()
+    if s:
+        sk = db.query(models.SourceKey.key_column_name).filter(models.SourceKey.source_id == s.source_id).all()
+        sch = s.__dict__
+        sch['pk_columns'] = [i for (i,) in sk]
+        return schemas.Source(**sch)
+
+def get_pipeline_source(db: Session, id) -> schemas.Source:
+    """
+    Gets the source of a particular Pipeline (since a Pipeline has only 1 source)
+
+    :param db: Session
+    :param id: Pipeline's source_id
+    :return: Source
+    """
+    return get_source(db, pipe_id=id)
+
+def get_source_dependencies(db: Session, id: int) -> List[str]:
+    """
+    Returns the dependencies of a Source (typically a Pipeline/Feature Set)
+
+    :param db: SQLAlchemy Session
+    :param id: The Source ID
+    :return: The name of the Feature Set being fed by a Pipeline reading from this Source
+    """
+    p = db.query(models.Pipeline.feature_set_id).\
+        filter(models.Pipeline.source_id == id).subquery('p')
+    res = db.query(models.FeatureSet.schema_name, models.FeatureSet.table_name).\
+        filter(models.FeatureSet.feature_set_id.in_(p)).all()
+    fset_names = [f'{s}.{t}' for s, t in res]
+    return fset_names
+
+
+def get_source_pk_types(db: Session, source: schemas.Source) -> Dict[str,schemas.DataType]:
+    """
+    Gets the primary key column names and SQL data types for a source
+
+    :param db: Session
+    :param source: The Source in question
+    :return: Primary Keys with their types
+    """
+    lazy_sql = f'select * from ({source.sql_text}) x where 1=0'
+    valid_df = db.execute(lazy_sql)
+    col_descriptions = valid_df.cursor.description
+    pk_types = {}
+    pks = [d.lower() for d in source.pk_columns]
+    for d in col_descriptions:
+        if d[0].lower() in pks:
+            col, py_type = d[0], d[1]
+            dtype = Converters.PY_DB_CONVERSIONS[py_type]
+            if py_type == Decimal: # handle precision and recall
+                prec, scale = d[3],d[5]
+                data_type = schemas.DataType(data_type=dtype, prec=prec, scale=scale)
+            elif py_type == str: # handle varchar length
+                length = d[3]
+                data_type = schemas.DataType(data_type=dtype, length=length)
+            else:
+                data_type = schemas.DataType(data_type=dtype)
+            pk_types[col] = data_type
+    return pk_types
+
+
+def validate_source(db: Session, name, sql_text, pk_columns, event_ts_column, update_ts_column) -> None:
+    """
+    Validates that the Source doesn't already exist, that the provided sql is valid, and that the pk_cols and
+    event_ts_column/update_ts_column provided are valid (meaning they exist from the SQL)
+
+    :param db: SqlAlchemy Session
+    :param name: The source name
+    :param sql: The source provided SQL
+    :param pk_columns: The primary keys of the source
+    :param event_ts_column: The event_ts_col name
+    :param event_ts_column: The update_ts_col name
+    :return: None
+    """
+    # Validate name doesn't exist
+    if get_source(db, name):
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS,
+                                     message=f"Source {name} already exists!")
+
+    # Column comparison
+    # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
+    from sqlalchemy.exc import ProgrammingError
+    try:
+        sql = f'select * from ({sql_text}) x where 1=0' # So we get column names but don't actually execute their sql
+        valid_df = db.execute(sql)
+    except ProgrammingError as e:
+        if '[Splice Machine][Splice]' in str(e):
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                            message=f'The provided SQL is incorrect. The following error was raised during '
+                                            f'validation:\n\n{str(e)}') from None
+        raise e
+
+    if valid_df.is_insert:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided SQL seems to be an insert statement. Source SQL must be a "
+                                                f"SELECT")
+    if not valid_df.returns_rows:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided does not seem to be a SELECT statement that should return "
+                                                f"rows. The provided source SQL must be able to return rows.")
+
+    # Ensure the event_ts_column specified is in the output of the SQL
+    if event_ts_column.upper() not in valid_df.keys():
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided event_ts_column column {event_ts_column} is not available in the provided SQL")
+
+    # Ensure the event_ts_column specified is in the output of the SQL
+    if update_ts_column.upper() not in valid_df.keys():
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided update_ts_column column {update_ts_column} is not available in the provided SQL")
+
+    # Ensure the primary key columns are in the output of the SQL
+    pks = set(key.upper() for key in pk_columns)
+    missing_keys = pks - set(valid_df.keys())
+    if missing_keys:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided primary key(s) {missing_keys} are not available in the provided SQL")
+
+def create_source(db: Session, name, sql_text, pk_columns, event_ts_column, update_ts_column) -> None:
+    """
+    Creates a Source and stores the metadata in the Feature Store
+
+    :param db: SqlAlchemy Session
+    :param name: The source name
+    :param sql: The source provided SQL
+    :param pk_columns: The primary keys of the source
+    :param event_ts_column: The event_ts_col name
+    :param event_ts_column: The update_ts_col name
+    :return: None
+    """
+    s = models.Source(
+        name=name,
+        sql_text=sql_text,
+        event_ts_column=event_ts_column,
+        update_ts_column=update_ts_column,
+
+    )
+    db.add(s)
+    db.flush() # Get source ID
+    source_keys: List[models.SourceKey] = []
+    for k in pk_columns:
+        sk = models.SourceKey(
+            source_id = s.source_id,
+            key_column_name = k
+        )
+        source_keys.append(sk)
+    db.bulk_save_objects(source_keys)
+
+def delete_source(db: Session, id: int):
+    """
+    Deletes a Source and its Keys from the Feature Store
+
+    :param db: SQLAlchemy Session
+    :param id: Source ID
+    """
+    logger.info(f"Delete source keys for source {id}")
+    db.query(models.SourceKey).filter(models.SourceKey.source_id==id).delete(synchronize_session='fetch')
+    logger.info(f"Delete source {id}" )
+    db.query(models.Source).filter(models.Source.source_id==id).delete(synchronize_session='fetch')
+
+def create_pipeline(db: Session, sf: schemas.SourceFeatureSetAgg, fset_id: int,
+                    source_id: int, pipeline_url: str) -> None:
+    """
+    Registers a pipeline in the Feature Store that will be scheduled and executed by Airflow. This
+    metadata is for tracking purposes only
+
+    :param db: SqlAlchemy Session
+    :param sf: SourceFeatureSetAgg
+    :param fset_id: Feature Set ID for this Pipeline
+    :param source_id: The ID of the Source SQL
+    :param pipeline_url: The Airflow (or other ETL tool) URL
+    """
+    p = dict(
+        feature_set_id = fset_id,
+        source_id = source_id,
+        pipeline_start_ts = str(sf.start_time),
+        pipeline_interval = sf.schedule_interval,
+        backfill_start_ts = str(sf.backfill_start_time),
+        backfill_interval = sf.backfill_interval,
+        pipeline_url = pipeline_url
+    )
+    logger.info("Adding pipeline")
+    db.execute(SQL.pipeline.format(**p))
+    db.flush()
+
+def create_pipeline_aggregations(db: Session, pipeline_aggs: List[models.PipelineAgg]):
+    """
+    Creates the pipeline aggregation functions and registers them in the Feature Store
+
+    bulk_register_feature_metadata
+    :param pipeline_aggs: The pipeline aggregation functions to add
+    """
+    db.bulk_save_objects(pipeline_aggs)
+
+def get_feature_aggregations(db: Session, fset_id: int) -> List[schemas.FeatureAggregation]:
+    """
+    Returns a list of feature aggregations for a particular feature set pipeline
+
+    :param db: Session
+    :param fset_id: The ID of the feature set
+    :return: List[schemas.FeatureAggregations] the feature aggregations for that feature set pipeline
+    """
+    p = aliased(models.PipelineAgg, name='p')
+    feat_aggs = db.query(
+        p.feature_name_prefix, p.column_name, p.agg_functions, p.agg_windows, p.agg_default_value
+    ).filter(p.feature_set_id == fset_id).all()
+    feat_aggs: List[schemas.FeatureAggregation] = [
+        schemas.FeatureAggregation(
+            feature_name_prefix=fnp,
+            column_name=column_name,
+            agg_functions=json.loads(agg_functions),
+            agg_windows=json.loads(agg_windows),
+            agg_default_value=float(agg_default_val)
+        )
+        for fnp, column_name, agg_functions, agg_windows, agg_default_val in feat_aggs
+    ]
+    return feat_aggs
+
+def get_pipeline(db: Session, fset_id: int) -> schemas.Pipeline:
+    """
+    Gets a pipeline from a feature set ID
+
+    :param db: Session
+    :param fset_id: Feature Set ID
+    :return: the pipeline
+    """
+    return db.query(models.Pipeline).filter(models.Pipeline.feature_set_id == fset_id).first()
+
+def get_last_pipeline_run(db: Session, fset_id: int) -> datetime:
+    """
+    Gets the timestamp of the last "extract" (run) of a Feature Set Pipeline. Since they run on a schedule
+    :param db: SQLAlchemy Session
+    :param fset_id: Feature Set ID that the Pipeline is feeding
+    :return: datetime
+    """
+    res = db.query(func.max(models.PipelineOps.extract_up_to_ts)).filter(models.PipelineOps.feature_set_id == fset_id).first()
+    return res[0] if res else None
 
 def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str, table_name: str) -> schemas.TrainingSetMetadata:
     """
@@ -1013,8 +1316,8 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
 def delete_feature(db: Session, feature: models.Feature) -> None:
     db.delete(feature)
 
-def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schemas.FeatureDescription = None,
-                    feature_set: schemas.FeatureSet = None) -> List[schemas.DeploymentDescription]:
+def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schemas.FeatureDetail = None,
+                    feature_set: schemas.FeatureSet = None) -> List[schemas.DeploymentDetail]:
     d = aliased(models.Deployment, name='d')
     ts = aliased(models.TrainingSet, name='ts')
     f = aliased(models.Feature, name='f')
@@ -1037,7 +1340,7 @@ def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schema
 
     deployments = []
     for name, deployment in q.all():
-        deployments.append(schemas.DeploymentDescription(**deployment.__dict__, training_set_name=name))
+        deployments.append(schemas.DeploymentDetail(**deployment.__dict__, training_set_name=name))
     return deployments
 
 def get_features_from_deployment(db: Session, tsid: int) -> List[schemas.Feature]:

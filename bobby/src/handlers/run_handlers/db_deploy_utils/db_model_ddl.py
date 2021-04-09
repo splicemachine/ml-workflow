@@ -354,7 +354,7 @@ class DatabaseModelDDL:
 
             # Create training set
             ts = TrainingSet(
-                view_id=view_id,
+                view_id=int(view_id),
                 name=key_vals['splice.feature_store.training_set'],
                 last_update_username=self.request_user
             )
@@ -443,7 +443,7 @@ class DatabaseModelDDL:
                 DatabaseSQL.add_feature_store_deployment.format(**deployment)
             )
 
-    def _validate_training_view(self, view_id):
+    def _validate_training_view(self, view_id: int):
         """
         Validates that a particular training view exists. If a run in mlflow was training using a training set from
         the feature store, and that training set was taken from a training view that no longer exists, we cannot
@@ -452,7 +452,7 @@ class DatabaseModelDDL:
         :param view_id: The view ID
         """
         tvw: TrainingView = self.session.query(TrainingView)\
-            .filter_by(view_id=view_id).one_or_none()
+            .filter(TrainingView.view_id==view_id).first()
         if not tvw:
             raise Exception(f"The training view (id:{view_id}) used for this run has been deleted."
                             f" You cannot deploy a model that was trained using a training view that no longer exists.")
@@ -486,7 +486,7 @@ class DatabaseModelDDL:
             # We need to ensure this view hasn't been deleted since the time this run was created
             if eval(key_vals['splice.feature_store.training_view_id']): # returns 'None' not None so need eval
                 self.logger.info('Validating that the Training View still exists')
-                self._validate_training_view(key_vals['splice.feature_store.training_view_id'])
+                self._validate_training_view(int(key_vals['splice.feature_store.training_view_id']))
 
             ts: TrainingSet = self._register_training_set(key_vals)
             self.logger.info(f"Done. Gathering individual features...", send_db=True)
