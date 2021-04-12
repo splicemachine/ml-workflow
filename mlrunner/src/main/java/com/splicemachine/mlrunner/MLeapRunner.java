@@ -38,9 +38,9 @@ public class MLeapRunner extends AbstractRunner implements Externalizable {
     private static final Logger LOG = Logger.get(MLRunner.class);
 
     public MLeapRunner(){};
-    public MLeapRunner(final Blob modelBlob) throws IOException, ClassNotFoundException, SQLException {
+    public MLeapRunner(final byte[] modelBlob) throws IOException, ClassNotFoundException, SQLException {
         this.deserModel = new SQLBlob(modelBlob);
-        final InputStream bis = modelBlob.getBinaryStream();
+        final InputStream bis = new ByteArrayInputStream(modelBlob);
         final ObjectInputStream ois = new ObjectInputStream(bis);
         this.model = (Transformer) ois.readObject();
     }

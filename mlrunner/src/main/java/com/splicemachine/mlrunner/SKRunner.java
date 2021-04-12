@@ -26,13 +26,11 @@ public class SKRunner extends AbstractRunner implements Externalizable {
     private static final Logger LOG = Logger.get(MLRunner.class);
 
     public SKRunner(){};
-    public SKRunner(final Blob modelBlob) throws SQLException, IOException {
+    public SKRunner(final byte[] modelBlob) throws SQLException, IOException {
+
+
         this.deserModel = new SQLBlob(modelBlob);
-        InputStream is = modelBlob.getBinaryStream();
-        int fileSize = (int)modelBlob.length();
-        final byte[] allBytes = new byte[fileSize];
-        is.read(allBytes);
-        this.model = allocateDirect(fileSize).put(allBytes);
+        this.model = allocateDirect(modelBlob.length).put(modelBlob);
     }
 
     private Object[][] parseData(LinkedList<ExecRow> unprocessedRows, List<Integer> modelFeaturesIndexes) throws StandardException {
