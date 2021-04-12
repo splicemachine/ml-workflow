@@ -93,7 +93,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
             logger.info("Finished Initialization...")
 
             Base.metadata.bind = self.engine
-            self.ManagedSessionMaker = _get_managed_session_maker(SQLAlchemyClient.SessionMaker)
+            self.ManagedSessionMaker = _get_managed_session_maker(SQLAlchemyClient.SessionMaker, self.db_type)
             _verify_schema(SQLAlchemyClient.engine)
 
             if len(self.list_experiments()) == 0:
@@ -238,7 +238,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
     def _search_runs(self, experiment_ids, filter_string, run_view_type, max_results, order_by,
                      page_token):
 
-        def compute_next_token(current_size):
+        def _compute_next_token(current_size):
             next_token = None
             if max_results == current_size:
                 final_offset = offset + max_results
@@ -256,7 +256,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
 
         with self.ManagedSessionMaker() as session:
             # Fetch the appropriate runs and eagerly load their summary metrics, params, and
-            # tags. These run attributes are referenced during the invocation of
+            # tags. These run attributes are referenced during the invocation ofruns[ind].to_dictionary()['data'][typ][col]
             # ``run.to_mlflow_entity()``, so eager loading helps avoid additional database.py queries
             # that are otherwise executed at attribute access time under a lazy loading model.
             parsed_filters = SearchUtils.parse_search_filter(filter_string)
@@ -312,11 +312,12 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                                 col = 'mlflow.source.name'
 
                         # Determine if the value is an number or string
+                        ind = None
                         for i, j in enumerate(runs):
                             if (col in j.to_dictionary()['data'][typ]):
                                 ind = i
                                 break
-                        compare_val = runs[ind].to_dictionary()['data'][typ][col]
+                        compare_val = runs[ind].to_dictionary()['data'][typ][col] if ind!=None else None
                         default_val = 'z' if str(
                             compare_val) == compare_val else 0  # in case a run doesn't have that value
                         runs = sorted(runs, key=lambda i: i.to_dictionary()['data'][typ].get(col, default_val),
@@ -326,7 +327,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
                     traceback.print_exc()
                     raise Exception(str(x))
                     # pass
-            next_page_token = compute_next_token(len(runs))
+            next_page_token = _compute_next_token(len(runs))
 
         return runs, next_page_token
 

@@ -1,5 +1,5 @@
 Flask==1.0.2
-mlflow==1.8.0
+mlflow==1.15.0
 splicemachinesa>=0.3.7
 boto3==1.9.164
 gunicorn==19.9.0
