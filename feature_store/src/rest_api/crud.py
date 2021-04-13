@@ -725,7 +725,7 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
     :param names: The list of feature names
     :return: List[Feature] The list of Feature objects and their metadata. Note, this is not the Feature
     values, simply the describing metadata about the features. To create a training dataset with Feature values, see
-    :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_featur_dataset`
+    :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_feature_dataset`
     """
     f = aliased(models.Feature, name='f')
     fset = aliased(models.FeatureSet, name='fset')
