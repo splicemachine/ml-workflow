@@ -6,7 +6,7 @@ LABEL maintainer="nnygaard@splicemachine.com,bepstein@splicemachine.com,abaveja@
 ENV PYSPARK_PYTHON="/usr/bin/python3"
 
 # ODBC Driver Configuration
-ARG odbc_driver_version='2.7.63.0'
+ARG odbc_driver_version='2.8.74.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Spark Configuration
