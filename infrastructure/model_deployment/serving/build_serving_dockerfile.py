@@ -53,7 +53,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Build the Splice K8s Model Serving Docker Image")
     parser.add_argument('image_name', type=str,
-                        help='Image name when done building (e.g. splicemachine/sm_k8_model_serving:0.0.2)')
+                        help='Image name when done building (e.g. splicemachine/sm_k8_model_serving:0.0.17)')
 
     results = parser.parse_args()
     ImageBuilder.build_docker(image_name=results.image_name)

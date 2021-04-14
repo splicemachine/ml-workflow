@@ -25,7 +25,7 @@ class KubernetesDeploymentHandler(BaseDeploymentHandler):
     Handler for processing deployment to Kubernetes
     """
     DEFAULT_RETRIEVER_TAG = '0.0.13'
-    DEFAULT_SERVING_TAG = '0.0.15'
+    DEFAULT_SERVING_TAG = '0.0.16'
     MLFLOW_SERVICE = env_vars.get('MLFLOW_SERVICE', 'splicedb-mlflow')
 
     def __init__(self, task_id: int):
