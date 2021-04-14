@@ -11,7 +11,7 @@ ARG SHIRO_WEB_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_web_ve
 ARG SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shiro-2.7.0.1915.jar
 
 # ODBC Driver Configuration
-ARG odbc_driver_version='2.7.63.0'
+ARG odbc_driver_version='2.8.74.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Defining Root Directory
