@@ -82,6 +82,15 @@ def get_features_by_name(names: List[str] = Query([], alias="name"), db: Session
     """
     return crud.get_feature_descriptions_by_name(db, names)
 
+@SYNC_ROUTER.get('/feature-exists', status_code=status.HTTP_200_OK, response_model=bool,
+                description="Returns whether or not a feature name exists", operation_id='feature_exists', tags=['Features'])
+@managed_transaction
+def feature_exists(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Returns whether or not a given feature exists
+
+    """
+    return bool(crud.get_features_by_name(db, [name]))
 
 @SYNC_ROUTER.get('/feature-details', status_code=status.HTTP_200_OK, response_model=schemas.FeatureDetail,
                 description="Returns Feature Details for a single feature", operation_id='get_feature_details', tags=['Features'])
@@ -215,6 +224,17 @@ def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(cru
     Creates and returns a new feature set
     """
     return _create_feature_set(fset, db)
+
+
+@SYNC_ROUTER.get('/feature-set-exists', status_code=status.HTTP_200_OK, response_model=bool,
+                description="Returns whether or not a feature set exists", operation_id='feature_set_exists', tags=['Feature Set'])
+@managed_transaction
+def feature_set_exists(schema: str, table: str, db: Session = Depends(crud.get_db)):
+    """
+    Returns whether or not the provided feature set exists
+    """
+
+    return bool(crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}']))
 
 @SYNC_ROUTER.post('/features', status_code=status.HTTP_201_CREATED, response_model=schemas.Feature,
                 description="Add a feature to a feature set", operation_id='create_feature', tags=['Features'])
