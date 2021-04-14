@@ -24,7 +24,9 @@ add_timing_middleware(app=APP, record=logger.info, exclude='health')
 APP.add_middleware(
     middleware_class=CORSMiddleware,
     allow_origins=[
-        'http://localhost:8090'
+        'http://localhost:8090',
+        'http://localhost:3000',
+        'https://localhost:3000',
     ],
     allow_credentials=True,
     allow_methods=["*"],
