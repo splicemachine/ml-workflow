@@ -211,7 +211,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         ddl_creator.create()
         self.logger.info("Flushing", send_db=True)
         self.Session.flush()
-        self.logger.warning("Committing Transaction to Database", send_db=True)
+        self.logger.info("Committing Transaction to Database", send_db=True)
         self.savepoint.commit() # Release the savepoint so we can commit transactions
         self.Session.commit()
         self.logger.info("Committed.", send_db=True)
