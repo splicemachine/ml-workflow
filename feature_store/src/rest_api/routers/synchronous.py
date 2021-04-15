@@ -272,7 +272,7 @@ def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Depends(c
             status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
             message="Name of training view cannot be None!")
 
-    crud.validate_training_view(db, tv.name, tv.sql_text, tv.join_columns, tv.pk_columns, tv.label_column)
+    crud.validate_training_view(db, tv)
     crud.create_training_view(db, tv)
 
 @SYNC_ROUTER.post('/deploy-feature-set', status_code=status.HTTP_200_OK, response_model=schemas.FeatureSet,
@@ -287,10 +287,10 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
     return _deploy_feature_set(schema, table, db)
 
 @SYNC_ROUTER.get('/feature-set-details', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDetail],
-                description="Returns a description of all feature sets, with all features in the feature sets and whether the feature set is deployed", 
+                description="Returns details of all feature sets, with all features in the feature sets and whether the feature set is deployed",
                 operation_id='get_feature_set_details', tags=['Feature Sets'])
 @managed_transaction
-def get_feature_set_descriptions(schema: Optional[str] = None, table: Optional[str] = None, db: Session = Depends(crud.get_db)):
+def get_feature_set_details(schema: Optional[str] = None, table: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Returns a description of all feature sets, with all features in the feature sets and whether the feature
     set is deployed
@@ -304,10 +304,10 @@ def get_feature_set_descriptions(schema: Optional[str] = None, table: Optional[s
     return [schemas.FeatureSetDetail(**fset.__dict__, features=crud.get_features(db, fset)) for fset in fsets]
 
 @SYNC_ROUTER.get('/training-view-details', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDetail],
-                description="Returns a description of all (or the specified) training views, the ID, name, description and optional label", 
+                description="Returns details of all (or the specified) training views, the ID, name, description and optional label",
                 operation_id='get_training_view_details', tags=['Training Views'])
 @managed_transaction
-def get_training_view_descriptions(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
+def get_training_view_details(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Returns a description of all (or the specified) training views, the ID, name, description and optional label
     """
@@ -592,7 +592,9 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
     must match the generated feature names. Otherwise, this will create the feature set along with aggregation
     calculations to create features. Optionally runs the backfill at deploy time.
     """
-    source = _get_source(sf.source_name, db)
+    source: schemas.Source = _get_source(sf.source_name, db)
+
+    crud.validate_feature_aggregations(db, source, sf.aggregations)
 
     source_pk_types = crud.get_source_pk_types(db, source)
 
