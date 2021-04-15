@@ -21,7 +21,7 @@ services:
       FRAMEWORK_NAME: my-framework
       MODE: development
       ENVIRONMENT: ${ENVIRONMENT:-default}
-    image: splicemachine/sm_k8_mlflow:0.1.31_ui_002
+    image: splicemachine/sm_k8_mlflow:0.1.31_ui_007
     ports:
       - "5001:5001"
       - "5003:5003"

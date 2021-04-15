@@ -93,7 +93,8 @@ fi
 
 # Fix for the UI code being enbedded in an iframe
 # Replace window.parent.location.origin with *
-sed -i 's/window\.parent\.location\.origin)/"*")/' /usr/local/lib/python3.6/site-packages/mlflow/server/js/build/static/js/main.cc1b77ea.chunk.js
+
+sed -i 's/window\.parent\.location\.origin)/"*")/' /usr/local/lib/python3.6/site-packages/mlflow/server/js/build/static/js/main.0b04a742.chunk.js
 
 
 echo "Starting Job Tracking UI on port :${GUI_PORT}"
