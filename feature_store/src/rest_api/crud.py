@@ -935,28 +935,25 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     logger.info('Done.')
     return fset
 
-def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, label_col=None) -> None:
+def validate_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
     """
     Validates that the training view doesn't already exist, that the provided sql is valid, and that the pk_cols and
     label_col provided are valid
 
     :param db: SqlAlchemy Session
-    :param name: The training view name
-    :param sql: The training view provided SQL
-    :param join_keys: The provided join keys when creating the training view
-    :param pk_cols: The primary keys of the training view
-    :param label_col: The label column
+    :param tv: TrainingView
     :return: None
     """
     # Validate name doesn't exist
-    if len(get_training_views(db, _filter={'name': name}))> 0:
-        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS, message=f"Training View {name} already exists!")
+    if len(get_training_views(db, _filter={'name': tv.name}))> 0:
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS,
+                                     message=f"Training View {tv.name} already exists!")
 
     # Column comparison
     # Lazily evaluate sql resultset, ensure that the result contains all columns matching pks, join_keys, tscol and label_col
     from sqlalchemy.exc import ProgrammingError
     try:
-        sql = f'select * from ({sql_text}) x where 1=0' # So we get column names but don't actually execute their sql
+        sql = f'select * from ({tv.sql_text}) x where 1=0' # So we get column names but don't actually execute their sql
         valid_df = db.execute(sql)
     except ProgrammingError as e:
         if '[Splice Machine][Splice]' in str(e):
@@ -966,12 +963,19 @@ def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, labe
         raise e
 
     # Ensure the label column specified is in the output of the SQL
-    if label_col and not label_col.upper() in valid_df.keys():
+    if tv.label_column and not tv.label_column.upper() in valid_df.keys():
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
-                                        message=f"Provided label column {label_col} is not available in the provided SQL")
+                                        message=f"Provided label column {tv.label_column} "
+                                                f"is not available in the provided SQL")
+
+    # Ensure timestamp column is in the SQL
+    if tv.ts_column.upper() not in valid_df.keys():
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided timestamp column {tv.ts_column} "
+                                                f"is not available in the provided SQL")
 
     # Ensure the primary key columns are in the output of the SQL
-    pks = set(key.upper() for key in pk_cols)
+    pks = set(key.upper() for key in tv.pk_columns)
     missing_keys = pks - set(valid_df.keys())
     if missing_keys:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
@@ -979,7 +983,7 @@ def validate_training_view(db: Session, name, sql_text, join_keys, pk_cols, labe
 
     # Confirm that all join_keys provided correspond to primary keys of created feature sets
     jks = set(i[0].upper() for i in db.query(distinct(models.FeatureSetKey.key_column_name)).all())
-    missing_keys = set(i.upper() for i in join_keys) - jks
+    missing_keys = set(i.upper() for i in tv.join_columns) - jks
     if missing_keys:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
                                 message=f"Not all provided join keys exist. Remove {missing_keys} or " \
