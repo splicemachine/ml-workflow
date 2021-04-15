@@ -594,6 +594,8 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
     """
     source = _get_source(sf.source_name, db)
 
+    crud.validate_feature_aggregations(db, source.sql_text, sf.aggregations)
+
     source_pk_types = crud.get_source_pk_types(db, source)
 
     fsetc = schemas.FeatureSetCreate(

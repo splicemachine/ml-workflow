@@ -11,6 +11,7 @@ from fastapi import status
 import re
 import json
 from datetime import datetime
+from collections import Counter
 from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text
 from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           sql_to_datatype, _sql_to_sqlalchemy_columns,
@@ -975,11 +976,19 @@ def validate_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
                                                 f"is not available in the provided SQL")
 
     # Ensure the primary key columns are in the output of the SQL
-    pks = set(key.upper() for key in tv.pk_columns)
+    all_pks = [key.upper() for key in tv.pk_columns]
+    pks = set(all_pks)
     missing_keys = pks - set(valid_df.keys())
     if missing_keys:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
                                         message=f"Provided primary key(s) {missing_keys} are not available in the provided SQL")
+
+    # Check for duplicate primary keys
+    dups = ([key.lower() for key, count in Counter(all_pks).items() if count > 1])
+    if dups:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                        message=f"You cannot provide multiple of the same primary key: remove the duplicates"
+                                                f" {dups}")
 
     # Confirm that all join_keys provided correspond to primary keys of created feature sets
     jks = set(i[0].upper() for i in db.query(distinct(models.FeatureSetKey.key_column_name)).all())
@@ -988,6 +997,21 @@ def validate_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
                                 message=f"Not all provided join keys exist. Remove {missing_keys} or " \
                                 f"create a feature set that uses the missing keys")
+
+    # Ensure the join key columns are in the output of the SQL
+    all_jks = [key.upper() for key in tv.join_columns]
+    jks = set(all_jks)
+    missing_keys = jks - set(valid_df.keys())
+    if missing_keys:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                                        message=f"Provided join key(s) {missing_keys} are not available in the provided SQL")
+
+    # Check for duplicate join keys
+    dups = ([key.lower() for key, count in Counter(all_jks).items() if count > 1])
+    if dups:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                        message=f"You cannot provide multiple of the same join key: remove the duplicates"
+                                                f" {dups}")
 
 
 def create_training_view(db: Session, tv: schemas.TrainingViewCreate) -> None:
@@ -1229,6 +1253,53 @@ def create_pipeline_aggregations(db: Session, pipeline_aggs: List[models.Pipelin
     :param pipeline_aggs: The pipeline aggregation functions to add
     """
     db.bulk_save_objects(pipeline_aggs)
+
+def validate_feature_aggregations(db: Session, source: schemas.Source, fns: [schemas.FeatureAggregation]) -> None:
+    """
+    Validates that the provided feature aggregations have column names that are in the provided SQL
+
+    :param db: SqlAlchemy Session
+    :param name: The source name
+    :param sql: The source provided SQL
+    :param pk_columns: The primary keys of the source
+    :param event_ts_column: The event_ts_col name
+    :param event_ts_column: The update_ts_col name
+    :return: None
+    """
+
+
+    # Column comparison
+    # Even though this source has already been validated, something in the backend may have broken it (a table may have
+    #  been dropped or modified etc)
+    from sqlalchemy.exc import ProgrammingError
+    try:
+        sql = f'select * from ({source.sql_text}) x where 1=0' # So we get column names but don't actually execute their sql
+        valid_df = db.execute(sql)
+    except ProgrammingError as e:
+        if '[Splice Machine][Splice]' in str(e):
+            raise SpliceMachineException(
+                status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+                message=f'The provided Source {source.name} has SQL that is no longer valid. You should work with '
+                        f'an administrator or data engineer to address the issue with your Source SQL. This feature set'
+                        f' cannot currently be created. The following error was raised during validation:\n\n{str(e)}'
+            ) from None
+        raise e
+
+    # Ensure the columns chosen for feature aggregations are in the output of the SQL
+    cols = set(f.column_name for f in fns)
+    missing_cols = cols - set(valid_df.keys())
+    if missing_cols:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                        message=f"Provided columns {missing_cols} are not available in the provided SQL."
+                                                f" Remove those feature aggregations or use a different Source")
+
+    # Check for duplicate column prefixes
+    prefixes = [f.feature_name_prefix for f in fns]
+    dups = ([key for key, count in Counter(prefixes).items() if count > 1])
+    if dups:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                        message=f"You cannot provide multiple of the same feature prefix: remove the duplicates"
+                                                f" {dups}")
 
 def get_feature_aggregations(db: Session, fset_id: int) -> List[schemas.FeatureAggregation]:
     """
