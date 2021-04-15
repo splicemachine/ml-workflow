@@ -592,9 +592,9 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
     must match the generated feature names. Otherwise, this will create the feature set along with aggregation
     calculations to create features. Optionally runs the backfill at deploy time.
     """
-    source = _get_source(sf.source_name, db)
+    source: schemas.Source = _get_source(sf.source_name, db)
 
-    crud.validate_feature_aggregations(db, source.sql_text, sf.aggregations)
+    crud.validate_feature_aggregations(db, source, sf.aggregations)
 
     source_pk_types = crud.get_source_pk_types(db, source)
 

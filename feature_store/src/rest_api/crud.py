@@ -1254,19 +1254,16 @@ def create_pipeline_aggregations(db: Session, pipeline_aggs: List[models.Pipelin
     """
     db.bulk_save_objects(pipeline_aggs)
 
-def validate_feature_aggregations(db: Session, source: schemas.Source, fns: [schemas.FeatureAggregation]) -> None:
+def validate_feature_aggregations(db: Session, source: schemas.Source, fns: List[schemas.FeatureAggregation]) -> None:
     """
-    Validates that the provided feature aggregations have column names that are in the provided SQL
+    Validates that the provided feature aggregations have column names that are in the provided SQL and that there
+    aren't duplicates. It also validates that the source SQL still works.
 
     :param db: SqlAlchemy Session
-    :param name: The source name
-    :param sql: The source provided SQL
-    :param pk_columns: The primary keys of the source
-    :param event_ts_column: The event_ts_col name
-    :param event_ts_column: The update_ts_col name
+    :param source: The source
+    :param fns: The list of feature aggreagtions
     :return: None
     """
-
 
     # Column comparison
     # Even though this source has already been validated, something in the backend may have broken it (a table may have
