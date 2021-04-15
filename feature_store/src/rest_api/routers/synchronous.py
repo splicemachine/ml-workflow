@@ -287,10 +287,10 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
     return _deploy_feature_set(schema, table, db)
 
 @SYNC_ROUTER.get('/feature-set-details', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDetail],
-                description="Returns a description of all feature sets, with all features in the feature sets and whether the feature set is deployed", 
+                description="Returns details of all feature sets, with all features in the feature sets and whether the feature set is deployed",
                 operation_id='get_feature_set_details', tags=['Feature Sets'])
 @managed_transaction
-def get_feature_set_descriptions(schema: Optional[str] = None, table: Optional[str] = None, db: Session = Depends(crud.get_db)):
+def get_feature_set_details(schema: Optional[str] = None, table: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Returns a description of all feature sets, with all features in the feature sets and whether the feature
     set is deployed
@@ -304,10 +304,10 @@ def get_feature_set_descriptions(schema: Optional[str] = None, table: Optional[s
     return [schemas.FeatureSetDetail(**fset.__dict__, features=crud.get_features(db, fset)) for fset in fsets]
 
 @SYNC_ROUTER.get('/training-view-details', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDetail],
-                description="Returns a description of all (or the specified) training views, the ID, name, description and optional label", 
+                description="Returns details of all (or the specified) training views, the ID, name, description and optional label",
                 operation_id='get_training_view_details', tags=['Training Views'])
 @managed_transaction
-def get_training_view_descriptions(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
+def get_training_view_details(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Returns a description of all (or the specified) training views, the ID, name, description and optional label
     """
