@@ -27,6 +27,7 @@ APP.add_middleware(
         'http://localhost:8090',
         'http://localhost:3000',
         'https://localhost:3000',
+        'https://nonprod-gke-dev1.gke.splicemachine-dev.io' # FIXME: Temporary for new UI team dev
     ],
     allow_credentials=True,
     allow_methods=["*"],
