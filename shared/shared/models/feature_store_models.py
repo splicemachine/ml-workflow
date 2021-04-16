@@ -95,7 +95,6 @@ class Feature(SQLAlchemyClient.SpliceBase):
     description: Column = Column(String(500), nullable=True)
     feature_data_type: Column = Column(String(255))
     feature_type: Column = Column(String(1))  # 'O'rdinal, 'C'ontinuous, 'N'ominal
-    cardinality: Column = Column(Integer)  # Number of distint values, -1 if undefined
     tags: Column = Column(String(5000), nullable=True)
     attributes: Column = Column(String(5000), nullable=True)
     compliance_level: Column = Column(Integer)
@@ -109,6 +108,26 @@ class Feature(SQLAlchemyClient.SpliceBase):
         ),
         {'schema': 'featurestore'}
     )
+
+
+class FeatureStats(SQLAlchemyClient.SpliceBase):
+    """
+    Feature Stats are statistics calculated regularly about features. Each feature will have many entries in the table
+    about their statistics. These are calculated in the background so they are readily available in the UI.
+    """
+    __tablename__: str = "feature_stats"
+    __table_args__ = {'schema': 'featurestore'}
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True)
+    stat_start_ts: Column = Column(DateTime, primary_key=True)
+    stat_end_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), primary_key=True)
+    cardinality: Column = Column(Integer) # Number of distinct values, -1 if undefined
+    histogram: Column = Column(Text)
+    mean: Column = Column(Numeric)
+    median: Column = Column(Numeric)
+    count: Column = Column(Integer)
+    stddev: Column = Column(Numeric)
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
 
 class TrainingView(SQLAlchemyClient.SpliceBase):
