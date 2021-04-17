@@ -8,7 +8,7 @@ from .auth import authenticate
 from .. import schemas, crud
 from ..utils.training_utils import (dict_to_lower,_get_training_view_by_name,
                                 _get_training_set, _get_training_set_from_view)
-from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets
+from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets, full_delete_feature_set
 from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, generate_backfill_sql,
                                                     generate_backfill_intervals, generate_pipeline_sql, _get_source)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
@@ -165,8 +165,8 @@ def get_training_view_features(view: str, db: Session = Depends(crud.get_db)):
                 operation_id='get_training_set', tags=['Training Sets'])
 @managed_transaction
 def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label: str = None,
-                            return_pk_cols: bool = Query(False, alias='pks'), return_ts_col: bool = Query(False, alias='ts'), 
-                            db: Session = Depends(crud.get_db)):
+                     return_pk_cols: bool = Query(False, alias='pks'), return_ts_col: bool = Query(False, alias='ts'),
+                     save_as: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Gets a set of feature values across feature sets that is not time dependent (ie for non time series clustering).
     This feature dataset will be treated and tracked implicitly the same way a training_dataset is tracked from
@@ -179,9 +179,49 @@ def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label
     columns across all Feature Sets from all Features provided. If more than 1 Feature Set has the superset of
     all Feature Sets, the Feature Set with the most primary keys is selected. If more than 1 Feature Set has the same
     maximum number of primary keys, the Feature Set is chosen by alphabetical order (schema_name, table_name).
+
+    If save_as is set, the training set metadata will be persisted as a TrainingSetInstance record. This enables recreation
+    of the Training Set as an Ad-Hoc query
     """
     create_time = crud.get_current_time(db)
-    return _get_training_set(db, ftf.features, create_time, ftf.start_time, ftf.end_time, current, label, return_pk_cols, return_ts_col)
+    ts: schemas.TrainingSet = _get_training_set(db, ftf.features, create_time, ftf.start_time,
+                                                ftf.end_time, current, label, return_pk_cols, return_ts_col)
+    if save_as:
+        # First we need to see if this name already exists. If it does not, then we create it at version 1.
+        # If it does, validate that it has a matching schema to this one (same features). If so, create a new version.
+        # If the schema doesn't match, throw an error
+        tsm: schemas.TrainingSetMetadata = crud.get_training_set_instance_by_name(db, save_as)
+        if tsm:
+            tsm_feats = sorted([int(i) for i in tsm.features.split(',')])
+            ts_feats = sorted([f.feature_id for f in ts.features])
+            if tsm_feats != ts_feats:
+                raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.ALREADY_EXISTS,
+                                             message=f'Training Set {save_as} already exists and has a different set '
+                                                     f'of features than the ones provided. To create a new version of '
+                                                     f'Training Set {save_as}, you must use the same set of features. '
+                                                     f'Training Set {save_as} has features {tsm_feats} but you requested'
+                                                     f' features {ts_feats}')
+            # Training Set Instance exists and this is a new one. Register a new instance with version += 1
+            new_instance = schemas.TrainingSetMetadata(
+                training_set_start_ts = ts.metadata.training_set_start_ts,
+                training_set_end_ts = ts.metadata.training_set_end_ts,
+                training_set_create_ts = ts.metadata.training_set_create_ts,
+                training_set_version = tsm.training_set_version + 1,
+                training_set_id = tsm.training_set_id,
+            )
+            crud.register_training_set_instance(db, new_instance)
+        else:
+            # No Training Set Instance of this name yet. Create the first instance
+            tset_id = crud.create_training_set(db, save_as)
+            new_instance = schemas.TrainingSetMetadata(
+                training_set_start_ts = ts.metadata.training_set_start_ts,
+                training_set_end_ts = ts.metadata.training_set_end_ts,
+                training_set_create_ts = ts.metadata.training_set_create_ts,
+                training_set_version = 1,
+                training_set_id = tset_id,
+            )
+            crud.register_training_set_instance(db, new_instance)
+
 
 @SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Returns the training set as a Spark Dataframe from a Training View", 
@@ -398,6 +438,8 @@ def remove_training_view(name: str, db: Session = Depends(crud.get_db)):
                                              f'have been deployed using it: {deps}')
     tset_ids = crud.get_training_sets_from_view(db, tvw.view_id)
     # Delete the dependent training sets
+    crud.delete_training_set_stats(db, set(tset_ids))
+    crud.delete_training_set_instances(db, set(tset_ids))
     crud.delete_training_set_features(db, set(tset_ids))
     crud.delete_training_sets(db, set(tset_ids))
     # Delete the training view components (key and view)
@@ -425,7 +467,7 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
                                              'been created. Please ensure the feature set exists.')
     fset = fset[0]
     if not crud.feature_set_is_deployed(db, fset.feature_set_id):
-        crud.full_delete_feature_set(db, fset, cascade=False)
+        full_delete_feature_set(db, fset, cascade=False)
     else:
         deps = crud.get_feature_set_dependencies(db, fset.feature_set_id)
         if deps['model']:
@@ -441,9 +483,9 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
                                                      f'{deps["training_set"]}. To drop this Feature Set anyway, '
                                                      f'set purge=True (be careful!)')
             else:
-                crud.full_delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
+                full_delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
         else: # No dependencies
-            crud.full_delete_feature_set(db, fset, cascade=False)
+            full_delete_feature_set(db, fset, cascade=False)
     if Airflow.is_active:
         Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 

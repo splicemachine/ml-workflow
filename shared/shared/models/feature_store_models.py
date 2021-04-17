@@ -158,14 +158,33 @@ class TrainingSet(SQLAlchemyClient.SpliceBase):
     A Training Set is a Training View with a subset of desired Features
     in order to generate a dataframe for model development (or other analysis). This is not an independent table.
     This table uses the TrainingSetFeature table to define the desired features, and uses
-    Deployment to link the Training Set to a time window, in order to recreate the exact training set 
-    that the model used. This is a top level metadata 
-    that a user will interact with 
+    TrainingSetInstance to link the Training Set to a time window, in order to recreate the exact training set
+    that the model used. It will also be linked to a Deployment via ID and Version (version comes from TrainingSetInstance)
+    This is a top level metadata that a user will interact with
     """
     __tablename__: str = "training_set"
     __table_args__ = {'schema': 'featurestore'}
     training_set_id: Column = Column(Integer, primary_key=True, autoincrement=True)
-    name: Column = Column(String(255))
+    name: Column = Column(String(255), unique=True)
+    view_id: Column = Column(Integer, ForeignKey(TrainingView.view_id))
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
+
+class TrainingSetInstance(SQLAlchemyClient.SpliceBase):
+    """
+    A Training Set Instance is an instance of a Training Set over a particular static time window. Training sets
+    are dynamic in nature and change as time progresses. An instance locks in the time windows for full reproducibility.
+    In a Deployment, the Training Set Instance's ID (same as the Training Set ID) and version will be linked as to know
+    exactly what data was used to train the deployed model.
+    """
+    __tablename__: str = "training_set_instance"
+    __table_args__ = {'schema': 'featurestore'}
+    training_set_id: Column = Column(Integer, ForeignKey(TrainingSet.training_set_id), primary_key=True)
+    training_set_version: Column = Column(Integer, primary_key=True)
+    training_set_start_ts: Column = Column(DateTime)
+    training_set_end_ts: Column = Column(DateTime)
+    training_set_create_ts: Column = Column(DateTime)
     view_id: Column = Column(Integer, ForeignKey(TrainingView.view_id))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
@@ -178,8 +197,8 @@ class TrainingSetFeature(SQLAlchemyClient.SpliceBase):
     within that Training Set. This is bottom level metadata that a user will NOT interact with.
     """
     __tablename__: str = "training_set_feature"
-    __table_args__ = {'schema': 'featurestore'}  # , ForeignKey(TrainingSet.training_set_id)
-    training_set_id: Column = Column(Integer, primary_key=True)
+    __table_args__ = {'schema': 'featurestore'}
+    training_set_id: Column = Column(Integer, ForeignKey(TrainingSet.training_set_id), primary_key=True)
     feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True )
     is_label: Column = Column(Boolean, default=False)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
@@ -194,17 +213,41 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     This information will be available for a user post deployment for model/feature tracking and governance
     """
     __tablename__: str = "training_set_feature_stats"
-    __table_args__ = {'schema': 'featurestore'}  # ForeignKey(TrainingSet.training_set_id)
-    training_set_id: Column = Column(Integer, primary_key=True)
+    __table_args__ = {'schema': 'featurestore'}
+    training_set_id: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
+    training_set_version: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
     feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True)
-    training_set_start_ts: Column = Column(DateTime, primary_key=True)
-    training_set_end_ts: Column = Column(DateTime, primary_key=True)
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
     feature_mean: Column = Column(Numeric)
     feature_median: Column = Column(Numeric)
     feature_count: Column = Column(Integer)
     feature_stddev: Column = Column(Numeric)
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
+
+class TrainingSetLabelStats(SQLAlchemyClient.SpliceBase):
+    """
+    This table holds statistics about a Training Set Instance Label when a model using that particular Training Set
+    (where a Training Set Instance is defined as a Training View and Features over a particular time window) is created.
+    This is static information as a training set does NOT change because of it's particular time window.
+    This information will be available for a user post deployment for model/feature tracking and governance. The reason
+    we have a separate label table from features is for the specific case where a Training View is used, and the label
+    is defined as a column from the View SQL (and is NOT a feature). In the case where there is no label, or the label
+    is simply a feature, this table won't be used.
+    """
+    __tablename__: str = "training_set_label_stats"
+    __table_args__ = {'schema': 'featurestore'}
+    training_set_id: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
+    training_set_version: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
+    label_column: Column = Column(Integer, primary_key=True)
+    label_cardinality: Column = Column(Integer)
+    label_histogram: Column = Column(Text)
+    label_mean: Column = Column(Numeric)
+    label_median: Column = Column(Numeric)
+    label_count: Column = Column(Integer)
+    label_stddev: Column = Column(Numeric)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
@@ -219,10 +262,8 @@ class Deployment(SQLAlchemyClient.SpliceBase):
     __table_args__ = {'schema': 'featurestore'}
     model_schema_name: Column = Column(String(128), primary_key=True)
     model_table_name: Column = Column(String(128), primary_key=True)
-    training_set_id: Column = Column(Integer)  # ,ForeignKey(TrainingSet.training_set_id)
-    training_set_start_ts: Column = Column(DateTime)
-    training_set_end_ts: Column = Column(DateTime)
-    training_set_create_ts: Column = Column(DateTime)
+    training_set_id: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
+    training_set_version: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
     run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
@@ -238,10 +279,8 @@ class DeploymentHistory(SQLAlchemyClient.SpliceBase):
     model_schema_name: Column = Column(String(128), primary_key=True)
     model_table_name: Column = Column(String(128), primary_key=True)
     asof_ts: Column = Column(DateTime, primary_key=True)
-    training_set_id: Column = Column(Integer)
-    training_set_start_ts: Column = Column(DateTime)
-    training_set_end_ts: Column = Column(DateTime)
-    training_set_create_ts: Column = Column(DateTime)
+    training_set_id: Column = Column(Integer, primary_key=True)
+    training_set_version: Column = Column(Integer, primary_key=True)
     run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
