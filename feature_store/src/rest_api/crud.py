@@ -5,7 +5,7 @@ from . import schemas
 from .constants import SQL
 from sqlalchemy.sql.elements import TextClause
 from shared.models import feature_store_models as models
-from shared.services.database import SQLAlchemyClient, DatabaseFunctions, Converters
+from shared.services.database import SQLAlchemyClient, DatabaseFunctions, Converters, DatabaseSQL
 from shared.logger.logging_config import logger
 from fastapi import status
 import re
@@ -349,11 +349,10 @@ def register_training_set_instance(db: Session, tsm: schemas.TrainingSetMetadata
 
     :param db: Session
     :param tsm: TrainingSetMetadata
-    :return: Updated TrainingSetMetadata ID
     """
-    instance = models.TrainingSetInstance(**tsm.__dict__)
-    db.add(instance)
-    db.flush()
+    instance = tsm.__dict__
+    instance['last_update_username'] = 'CURRENT_USER' # FIXME: We need to set this to the feature store user's username
+    db.execute(DatabaseSQL.training_set_instance.format(**instance))
 
 def create_training_set(db: Session, name: str) -> int:
     """
@@ -364,6 +363,26 @@ def create_training_set(db: Session, name: str) -> int:
     :return: (int) the Training Set ID
     """
     ts = models.TrainingSet(name=name)
+    db.add(ts)
+    db.flush()
+    return ts.training_set_id
+
+def register_training_set_features(db: Session, tset_id: int, features: List[schemas.Feature], label: str = None):
+    """
+    Registers features for a training set
+
+    :param db: Session
+    :param features: A list of tuples indicating the Feature's ID and if that Feature is a label
+    for this Training Set
+    """
+    feats = [
+        models.TrainingSetFeature(
+            training_set_id=tset_id,
+            feature_id=f.feature_id,
+            is_label=(f.name.lower() == label.lower()) if label else False,
+        ) for f in features
+    ]
+    db.bulk_save_objects(feats)
 
 def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, Set[Any]]:
     """
@@ -434,26 +453,44 @@ def get_training_set_instance_by_name(db: Session, name: str) -> schemas.Trainin
     tsi = aliased(models.TrainingSetInstance, name='tsi')
     tsf = aliased(models.TrainingSetFeature, name='tsf')
 
+    # Get the max version for the Training Set Name provided
+    p = db.query(
+        tsi.training_set_id,
+        func.max(tsi.training_set_version).label('training_set_version'),
+    ).\
+        select_from(ts).\
+        join(tsi, ts.training_set_id==tsi.training_set_id).\
+        filter(ts.name == name).\
+        group_by(tsi.training_set_id).\
+        subquery('p')
+
+    # Get the training set start_ts, end_ts, name, create_ts
     tsm = db.query(
         ts.name,
+        ts.training_set_id,
+        ts.view_id,
         tsi.training_set_start_ts,
         tsi.training_set_end_ts,
         tsi.training_set_create_ts,
-        func.max(tsi.training_set_id),
-        func.max(tsi.training_set_version),
-        func.string_agg(tsf.feature_id, literal_column("','"), type_=String).\
-            label('features')
+        func.string_agg(tsf.feature_id, literal_column("','"), type_=String).label('features')
     ).\
-    select_from(ts).\
-    join(tsi, ts.training_set_id==tsi.training_set_id).\
-    join(tsf, tsf.training_set_id==ts.training_set_id).\
-    filter(ts.name == name).\
-    group_by(ts.name,
-        tsi.training_set_start_ts,
-        tsi.training_set_end_ts,
-        tsi.training_set_create_ts).\
-    first()
-    return schemas.TrainingSetMetadata(**tsm._asdict())
+        select_from(tsi).\
+        join(p, tsi.training_set_version==p.training_set_version and tsi.training_set_id==p.training_set_id).\
+        join(tsf, tsf.training_set_id==tsi.training_set_id).\
+        group_by(ts.name, ts.training_set_id, ts.view_id, tsi.training_set_start_ts, # We need the group by for the string agg of features
+                 tsi.training_set_end_ts, tsi.training_set_create_ts,).\
+        first()
+
+    return schemas.TrainingSetMetadata(**tsm._asdict()) if tsm else None
+
+def get_training_set_view(db: Session, tset_id: int) -> int:
+    """
+    Returns the View ID of a particular training set if that Training Set was created from a view, else None
+
+    :param db: Session
+    :param tset_id: Training Set ID
+    :return: View ID or None
+    """
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None,
                      _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:

@@ -15,7 +15,7 @@ from shared.models.model_types import (DeploymentModelType, H2OModelType,
                                        KerasModelType, Metadata,
                                        SklearnModelType, SparkModelType)
 from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL, DatabaseFunctions
-from shared.models.feature_store_models import (Deployment, TrainingView,
+from shared.models.feature_store_models import (Deployment, TrainingView, TrainingSetInstance,
                                                 TrainingSet, TrainingSetFeature, Feature)
 
 from .entities.db_model import Model
@@ -339,7 +339,9 @@ class DatabaseModelDDL:
 
     def _register_training_set(self, key_vals: Dict[str,str]):
         """
-        Registers training set for the deployment
+        Registers training set for the deployment. If there is already an ID and version, nothing needed. If not,
+        we need to create this training set, it's features, and create a TrainingSetInstance of version 1
+
         :param key_vals: Dictionary containing the relevant keys for the training set
         :return: TrainingSet
         """
@@ -347,29 +349,57 @@ class DatabaseModelDDL:
         self.logger.info(f"Dictionary of params {str(key_vals)}")
 
         view_id = key_vals['splice.feature_store.training_view_id']
-
-        if eval(view_id):
+        ts_name = key_vals['splice.feature_store.training_set']
+        if eval(view_id): # may return 'None' not None so need eval
             self.logger.info(f"Found training view with ID {view_id}")
-            self.logger.info(f"Registering new training set for training view {key_vals['splice.feature_store.training_set']}", send_db=True)
 
             # Create training set
             ts = TrainingSet(
                 view_id=int(view_id),
-                name=key_vals['splice.feature_store.training_set'],
+                name=ts_name,
                 last_update_username=self.request_user
             )
-        # If there is no training view, this means the user called fs.get_feature_dataset, and created a dataframe
+        # If there is no training view, this means the user called fs.get_training_set, and created a dataframe
         # for training without using a TrainingView (think clustering where all features come from FeatureSets).
         # in this case, the view is null, but the TrainingSet is still a valid one, with features, a start
         # time and an end time
         else:
             ts = TrainingSet(
                 view_id=None,
-                name=None,
+                name=ts_name,
                 last_update_username=self.request_user
             )
+        self.logger.info(f"Registering new Training Set {ts_name} at version 1")
         self.session.add(ts)
         self.session.merge(ts) # Get the training_set_id
+
+        # Register the TrainingSetInstance with its version (1)
+        tsi = dict(
+            training_set_id = ts.training_set_id,
+            training_set_version = 1,
+            training_set_start_ts=key_vals['splice.feature_store.training_set_start_time'],
+            training_set_end_ts=key_vals['splice.feature_store.training_set_end_time'],
+            training_set_create_ts=key_vals['splice.feature_store.training_set_create_time'],
+            last_update_username=self.request_user
+        )
+        self.session.execute(DatabaseSQL.training_set_instance.format(**tsi))
+
+        # Add 2 more parameters to the current run for the training_set_id and version
+        # To indicate that this run's training set is now registered
+        p1 = SqlParam(
+            key='splice.feature_store.training_set_id',
+            value=ts.training_set_id,
+            run_uuid=self.run_id
+        )
+        p2 = SqlParam(
+            key='splice.feature_store.training_set_version',
+            value=1,
+            run_uuid=self.run_id
+        )
+        self.session.bulk_save_objects([p1,p2])
+
+        key_vals['splice.feature_store.training_set_id'] = ts.training_set_id
+        key_vals['splice.feature_store.training_set_version'] = 1
         return ts
 
     def _register_training_set_features(self, ts: TrainingSet, key_vals: Dict[str,str]):
@@ -424,9 +454,7 @@ class DatabaseModelDDL:
             model_schema_name=self.schema_name,
             model_table_name=self.table_name,
             training_set_id=ts.training_set_id,
-            training_set_start_ts=key_vals['splice.feature_store.training_set_start_time'],
-            training_set_end_ts=key_vals['splice.feature_store.training_set_end_time'],
-            training_set_create_ts=key_vals['splice.feature_store.training_set_create_time'],
+            training_set_version=int(key_vals['splice.feature_store.training_set_version']),
             run_id=self.run_id,
             last_update_username=self.request_user
         )
@@ -457,6 +485,24 @@ class DatabaseModelDDL:
             raise Exception(f"The training view (id:{view_id}) used for this run has been deleted."
                             f" You cannot deploy a model that was trained using a training view that no longer exists.")
 
+    def _validate_training_set(self, tset_id: int, tset_version: int) -> TrainingSet:
+        """
+        Validates that a particular training set exists. If a run in mlflow was training using a training set from
+        the feature store, and that training set no longer exists, we cannot
+        deploy this model (as we cannot recreate the training set used for training).
+
+        :param tset_id: The Training Set ID
+        :param tset_version: The Training Set Version
+        """
+        tset: TrainingSetInstance = self.session.query(TrainingSetInstance)\
+            .filter(TrainingSetInstance.training_set_id==tset_id)\
+            .filter(TrainingSetInstance.training_set_version == tset_version).first()
+        if not tset:
+            raise Exception(f"The training set (id:{tset}, version:{tset_version}) used for this run has been deleted."
+                            f" You cannot deploy a model that was trained using a training set that no longer exists.")
+        return self.session.query(TrainingSet).filter(TrainingSet.training_set_id==tset_id).first()
+
+
     def register_feature_store_deployment(self):
         """
         On deployment, if the model has an associated training set, we want to log this deployment in the
@@ -465,21 +511,23 @@ class DatabaseModelDDL:
         If there is, we check if a record of this deployment already exists in the deployment table (PK schema.table)
         If no deployment exists, we insert a new row.
         If one does, we UPDATE that row.
-        We cannot use UPSERT because Splice treats upserts as inserts always, we there is an AFTER UPDATE trigger
-        on the FeatureStore.Deployment table.
+        We cannot use UPSERT because Splice treats upserts as inserts always, so our AFTER UPDATE trigger wouldn't fire
         :return:
         """
         self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
         training_set_params = [f'splice.feature_store.{i}' for i in ['training_set','training_set_start_time',
                                                                     'training_set_end_time', 'training_set_create_time',
-                                                                     'training_set_label', 'training_view_id']]
+                                                                     'training_set_label', 'training_view_id', 'training_set_label'
+                                                                     'training_set_id', 'training_set_version']]
         params: List[SqlParam] = self.session.query(SqlParam)\
             .filter_by(run_uuid=self.run_id)\
             .filter(SqlParam.key.in_(training_set_params))\
             .all()
 
-        if len(params)==len(training_set_params): # Run has associated training set
+        # We compare to -2 because the last 2 params (training_set_id,training_set_version) may not have been set yet.
+        # If the user didn't "save" their training set. If they aren't set, we will do that now
+        if len(params)>=len(training_set_params)-2: # Run has associated training set.
             key_vals = {param.key:param.value for param in params}
             self.logger.info("Training set found! Registering...", send_db=True)
 
@@ -488,7 +536,13 @@ class DatabaseModelDDL:
                 self.logger.info('Validating that the Training View still exists')
                 self._validate_training_view(int(key_vals['splice.feature_store.training_view_id']))
 
-            ts: TrainingSet = self._register_training_set(key_vals)
+            # If this mlflow run has a training set ID and version, that means the user manually saved the Training Set.
+            # We need to ensure that training set instance still exists.
+            tset_id, tset_version = key_vals.get('splice.feature_store.training_set_id'), key_vals.get('splice.feature_store.training_set_version')
+            if tset_id and tset_version:
+                ts: TrainingSet = self._validate_training_set(int(tset_id), int(tset_version))
+            else: # If it's not there we need to register it
+                ts: TrainingSet = self._register_training_set(key_vals)
             self.logger.info(f"Done. Gathering individual features...", send_db=True)
             self._register_training_set_features(ts, key_vals)
             self.logger.info("Done. Registering deployment with Feature Store")
@@ -514,16 +568,6 @@ class DatabaseModelDDL:
 
         with log_operation_status("creating trigger", logger_obj=self.logger):
             self.create_vti_prediction_trigger()
-            # if self.model.get_metadata(Metadata.TYPE) in {H2OModelType.MULTI_PRED_DOUBLE,
-            #                                               KerasModelType.MULTI_PRED_DOUBLE,
-            #                                               SklearnModelType.MULTI_PRED_DOUBLE}:
-            #     self.create_vti_prediction_trigger()
-            # else:
-            #     self.create_prediction_trigger()
-
-        # if self.model.get_metadata(Metadata.TYPE) in {SparkModelType.MULTI_PRED_INT, H2OModelType.MULTI_PRED_INT}:
-        #     with log_operation_status("create parsing trigger", logger_obj=self.logger):
-        #         self.create_parsing_trigger()
 
         with log_operation_status("add model to metadata table", logger_obj=self.logger):
             self.add_model_to_metadata_table()

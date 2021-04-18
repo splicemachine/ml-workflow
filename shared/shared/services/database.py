@@ -142,8 +142,19 @@ class SQLAlchemyClient:
 
 class DatabaseSQL:
     """
-    Namespace for SQL Commands
+    Namespace for SQL Commands. There is an issue with our SQLAlchemy driver with dates. So we cannot use the ORM
+    when binding datetime objects. Therefore we much run raw SQL
     """
+    training_set_instance = \
+    """
+    INSERT INTO FeatureStore.Training_Set_Instance(
+        training_set_id, training_set_version, training_set_start_ts, training_set_end_ts, 
+        training_set_create_ts, last_update_username) 
+    values (
+        {training_set_id}, {training_set_version}, {training_set_start_ts}, {training_set_end_ts}, 
+        {training_set_create_ts}, {last_update_username})
+    """
+
     feature_update_check = \
     """
     CREATE TRIGGER <schema_name>.<feature_set_tablename>_update_check

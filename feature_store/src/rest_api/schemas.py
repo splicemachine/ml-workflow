@@ -161,6 +161,7 @@ class TrainingSetMetadata(BaseModel):
     training_set_id: Optional[int] = None
     features: Optional[str] = None
     label: Optional[str] = None
+    view_id: Optional[int] = None
 
     class Config:
         orm_mode = True

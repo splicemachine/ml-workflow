@@ -185,7 +185,6 @@ class TrainingSetInstance(SQLAlchemyClient.SpliceBase):
     training_set_start_ts: Column = Column(DateTime)
     training_set_end_ts: Column = Column(DateTime)
     training_set_create_ts: Column = Column(DateTime)
-    view_id: Column = Column(Integer, ForeignKey(TrainingView.view_id))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 

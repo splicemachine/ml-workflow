@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .auth import authenticate
 from .. import schemas, crud
 from ..utils.training_utils import (dict_to_lower,_get_training_view_by_name,
-                                _get_training_set, _get_training_set_from_view)
+                                _get_training_set, _get_training_set_from_view, register_training_set)
 from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets, full_delete_feature_set
 from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, generate_backfill_sql,
                                                     generate_backfill_intervals, generate_pipeline_sql, _get_source)
@@ -187,48 +187,17 @@ def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label
     ts: schemas.TrainingSet = _get_training_set(db, ftf.features, create_time, ftf.start_time,
                                                 ftf.end_time, current, label, return_pk_cols, return_ts_col)
     if save_as:
-        # First we need to see if this name already exists. If it does not, then we create it at version 1.
-        # If it does, validate that it has a matching schema to this one (same features). If so, create a new version.
-        # If the schema doesn't match, throw an error
-        tsm: schemas.TrainingSetMetadata = crud.get_training_set_instance_by_name(db, save_as)
-        if tsm:
-            tsm_feats = sorted([int(i) for i in tsm.features.split(',')])
-            ts_feats = sorted([f.feature_id for f in ts.features])
-            if tsm_feats != ts_feats:
-                raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.ALREADY_EXISTS,
-                                             message=f'Training Set {save_as} already exists and has a different set '
-                                                     f'of features than the ones provided. To create a new version of '
-                                                     f'Training Set {save_as}, you must use the same set of features. '
-                                                     f'Training Set {save_as} has features {tsm_feats} but you requested'
-                                                     f' features {ts_feats}')
-            # Training Set Instance exists and this is a new one. Register a new instance with version += 1
-            new_instance = schemas.TrainingSetMetadata(
-                training_set_start_ts = ts.metadata.training_set_start_ts,
-                training_set_end_ts = ts.metadata.training_set_end_ts,
-                training_set_create_ts = ts.metadata.training_set_create_ts,
-                training_set_version = tsm.training_set_version + 1,
-                training_set_id = tsm.training_set_id,
-            )
-            crud.register_training_set_instance(db, new_instance)
-        else:
-            # No Training Set Instance of this name yet. Create the first instance
-            tset_id = crud.create_training_set(db, save_as)
-            new_instance = schemas.TrainingSetMetadata(
-                training_set_start_ts = ts.metadata.training_set_start_ts,
-                training_set_end_ts = ts.metadata.training_set_end_ts,
-                training_set_create_ts = ts.metadata.training_set_create_ts,
-                training_set_version = 1,
-                training_set_id = tset_id,
-            )
-            crud.register_training_set_instance(db, new_instance)
+        ts = register_training_set(db, ts, save_as)
+    return ts
 
 
 @SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Returns the training set as a Spark Dataframe from a Training View", 
                 operation_id='get_training_set_from_view', tags=['Training Sets'])
 @managed_transaction
-def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_pk_cols: bool = Query(False, alias='pks'), 
-                                        return_ts_col: bool = Query(False, alias='ts'), db: Session = Depends(crud.get_db)):
+def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_pk_cols: bool = Query(False, alias='pks'),
+                               return_ts_col: bool = Query(False, alias='ts'), save_as: Optional[str] =  None,
+                               db: Session = Depends(crud.get_db)):
     """
     Returns the training set as a Spark Dataframe from a Training View. When a user calls this function (assuming they have registered
     the feature store with mlflow using :py:meth:`~mlflow.register_feature_store` )
@@ -242,7 +211,12 @@ def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_
     or in the next run that is started after calling this function (if no run is currently active).
     """
     create_time = crud.get_current_time(db)
-    return _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time, ftf.end_time, return_pk_cols, return_ts_col)
+    ts: schemas.TrainingSet = _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time,
+                                                          ftf.end_time, return_pk_cols, return_ts_col)
+
+    if save_as:
+        ts = register_training_set(db, ts, save_as)
+    return ts
 
 @SYNC_ROUTER.get('/training-sets', status_code=status.HTTP_200_OK, response_model=Dict[str, Optional[str]],
                 description="Returns a dictionary a training sets available, with the map name -> description.", 
