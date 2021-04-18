@@ -386,7 +386,7 @@ class DatabaseModelDDL:
         )
         self.session.execute(DatabaseSQL.training_set_instance.format(**tsi))
 
-        # Add 2 more parameters to the current run for the training_set_id and version
+        # Add 3 more parameters to the current run for the training_set_id, version, and name
         # To indicate that this run's training set is now registered
         p1 = SqlParam(
             key='splice.feature_store.training_set_id',
@@ -398,15 +398,16 @@ class DatabaseModelDDL:
             value=1,
             run_uuid=self.run_id
         )
-        self.session.bulk_save_objects([p1,p2])
-        # Update the run parameter for training set name to be the saved name
-        tset_name_param: SqlParam = self.session.query(SqlParam)\
-            .filter(SqlParam.key == 'splice.feature_store.training_set')\
-            .filter(SqlParam.run_uuid == self.run_id).first()
-        tset_name_param.update({'value': ts_name})
+        p3 = SqlParam(
+            key='splice.feature_store.training_set_name',
+            value=ts_name,
+            run_uuid=self.run_id
+        )
+        self.session.bulk_save_objects([p1,p2,p3])
 
         key_vals['splice.feature_store.training_set_id'] = ts.training_set_id
         key_vals['splice.feature_store.training_set_version'] = 1
+        key_vals['splice.feature_store.training_set_name'] = ts_name
         return ts
 
     def _register_training_set_features(self, ts: TrainingSet, key_vals: Dict[str,str]):
@@ -522,18 +523,22 @@ class DatabaseModelDDL:
         """
         self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
-        training_set_params = [f'splice.feature_store.{i}' for i in ['training_set','training_set_start_time',
-                                                                    'training_set_end_time', 'training_set_create_time',
-                                                                     'training_set_label', 'training_view_id', 'training_set_label'
-                                                                     'training_set_id', 'training_set_version']]
+        training_set_params = [
+            f'splice.feature_store.{i}' for i in [
+                'training_set_start_time', 'training_set_end_time', 'training_set_create_time', 'training_set_label',
+                'training_view_id', 'training_set_label',
+                'training_set_id', 'training_set_version', 'training_set_name'
+            ]
+        ]
         params: List[SqlParam] = self.session.query(SqlParam)\
             .filter_by(run_uuid=self.run_id)\
             .filter(SqlParam.key.in_(training_set_params))\
             .all()
 
-        # We compare to -2 because the last 2 params (training_set_id,training_set_version) may not have been set yet.
+        # We compare to -3 because the last 3 params (training_set_id,training_set_version, training_set_name)
+        # may not have been set yet.
         # If the user didn't "save" their training set. If they aren't set, we will do that now
-        if len(params)>=len(training_set_params)-2: # Run has associated training set.
+        if len(params)>=len(training_set_params)-3: # Run has associated training set.
             key_vals = {param.key:param.value for param in params}
             self.logger.info("Training set found! Registering...", send_db=True)
 
@@ -544,7 +549,8 @@ class DatabaseModelDDL:
 
             # If this mlflow run has a training set ID and version, that means the user manually saved the Training Set.
             # We need to ensure that training set instance still exists.
-            tset_id, tset_version = key_vals.get('splice.feature_store.training_set_id'), key_vals.get('splice.feature_store.training_set_version')
+            tset_id = key_vals.get('splice.feature_store.training_set_id')
+            tset_version = key_vals.get('splice.feature_store.training_set_version')
             if tset_id and tset_version:
                 ts: TrainingSet = self._validate_training_set(int(tset_id), int(tset_version))
             else: # If it's not there we need to register it
