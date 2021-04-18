@@ -349,7 +349,9 @@ class DatabaseModelDDL:
         self.logger.info(f"Dictionary of params {str(key_vals)}")
 
         view_id = key_vals['splice.feature_store.training_view_id']
-        ts_name = key_vals['splice.feature_store.training_set']
+        # If we are at this point, the user did not save their training set, which means it does not have a name.
+        # Since we are going to save it, we will use the run_id as the name to it's guaranteed unique
+        ts_name = f'{self.run_id}_training_set'
         if eval(view_id): # may return 'None' not None so need eval
             self.logger.info(f"Found training view with ID {view_id}")
 
@@ -397,6 +399,11 @@ class DatabaseModelDDL:
             run_uuid=self.run_id
         )
         self.session.bulk_save_objects([p1,p2])
+        # Update the run parameter for training set name to be the saved name
+        tset_name_param: SqlParam = self.session.query(SqlParam)\
+            .filter(SqlParam.key == 'splice.feature_store.training_set')\
+            .filter(SqlParam.run_uuid == self.run_id).first()
+        tset_name_param.update({'value': ts_name})
 
         key_vals['splice.feature_store.training_set_id'] = ts.training_set_id
         key_vals['splice.feature_store.training_set_version'] = 1
@@ -512,7 +519,6 @@ class DatabaseModelDDL:
         If no deployment exists, we insert a new row.
         If one does, we UPDATE that row.
         We cannot use UPSERT because Splice treats upserts as inserts always, so our AFTER UPDATE trigger wouldn't fire
-        :return:
         """
         self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
