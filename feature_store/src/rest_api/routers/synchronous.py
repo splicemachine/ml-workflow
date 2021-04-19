@@ -181,7 +181,7 @@ def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label
     maximum number of primary keys, the Feature Set is chosen by alphabetical order (schema_name, table_name).
 
     If save_as is set, the training set metadata will be persisted as a TrainingSetInstance record. This enables recreation
-    of the Training Set as an Ad-Hoc query
+    of the exact Training Set data as an Ad-Hoc query
     """
     create_time = crud.get_current_time(db)
     ts: schemas.TrainingSet = _get_training_set(db, ftf.features, create_time, ftf.start_time,
