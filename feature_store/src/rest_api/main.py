@@ -21,13 +21,16 @@ APP: FastAPI = FastAPI(
 )
 add_timing_middleware(app=APP, record=logger.info, exclude='health')
 # Add CORS support from production and test domains
+origins = [ # FIXME: Remove in the future
+    'http://localhost:8090',
+    'http://localhost:3000',
+    'https://localhost:3000',
+    ]
+custom_cors = env_vars.get('ENABLE_CORS_URL').split(',')
+origins += custom_cors
 APP.add_middleware(
     middleware_class=CORSMiddleware,
-    allow_origins=[
-        'http://localhost:8090',
-        'http://localhost:3000',
-        'https://localhost:3000',
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
