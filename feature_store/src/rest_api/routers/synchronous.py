@@ -70,7 +70,11 @@ def get_training_view_id(name: str, db: Session = Depends(crud.get_db)):
     """
     Returns the unique view ID from a name
     """
-    return crud.get_training_view_id(db, name)
+    vid = crud.get_training_view_id(db, name)
+    if not vid:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Training View {name} does not exist. Please enter a valid Training View.")
+    return vid
 
 @SYNC_ROUTER.get('/features', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureDetail],
                 description="Returns a list of all (or the specified) features and details", operation_id='get_features', tags=['Features'])
@@ -139,15 +143,15 @@ def get_feature_vector_sql_from_training_view(features: List[Union[schemas.Featu
 
     return crud.get_feature_vector_sql(db, feats, tctx)
 
-@SYNC_ROUTER.get('/feature-primary-keys', status_code=status.HTTP_200_OK, response_model=Dict[str, List[str]],
-                description="Returns a dictionary mapping each individual feature to its primary key(s).", 
-                operation_id='get_feature_primary_keys', tags=['Features'])
-@managed_transaction
-def get_feature_primary_keys(features: List[str] = Query([], alias="feature"), db: Session = Depends(crud.get_db)):
-    """
-    Returns a dictionary mapping each individual feature to its primary key(s). This function is not yet implemented.
-    """
-    pass
+# @SYNC_ROUTER.get('/feature-primary-keys', status_code=status.HTTP_200_OK, response_model=Dict[str, List[str]],
+#                 description="Returns a dictionary mapping each individual feature to its primary key(s).",
+#                 operation_id='get_feature_primary_keys', tags=['Features'])
+# @managed_transaction
+# def get_feature_primary_keys(features: List[str] = Query([], alias="feature"), db: Session = Depends(crud.get_db)):
+#     """
+#     Returns a dictionary mapping each individual feature to its primary key(s). This function is not yet implemented.
+#     """
+#     pass
 
 @SYNC_ROUTER.get('/training-view-features', status_code=status.HTTP_200_OK, response_model=List[schemas.Feature],
                 description="Returns the available features for the given a training view name", 
@@ -274,6 +278,15 @@ def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Depends(c
 
     crud.validate_training_view(db, tv)
     crud.create_training_view(db, tv)
+
+@SYNC_ROUTER.get('/training-view-exists', status_code=status.HTTP_200_OK, response_model=bool,
+                description="Returns whether or not a training view exists", operation_id='training_view_exists', tags=['Training Views'])
+@managed_transaction
+def training_view_exists(name: str, db: Session = Depends(crud.get_db)):
+    """
+    Returns whether or not a given training view exists
+    """
+    return bool(crud.get_training_view_id(db, name))
 
 @SYNC_ROUTER.post('/deploy-feature-set', status_code=status.HTTP_200_OK, response_model=schemas.FeatureSet,
                 description="Deploys a feature set to the database", operation_id='deploy_feature_set', tags=['Feature Sets'])
