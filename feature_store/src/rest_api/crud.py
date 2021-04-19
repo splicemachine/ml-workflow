@@ -530,9 +530,10 @@ def get_training_view_id(db: Session, name: str) -> int:
     :param name: The name of the training view
     :return: in
     """
-    return db.query(models.TrainingView.view_id).\
-        filter(models.TrainingView.name==name).\
-        first()[0]
+    view = db.query(models.TrainingView.view_id).\
+        filter(func.upper(models.TrainingView.name)==name.upper()).\
+        first()
+    return view[0] if view else None
 
 def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool = True) -> List[schemas.FeatureDetail]:
     """

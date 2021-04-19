@@ -26,7 +26,8 @@ origins = [ # FIXME: Remove in the future
     'http://localhost:3000',
     'https://localhost:3000',
     ]
-custom_cors = env_vars.get('ENABLE_CORS_URL').split(',')
+custom_cors = env_vars.get('ENABLE_CORS_URL')
+custom_cors = custom_cors.split(',') if custom_cors else []
 origins += custom_cors
 APP.add_middleware(
     middleware_class=CORSMiddleware,
