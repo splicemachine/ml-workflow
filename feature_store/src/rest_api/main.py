@@ -29,7 +29,7 @@ origins = [ # FIXME: Remove in the future
 custom_cors = env_vars.get('ENABLE_CORS_URL')
 custom_cors = custom_cors.split(',') if custom_cors else []
 origins += custom_cors
-origins += ['https://erinspace-nonprod-gke-dev1.gke.splicemachine-dev.io']
+origins += ['https://nonprod-gke-dev1.gke.splicemachine-dev.io']
 APP.add_middleware(
     middleware_class=CORSMiddleware,
     allow_origins=origins,
