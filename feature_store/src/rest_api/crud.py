@@ -440,13 +440,14 @@ def get_training_sets_from_view(db: Session, vid: int) -> List[int]:
     res = db.query(models.TrainingSet.training_set_id).filter(models.TrainingSet.view_id == vid).all()
     return [i for (i,) in res]
 
-def get_training_set_instance_by_name(db: Session, name: str) -> schemas.TrainingSetMetadata:
+def get_training_set_instance_by_name(db: Session, name: str, version: int = None) -> schemas.TrainingSetMetadata:
     """
     Gets a training set instance by its name, if it exists. If it does exist, it will get the training set instance
     with the largest version number.
 
     :param db: Session
     :param name: Training Set Instance name
+    :param version: The training set version. If not set will get the newest version
     :return: TrainingSetMetadata
     """
     ts = aliased(models.TrainingSet, name='ts')
@@ -460,8 +461,11 @@ def get_training_set_instance_by_name(db: Session, name: str) -> schemas.Trainin
     ).\
         select_from(ts).\
         join(tsi, ts.training_set_id==tsi.training_set_id).\
-        filter(ts.name == name).\
-        group_by(tsi.training_set_id).\
+        filter(ts.name == name)
+    if version:
+        p = p.filter(tsi.training_set_version == version)
+
+    p = p.group_by(tsi.training_set_id).\
         subquery('p')
 
     # Get the training set start_ts, end_ts, name, create_ts
@@ -469,28 +473,21 @@ def get_training_set_instance_by_name(db: Session, name: str) -> schemas.Trainin
         ts.name,
         ts.training_set_id,
         ts.view_id,
+        tsi.training_set_version,
         tsi.training_set_start_ts,
         tsi.training_set_end_ts,
         tsi.training_set_create_ts,
         func.string_agg(tsf.feature_id, literal_column("','"), type_=String).label('features')
     ).\
         select_from(tsi).\
-        join(p, tsi.training_set_version==p.training_set_version and tsi.training_set_id==p.training_set_id).\
+        join(p, tsi.training_set_version==p.c.training_set_version and tsi.training_set_id==p.c.training_set_id).\
         join(tsf, tsf.training_set_id==tsi.training_set_id).\
         group_by(ts.name, ts.training_set_id, ts.view_id, tsi.training_set_start_ts, # We need the group by for the string agg of features
-                 tsi.training_set_end_ts, tsi.training_set_create_ts,).\
+                 tsi.training_set_end_ts, tsi.training_set_create_ts,tsi.training_set_version).\
         first()
 
     return schemas.TrainingSetMetadata(**tsm._asdict()) if tsm else None
 
-def get_training_set_view(db: Session, tset_id: int) -> int:
-    """
-    Returns the View ID of a particular training set if that Training Set was created from a view, else None
-
-    :param db: Session
-    :param tset_id: Training Set ID
-    :return: View ID or None
-    """
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None,
                      _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
@@ -571,22 +568,22 @@ def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) 
         group_by(models.TrainingViewKey.view_id).\
         subquery('c')
 
-    tc = aliased(models.TrainingView, name='tc')
+    tv = aliased(models.TrainingView, name='tc')
 
     q = db.query(
-        tc.view_id,
-        tc.name,
-        tc.description, 
-        cast(tc.sql_text, String(1000)).label('view_sql'),
+        tv.view_id,
+        tv.name,
+        tv.description,
+        cast(tv.sql_text, String(1000)).label('view_sql'),
         p.c.pk_columns,
-        tc.ts_column,
-        tc.label_column,
+        tv.ts_column,
+        tv.label_column,
         c.c.join_columns).\
-        join(p, tc.view_id==p.c.view_id).\
-        join(c, tc.view_id==c.c.view_id)
+        join(p, tv.view_id==p.c.view_id).\
+        join(c, tv.view_id==c.c.view_id)
 
     if _filter:
-        q = q.filter(and_(*[getattr(tc, name) == value for name, value in _filter.items()]))
+        q = q.filter(and_(*[getattr(tv, name) == value for name, value in _filter.items()]))
 
     for tv in q.all():
         t = tv._asdict()
@@ -809,12 +806,25 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
         select_from(f).\
         join(fset, f.feature_set_id==fset.feature_set_id)
 
-
     # If they don't pass in feature names, get all features 
     if names:
         df = df.filter(func.upper(f.name).in_([name.upper() for name in names]))
     
     return df.all()
+
+def get_features_by_id(db: Session, ids: List[int]) -> List[schemas.Feature]:
+    """
+    Returns a dataframe or list of features whose IDs are provided
+
+    :param db: SqlAlchemy Session
+    :param names: The list of feature names
+    :return: List[Feature] The list of Feature objects and their metadata. Note, this is not the Feature
+    values, simply the describing metadata about the features. To create a training dataset with Feature values, see
+    :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_feature_dataset`
+    """
+    f = aliased(models.Feature, name='f')
+    df = db.query(f).filter(f.feature_id.in_(ids))
+    return [model_to_schema_feature(f) for f in df.all()]
 
 
 def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: schemas.TrainingView) -> str:
@@ -1442,19 +1452,20 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
     ).\
     select_from(d).\
     join(ts, d.training_set_id==ts.training_set_id).\
-    join(tsi, d.training_set_version==tsi.training_set_version).\
+    join(tsi, d.training_set_version==tsi.training_set_version and tsi.training_set_id==d.training_set_id).\
     join(tsf, tsf.training_set_id==d.training_set_id).\
     outerjoin(tv, tv.view_id==ts.view_id).\
     join(f, tsf.feature_id==f.feature_id).\
     filter(and_(
-        d.model_schema_name==schema_name, 
-        d.model_table_name==table_name
+        func.upper(d.model_schema_name)==schema_name.upper(),
+        func.upper(d.model_table_name)==table_name.upper()
     )).\
     group_by(tv.name,
         tsi.training_set_start_ts,
         tsi.training_set_end_ts,
         tsi.training_set_create_ts,
-        tv.label_column
+        tv.label_column,
+        tsi.training_set_version
     ).first()
 
     if not deploy:

@@ -3,17 +3,13 @@ This module contains SQLAlchemy Models
 used for the Queue
 """
 from time import sleep
-from os import environ as env
-
 from shared.logger.logging_config import logger
 from shared.services.database import SQLAlchemyClient, DatabaseSQL, DatabaseFunctions
-from sqlalchemy import event, ForeignKeyConstraint, DDL, UniqueConstraint
+from sqlalchemy import event, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
                         String, Text, DateTime, Numeric)
 from sqlalchemy.sql.elements import TextClause
-from sqlalchemy.sql.functions import now as db_current_timestamp
 from mlflow.store.tracking.dbmodels.models import SqlRun
-from sqlalchemy import inspect as peer_into_splice_db
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -212,9 +208,8 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     This information will be available for a user post deployment for model/feature tracking and governance
     """
     __tablename__: str = "training_set_feature_stats"
-    __table_args__ = {'schema': 'featurestore'}
-    training_set_id: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
-    training_set_version: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
+    training_set_id: Column = Column(Integer, primary_key=True)
+    training_set_version: Column = Column(Integer, primary_key=True)
     feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True)
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
@@ -224,6 +219,14 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     feature_stddev: Column = Column(Numeric)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            (training_set_id, training_set_version),
+            [TrainingSetInstance.training_set_id, TrainingSetInstance.training_set_version]
+        ),
+        {'schema': 'featurestore'}
+    )
 
 
 class TrainingSetLabelStats(SQLAlchemyClient.SpliceBase):
@@ -237,9 +240,8 @@ class TrainingSetLabelStats(SQLAlchemyClient.SpliceBase):
     is simply a feature, this table won't be used.
     """
     __tablename__: str = "training_set_label_stats"
-    __table_args__ = {'schema': 'featurestore'}
-    training_set_id: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
-    training_set_version: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
+    training_set_id: Column = Column(Integer, primary_key=True)
+    training_set_version: Column = Column(Integer, primary_key=True)
     label_column: Column = Column(Integer, primary_key=True)
     label_cardinality: Column = Column(Integer)
     label_histogram: Column = Column(Text)
@@ -250,6 +252,14 @@ class TrainingSetLabelStats(SQLAlchemyClient.SpliceBase):
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
+    __table_args__ = (
+        ForeignKeyConstraint(
+            (training_set_id, training_set_version),
+            [TrainingSetInstance.training_set_id, TrainingSetInstance.training_set_version]
+        ),
+        {'schema': 'featurestore'}
+    )
+
 
 class Deployment(SQLAlchemyClient.SpliceBase):
     """
@@ -258,14 +268,21 @@ class Deployment(SQLAlchemyClient.SpliceBase):
     We need the time window in order to recreate the exact dataset that the model used to train.
     """
     __tablename__: str = "deployment"
-    __table_args__ = {'schema': 'featurestore'}
     model_schema_name: Column = Column(String(128), primary_key=True)
     model_table_name: Column = Column(String(128), primary_key=True)
-    training_set_id: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
-    training_set_version: Column = Column(Integer, ForeignKey(TrainingSetInstance.training_set_id), primary_key=True)
+    training_set_id: Column = Column(Integer, nullable=False)
+    training_set_version: Column = Column(Integer, nullable=False)
     run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            (training_set_id, training_set_version),
+            [TrainingSetInstance.training_set_id, TrainingSetInstance.training_set_version]
+        ),
+        {'schema': 'featurestore'}
+    )
 
 
 class DeploymentHistory(SQLAlchemyClient.SpliceBase):
@@ -278,8 +295,8 @@ class DeploymentHistory(SQLAlchemyClient.SpliceBase):
     model_schema_name: Column = Column(String(128), primary_key=True)
     model_table_name: Column = Column(String(128), primary_key=True)
     asof_ts: Column = Column(DateTime, primary_key=True)
-    training_set_id: Column = Column(Integer, primary_key=True)
-    training_set_version: Column = Column(Integer, primary_key=True)
+    training_set_id: Column = Column(Integer, nullable=False)
+    training_set_version: Column = Column(Integer, nullable=False)
     run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
@@ -418,8 +435,8 @@ def create_deploy_historian():
 
 
 TABLES = [FeatureSet, PendingFeatureSetDeployment, FeatureSetKey, Feature, TrainingView, TrainingViewKey, TrainingSet,
-          TrainingSetFeature, TrainingSetFeatureStats, Deployment, DeploymentHistory, DeploymentFeatureStats,
-          Source, SourceKey, Pipeline, PipelineOps, PipelineAgg]
+          TrainingSetInstance, TrainingSetFeature, TrainingSetFeatureStats, TrainingSetLabelStats, Deployment,
+          DeploymentHistory, DeploymentFeatureStats, Source, SourceKey, Pipeline, PipelineOps, PipelineAgg]
 
 def create_feature_store_tables(_sleep_secs=1) -> None:
     """
@@ -432,9 +449,6 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
 
     # noinspection PyBroadException
     try:
-        # If we are testing with pytest, we cannot create this trigger
-        # Because it causes a segmentation fault
-        # if env.get('MODE') != 'TESTING':
         create_deploy_historian()
         logger.warning("Creating Feature Store Splice Tables inside Splice DB...")
         SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True, tables=[t.__table__ for t in TABLES])

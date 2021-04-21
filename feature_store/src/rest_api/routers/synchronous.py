@@ -218,6 +218,38 @@ def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_
         ts = register_training_set(db, ts, save_as)
     return ts
 
+@SYNC_ROUTER.get('/training-set-by-name', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
+                description="Returns the training set as a Spark Dataframe from an EXISTING training set",
+                operation_id='get_training_set_by_name', tags=['Training Sets'])
+@managed_transaction
+def get_training_set_by_name(name: str, version: Optional[int] = None, return_pk_cols: bool = Query(False, alias='pks'),
+                               return_ts_col: bool = Query(False, alias='ts'), db: Session = Depends(crud.get_db)):
+    """
+    Gets an EXISTING training set by name. Returns the Training Set that exists
+    """
+
+    tsm: schemas.TrainingSetMetadata = crud.get_training_set_instance_by_name(db, name, version=version)
+
+    if not tsm:
+        v = f'{name}, version {version}' if version else  f'{name}'
+        err = f"Training Set {v} does not exist. Please enter a valid training set."
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND,
+                                     code=ExceptionCodes.DOES_NOT_EXIST, message=err)
+
+    features: List[schemas.Feature] = crud.get_features_by_id(db, [int(i) for i in tsm.features.split(',')])
+    if tsm.view_id:
+        view: schemas.TrainingView = crud.get_training_views(db, _filter={'view_id': tsm.view_id})[0]
+        ts: schemas.TrainingSet = _get_training_set_from_view(
+            db, view.name, tsm.training_set_create_ts, features, tsm.training_set_start_ts,
+            tsm.training_set_end_ts, return_pk_cols, return_ts_col
+        )
+    else:
+        ts: schemas.TrainingSet = _get_training_set(
+            db, features, tsm.training_set_create_ts, tsm.training_set_start_ts, tsm.training_set_end_ts,
+            current=False, label=tsm.label, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col
+        )
+    return ts
+
 @SYNC_ROUTER.get('/training-sets', status_code=status.HTTP_200_OK, response_model=Dict[str, Optional[str]],
                 description="Returns a dictionary a training sets available, with the map name -> description.", 
                 operation_id='list_training_sets', tags=['Training Sets'])
@@ -371,11 +403,15 @@ def get_training_set_from_deployment(schema: str, table: str, label: str = None,
     create_time = metadata.training_set_create_ts
 
     if tv_name:
-        ts = _get_training_set_from_view(db, view=tv_name, create_time=create_time, features=features, start_time=start_time, 
-                                            end_time=end_time, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col)
+        ts = _get_training_set_from_view(
+            db, view=tv_name, create_time=create_time, features=features, start_time=start_time,
+            end_time=end_time, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col
+        )
     else:
-        ts = _get_training_set(db, features=features, create_time=create_time, start_time=start_time, end_time=end_time,
-                                label=label, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col)
+        ts = _get_training_set(
+            db, features=features, create_time=create_time, start_time=start_time, end_time=end_time,
+            label=label, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col
+        )
 
     ts.metadata = metadata
     return ts

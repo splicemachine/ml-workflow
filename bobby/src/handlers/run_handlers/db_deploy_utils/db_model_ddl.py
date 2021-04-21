@@ -376,6 +376,9 @@ class DatabaseModelDDL:
         self.session.merge(ts) # Get the training_set_id
 
         # Register the TrainingSetInstance with its version (1)
+        tsst = key_vals['splice.feature_store.training_set_start_time']
+        tset = key_vals['splice.feature_store.training_set_end_time']
+        tsct = key_vals['splice.feature_store.training_set_create_time']
         tsi = dict(
             training_set_id = ts.training_set_id,
             training_set_version = 1,
@@ -390,12 +393,12 @@ class DatabaseModelDDL:
         # To indicate that this run's training set is now registered
         p1 = SqlParam(
             key='splice.feature_store.training_set_id',
-            value=ts.training_set_id,
+            value=str(ts.training_set_id),
             run_uuid=self.run_id
         )
         p2 = SqlParam(
             key='splice.feature_store.training_set_version',
-            value=1,
+            value='1',
             run_uuid=self.run_id
         )
         p3 = SqlParam(
@@ -525,9 +528,8 @@ class DatabaseModelDDL:
         # Check if run has training set
         training_set_params = [
             f'splice.feature_store.{i}' for i in [
-                'training_set_start_time', 'training_set_end_time', 'training_set_create_time', 'training_set_label',
-                'training_view_id', 'training_set_label',
-                'training_set_id', 'training_set_version', 'training_set_name'
+                'training_set_start_time', 'training_set_end_time', 'training_set_create_time','training_view_id',
+                'training_set_label', 'training_set_id', 'training_set_version', 'training_set_name'
             ]
         ]
         params: List[SqlParam] = self.session.query(SqlParam)\
@@ -536,8 +538,8 @@ class DatabaseModelDDL:
             .all()
 
         # We compare to -3 because the last 3 params (training_set_id,training_set_version, training_set_name)
-        # may not have been set yet.
-        # If the user didn't "save" their training set. If they aren't set, we will do that now
+        # may not have been set yet if the user didn't "save" their training set.
+        # If they aren't set, we will do that now
         if len(params)>=len(training_set_params)-3: # Run has associated training set.
             key_vals = {param.key:param.value for param in params}
             self.logger.info("Training set found! Registering...", send_db=True)
@@ -553,10 +555,10 @@ class DatabaseModelDDL:
             tset_version = key_vals.get('splice.feature_store.training_set_version')
             if tset_id and tset_version:
                 ts: TrainingSet = self._validate_training_set(int(tset_id), int(tset_version))
-            else: # If it's not there we need to register it
+            else: # If it's not there we need to register it and the features
                 ts: TrainingSet = self._register_training_set(key_vals)
-            self.logger.info(f"Done. Gathering individual features...", send_db=True)
-            self._register_training_set_features(ts, key_vals)
+                self.logger.info(f"Done. Gathering individual features...", send_db=True)
+                self._register_training_set_features(ts, key_vals)
             self.logger.info("Done. Registering deployment with Feature Store")
             self._register_model_deployment(ts, key_vals)
             self.logger.info("Done!", send_db=True)

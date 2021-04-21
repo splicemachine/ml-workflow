@@ -242,7 +242,8 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
         sql = _generate_training_set_history_sql(temp_vw, features, fsets, start_time=start_time, end_time=end_time, create_time=create_time,
             return_pk_cols=return_pk_cols, return_ts_col=return_ts_col)
     
-    metadata = TrainingSetMetadata(training_set_start_ts=start_time, training_set_end_ts=end_time, training_set_create_ts=create_time)
+    metadata = TrainingSetMetadata(training_set_start_ts=start_time or datetime(year=1900,month=1,day=1),
+                                   training_set_end_ts=end_time or datetime.today(), training_set_create_ts=create_time)
     if label:
         features.append(label)
     return TrainingSet(sql=sql, training_view=temp_vw, features=features, metadata=metadata)
@@ -276,8 +277,9 @@ def _get_training_set_from_view(db: Session, view: str, create_time: datetime, f
     # Generate the SQL needed to create the dataset
     sql = _generate_training_set_history_sql(tvw, features, feature_sets, start_time=start_time, end_time=end_time, create_time=create_time,
         return_pk_cols=return_pk_cols, return_ts_col=return_ts_col)
-    metadata = TrainingSetMetadata(training_set_start_ts=start_time, training_set_end_ts=end_time,
-                                   training_set_create_ts=create_time, view_id=tvw.view_id)
+    metadata = TrainingSetMetadata(training_set_start_ts=start_time or datetime(year=1900,month=1,day=1),
+                                   training_set_end_ts=end_time or datetime.today(), training_set_create_ts=create_time,
+                                   view_id=tvw.view_id)
     return TrainingSet(sql=sql, training_view=tvw, features=features, metadata=metadata)
 
 
