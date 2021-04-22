@@ -468,14 +468,14 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set
         p.c.pk_columns, 
         p.c.pk_types).\
         join(p, fset.feature_set_id==p.c.feature_set_id).\
-        join(num_feats,fset.feature_set_id==num_feats.c.feature_set_id).\
+        outerjoin(num_feats,fset.feature_set_id==num_feats.c.feature_set_id).\
         filter(and_(*queries))
 
     for fs, nf, pk_columns, pk_types in q.all():
         pkcols = pk_columns.split('|')
         pktypes = pk_types.split('|')
         primary_keys = {c: sql_to_datatype(k) for c, k in zip(pkcols, pktypes)}
-        feature_sets.append(schemas.FeatureSetDetail(**fs.__dict__, primary_keys=primary_keys, num_feats=nf))
+        feature_sets.append(schemas.FeatureSetDetail(**fs.__dict__, primary_keys=primary_keys, num_features=nf))
     return feature_sets
 
 def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) -> List[schemas.TrainingView]:

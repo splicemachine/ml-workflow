@@ -22,7 +22,7 @@ SYNC_ROUTER = APIRouter(
 )
 
 
-@SYNC_ROUTER.get('/feature-sets', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSet],
+@SYNC_ROUTER.get('/feature-sets', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDetail],
                 description="Returns a list of available feature sets", operation_id='get_feature_sets', tags=['Feature Sets'])
 @managed_transaction
 def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
@@ -314,7 +314,7 @@ def get_feature_set_details(schema: Optional[str] = None, table: Optional[str] =
     else:
         fsets = crud.get_feature_sets(db)
 
-    return [schemas.FeatureSetDetail(**fset.__dict__, features=crud.get_features(db, fset)) for fset in fsets]
+    return [schemas.FeatureSetDetail(**fset.__dict__, features=fset.__dict__.pop('features') or crud.get_features(db, fset)) for fset in fsets]
 
 @SYNC_ROUTER.get('/training-view-details', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDetail],
                 description="Returns details of all (or the specified) training views, the ID, name, description and optional label",
