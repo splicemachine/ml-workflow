@@ -376,9 +376,6 @@ class DatabaseModelDDL:
         self.session.merge(ts) # Get the training_set_id
 
         # Register the TrainingSetInstance with its version (1)
-        tsst = key_vals['splice.feature_store.training_set_start_time']
-        tset = key_vals['splice.feature_store.training_set_end_time']
-        tsct = key_vals['splice.feature_store.training_set_create_time']
         tsi = dict(
             training_set_id = ts.training_set_id,
             training_set_version = 1,
