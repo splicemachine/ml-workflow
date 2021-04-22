@@ -52,7 +52,7 @@ def _create_feature_set(fset: schemas.FeatureSetCreate, db: Session):
         crud.bulk_register_feature_metadata(db, fset.features)
     return created_fset
 
-def _get_feature_sets(names: List[str], db: Session):
+def _get_feature_sets(names: List[str], db: Session) -> List[schemas.FeatureSet]:
     """
     Logic implementation of get_feature_sets route implemented here so other
     functions can call it directly
