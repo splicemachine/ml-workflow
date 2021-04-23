@@ -39,6 +39,7 @@ class Feature(FeatureBase):
 
 class FeatureDetail(Feature):
     feature_set_name: Optional[str] = None
+    deployed: Optional[bool] = None
 
 class FeatureSetBase(BaseModel):
     schema_name: str
