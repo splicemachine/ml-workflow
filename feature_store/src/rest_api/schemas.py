@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Union
 from datetime import datetime
 from pydantic import BaseModel, validator, Field
+from shared.services.database import Converters
 
 
 class DataType(BaseModel):
@@ -45,13 +46,14 @@ class FeatureSearch(BaseModel):
     name: Optional[Dict[str, str]] = Field(None, example={'is': 'total_spending'})
     tags: Optional[List[str]] = Field(None, example=['TAG1', 'CUSTOMER', 'ANOTHER_TAG'])
     attributes: Optional[Dict[str, str]] = Field(None, example={'QUALITY': 'GOOD', 'FEAT_TYPE': 'RFM'})
-    feature_data_type: Optional[str] = Field(None, example=['INTEGER'])
+    feature_data_type: Optional[str] = Field(None, example='INTEGER')
     feature_type: Optional[str] = Field(None, example='C')
     schema_name: Optional[Dict[str, str]] = Field(None, example={'like': 'MY_SCHEMA'})
     table_name: Optional[Dict[str, str]] = Field(None, example={'like': 'spending'})
     deployed: Optional[bool] = Field(None, example=False)
     last_update_username: Optional[Dict[str, str]] = Field(None, example={'is': 'jack'})
-    last_update_ts: Optional[Dict[str, datetime]] = Field(None, example={'gte': str(datetime.today())})
+    last_update_ts: Optional[Dict[str, datetime]] = Field(None, example={'lte': str(datetime.today()),
+                                                                         'gte':'2010-04-23 19:57:03.243103'})
 
     @validator('feature_data_type')
     def convert(cls, v):

@@ -593,13 +593,14 @@ def feature_search(db: Session, fs: schemas.FeatureSearch) -> List[schemas.Featu
 
     # If there's a better way to do this we should fix it
     for col, comp in fs:
+        table = fset if col in ('schema_name','table_name','deployed') else f # These columns come from feature set
         if not comp:
             continue
         if type(comp) in (bool, str): # No dictionary, simple comparison
-            q = q.filter(getattr(fset,col) == comp)
+            q = q.filter(getattr(table,col) == comp)
         elif isinstance(comp, list):
             for tag in comp:
-                q = q.filter(f.tags.like(f"'{tag}'"))
+                q = q.filter(table.tags.like(f"'{tag}'"))
         elif col == 'attributes': # Special comparison for attributes
             for k,v in comp.items():
                 q = q.filter(f.attributes.like(f"%'{k}':'{v}'%"))
@@ -617,7 +618,6 @@ def feature_search(db: Session, fs: schemas.FeatureSearch) -> List[schemas.Featu
                     q = q.filter(f.last_update_ts < TextClause(f"'{str(val)}'"))
         else: # Rest are just 1 element dictionaries
             c, val = list(comp.items())[0]
-            table = fset if col in ('schema_name','table_name') else f
             if c == 'is':
                 q = q.filter(getattr(table,col) == val)
             elif c == 'like':
