@@ -548,7 +548,7 @@ def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool =
     f = aliased(models.Feature, name='f')
     fset = aliased(models.FeatureSet, name='fset')
 
-    df = db.query(fset.schema_name, fset.table_name, f).\
+    df = db.query(fset.schema_name, fset.table_name, fset.deployed, f).\
         select_from(f).\
         join(fset, f.feature_set_id==fset.feature_set_id)
 
@@ -557,10 +557,10 @@ def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool =
         df = df.filter(func.upper(f.name).in_([name.upper() for name in names]))
 
     features = []
-    for schema, table, feat in df.all():
+    for schema, table, deployed, feat in df.all():
         # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
         f = model_to_schema_feature(feat)
-        features.append(schemas.FeatureDetail(**f.__dict__, feature_set_name=f'{schema}.{table}'))
+        features.append(schemas.FeatureDetail(**f.__dict__, feature_set_name=f'{schema}.{table}', deployed=deployed))
 
     if sort and names:
         indices = {v.upper():i for i,v in enumerate(names)}
