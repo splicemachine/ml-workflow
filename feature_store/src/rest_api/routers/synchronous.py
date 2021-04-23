@@ -86,6 +86,28 @@ def get_features_by_name(names: List[str] = Query([], alias="name"), db: Session
     """
     return crud.get_feature_descriptions_by_name(db, names)
 
+search_description="""
+An advanced, server side search of Features. There are particular rules for each parameter:
+* name: (dictionary) The key can be ('is' or 'like'). Can one contain 1 key and 1 value
+* tags: A list of strings. The search will look for each individual tag (exact search, not fuzzy match)
+* attributes: A dictionary of key:value pairs. It will match exact key/value attributes, no fuzzy matching
+* feature_data_type: (string) Must be a valid database type
+* feature_type: (string) must be one of ('C','O','N') 
+* schema_name: (dictionary) The key can be ('is' or 'like'). Can only contain 1 key and 1 value
+* table_name: (dictionary) The key can be ('is' or 'like'). Can only contain 1 key and 1 value
+* deployed: boolean
+* last_update_username: (dictionary) The key can be ('is' or 'like'). Can only contain 1 key and 1 value
+* last_update_ts: (dictionary) for comparing dates, must be one of ('lt', 'lte', 'eq', 'gt', 'gte'). Can have multiple
+"""
+@SYNC_ROUTER.post('/feature-search', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureDetail],
+                description=search_description, operation_id='feature_search', tags=['Features'])
+@managed_transaction
+def feature_search(fs: schemas.FeatureSearch, db: Session = Depends(crud.get_db)):
+    """
+    Returns a list of features who fall into the search criteria
+    """
+    return crud.feature_search(db, fs)
+
 @SYNC_ROUTER.get('/feature-exists', status_code=status.HTTP_200_OK, response_model=bool,
                 description="Returns whether or not a feature name exists", operation_id='feature_exists', tags=['Features'])
 @managed_transaction
