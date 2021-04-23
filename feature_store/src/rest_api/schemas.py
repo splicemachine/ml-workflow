@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Union
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, validator, Field
 
 
 class DataType(BaseModel):
@@ -39,6 +39,51 @@ class Feature(FeatureBase):
 
 class FeatureDetail(Feature):
     feature_set_name: Optional[str] = None
+
+class FeatureSearch(BaseModel):
+    name: Optional[Dict[str, str]] = Field(None, example={'is': 'total_spending'})
+    tags: Optional[List[str]] = Field(None, example=['TAG1', 'CUSTOMER', 'ANOTHER_TAG'])
+    attributes: Optional[Dict[str, str]] = Field(None, example={'QUALITY': 'GOOD', 'FEAT_TYPE': 'RFM'})
+    feature_data_type: Optional[str] = Field(None, example=['INTEGER'])
+    feature_type: Optional[str] = Field(None, example='C')
+    schema_name: Optional[Dict[str, str]] = Field(None, example={'like': 'MY_SCHEMA'})
+    table_name: Optional[Dict[str, str]] = Field(None, example={'like': 'spending'})
+    deployed: Optional[bool] = Field(None, example=False)
+    last_update_username: Optional[Dict[str, str]] = Field(None, example={'is': 'jack'})
+    last_update_ts: Optional[Dict[str, datetime]] = Field(None, example={'gte': str(datetime.today())})
+
+    @validator('feature_data_type')
+    def convert(cls, v):
+        if v.upper() not in Converters.SQL_TYPES:
+            raise ValueError(f'Available feature datatypes are {Converters.SQL_TYPES}')
+        return 'INTEGER' if v.upper() == 'INT' else v.upper()  # Users may want INT
+
+    @validator('feature_type')
+    def check_values(cls, v):
+        if v not in ('C', 'N', 'O'):
+            raise ValueError("Feature type must be one of ('C','N','O')")
+        return v
+
+    @validator('name', 'schema_name', 'table_name', 'last_update_username')
+    def validate_dict(cls, v):
+        if v and len(v) != 1:
+            raise ValueError("Can only provide 1 filter per field!")
+        if v and list(v.keys())[0] not in ('like', 'is'):
+            raise ValueError("Available keys for this field are 'like' and 'is'")
+        return v
+
+    @validator('last_update_ts')
+    def key_must_be_comparitor(cls, v):
+        if not v:
+            return
+        for key, val in v.items():
+            if key not in ('lt', 'lte', 'eq', 'gt', 'gte'):
+                raise ValueError("last_update_ts key must be one of ('lt', 'lte', 'eq', 'gt', 'gte') ")
+            # Datetime has a larger max precision than the database, so we need to trim
+            # m = str(val.microsecond)
+            # v[key] = val.replace(microsecond=int(m[:4]))
+        return v
+
 
 class FeatureSetBase(BaseModel):
     schema_name: str
