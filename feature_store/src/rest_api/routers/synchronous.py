@@ -314,6 +314,8 @@ def get_feature_set_details(schema: Optional[str] = None, table: Optional[str] =
     else:
         fsets = crud.get_feature_sets(db)
 
+    # We need to pop features here because it's set to None in the dictionary. If we don't remove it manually, we
+    # Will get an error that we are trying to set 2 different values of features for FeatureSetDetail
     return [schemas.FeatureSetDetail(**fset.__dict__, features=fset.__dict__.pop('features') or crud.get_features(db, fset)) for fset in fsets]
 
 @SYNC_ROUTER.get('/training-view-details', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDetail],
