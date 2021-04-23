@@ -15,10 +15,12 @@ class DataType(BaseModel):
     precision: Optional[int] = None
     scale: Optional[int] = None
 
+
 class FeatureMetadata(BaseModel):
     tags: Optional[List[str]] = None
     description: Optional[str] = None
     attributes: Optional[Dict[str, str]] = None
+
 
 class FeatureBase(FeatureMetadata):
     feature_set_id: Optional[int] = None
@@ -26,50 +28,57 @@ class FeatureBase(FeatureMetadata):
     feature_data_type: DataType
     feature_type: str
 
+
 class FeatureCreate(FeatureBase):
     pass
+
 
 class Feature(FeatureBase):
     feature_id: int
     compliance_level: Optional[int] = None
     last_update_ts: Optional[datetime] = None
     last_update_username: Optional[str] = None
-    
+
     class Config:
         orm_mode = True
+
 
 class FeatureDetail(Feature):
     feature_set_name: Optional[str] = None
 
+
 class FeatureSearch(BaseModel):
-    name: Optional[Dict[str,str]] = Field(None, example={'is':'total_spending'})
-    tags: Optional[List[str]] = Field(None, example=['TAG1','CUSTOMER','ANOTHER_TAG'])
-    attributes: Optional[Dict[str,str]] = Field(None, example={'QUALITY':'GOOD', 'FEAT_TYPE':'RFM'})
+    name: Optional[Dict[str, str]] = Field(None, example={'is': 'total_spending'})
+    tags: Optional[List[str]] = Field(None, example=['TAG1', 'CUSTOMER', 'ANOTHER_TAG'])
+    attributes: Optional[Dict[str, str]] = Field(None, example={'QUALITY': 'GOOD', 'FEAT_TYPE': 'RFM'})
     feature_data_type: Optional[str] = Field(None, example=['INTEGER'])
     feature_type: Optional[str] = Field(None, example='C')
-    schema_name: Optional[Dict[str,str]] = Field(None, example={'like':'MY_SCHEMA'})
-    table_name: Optional[Dict[str,str]] = Field(None, example={'like':'spending'})
+    schema_name: Optional[Dict[str, str]] = Field(None, example={'like': 'MY_SCHEMA'})
+    table_name: Optional[Dict[str, str]] = Field(None, example={'like': 'spending'})
     deployed: Optional[bool] = Field(None, example=False)
-    last_update_username: Optional[Dict[str,str]] = Field(None, example={'is':'jack'})
-    last_update_ts: Optional[Dict[str,datetime]] =  Field(None, example={'gte':str(datetime.today())})
+    last_update_username: Optional[Dict[str, str]] = Field(None, example={'is': 'jack'})
+    last_update_ts: Optional[Dict[str, datetime]] = Field(None, example={'gte': str(datetime.today())})
 
     @validator('feature_data_type')
     def convert(cls, v):
         if v.upper() not in Converters.SQL_TYPES:
             raise ValueError(f'Available feature datatypes are {Converters.SQL_TYPES}')
-        return 'INTEGER' if v.upper()=='INT' else v.upper() # Users may want INT
+        return 'INTEGER' if v.upper() == 'INT' else v.upper()  # Users may want INT
+
     @validator('feature_type')
     def check_values(cls, v):
-        if v not in ('C','N','O'):
+        if v not in ('C', 'N', 'O'):
             raise ValueError("Feature type must be one of ('C','N','O')")
         return v
-    @validator('name','schema_name','table_name','last_update_username')
+
+    @validator('name', 'schema_name', 'table_name', 'last_update_username')
     def validate_dict(cls, v):
         if v and len(v) != 1:
             raise ValueError("Can only provide 1 filter per field!")
         if v and list(v.keys())[0] not in ('like', 'is'):
             raise ValueError("Available keys for this field are 'like' and 'is'")
         return v
+
     @validator('last_update_ts')
     def key_must_be_comparitor(cls, v):
         if not v:
@@ -82,15 +91,18 @@ class FeatureSearch(BaseModel):
             # v[key] = val.replace(microsecond=int(m[:4]))
         return v
 
+
 class FeatureSetBase(BaseModel):
     schema_name: str
     table_name: str
     description: Optional[str] = None
     primary_keys: Dict[str, DataType]
 
+
 class FeatureSetCreate(FeatureSetBase):
     features: Optional[List[FeatureCreate]] = None
     pass
+
 
 class FeatureSet(FeatureSetBase):
     feature_set_id: int
@@ -100,8 +112,10 @@ class FeatureSet(FeatureSetBase):
     class Config:
         orm_mode = True
 
+
 class FeatureSetDetail(FeatureSet):
     features: List[Feature]
+
 
 class TrainingViewBase(BaseModel):
     name: Optional[str] = None
@@ -111,8 +125,10 @@ class TrainingViewBase(BaseModel):
     label_column: Optional[str] = None
     join_columns: Optional[List[str]] = None
 
+
 class TrainingViewCreate(TrainingViewBase):
     sql_text: str
+
 
 class TrainingView(TrainingViewBase):
     view_id: Optional[int] = None
@@ -121,8 +137,10 @@ class TrainingView(TrainingViewBase):
     class Config:
         orm_mode = True
 
+
 class TrainingViewDetail(TrainingView):
     features: List[FeatureDetail]
+
 
 class Source(BaseModel):
     name: str
@@ -131,6 +149,7 @@ class Source(BaseModel):
     update_ts_column: str
     source_id: Optional[int] = None
     pk_columns: List[str]
+
 
 class Pipeline(BaseModel):
     feature_set_id: int
@@ -142,8 +161,10 @@ class Pipeline(BaseModel):
     pipeline_url: str
     last_update_ts: datetime
     last_update_username: str
+
     class Config:
         orm_mode = True
+
 
 class FeatureAggregation(BaseModel):
     column_name: str
@@ -151,6 +172,7 @@ class FeatureAggregation(BaseModel):
     agg_windows: List[str]
     feature_name_prefix: Optional[str] = None
     agg_default_value: Optional[float] = None
+
 
 class SourceFeatureSetAgg(BaseModel):
     source_name: str
@@ -163,15 +185,18 @@ class SourceFeatureSetAgg(BaseModel):
     backfill_interval: Optional[str] = None
     description: Optional[str] = None
 
+
 # Basically just for neat documentation
 class FeatureTimeframe(BaseModel):
     features: Union[List[Feature], List[str]] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 
+
 class FeatureJoinKeys(BaseModel):
     features: List[Union[str, FeatureDetail]]
     join_key_values: Dict[str, Union[str, int]]
+
 
 class Deployment(BaseModel):
     model_schema_name: str
@@ -186,11 +211,14 @@ class Deployment(BaseModel):
     class Config:
         orm_mode = True
 
+
 class DeploymentDetail(Deployment):
     training_set_name: Optional[str] = None
 
+
 class DeploymentFeatures(DeploymentDetail):
     features: List[Feature]
+
 
 class TrainingSetMetadata(BaseModel):
     name: Optional[str] = None
@@ -202,11 +230,13 @@ class TrainingSetMetadata(BaseModel):
     class Config:
         orm_mode = True
 
+
 class TrainingSet(BaseModel):
     sql: str
     training_view: Optional[TrainingView] = None
     features: List[Feature]
     metadata: Optional[TrainingSetMetadata] = None
+
 
 class FeatureStoreSummary(BaseModel):
     num_feature_sets: int
