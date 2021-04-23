@@ -5,7 +5,7 @@ from . import schemas
 from .constants import SQL
 from sqlalchemy.sql.elements import TextClause
 from shared.models import feature_store_models as models
-from shared.services.database import SQLAlchemyClient, DatabaseFunctions, Converters
+from shared.services.database import SQLAlchemyClient, DatabaseFunctions, Converters, DatabaseSQL
 from shared.logger.logging_config import logger
 from fastapi import status
 import re
@@ -276,46 +276,6 @@ def delete_pipeline(db: Session, feature_set_id: int):
     db.query(models.Pipeline).filter(models.Pipeline.feature_set_id == feature_set_id)\
         .delete(synchronize_session='fetch')
 
-def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
-                       training_sets: Set[int] = None):
-    """
-    Deletes a Feature Set. Drops the table. Removes keys. Potentially removes training sets if there are dependencies
-
-    :param db: Database Session
-    :param feature_set: feature set to delete
-    :param training_sets: Set[int] training sets 
-    :param cascade: whether to delete dependent training sets. If this is True training_sets must be set.
-    """
-    logger.info("Dropping table")
-    DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, feature_set.table_name, db.get_bind())
-    logger.info("Dropping history table")
-    DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, f'{feature_set.table_name}_history', db.get_bind())
-    if cascade and training_sets:
-        logger.info(f'linked training sets: {training_sets}')
-        # Delete training set features if any
-        logger.info("Removing training set features")
-        delete_training_set_features(db, training_sets)
-
-        # Delete training sets
-        logger.info("Removing training sets")
-        delete_training_sets(db, training_sets)
-
-    # Delete features
-    logger.info("Removing features")
-    delete_features_from_feature_set(db, feature_set.feature_set_id)
-    # Delete Feature Set Keys
-    logger.info("Removing feature set keys")
-    delete_features_set_keys(db, feature_set.feature_set_id)
-
-    # Delete pipeline dependencies
-    logger.info("Deleting any Pipeline dependencies")
-    delete_pipeline(db, feature_set.feature_set_id)
-
-    # Delete feature set
-    logger.info("Removing features set")
-    delete_feature_set(db, feature_set.feature_set_id)
-
-
 def delete_training_set_features(db: Session, training_sets: Set[int]):
     """
     Deletes training set features from training sets with the given IDs
@@ -326,6 +286,18 @@ def delete_training_set_features(db: Session, training_sets: Set[int]):
     db.query(models.TrainingSetFeature).filter(models.TrainingSetFeature.training_set_id.in_(training_sets)).\
             delete(synchronize_session='fetch')
 
+def delete_training_set_stats(db: Session, training_sets: Set[int]):
+    """
+    Deletes statistics about features for particular training sets
+
+    :param db: Session
+    :param training_sets: Training Set IDs
+    """
+    db.query(models.TrainingSetLabelStats).filter(models.TrainingSetLabelStats.training_set_id.in_(training_sets)).\
+            delete(synchronize_session='fetch')
+    db.query(models.TrainingSetFeatureStats).filter(models.TrainingSetFeatureStats.training_set_id.in_(training_sets)).\
+            delete(synchronize_session='fetch')
+
 def delete_training_sets(db: Session, training_sets: Set[int]):
     """
     Deletes training sets with the given IDs
@@ -334,6 +306,17 @@ def delete_training_sets(db: Session, training_sets: Set[int]):
     :param training_sets: training set IDs to delete
     """
     db.query(models.TrainingSet).filter(models.TrainingSet.training_set_id.in_(training_sets)).\
+            delete(synchronize_session='fetch')
+
+
+def delete_training_set_instances(db: Session, training_sets: Set[int]):
+    """
+    Deletes training set instances with the given IDs.
+
+    :param db: Database Session
+    :param training_sets: training set IDs to delete
+    """
+    db.query(models.TrainingSetInstance).filter(models.TrainingSetInstance.training_set_id.in_(training_sets)).\
             delete(synchronize_session='fetch')
 
 
@@ -359,6 +342,47 @@ def delete_training_view(db: Session, view_id: int):
     db.query(models.TrainingView).filter(models.TrainingView.view_id == view_id).\
         delete(synchronize_session='fetch')
 
+
+def register_training_set_instance(db: Session, tsm: schemas.TrainingSetMetadata):
+    """
+    Registers a new Training Set Instance. A training set with a start ts, end ts, create ts, name, ID, and a version
+
+    :param db: Session
+    :param tsm: TrainingSetMetadata
+    """
+    instance = tsm.__dict__
+    instance['last_update_username'] = 'CURRENT_USER' # FIXME: We need to set this to the feature store user's username
+    db.execute(DatabaseSQL.training_set_instance.format(**instance))
+
+def create_training_set(db: Session, name: str) -> int:
+    """
+    Creates a new record in the Training_Set table and returns the Training Set ID
+
+    :param db: Session
+    :param name: Training Set name
+    :return: (int) the Training Set ID
+    """
+    ts = models.TrainingSet(name=name)
+    db.add(ts)
+    db.flush()
+    return ts.training_set_id
+
+def register_training_set_features(db: Session, tset_id: int, features: List[schemas.Feature], label: str = None):
+    """
+    Registers features for a training set
+
+    :param db: Session
+    :param features: A list of tuples indicating the Feature's ID and if that Feature is a label
+    for this Training Set
+    """
+    feats = [
+        models.TrainingSetFeature(
+            training_set_id=tset_id,
+            feature_id=f.feature_id,
+            is_label=(f.name.lower() == label.lower()) if label else False,
+        ) for f in features
+    ]
+    db.bulk_save_objects(feats)
 
 def get_feature_set_dependencies(db: Session, feature_set_id: int) -> Dict[str, Set[Any]]:
     """
@@ -416,6 +440,53 @@ def get_training_sets_from_view(db: Session, vid: int) -> List[int]:
     res = db.query(models.TrainingSet.training_set_id).filter(models.TrainingSet.view_id == vid).all()
     return [i for (i,) in res]
 
+def get_training_set_instance_by_name(db: Session, name: str, version: int = None) -> schemas.TrainingSetMetadata:
+    """
+    Gets a training set instance by its name, if it exists. If it does exist, it will get the training set instance
+    with the largest version number.
+
+    :param db: Session
+    :param name: Training Set Instance name
+    :param version: The training set version. If not set will get the newest version
+    :return: TrainingSetMetadata
+    """
+    ts = aliased(models.TrainingSet, name='ts')
+    tsi = aliased(models.TrainingSetInstance, name='tsi')
+    tsf = aliased(models.TrainingSetFeature, name='tsf')
+
+    # Get the max version for the Training Set Name provided
+    p = db.query(
+        tsi.training_set_id,
+        func.max(tsi.training_set_version).label('training_set_version'),
+    ).\
+        select_from(ts).\
+        join(tsi, ts.training_set_id==tsi.training_set_id).\
+        filter(ts.name == name)
+    if version:
+        p = p.filter(tsi.training_set_version == version)
+
+    p = p.group_by(tsi.training_set_id).\
+        subquery('p')
+
+    # Get the training set start_ts, end_ts, name, create_ts
+    tsm = db.query(
+        ts.name,
+        ts.training_set_id,
+        ts.view_id,
+        tsi.training_set_version,
+        tsi.training_set_start_ts,
+        tsi.training_set_end_ts,
+        tsi.training_set_create_ts,
+        func.string_agg(tsf.feature_id, literal_column("','"), type_=String).label('features')
+    ).\
+        select_from(tsi).\
+        join(p, tsi.training_set_version==p.c.training_set_version and tsi.training_set_id==p.c.training_set_id).\
+        join(tsf, tsf.training_set_id==tsi.training_set_id).\
+        group_by(ts.name, ts.training_set_id, ts.view_id, tsi.training_set_start_ts, # We need the group by for the string agg of features
+                 tsi.training_set_end_ts, tsi.training_set_create_ts,tsi.training_set_version).\
+        first()
+
+    return schemas.TrainingSetMetadata(**tsm._asdict()) if tsm else None
 
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None,
@@ -497,22 +568,22 @@ def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) 
         group_by(models.TrainingViewKey.view_id).\
         subquery('c')
 
-    tc = aliased(models.TrainingView, name='tc')
+    tv = aliased(models.TrainingView, name='tc')
 
     q = db.query(
-        tc.view_id,
-        tc.name,
-        tc.description, 
-        cast(tc.sql_text, String(1000)).label('view_sql'),
+        tv.view_id,
+        tv.name,
+        tv.description,
+        cast(tv.sql_text, String(1000)).label('view_sql'),
         p.c.pk_columns,
-        tc.ts_column,
-        tc.label_column,
+        tv.ts_column,
+        tv.label_column,
         c.c.join_columns).\
-        join(p, tc.view_id==p.c.view_id).\
-        join(c, tc.view_id==c.c.view_id)
+        join(p, tv.view_id==p.c.view_id).\
+        join(c, tv.view_id==c.c.view_id)
 
     if _filter:
-        q = q.filter(and_(*[getattr(tc, name) == value for name, value in _filter.items()]))
+        q = q.filter(and_(*[getattr(tv, name) == value for name, value in _filter.items()]))
 
     for tv in q.all():
         t = tv._asdict()
@@ -736,12 +807,25 @@ def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureD
         select_from(f).\
         join(fset, f.feature_set_id==fset.feature_set_id)
 
-
     # If they don't pass in feature names, get all features 
     if names:
         df = df.filter(func.upper(f.name).in_([name.upper() for name in names]))
     
     return df.all()
+
+def get_features_by_id(db: Session, ids: List[int]) -> List[schemas.Feature]:
+    """
+    Returns a dataframe or list of features whose IDs are provided
+
+    :param db: SqlAlchemy Session
+    :param names: The list of feature names
+    :return: List[Feature] The list of Feature objects and their metadata. Note, this is not the Feature
+    values, simply the describing metadata about the features. To create a training dataset with Feature values, see
+    :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_feature_dataset`
+    """
+    f = aliased(models.Feature, name='f')
+    df = db.query(f).filter(f.feature_id.in_(ids))
+    return [model_to_schema_feature(f) for f in df.all()]
 
 
 def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: schemas.TrainingView) -> str:
@@ -1352,33 +1436,37 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
     """
     d = aliased(models.Deployment, name='d')
     ts = aliased(models.TrainingSet, name='ts')
+    tsi = aliased(models.TrainingSetInstance, name='tsi')
     tsf = aliased(models.TrainingSetFeature, name='tsf')
     tv = aliased(models.TrainingView, name='tv')
     f = aliased(models.Feature, name='f')
 
     deploy = db.query(
         tv.name,
-        d.training_set_start_ts,
-        d.training_set_end_ts,
-        d.training_set_create_ts,
+        tsi.training_set_start_ts,
+        tsi.training_set_end_ts,
+        tsi.training_set_create_ts,
+        tsi.training_set_version,
         func.string_agg(f.name, literal_column("','"), type_=String).\
             label('features'),
         tv.label_column.label('label')
     ).\
     select_from(d).\
     join(ts, d.training_set_id==ts.training_set_id).\
+    join(tsi, d.training_set_version==tsi.training_set_version and tsi.training_set_id==d.training_set_id).\
     join(tsf, tsf.training_set_id==d.training_set_id).\
     outerjoin(tv, tv.view_id==ts.view_id).\
     join(f, tsf.feature_id==f.feature_id).\
     filter(and_(
-        d.model_schema_name==schema_name, 
-        d.model_table_name==table_name
+        func.upper(d.model_schema_name)==schema_name.upper(),
+        func.upper(d.model_table_name)==table_name.upper()
     )).\
     group_by(tv.name,
-        d.training_set_start_ts,
-        d.training_set_end_ts,
-        d.training_set_create_ts,
-        tv.label_column
+        tsi.training_set_start_ts,
+        tsi.training_set_end_ts,
+        tsi.training_set_create_ts,
+        tv.label_column,
+        tsi.training_set_version
     ).first()
 
     if not deploy:
@@ -1393,11 +1481,13 @@ def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schema
                     feature_set: schemas.FeatureSet = None) -> List[schemas.DeploymentDetail]:
     d = aliased(models.Deployment, name='d')
     ts = aliased(models.TrainingSet, name='ts')
+    tsi = aliased(models.TrainingSetInstance, name='tsi')
     f = aliased(models.Feature, name='f')
     tsf = aliased(models.TrainingSetFeature, name='tsf')
     
-    q = db.query(ts.name, d).\
-        join(ts, ts.training_set_id==d.training_set_id)
+    q = db.query(ts.name, d, tsi.training_set_start_ts, tsi.training_set_end_ts, tsi.training_set_create_ts).\
+        join(ts, ts.training_set_id==d.training_set_id).\
+        join(tsi, tsi.training_set_version==d.training_set_version)
     
     if _filter:
         # if filter key is a column in Training_Set, get compare Training_Set column, else compare to Deployment column

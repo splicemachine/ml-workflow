@@ -218,10 +218,8 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
 
     def exception_handler(self, exc: Exception):
         self.logger.info("Rolling back...",send_db=True)
-        try: # SQL based exceptions will cause us to loose our savepoint https://splicemachine.atlassian.net/browse/DB-11749
-            self.savepoint.rollback()
-        except:
-            pass
+        # SQL based exceptions will cause us to lose our savepoint https://splicemachine.atlassian.net/browse/DB-11749
+        self.savepoint.rollback()
         self.Session.rollback()
         self._cleanup()  # always run cleanup, regardless of success or failure
         raise exc
