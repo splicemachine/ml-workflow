@@ -110,18 +110,17 @@ class Authentication:
         realm.setServerPort("1527")
         realm.setDatabaseName("splicedb")
 
-        java_import(gate.jvm, "com.splicemachine.shiro.jwt.JWTAuthenticationToken.*")
-        java_import(gate.jvm, "com.splicemachine.shiro.filter.SpliceAuthenticatingFilter.*")
-        filter = gate.jvm.com.splicemachine.shiro.filter.SpliceAuthenticatingFilter()
+        java_import(gate.jvm, "org.apache.shiro.authc.BearerToken.*")
         logger.info('Create Token')
-        jwt = filter.createToken(token)
+        bearer = gate.jvm.org.apache.shiro.authc.BearerToken(token)
         logger.info('Token created')
         # when shiro authentication fails, it throws an error
-        username = jwt.getUserId()
+        username = bearer.getCredentials()
+        logger.info(username)
         try:
             logger.info('Attempting login')
             u = f'"{username}"' if '@' in username else username
-            realm.initialize(u, jwt.getToken())
+            realm.initialize(u, bearer.getToken())
         except Py4JJavaError as e:
             logger.info('Login Failed')
             logger.info(f'{e.errmsg}-{type(e)}: {e.java_exception}')
