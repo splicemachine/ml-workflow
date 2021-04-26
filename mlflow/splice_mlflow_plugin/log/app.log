@@ -1,0 +1,5 @@
+2021-04-26T12:19:43.043690-0400 INFO  [Unspecified Task] [Unspecified Framework Name] [hbase] [4459589120] [shared.services.database]: SQLAlchemy Engine has not been created... creating SQLAlchemy Client...
+2021-04-26T12:19:43.104536-0400 INFO  [Unspecified Task] [Unspecified Framework Name] [hbase] [4459589120] [shared.services.database]: Creating Job Manager Database Connection
+2021-04-26T12:19:43.105232-0400 INFO  [Unspecified Task] [Unspecified Framework Name] [hbase] [4459589120] [shared.services.database]: Creating Job Manager Session Maker
+2021-04-26T12:19:43.105445-0400 INFO  [Unspecified Task] [Unspecified Framework Name] [hbase] [4459589120] [shared.services.database]: Creating Logging Factory
+2021-04-26T12:19:43.105617-0400 INFO  [Unspecified Task] [Unspecified Framework Name] [hbase] [4459589120] [shared.services.database]: Done.

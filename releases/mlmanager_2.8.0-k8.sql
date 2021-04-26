@@ -1,4 +1,5 @@
 ALTER TABLE MLManager.Artifacts ALTER COLUMN file_extension SET DATA TYPE VARCHAR(25);
+ALTER TABLE MLManager.Artifacts ADD COLUMN artifact_path Varchar(250);
 
 ALTER TABLE FeatureStore.Deployment DROP COLUMN training_set_start_ts;
 ALTER TABLE FeatureStore.Deployment DROP COLUMN training_set_end_ts;

@@ -37,6 +37,8 @@ RUN cd $BUILD_HOME && \
     sh ./install.sh -q
 
 # Install Python dependencies
+COPY shared /tmp/shared
+RUN pip3 install --user /tmp/shared/.
 COPY mlflow/splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
 RUN pip3 install -q -r $BUILD_HOME/requirements.txt && \
     pip3 install  $BUILD_HOME/splice_mlflow_plugin
@@ -60,8 +62,6 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
-COPY shared /tmp/shared
-RUN pip3 install --user /tmp/shared/.
 
 # Bug fix for the mlflow 1.15 release
 COPY mlflow/build/39d1c3be5f05_add_is_nan_constraint_for_metrics_tables_if_necessary.py /usr/local/lib/python3.6/site-packages/mlflow/store/db_migrations/versions/
