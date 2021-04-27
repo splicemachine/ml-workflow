@@ -490,12 +490,13 @@ def get_training_set_instance_by_name(db: Session, name: str, version: int = Non
 
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None,
-                     _filter: Dict[str, str] = None) -> List[schemas.FeatureSet]:
+                     _filter: Dict[str, str] = None) -> List[schemas.FeatureSetDetail]:
     """
     Returns a list of available feature sets
 
     :param db: SqlAlchemy Session
     :param feature_set_ids: A list of feature set IDs. If none will return all FeatureSets
+    :param detail: Whether or not to include extra details of the Feature Set (number of features)
     :param _filter: Dictionary of filters to apply to the query. This filter can be on any attribute of FeatureSets.
         If None, will return all FeatureSets
     :return: List[FeatureSet] the list of Feature Sets
@@ -525,18 +526,27 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set
         group_by(models.FeatureSetKey.feature_set_id).\
         subquery('p')
 
+    num_feats = db.query(
+        models.Feature.feature_set_id,
+        func.count(models.Feature.feature_id).label('num_features')
+    ).\
+        group_by(models.Feature.feature_set_id).\
+        subquery('nf')
+
     q = db.query(
-        fset, 
+        fset,
+        num_feats.c.num_features,
         p.c.pk_columns, 
         p.c.pk_types).\
         join(p, fset.feature_set_id==p.c.feature_set_id).\
+        outerjoin(num_feats,fset.feature_set_id==num_feats.c.feature_set_id).\
         filter(and_(*queries))
 
-    for fs, pk_columns, pk_types in q.all():
+    for fs, nf, pk_columns, pk_types in q.all():
         pkcols = pk_columns.split('|')
         pktypes = pk_types.split('|')
         primary_keys = {c: sql_to_datatype(k) for c, k in zip(pkcols, pktypes)}
-        feature_sets.append(schemas.FeatureSet(**fs.__dict__, primary_keys=primary_keys))
+        feature_sets.append(schemas.FeatureSetDetail(**fs.__dict__, primary_keys=primary_keys, num_features=nf))
     return feature_sets
 
 def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) -> List[schemas.TrainingView]:

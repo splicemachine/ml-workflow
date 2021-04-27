@@ -101,12 +101,15 @@ class FeatureSet(FeatureSetBase):
     feature_set_id: int
     deployed: Optional[bool] = False
     deploy_ts: Optional[datetime] = None
+    last_update_username: Optional[str] = None
+    last_update_ts: Optional[datetime] = None
 
     class Config:
         orm_mode = True
 
 class FeatureSetDetail(FeatureSet):
-    features: List[Feature]
+    features: Optional[List[Feature]] = None
+    num_features: Optional[int] = None
 
 class TrainingViewBase(BaseModel):
     name: Optional[str] = None
