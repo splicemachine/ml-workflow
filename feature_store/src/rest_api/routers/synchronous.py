@@ -302,16 +302,19 @@ def list_training_sets(db: Session = Depends(crud.get_db)):
     return crud.list_training_sets(db)
 
 @SYNC_ROUTER.get('/training-set-details', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
-                description='Returns details about a particular training set instance given a name and version',
+                description='Returns details about a particular training set instance given a name and version. '
+                            'If no version is provided, the newest training set version will be fetched',
                 operation_id='get_training_set_details', tags=['Training Sets'])
 @managed_transaction
-def get_training_set_details(name: str, version: int, db: Session = Depends(crud.get_db)):
+def get_training_set_details(name: str, version: int = None, db: Session = Depends(crud.get_db)):
     """
     Returns training set instance details for a given version
     """
     tsi: schemas.TrainingSetMetadata = crud.get_training_set_instance_by_name(db, name, version)
     if not tsi:
-        raise SpliceMachineException(message=f'Cannot find Training Set {name} of version {version}.',
+        err = f'Cannot find Training Set {name}'
+        if version: err += f' of version {version}'
+        raise SpliceMachineException(message=err,
                                      code=ExceptionCodes.DOES_NOT_EXIST, status_code=status.HTTP_404_NOT_FOUND)
     # This returns features as a comma seperated string of IDs, we want the features
     ids = [int(id_) for id_ in tsi.features.split(',')]
