@@ -638,6 +638,60 @@ def get_feature_descriptions_by_name(db: Session, names: List[str], sort: bool =
         features = sorted(features, key=lambda f: indices[f.name.upper()])
     return features
 
+def feature_search(db: Session, fs: schemas.FeatureSearch) -> List[schemas.FeatureDetail]:
+    """
+    Returns a list of FeatureDetails based on the provided search criteria
+
+    :param fs:
+    :return:
+    """
+    f = aliased(models.Feature, name='f')
+    fset = aliased(models.FeatureSet, name='fset')
+
+    q = db.query(fset.schema_name, fset.table_name, fset.deployed, f).\
+        select_from(f).\
+        join(fset, f.feature_set_id==fset.feature_set_id)
+
+    # If there's a better way to do this we should fix it
+    for col, comp in fs:
+        table = fset if col in ('schema_name','table_name','deployed') else f # These columns come from feature set
+        if not comp:
+            continue
+        if type(comp) in (bool, str): # No dictionary, simple comparison
+            q = q.filter(getattr(table,col) == comp)
+        elif isinstance(comp, list):
+            for tag in comp:
+                q = q.filter(table.tags.like(f"'{tag}'"))
+        elif col == 'attributes': # Special comparison for attributes
+            for k,v in comp.items():
+                q = q.filter(f.attributes.like(f"%'{k}':'{v}'%"))
+        elif col == 'last_update_ts':  # Timestamp Comparisons
+            for k,val in comp.items(): # I wonder if there's a better way to do this
+                if k == 'gt':  #cast(tc.sql_text, String(1000))
+                    q = q.filter(f.last_update_ts > TextClause(f"'{str(val)}'"))
+                elif k == 'gte':
+                    q = q.filter(f.last_update_ts >= TextClause(f"'{str(val)}'"))
+                elif k == 'eq':
+                    q = q.filter(f.last_update_ts == TextClause(f"'{str(val)}'"))
+                elif k == 'lte':
+                    q = q.filter(f.last_update_ts <= TextClause(f"'{str(val)}'"))
+                elif k == 'lt':
+                    q = q.filter(f.last_update_ts < TextClause(f"'{str(val)}'"))
+        else: # Rest are just 1 element dictionaries
+            c, val = list(comp.items())[0]
+            if c == 'is':
+                q = q.filter(getattr(table,col) == val)
+            elif c == 'like':
+                q = q.filter(func.upper(getattr(table,col)).like(f'%{val.upper()}%'))
+
+    features = []
+    for schema, table, deployed, feat in q.all():
+        # Have to convert this to a dictionary because the models.Feature object enforces the type of 'tags'
+        f = model_to_schema_feature(feat)
+        features.append(schemas.FeatureDetail(**f.__dict__, feature_set_name=f'{schema}.{table}', deployed=deployed))
+
+    return features
+
 def _get_feature_set_counts(db) -> List[Tuple[bool,int]]:
     """
     Returns the counts of undeployed and deployed feature set as a list of tuples
