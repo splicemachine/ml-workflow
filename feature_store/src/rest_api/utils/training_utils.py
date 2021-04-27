@@ -242,7 +242,8 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
         sql = _generate_training_set_history_sql(temp_vw, features, fsets, start_time=start_time, end_time=end_time, create_time=create_time,
             return_pk_cols=return_pk_cols, return_ts_col=return_ts_col)
     
-    metadata = TrainingSetMetadata(training_set_start_ts=start_time, training_set_end_ts=end_time, training_set_create_ts=create_time)
+    metadata = TrainingSetMetadata(training_set_start_ts=start_time or datetime(year=1900,month=1,day=1),
+                                   training_set_end_ts=end_time or datetime.today(), training_set_create_ts=create_time)
     if label:
         features.append(label)
     return TrainingSet(sql=sql, training_view=temp_vw, features=features, metadata=metadata)
@@ -276,5 +277,69 @@ def _get_training_set_from_view(db: Session, view: str, create_time: datetime, f
     # Generate the SQL needed to create the dataset
     sql = _generate_training_set_history_sql(tvw, features, feature_sets, start_time=start_time, end_time=end_time, create_time=create_time,
         return_pk_cols=return_pk_cols, return_ts_col=return_ts_col)
-    metadata = TrainingSetMetadata(training_set_start_ts=start_time, training_set_end_ts=end_time, training_set_create_ts=create_time)
+    metadata = TrainingSetMetadata(training_set_start_ts=start_time or datetime(year=1900,month=1,day=1),
+                                   training_set_end_ts=end_time or datetime.today(), training_set_create_ts=create_time,
+                                   view_id=tvw.view_id)
     return TrainingSet(sql=sql, training_view=tvw, features=features, metadata=metadata)
+
+
+def register_training_set(db: Session, ts: TrainingSet, save_as: str) -> TrainingSet:
+    """
+    Validates and then Saves a training set metadata and TrainingSetInstance.
+
+    *   First we need to see if this name already exists.
+    *   If it does not, then we create it at version 1.
+    *   If it does, validate that it has a matching schema to this one (same features). If so, create a new version.
+    *   If the schema doesn't match, throw an error
+
+    :param db: Session
+    :param ts: TrainingSet
+    :param save_as: The name we wish to save the training set with
+    :return: Training Set with updated metadata
+    """
+
+    tsm: TrainingSetMetadata = crud.get_training_set_instance_by_name(db, save_as)
+    if tsm:
+        # Validate that it's using the same View (if it has a view at all)
+        if tsm.view_id != ts.metadata.view_id:
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.ALREADY_EXISTS,
+                                         message=f'Training Set {save_as} already exists and was created with a different '
+                                                 f'view ({ts.metadata.view_id}) than the one provided ({tsm.view_id}). '
+                                                 f'To create a new version of Training Set {save_as}, you must use '
+                                                 f'the same view. Otherwise, save this Training Set with a different name')
+
+        tsm_feats = sorted([int(i) for i in tsm.features.split(',')])
+        ts_feats = sorted([f.feature_id for f in ts.features])
+        if tsm_feats != ts_feats:
+            raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.ALREADY_EXISTS,
+                                         message=f'Training Set {save_as} already exists and has a different set '
+                                                 f'of features than the ones provided. To create a new version of '
+                                                 f'Training Set {save_as}, you must use the same set of features. '
+                                                 f'Training Set {save_as} has features {tsm_feats} but you requested'
+                                                 f' features {ts_feats}')
+        # Training Set Instance exists and this is a new one. Register a new instance with version + 1
+        new_instance = TrainingSetMetadata(
+            training_set_start_ts = ts.metadata.training_set_start_ts,
+            training_set_end_ts = ts.metadata.training_set_end_ts,
+            training_set_create_ts = ts.metadata.training_set_create_ts,
+            training_set_version = tsm.training_set_version + 1,
+            training_set_id = tsm.training_set_id,
+            view_id = tsm.view_id
+        )
+        crud.register_training_set_instance(db, new_instance)
+    else:
+        # No Training Set Instance of this name yet. Create the first instance
+        tset_id = crud.create_training_set(db, save_as)
+
+        crud.register_training_set_features(db, tset_id, ts.features, ts.metadata.label)
+        new_instance = TrainingSetMetadata(
+            training_set_start_ts = ts.metadata.training_set_start_ts,
+            training_set_end_ts = ts.metadata.training_set_end_ts,
+            training_set_create_ts = ts.metadata.training_set_create_ts,
+            training_set_version = 1,
+            training_set_id = tset_id,
+            view_id = tsm.view_id
+        )
+        crud.register_training_set_instance(db, new_instance)
+    ts.metadata = new_instance
+    return ts

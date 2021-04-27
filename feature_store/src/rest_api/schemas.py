@@ -3,7 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel, validator, Field
 from shared.services.database import Converters
 
-
 class DataType(BaseModel):
     """
     A class for representing a SQL data type as an object. Data types can have length, precision,
@@ -186,8 +185,10 @@ class Deployment(BaseModel):
     model_schema_name: str
     model_table_name: str
     training_set_id: Optional[int] = None
+    training_set_version: Optional[int] = None
     training_set_start_ts: Optional[datetime] = None
     training_set_end_ts: Optional[datetime] = None
+    training_set_create_ts: Optional[datetime] = None
     run_id: Optional[str] = None
     last_update_ts: datetime
     last_update_username: str
@@ -206,7 +207,11 @@ class TrainingSetMetadata(BaseModel):
     training_set_start_ts: Optional[datetime] = None
     training_set_end_ts: Optional[datetime] = None
     training_set_create_ts: datetime
+    training_set_version: Optional[int] = None
+    training_set_id: Optional[int] = None
     features: Optional[str] = None
+    label: Optional[str] = None
+    view_id: Optional[int] = None
 
     class Config:
         orm_mode = True

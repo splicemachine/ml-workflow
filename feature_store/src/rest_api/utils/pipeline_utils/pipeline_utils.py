@@ -59,10 +59,13 @@ def create_pipeline_entities(db: Session, sf: schemas.SourceFeatureSetAgg, sourc
         # Create the features that the aggregations produce
         for f in agg.agg_functions:
             for w in agg.agg_windows: # For each agg function, there are n windows that make n features
+                # Validate that the feature name is valid (in case they provided an already used prefix)
+                fname = helpers.build_agg_feature_name(feat_prefix,f,w)
+                crud.validate_feature(db, fname, sql_to_datatype('DOUBLE'))
                 agg_features.append(
                     schemas.FeatureCreate(
                         feature_set_id=fset_id,
-                        name=helpers.build_agg_feature_name(feat_prefix,f,w),
+                        name=fname,
                         description=f'{f} of {agg.column_name} over last {w}',
                         feature_data_type=sql_to_datatype('DOUBLE'),
                         feature_type='C',  # 'C'ontinuous
