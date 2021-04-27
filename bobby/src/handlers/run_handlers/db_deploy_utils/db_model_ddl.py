@@ -156,9 +156,11 @@ class DatabaseModelDDL:
                 {schema_str}"""
 
         pk_cols = ''
+
+        table_columns = [i.lower() for i in list(self.model.get_metadata(Metadata.SQL_SCHEMA).keys())]
         for key in self.primary_key:
             # If pk is already in the schema_string, don't add another column. PK may be an existing value
-            if key.lower() not in schema_str.lower() and \
+            if key.lower() not in table_columns and \
                     key.upper() not in self.model.get_metadata(Metadata.RESERVED_COLUMNS):
                 table_create_sql += f'{key} {self.primary_key[key]},'
             pk_cols += f'{key},'
