@@ -21,7 +21,7 @@ services:
       FRAMEWORK_NAME: my-framework
       MODE: development
       ENVIRONMENT: ${ENVIRONMENT:-default}
-    image: splicemachine/sm_k8_mlflow:0.1.31_newui_001
+    image: splicemachine/sm_k8_mlflow:0.1.31
     ports:
       - "5001:5001"
       - "5003:5003"
@@ -55,9 +55,11 @@ services:
       dockerfile: ./bobby/Dockerfile
   feature_store:
     environment:
-      DB_HOST: host.docker.internal
+      DB_HOST: jdbc-erinspace-nonprod-gke-dev1.gke.splicemachine-dev.io
       DB_USER: mlmanager
       DB_PASSWORD: ${DB_PASSWORD:-admin}
+      DB_DATABASE_NAME: splicedb
+      ENABLE_CORS_URL: http://localhost:8000
       FRAMEWORK_NAME: my-framework
       MODE: development
       ROOT_PATH: / # Change this to /featurestore in the cloud
@@ -65,7 +67,7 @@ services:
       AIRFLOW_URL: "http://host.docker.internal:8081/api/v1"
       AIRFLOW_USER: airflow
       AIRFLOW_PASSWORD: airflow
-    image: splicemachine/sm_k8_feature_store:0.0.5_newui_010
+    image: splicemachine/sm_k8_feature_store:0.0.5
     ports:
       - "8000:8000"
     build:

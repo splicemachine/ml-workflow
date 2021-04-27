@@ -206,12 +206,14 @@ class TrainingSetMetadata(BaseModel):
     name: Optional[str] = None
     training_set_start_ts: Optional[datetime] = None
     training_set_end_ts: Optional[datetime] = None
-    training_set_create_ts: datetime
+    training_set_create_ts: Optional[datetime] = None
     training_set_version: Optional[int] = None
     training_set_id: Optional[int] = None
     features: Optional[str] = None
     label: Optional[str] = None
     view_id: Optional[int] = None
+    last_update_username: Optional[str] = None
+    last_update_ts: Optional[datetime] = None
 
     class Config:
         orm_mode = True

@@ -11,7 +11,7 @@ import re
 import json
 from datetime import datetime
 from collections import Counter
-from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text
+from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text, case
 from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           sql_to_datatype, _sql_to_sqlalchemy_columns,
                           __validate_feature_data_type, __validate_primary_keys)
@@ -374,15 +374,16 @@ def register_training_set_instance(db: Session, tsm: schemas.TrainingSetMetadata
     db.execute(DatabaseSQL.training_set_instance.format(**instance))
 
 
-def create_training_set(db: Session, name: str) -> int:
+def create_training_set(db: Session, ts: schemas.TrainingSet, name: str) -> int:
     """
     Creates a new record in the Training_Set table and returns the Training Set ID
 
     :param db: Session
+    :param ts: The Training Set
     :param name: Training Set name
     :return: (int) the Training Set ID
     """
-    ts = models.TrainingSet(name=name)
+    ts = models.TrainingSet(name=name, view_id=ts.metadata.view_id)
     db.add(ts)
     db.flush()
     return ts.training_set_id
@@ -493,6 +494,11 @@ def get_training_set_instance_by_name(db: Session, name: str, version: int = Non
     p = p.group_by(tsi.training_set_id). \
         subquery('p')
 
+    feature_ids = db.query(
+        tsf.training_set_id, func.string_agg(tsf.feature_id, literal_column("','"), type_=String).label('features')
+    ).\
+        group_by(tsf.training_set_id).subquery('feature_ids')
+
     # Get the training set start_ts, end_ts, name, create_ts
     tsm = db.query(
         ts.name,
@@ -502,17 +508,50 @@ def get_training_set_instance_by_name(db: Session, name: str, version: int = Non
         tsi.training_set_start_ts,
         tsi.training_set_end_ts,
         tsi.training_set_create_ts,
-        func.string_agg(tsf.feature_id, literal_column("','"), type_=String).label('features')
+        feature_ids.c.features
     ). \
-        select_from(tsi). \
-        join(p, tsi.training_set_version == p.c.training_set_version and tsi.training_set_id == p.c.training_set_id). \
-        join(tsf, tsf.training_set_id == tsi.training_set_id). \
-        group_by(ts.name, ts.training_set_id, ts.view_id, tsi.training_set_start_ts,
-                 # We need the group by for the string agg of features
-                 tsi.training_set_end_ts, tsi.training_set_create_ts, tsi.training_set_version). \
+        select_from(p). \
+        join(ts, p.c.training_set_id == ts.training_set_id). \
+        join(tsi, and_(tsi.training_set_version == p.c.training_set_version, tsi.training_set_id == p.c.training_set_id)). \
+        join(feature_ids, feature_ids.c.training_set_id == tsi.training_set_id). \
         first()
-
     return schemas.TrainingSetMetadata(**tsm._asdict()) if tsm else None
+
+def list_training_sets(db: Session) -> List[schemas.TrainingSetMetadata]:
+    """
+    Gets a list of training sets (Name, View ID, Training Set ID, Last_update_ts, Last_update_username, label)
+
+    :return: List of Training Set Metadata (Name, View ID, Training Set ID, Last_update_ts, Last_update_username, label)
+    """
+    tv = aliased(models.TrainingView, name='tv')
+    ts = aliased(models.TrainingSet, name='ts')
+    tsf = aliased(models.TrainingSetFeature, name='tsf')
+    f = aliased(models.Feature, name='f')
+
+    q = db.query(
+        ts.name, ts.training_set_id, ts.view_id, ts.last_update_username, ts.last_update_ts,
+        # If the training set comes from a training view, the label will be TrainingView.label_column
+        # Otherwise, it may be one of the features in TrainingSetFeatures
+        # Or, it may be null (a label isn't required)
+        case(
+            [(f.name != None, f.name)],
+            else_= tv.label_column
+        ).label('label')).\
+        select_from(ts).\
+        join(tsf, and_(ts.training_set_id==tsf.training_set_id,tsf.is_label==True),isouter=True).\
+        join(f, f.feature_id==tsf.feature_id, isouter=True).\
+        join(tv, ts.view_id==tv.view_id, isouter=True)
+
+    tsms: List[schemas.TrainingSetMetadata] = []
+    for name, tsid, view_id, user, ts, label in q.all():
+        tsms.append(
+            schemas.TrainingSetMetadata(
+                name=name, training_set_id=tsid, view_id=view_id,
+                last_update_username=user,last_update_ts=ts, label=label
+            )
+        )
+    return tsms
+
 
 
 def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set_names: List[str] = None,

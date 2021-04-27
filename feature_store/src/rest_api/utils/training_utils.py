@@ -329,7 +329,8 @@ def register_training_set(db: Session, ts: TrainingSet, save_as: str) -> Trainin
         crud.register_training_set_instance(db, new_instance)
     else:
         # No Training Set Instance of this name yet. Create the first instance
-        tset_id = crud.create_training_set(db, save_as)
+        logger.info(f"Creating training set {save_as}")
+        tset_id = crud.create_training_set(db, ts, save_as)
 
         crud.register_training_set_features(db, tset_id, ts.features, ts.metadata.label)
         new_instance = TrainingSetMetadata(
@@ -338,7 +339,7 @@ def register_training_set(db: Session, ts: TrainingSet, save_as: str) -> Trainin
             training_set_create_ts = ts.metadata.training_set_create_ts,
             training_set_version = 1,
             training_set_id = tset_id,
-            view_id = tsm.view_id
+            view_id = ts.metadata.view_id
         )
         crud.register_training_set_instance(db, new_instance)
     ts.metadata = new_instance
