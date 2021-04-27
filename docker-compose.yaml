@@ -55,7 +55,7 @@ services:
       dockerfile: ./bobby/Dockerfile
   feature_store:
     environment:
-      DB_HOST: jdbc-erinspace-nonprod-gke-dev1.gke.splicemachine-dev.io
+      DB_HOST: host.docker.internal
       DB_USER: mlmanager
       DB_PASSWORD: ${DB_PASSWORD:-admin}
       DB_DATABASE_NAME: splicedb
