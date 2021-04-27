@@ -58,6 +58,8 @@ services:
       DB_HOST: host.docker.internal
       DB_USER: mlmanager
       DB_PASSWORD: ${DB_PASSWORD:-admin}
+      DB_DATABASE_NAME: splicedb
+      ENABLE_CORS_URL: http://localhost:8000
       FRAMEWORK_NAME: my-framework
       MODE: development
       ROOT_PATH: / # Change this to /featurestore in the cloud
