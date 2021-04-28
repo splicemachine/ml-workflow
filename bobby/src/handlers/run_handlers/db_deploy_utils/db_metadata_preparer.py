@@ -2,6 +2,8 @@
 Class to prepare database models for deployment
 to Splice Machine
 """
+import re
+import string
 from typing import List
 
 from .entities.db_model import Model
@@ -52,7 +54,10 @@ class DatabaseModelMetadataPreparer:
         self.preparer()
         # Sanitize classes
         if self._classes:
-            self._classes = [c.replace(' ', '_') for c in self._classes]
+            # Replace all special characters with _
+            self._classes = [re.sub('[^a-zA-Z0-9_]+', '_', x) for x in self._classes]
+            # Remove non alphabetic starting characters
+            self._classes = [c.lstrip(string.punctuation + string.digits) for c in self._classes]
             self.logger.info(f"Using sanitized labels {self._classes} as labels for predictions", send_db=True)
         # Register Model Metadata
         self.model.add_metadata(Metadata.TYPE, self.model_type)
