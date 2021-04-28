@@ -50,6 +50,10 @@ class DatabaseModelMetadataPreparer:
         """
         self.logger.info("Preparing Model Metadata for Deployment...", send_db=True)
         self.preparer()
+        # Sanitize classes
+        if self._classes:
+            self._classes = [c.replace(' ', '_') for c in self._classes]
+            self.logger.info(f"Using sanitized labels {self._classes} as labels for predictions", send_db=True)
         # Register Model Metadata
         self.model.add_metadata(Metadata.TYPE, self.model_type)
         self.model.add_metadata(Metadata.GENERIC_TYPE, ModelTypeMapper.get_model_type(self.model_type))
@@ -195,9 +199,6 @@ class DatabaseModelMetadataPreparer:
                 self.logger.warning("Classes were specified, but model does not support them... Ignoring.",
                                     send_db=True)
                 self._classes = None
-            else:
-                self._classes = [cls.replace(' ', '_') for cls in self._classes]
-                self.logger.info(f"Using {self._classes} as labels for predictions", send_db=True)
         else:
             raw_mojo = self.model.get_representation(Representations.RAW_MOJO)
             if self.model_type == H2OModelType.MULTI_PRED_INT:
@@ -217,5 +218,3 @@ class DatabaseModelMetadataPreparer:
                                               raw_mojo.getNames()]
 
                 }[model_category]()
-            self.logger.info(f"Using Classes: {self._classes}")
-
