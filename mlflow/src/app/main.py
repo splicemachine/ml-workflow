@@ -151,10 +151,16 @@ def initiate_job_rest() -> dict:
 
     return handler_queue_job(request.json, handler, user=request.authorization.username)
 
-
+########################################################################################################
+#                               Splice Machine Artifact Store                                          #
+# A HTTP endpoint for uploading artifacts                                                              #
+# This will accept artifacts up to 250MB, move them into the Splice DB MLManager.Aritfact table        #
+# And delete the file from disk                                                                        #
+# Authorization and Authentication included                                                            #
+########################################################################################################
 def insert_artifact(run_id, file, name, file_extension, artifact_path = None):
     """
-    Inserts an artifact into the database as a SqlArtifact
+    Inserts an artifact into the database as a SqlArtifact. Used as an intermediary step for the Splice Artifact Store
 
     :param run_id: The run id
     :param file: The file object
