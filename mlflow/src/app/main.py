@@ -151,6 +151,62 @@ def initiate_job_rest() -> dict:
 
     return handler_queue_job(request.json, handler, user=request.authorization.username)
 
+def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dict:
+    """
+    Handler for actions that execute services
+    e.g. deploy, retrain.
+    :param request_payload: (dict) payload to parse to create job
+    :param handler: (Handler) the handler object
+    :param user: (str) Username of the person who submitted the job
+    :return: (Response) JSON payload for success
+    """
+    # Format Payload
+    payload: dict = {field.name: field.get_value(request_payload.get(field.name) or None) for field in handler.payload_args
+                     if field.name != 'payload'}
+
+    job: Job = Job(handler_name=handler.name,
+                   user=user,
+                   payload=serialize_json(payload))
+
+    Session.add(job)
+    Session.commit()
+    Session.merge(job) # get identity col
+
+    try:
+        # Tell bobby there's a new job to process
+        requests.post(f"{BOBBY_URI}:2375/job")
+    except ConnectionError:
+        logger.warning('Bobby was not reachable by MLFlow. Ensure Bobby is running. \nThe job has'
+                       'been added to the database and will be processed when Bobby is running again.')
+    return dict(job_status=APIStatuses.pending,
+                job_id=job.id,
+                timestamp=timestamp())  # turned into JSON and returned
+
+@login_required
+def deploy_csp() -> Response:
+    """
+    Return HTML Containing Cloud Service
+    Specific Deployment Form
+    :return: (Response)
+    """
+    # templates for deployment in app/templates  should be formatted like
+    # 1) deploy_aws.html, 2) deploy_azure.html, 3) deploy_gcp.html
+    # they need to match the names given to the CloudEnvironments
+    # given in ml-workflow-lib/shared/database.py/splice_models.py:KnownHandlers
+    return show_html(f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html')
+
+
+@APP.route('/watch/<int:task_id>', methods=['GET'])
+@login_required
+def watch_job(task_id: int) -> Response:
+    """
+    Serves up the logs watching page
+    for MLManager Director
+    :param task_id: the id to watch
+    :return: (Response) HTML
+    """
+    return show_html('watch_logs.html', task_id=task_id)
+
 ########################################################################################################
 #                               Splice Machine Artifact Store                                          #
 # A HTTP endpoint for uploading artifacts                                                              #
@@ -250,70 +306,15 @@ def download_artifact() -> str:
     """
     Returns requested artifacts.
     """
-    # with TemporaryDirectory() as tmp_dir:
-    # try:
-    file, name = _download_artifact(request.json['run_id'], request.json['name'])
+    if not 'run_id' in request.args and 'name' in request.args:
+        raise SpliceMachineException(message=f"Name and Run ID must be provided",
+                                     status_code=400, code=ExceptionCodes.BAD_ARGUMENTS)
+    file, name = _download_artifact(request.args.get('run_id'), request.args.get('name'))
     # except:
     #     return ('file not found', 404)
     # https://www.iana.org/assignments/media-types/application/octet-stream octet-stream
     return send_file(BytesIO(file), mimetype='application/octet-stream', as_attachment=True, attachment_filename=name)
 
-
-def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dict:
-    """
-    Handler for actions that execute services
-    e.g. deploy, retrain.
-    :param request_payload: (dict) payload to parse to create job
-    :param handler: (Handler) the handler object
-    :param user: (str) Username of the person who submitted the job
-    :return: (Response) JSON payload for success
-    """
-    # Format Payload
-    payload: dict = {field.name: field.get_value(request_payload.get(field.name) or None) for field in handler.payload_args
-                     if field.name != 'payload'}
-
-    job: Job = Job(handler_name=handler.name,
-                   user=user,
-                   payload=serialize_json(payload))
-
-    Session.add(job)
-    Session.commit()
-    Session.merge(job) # get identity col
-
-    try:
-        # Tell bobby there's a new job to process
-        requests.post(f"{BOBBY_URI}:2375/job")
-    except ConnectionError:
-        logger.warning('Bobby was not reachable by MLFlow. Ensure Bobby is running. \nThe job has'
-                       'been added to the database and will be processed when Bobby is running again.')
-    return dict(job_status=APIStatuses.pending,
-                job_id=job.id,
-                timestamp=timestamp())  # turned into JSON and returned
-
-@login_required
-def deploy_csp() -> Response:
-    """
-    Return HTML Containing Cloud Service
-    Specific Deployment Form
-    :return: (Response)
-    """
-    # templates for deployment in app/templates  should be formatted like
-    # 1) deploy_aws.html, 2) deploy_azure.html, 3) deploy_gcp.html
-    # they need to match the names given to the CloudEnvironments
-    # given in ml-workflow-lib/shared/database.py/splice_models.py:KnownHandlers
-    return show_html(f'deploy_{CLOUD_ENVIRONMENT.name.lower()}.html')
-
-
-@APP.route('/watch/<int:task_id>', methods=['GET'])
-@login_required
-def watch_job(task_id: int) -> Response:
-    """
-    Serves up the logs watching page
-    for MLManager Director
-    :param task_id: the id to watch
-    :return: (Response) HTML
-    """
-    return show_html('watch_logs.html', task_id=task_id)
 
 
 if CLOUD_ENVIRONMENT.can_deploy:
