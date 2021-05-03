@@ -406,8 +406,10 @@ def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_d
     """
     return _deploy_feature_set(schema, table, db)
 
-@SYNC_ROUTER.get('/feature-set-details', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDetail],
-                description="Returns details of all feature sets, with all features in the feature sets and whether the feature set is deployed",
+@SYNC_ROUTER.get('/feature-set-details', status_code=status.HTTP_200_OK,
+                 response_model=Union[List[schemas.FeatureSetDetail],schemas.FeatureSetDetail],
+                description="Returns details of all feature sets (or 1 if specified), with all features "
+                            "in the feature sets and whether the feature set is deployed",
                 operation_id='get_feature_set_details', tags=['Feature Sets'])
 @managed_transaction
 def get_feature_set_details(schema: Optional[str] = None, table: Optional[str] = None, db: Session = Depends(crud.get_db)):
@@ -416,36 +418,47 @@ def get_feature_set_details(schema: Optional[str] = None, table: Optional[str] =
     set is deployed
     """
     if schema and table:
-        fsets = crud.get_feature_sets(db, _filter={"schema_name": schema, "table_name": table})
-    
+        fsets = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])
+        if not fsets:
+            raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
+                                     message=f'The feature set {schema}.{table} Does not exist.')
     else:
         fsets = crud.get_feature_sets(db)
 
     # We need to pop features here because it's set to None in the dictionary. If we don't remove it manually, we
     # Will get an error that we are trying to set 2 different values of features for FeatureSetDetail
-    return [schemas.FeatureSetDetail(**fset.__dict__, features=fset.__dict__.pop('features') or crud.get_features(db, fset)) for fset in fsets]
+    fsets = [schemas.FeatureSetDetail(**fset.__dict__, features=fset.__dict__.pop('features') or crud.get_features(db, fset)) for fset in fsets]
 
-@SYNC_ROUTER.get('/training-view-details', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDetail],
-                description="Returns details of all (or the specified) training views, the ID, name, description and optional label",
-                operation_id='get_training_view_details', tags=['Training Views'])
+    return fsets if len(fsets) > 1 else fsets[0]
+
+@SYNC_ROUTER.get('/training-view-details', status_code=status.HTTP_200_OK,
+                 response_model=Union[List[schemas.TrainingViewDetail],schemas.TrainingViewDetail],
+                 description="Returns details of all training views (or the specified one): the ID, name, "
+                             "description and optional label",
+                 operation_id='get_training_view_details', tags=['Training Views'])
 @managed_transaction
 def get_training_view_details(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Returns a description of all (or the specified) training views, the ID, name, description and optional label
     """
     if name:
-        tcxs = _get_training_view_by_name(db, name)
+        tvws = _get_training_view_by_name(db, name)
+        if not tvws:
+            raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
+                                     message=f'The training view {name} Does not exist.')
+
     else:
-        tcxs = crud.get_training_views(db)
+        tvws = crud.get_training_views(db)
     descs = []
-    for tcx in tcxs:
-        feats: List[schemas.Feature] = crud.get_training_view_features(db, tcx.name)
+    for tvw in tvws:
+        feats: List[schemas.Feature] = crud.get_training_view_features(db, tvw.name)
         # Grab the feature set info and their corresponding names (schema.table) for the display table
         feat_sets: List[schemas.FeatureSet] = crud.get_feature_sets(db, feature_set_ids=[f.feature_set_id for f in feats])
         feat_sets: Dict[int, str] = {fset.feature_set_id: f'{fset.schema_name}.{fset.table_name}' for fset in feat_sets}
         fds = list(map(lambda f, feat_sets=feat_sets: schemas.FeatureDetail(**f.__dict__, feature_set_name=feat_sets[f.feature_set_id]), feats))
-        descs.append(schemas.TrainingViewDetail(**tcx.__dict__, features=fds))
-    return descs
+        descs.append(schemas.TrainingViewDetail(**tvw.__dict__, features=fds))
+
+    return descs if len(descs) > 1 else descs[0]
 
 @SYNC_ROUTER.put('/features', status_code=status.HTTP_200_OK, response_model=schemas.Feature,
                  description="Updates a feature's metadata (description, tags, attributes)",
