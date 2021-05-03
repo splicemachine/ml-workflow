@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 
 # from routers.asynchronous import ASYNC_ROUTER
 from .routers.synchronous import SYNC_ROUTER
+from .utils.airflow_utils import Airflow
 from shared.logger.logging_config import logger
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -105,4 +106,4 @@ APP.include_router(
     # tags=['Sync']
 )
 
-
+Airflow.setup()
