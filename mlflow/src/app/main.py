@@ -52,8 +52,8 @@ BOBBY_URI = env_vars.get('BOBBY_URL', 'http://bobby')
 
 # Temporary folder for artifacts before moving them into the database
 UPLOAD_FOLDER = '/tmp/artifacts'
-# 250 MB maximum
-MAX_SIZE = 250 * 1000 * 1000
+# 50 MB maximum
+MAX_SIZE = 50 * 1000 * 1000
 APP.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 APP.config['MAX_CONTENT_LENGTH'] = MAX_SIZE
 if not os.path.exists(UPLOAD_FOLDER):
