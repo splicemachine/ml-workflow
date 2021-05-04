@@ -16,6 +16,7 @@ from mlflow.exceptions import INTERNAL_ERROR, MlflowException
 from mlflow.protos.databricks_pb2 import (INVALID_PARAMETER_VALUE,
                                           RESOURCE_DOES_NOT_EXIST)
 from mlflow.store.artifact.artifact_repo import ArtifactRepository
+from mlflow.store.tracking.sqlalchemy_store import SqlTag
 from shared.logger.logging_config import logger
 from shared.models.mlflow_models import SqlArtifact
 from shared.services.database import SQLAlchemyClient
@@ -142,9 +143,24 @@ class SpliceMachineArtifactStore(ArtifactRepository):
                 load_only(*columns)).filter_by(run_uuid=self.run_uuid).filter_by(name=artifact_path)
 
         obj = sqlalchemy_query.one()
-        # If the user included the file extension in the file name don't append the extension
-        full_file_path_name = f'{dst_path}/' + obj.name if splitext(obj.name)[1].lstrip(
-            '.') == obj.file_extension else f'{obj.name}.{obj.file_extension}'
+
+        # Get the name of the model for this run if it exists. If that is this current artifact, the file_ext needs to
+        # Be .zip because we store a directory
+        with self.ManagedSessionMaker() as Session:
+            model_name = Session.query(SqlTag.value).\
+                filter(SqlTag.run_uuid==self.run_uuid).\
+                filter(SqlTag.key=='splice.model_name').\
+                first()
+            model_name = model_name[0] if model_name else None
+
+        # If the requested artifact is the model, add a .zip extension
+        if model_name == obj.name:
+            full_file_path_name = f'{dst_path}/{obj.name}.zip'
+        else:
+            # If the user included the file extension in the file name (or there isn't a file extension) don't append the extension
+            full_file_path_name = f'{dst_path}/' + obj.name \
+                if not obj.file_extension or splitext(obj.name)[1].lstrip('.') == obj.file_extension  \
+                else f'{obj.name}.{obj.file_extension}'
 
         with open(full_file_path_name, 'wb') as downloaded_file:
             downloaded_file.write(obj.binary)

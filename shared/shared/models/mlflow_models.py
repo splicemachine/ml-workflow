@@ -52,9 +52,9 @@ class SqlArtifact(SQLAlchemyClient.MlflowBase):
     # in Python 3, the bytes object can be passed in (byte stream)
     binary: Column = deferred(Column(LargeBinary(length=int(2e9)), nullable=False))
     run: relationship = relationship(SqlRun, backref=backref('artifacts', cascade='all'))
-    file_extension: Column = Column(String(25), nullable=False)
     # For supporting directories
     artifact_path: Column = Column(String(250), nullable=True)
+    file_extension: Column = Column(String(25), nullable=True)
     # Database Deployment
     database_binary: Column = deferred(Column(LargeBinary(length=int(2e9)), nullable=True))
 

@@ -261,7 +261,7 @@ def log_artifact() -> str:
     payload = request.form
 
     name = payload.get('name') or filename
-    # file.save(os.path.join(APP.config['UPLOAD_FOLDER'], filename))
+
     insert_artifact(
         payload['run_id'],
         file.read(),
