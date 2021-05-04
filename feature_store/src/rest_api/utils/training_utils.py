@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from typing import List, Union, Optional, Dict
+from typing import List, Union, Optional, Any, Tuple
 from ..schemas import Feature, FeatureSet, TrainingView, TrainingSet, TrainingSetMetadata
 from .. import crud
 from sqlalchemy.orm import Session
@@ -11,6 +11,8 @@ from shared.logger.logging_config import logger
 """
 A set of utility functions for creating Training Set SQL 
 """
+
+TRAINING_SET_MAX_SIZE = 5e8 # 500MB
 
 def dict_to_lower(dict):
     """
@@ -197,9 +199,10 @@ def _get_training_view_by_name(db: Session, name: str) -> List[TrainingView]:
                                         message=f'Could not find training view with name "{name}"')
     return tvs
 
-def _get_training_set(db: Session, features: Union[List[Feature], List[str]], create_time: datetime, start_time: datetime = None, 
-                            end_time: datetime = None, current: bool = False, label: str = None, return_pk_cols: bool = False, 
-                            return_ts_col: bool = False) -> TrainingSet:
+def _get_training_set(db: Session, features: Union[List[Feature], List[str]], create_time: datetime,
+                      start_time: datetime = None, end_time: datetime = None, current: bool = False, label: str = None,
+                      return_pk_cols: bool = False, return_ts_col: bool = False, return_type: Optional[str] = None
+                      ) -> TrainingSet:
     """
     Creates a training set without a training view from a list of features
     :param db: Session The database connection
@@ -211,6 +214,7 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
     :param label: str (Optional) Label for the training set
     :param return_pk_cols: bool Whether or not the returned sql should include the primary key column(s)
     :param return_ts_cols: bool Whether or not the returned sql should include the timestamp column
+    :param return_type: A particular return type for the training set. Currently available options are 'json' and 'sql'
     :return: Training Set
     :raise: SpliceMachineException
     """
@@ -246,11 +250,19 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
                                    training_set_end_ts=end_time or datetime.today(), training_set_create_ts=create_time)
     if label:
         features.append(label)
-    return TrainingSet(sql=sql, training_view=temp_vw, features=features, metadata=metadata)
+
+    ts = TrainingSet(sql=sql, training_view=temp_vw, features=features, metadata=metadata)
+
+    # We will add more return types in the future so we leave it as a string not a bool
+    if return_type == 'json':
+        ts.data = get_training_set_data(db, ts, return_type)
+
+    return ts
 
 def _get_training_set_from_view(db: Session, view: str, create_time: datetime, features: Union[List[Feature], List[str]] = None, 
                                 start_time: Optional[datetime] = None, end_time: Optional[datetime] = None,
-                                return_pk_cols: bool = False, return_ts_col: bool = False) -> TrainingSet:
+                                return_pk_cols: bool = False, return_ts_col: bool = False,
+                                return_type: Optional[str] = None) -> TrainingSet:
     """
     Creates a training set from a training view
     :param db: Session The database connection
@@ -261,6 +273,7 @@ def _get_training_set_from_view(db: Session, view: str, create_time: datetime, f
     :param end_time: datetime The end time for the Training Set
     :param return_pk_cols: bool Whether or not the returned sql should include the primary key column(s)
     :param return_ts_cols: bool Whether or not the returned sql should include the timestamp column
+    :param return_type: A particular return type for the training set. Currently available options are 'json' and 'sql'
     :return: Training Set
     :raise: SpliceMachineException
     """
@@ -280,7 +293,13 @@ def _get_training_set_from_view(db: Session, view: str, create_time: datetime, f
     metadata = TrainingSetMetadata(training_set_start_ts=start_time or datetime(year=1900,month=1,day=1),
                                    training_set_end_ts=end_time or datetime.today(), training_set_create_ts=create_time,
                                    view_id=tvw.view_id)
-    return TrainingSet(sql=sql, training_view=tvw, features=features, metadata=metadata)
+
+    ts = TrainingSet(sql=sql, training_view=tvw, features=features, metadata=metadata)
+    # We will add more return types in the future so we leave it as a string not a bool
+    if return_type == 'json':
+        ts.data = get_training_set_data(db, ts, return_type)
+
+    return ts
 
 
 def register_training_set(db: Session, ts: TrainingSet, save_as: str) -> TrainingSet:
@@ -344,3 +363,29 @@ def register_training_set(db: Session, ts: TrainingSet, save_as: str) -> Trainin
         crud.register_training_set_instance(db, new_instance)
     ts.metadata = new_instance
     return ts
+
+def get_training_set_data(db: Session, ts: TrainingSet, return_type: str) -> List[Tuple[str, List[Any]]]:
+    """
+    Runs the SQL for a training set and returns the materialized data (assuming it is smaller than the limit)
+
+    :param db: SqlAlchemy Session
+    :param ts: Training Set (for metadata)
+    :param return_type: The requested return type
+    :return: The data as a List of Tuples in the columnar format [(col_name, [column_data])]
+    """
+    # 500MB max size, assuming each column is a float64 (8 bytes)
+    max_rows = int(TRAINING_SET_MAX_SIZE / len(ts.features) * 8)
+    sql = f'select top {max_rows} from ({ts.sql})'
+    res = db.execute(sql)
+    cols = [i[0] for i in res.cursor.description]
+    x = res.fetchall()
+    if len(x) >= max_rows:
+        raise SpliceMachineException(code=ExceptionCodes.BAD_ARGUMENTS, status_code=status.HTTP_403_FORBIDDEN,
+                                     message=f'This training set is too large to return in the request '
+                                             f'format ({return_type}). Remove the return type to have this rendered '
+                                             f'on the client as a Spark DF, or set return_type to sql to get the '
+                                             f'SQL statement that creates this DF. Alternatively, set a smaller '
+                                             f'range for start_time and end_time to get less data.')
+
+    data = [(col,[row[i] for row in x]) for i,col in enumerate(cols)]
+    return data

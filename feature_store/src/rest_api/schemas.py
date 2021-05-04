@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict, Union, Any
 from datetime import datetime
 from pydantic import BaseModel, validator, Field
 from shared.services.database import Converters
@@ -223,6 +223,7 @@ class TrainingSet(BaseModel):
     training_view: Optional[TrainingView] = None
     features: List[Feature]
     metadata: Optional[TrainingSetMetadata] = None
+    data: Optional[Any] = None # For storing the result of the query
 
 class FeatureStoreSummary(BaseModel):
     num_feature_sets: int
