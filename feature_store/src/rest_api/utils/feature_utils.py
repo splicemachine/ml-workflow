@@ -28,6 +28,19 @@ def _deploy_feature_set(schema: str, table: str, db: Session):
         raise SpliceMachineException(
             status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
             message=f"Feature set {schema}.{table} is already deployed.")
+    table_exists = DatabaseFunctions.table_exists(schema, table, db.get_bind())
+    history_table_exists = DatabaseFunctions.table_exists(schema, f'{table}_history', db.get_bind())
+    insert_trigger_exists = DatabaseFunctions.trigger_exists(f'{schema}_{table}_history_insert', db)
+    update_trigger_exists = DatabaseFunctions.trigger_exists(f'{schema}_{table}_history_update', db)
+    if table_exists or history_table_exists or insert_trigger_exists or update_trigger_exists:
+         raise SpliceMachineException(
+            status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+            message=f"There seems to have been metadata corruption. Feature Set data has been created, but the Feature Store"
+                    f" Metadata is not reflecting that. Please drop the following tables / triggers if they exist:"
+                    f"\nTable {schema}.{table} exists: {table_exists}"
+                    f"\nTable {schema}.{table}_history exists: {history_table_exists}"
+                    f"\nInsert trigger for feature set ({schema}.{table}_history_insert) exists: {insert_trigger_exists}"
+                    f"\nUpdate trigger for feature set ({schema}.{table}_history_insert) exists: {update_trigger_exists}")
 
     fset = crud.deploy_feature_set(db, fset)
     if Airflow.is_active:

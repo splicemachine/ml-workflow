@@ -1,12 +1,13 @@
 from os import environ as env_vars
 
-from sqlalchemy import create_engine, inspect as peer_into_splice_db, Table
+from sqlalchemy import create_engine, inspect as peer_into_splice_db, Table, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.schema import MetaData
 from datetime import datetime, date, time
 from mlflow.store.db.base_sql_model import Base as MLFlowBase
 from shared.logger.logging_config import logger
+from shared.models.mlflow_models import SysTriggers
 from decimal import Decimal
 
 
@@ -349,6 +350,7 @@ class DatabaseFunctions:
     def table_exists(schema_name: str, table_name: str, engine) -> bool:
         """
         Check whether or not a given table exists
+
         :param schema_name: schema name
         :param table_name: the table name
         :param engine: the SQLAlchemy Engine
@@ -356,6 +358,18 @@ class DatabaseFunctions:
         """
         inspector = peer_into_splice_db(engine)
         return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
+
+    @staticmethod
+    def trigger_exists(trigger_name: str, db) -> bool:
+        """
+        Check whether or not a given trigger exists
+
+        :param trigger_name: the trigger name
+        :param db: the SQLAlchemy session
+        :return: whether exists or not
+        """
+        x = db.query(SysTriggers).filter(func.upper(SysTriggers.TRIGGERNAME) == trigger_name.upper()).first()
+        return bool(x)
 
     @staticmethod
     def drop_table_if_exists(schema_name: str, table_name: str, engine):
