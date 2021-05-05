@@ -2,6 +2,7 @@ from os import environ as env_vars
 
 from fastapi import FastAPI, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi_utils.timing import add_timing_middleware
 from uvicorn import run as run_server
 from fastapi.responses import JSONResponse
@@ -36,6 +37,9 @@ APP.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+# APP.add_middleware(GZipMiddleware, minimum_size=1e6) # 1MB
+APP.add_middleware(GZipMiddleware, minimum_size=1)
 
 @APP.on_event(event_type='startup')
 def on_startup():

@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Query
 from typing import List, Dict, Optional, Union, Any
@@ -21,7 +20,6 @@ from ..utils.airflow_utils import Airflow
 SYNC_ROUTER = APIRouter(
     dependencies=[Depends(authenticate)]
 )
-
 
 @SYNC_ROUTER.get('/feature-sets', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDetail],
                 description="Returns a list of available feature sets", operation_id='get_feature_sets', tags=['Feature Sets'])

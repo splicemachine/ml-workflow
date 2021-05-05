@@ -12,7 +12,7 @@ from shared.logger.logging_config import logger
 A set of utility functions for creating Training Set SQL 
 """
 
-TRAINING_SET_MAX_SIZE = 5e8 # 500MB
+TRAINING_SET_MAX_SIZE = 5e7 # 50MB
 
 def dict_to_lower(dict):
     """
@@ -375,7 +375,7 @@ def get_training_set_data(db: Session, ts: TrainingSet, return_type: str) -> Lis
     """
     # 500MB max size, assuming each column is a float64 (8 bytes)
     max_rows = int(TRAINING_SET_MAX_SIZE / len(ts.features) * 8)
-    sql = f'select top {max_rows} from ({ts.sql})'
+    sql = f'select top {max_rows} * from ({ts.sql})'
     res = db.execute(sql)
     cols = [i[0] for i in res.cursor.description]
     x = res.fetchall()
