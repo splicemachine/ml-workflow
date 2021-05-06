@@ -13,7 +13,7 @@ from sqlalchemy.sql import text
 from sqlalchemy_views import CreateView
 
 from mlflow.store.tracking.dbmodels.models import SqlRun
-from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from shared import SQLAlchemyClient, DatabaseSQL
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"

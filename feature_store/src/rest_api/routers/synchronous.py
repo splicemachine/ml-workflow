@@ -588,6 +588,52 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
     if Airflow.is_active:
         Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
+@SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK, description="Undeploys a feature set. Deletes the "
+                                                                                 "feature set table and history table, "
+                                                                                 "marks the feature set as not deployed, "
+                                                                                 "but doesn't remove the record of the "
+                                                                                 "feature set (unlike delete)",
+                    operation_id='undeploy_feature_set', tags=['Feature Sets'])
+@managed_transaction
+def undeploy_feature_set(schema: str, table: str, purge: bool = False, db: Session = Depends(crud.get_db)) :
+    """
+    Deletes a feature set if appropriate. You can currently delete a feature set in two scenarios:
+    1. The feature set has not been deployed
+    2. The feature set has been deployed, but not linked to any training sets/model deployments
+
+    :param db: SQLAlchemy Session
+    :return: None
+    """
+    fset = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])
+    if not fset:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
+                                     message=f'The feature set ({schema}.{table}) you are trying to delete has not '
+                                             'been created. Please ensure the feature set exists.')
+    fset = fset[0]
+    if not crud.feature_set_is_deployed(db, fset.feature_set_id):
+        logger.info("Requested to undeploy a feature set that isn't deployed. Nothing to do.")
+        return
+    else:
+        deps = crud.get_feature_set_dependencies(db, fset.feature_set_id)
+        if deps['model']:
+            raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                         message='You cannot undeploy a Feature Set that has an associated model deployment.'
+                                         ' The Following models have been deployed with Training Sets that depend on this'
+                                         f' Feature Set: {deps["model"]}')
+        elif deps['training_set']:
+            if not purge:
+                raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                             message='You cannot delete a Feature Set that has associated Training Sets. '
+                                                     f'The following Training Sets depend on this Feature Set: '
+                                                     f'{deps["training_set"]}. To drop this Feature Set anyway, '
+                                                     f'set purge=True (be careful! this will remove the training sets)')
+            else:
+                full_delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
+        else: # No dependencies
+            full_delete_feature_set(db, fset, cascade=False)
+    if Airflow.is_active:
+        Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
+
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDetail],
                 description="Get all deployments given either a deployment (schema/table), a training_view (name), "
                             "a feature (feat), or a feature set (fset)", operation_id='get_deployments', tags=['Deployments'])

@@ -2,24 +2,26 @@ from sqlalchemy.orm import Session, aliased
 from typing import List, Dict, Union, Any, Tuple, Set
 from . import schemas
 from .constants import SQL
+from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text, case
 from sqlalchemy.sql.elements import TextClause
+from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
+from sqlalchemy.types import TIMESTAMP
 from shared.models import feature_store_models as models
 from shared.services.database import SQLAlchemyClient, DatabaseFunctions, Converters, DatabaseSQL
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from shared.logger.logging_config import logger
 from fastapi import status
 import re
 import json
 from datetime import datetime
 from collections import Counter
-from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text, case
 from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           sql_to_datatype, _sql_to_sqlalchemy_columns,
                           __validate_feature_data_type, __validate_primary_keys)
 from .utils.feature_utils import model_to_schema_feature
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
-from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
-from sqlalchemy.types import TIMESTAMP
-from shared.api.exceptions import SpliceMachineException, ExceptionCodes
+from splicemachinesa.constants import RESERVED_WORDS
+
 from decimal import Decimal
 from uuid import uuid1
 
@@ -102,6 +104,13 @@ def validate_feature(db: Session, name: str, data_type: schemas.DataType) -> Non
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
                                      message='Feature name does not conform. Must start with an alphabetic character, '
                                              'and can only contains letters, numbers and underscores')
+
+    if name.lower() in RESERVED_WORDS:
+        raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+            message='Feature name is in the list of reserved words. Feature name must not use a reserved column name. '
+                    'For the full list see '
+                    'https://github.com/splicemachine/splice_sqlalchemy/blob/master/splicemachinesa/constants.py')
 
     l = db.query(models.Feature.name).filter(func.upper(models.Feature.name) == name.upper()).count()
     if l > 0:

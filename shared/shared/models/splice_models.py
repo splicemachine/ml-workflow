@@ -13,7 +13,7 @@ from sqlalchemy.orm import relationship, deferred
 from sqlalchemy.sql.elements import TextClause
 from shared.logger.logging_config import logger
 from shared.models.enums import JobStatuses
-from shared.services.database import SQLAlchemyClient
+from shared import SQLAlchemyClient
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"

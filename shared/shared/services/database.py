@@ -7,7 +7,6 @@ from sqlalchemy.schema import MetaData
 from datetime import datetime, date, time
 from mlflow.store.db.base_sql_model import Base as MLFlowBase
 from shared.logger.logging_config import logger
-from shared.models.mlflow_models import SysTriggers
 from decimal import Decimal
 
 
@@ -368,6 +367,7 @@ class DatabaseFunctions:
         :param db: the SQLAlchemy session
         :return: whether exists or not
         """
+        from shared.models.mlflow_models import SysTriggers
         x = db.query(SysTriggers).filter(func.upper(SysTriggers.TRIGGERNAME) == trigger_name.upper()).first()
         return bool(x)
 

@@ -16,7 +16,7 @@ __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
-VERSION: str = "0.0.2"
+VERSION: str = "0.0.3"
 
 setup(
     name='shared',
@@ -26,6 +26,6 @@ setup(
     version=VERSION,
     url='https://splicemachine.com',
     packages=find_packages(),
-    package_data={"shared":['logging.json']},
+    # package_data={"shared":['logging.json']}
     include_package_data=True
 )
