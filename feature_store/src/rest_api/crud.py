@@ -108,7 +108,7 @@ def validate_feature(db: Session, name: str, data_type: schemas.DataType) -> Non
     if name.lower() in RESERVED_WORDS:
         raise SpliceMachineException(
             status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
-            message='Feature name is in the list of reserved words. Feature name must not use a reserved column name. '
+            message=f'Feature name {name} is in the list of reserved words. Feature name must not use a reserved column name. '
                     'For the full list see '
                     'https://github.com/splicemachine/splice_sqlalchemy/blob/master/splicemachinesa/constants.py')
 

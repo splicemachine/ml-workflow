@@ -5,7 +5,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.schema import MetaData
 from datetime import datetime, date, time
-from mlflow.store.db.base_sql_model import Base as MLFlowBase
 from shared.logger.logging_config import logger
 from decimal import Decimal
 
@@ -60,6 +59,8 @@ class SQLAlchemyClient:
     """
     Database configuration constants
     """
+    from mlflow.store.db.base_sql_model import Base as MLFlowBase
+
     engine = None  # SQLAlchemy Engine
 
     logging_connection = None  # Logging Connection the database
