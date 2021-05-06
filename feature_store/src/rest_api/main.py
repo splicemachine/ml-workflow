@@ -3,7 +3,7 @@ from os import environ as env_vars
 from fastapi import FastAPI, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi_utils.timing import add_timing_middleware
+from fastapi_utils.timing import add_timing_middleware, record_timing
 from uvicorn import run as run_server
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError

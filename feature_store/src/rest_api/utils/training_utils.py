@@ -3,10 +3,13 @@ from typing import List, Union, Optional, Any, Tuple
 from ..schemas import Feature, FeatureSet, TrainingView, TrainingSet, TrainingSetMetadata
 from .. import crud
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, date, time
 from .utils import __get_pk_columns
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from shared.logger.logging_config import logger
+from time import time
+from json import dumps
+import numpy as np
 
 """
 A set of utility functions for creating Training Set SQL 
@@ -215,7 +218,8 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
     :param return_pk_cols: bool Whether or not the returned sql should include the primary key column(s)
     :param return_ts_cols: bool Whether or not the returned sql should include the timestamp column
     :param return_type: A particular return type for the training set. Currently available options are 'json' and 'sql'
-    :return: Training Set
+    :return: Training Set or a JsonResponse (if the user requested the data in json format).
+        We do this because jsonifying the pydantic schema takes many minutes, and returning the raw JSON is much faster
     :raise: SpliceMachineException
     """
     if label:
@@ -255,14 +259,17 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
 
     # We will add more return types in the future so we leave it as a string not a bool
     if return_type == 'json':
-        ts.data = get_training_set_data(db, ts, return_type)
+        d = get_training_set_data(db, ts, return_type)
+        t0 = time()
+        ts.data = dumps(d, default=str)
+        logger.info(f'\n\nDumping data took {time()-t0} seconds')
 
     return ts
 
 def _get_training_set_from_view(db: Session, view: str, create_time: datetime, features: Union[List[Feature], List[str]] = None, 
                                 start_time: Optional[datetime] = None, end_time: Optional[datetime] = None,
                                 return_pk_cols: bool = False, return_ts_col: bool = False,
-                                return_type: Optional[str] = None) -> TrainingSet:
+                                return_type: Optional[str] = None) -> Union[TrainingSet,Any]:
     """
     Creates a training set from a training view
     :param db: Session The database connection
@@ -297,7 +304,10 @@ def _get_training_set_from_view(db: Session, view: str, create_time: datetime, f
     ts = TrainingSet(sql=sql, training_view=tvw, features=features, metadata=metadata)
     # We will add more return types in the future so we leave it as a string not a bool
     if return_type == 'json':
-        ts.data = get_training_set_data(db, ts, return_type)
+        d = get_training_set_data(db, ts, return_type)
+        t0 = time()
+        ts.data = dumps(d, default=str)
+        logger.info(f'\n\nDumping data took {time()-t0} seconds')
 
     return ts
 
@@ -373,13 +383,35 @@ def get_training_set_data(db: Session, ts: TrainingSet, return_type: str) -> Lis
     :param return_type: The requested return type
     :return: The data as a List of Tuples in the columnar format [(col_name, [column_data])]
     """
-    # 500MB max size, assuming each column is a float64 (8 bytes)
+    # 50MB max size, assuming each column is a float64 (8 bytes)
     max_rows = int(TRAINING_SET_MAX_SIZE / len(ts.features) * 8)
     sql = f'select top {max_rows} * from ({ts.sql})'
+    t0 = time()
     res = db.execute(sql)
+    logger.info(f'\n\nTIME TAKEN for SQL execute: {time() - t0} \n\n')
+
     cols = [i[0] for i in res.cursor.description]
-    x = res.fetchall()
-    if len(x) >= max_rows:
+    t0 = time()
+    # x = res.fetchall()
+    # rows = []
+    # new_data = res.fetchmany(1000)
+    # while new_data: # We do this instead of .fetchall because fetchall is unreliable and sometimes hangs for minutes
+    #     rows += new_data
+    #     new_data = res.fetchmany(1000)
+
+
+    new_data = res.fetchmany(1000)
+    rows = np.array(new_data)
+    amrits_bad_code_count  = 0
+    while new_data:
+        logger.info(f'runnind loop {amrits_bad_code_count}')
+        amrits_bad_code_count+=1
+        new_data = res.fetchmany(1000)
+        rows = np.column_stack((rows, new_data)) if new_data else rows
+
+
+    logger.info(f'\n\nTIME TAKEN for SQL fetchall: {time() - t0} \n\n')
+    if len(rows) >= max_rows:
         raise SpliceMachineException(code=ExceptionCodes.BAD_ARGUMENTS, status_code=status.HTTP_403_FORBIDDEN,
                                      message=f'This training set is too large to return in the request '
                                              f'format ({return_type}). Remove the return type to have this rendered '
@@ -387,5 +419,8 @@ def get_training_set_data(db: Session, ts: TrainingSet, return_type: str) -> Lis
                                              f'SQL statement that creates this DF. Alternatively, set a smaller '
                                              f'range for start_time and end_time to get less data.')
 
-    data = [(col,[row[i] for row in x]) for i,col in enumerate(cols)]
+    t0 = time()
+    # data = [(col,[row[i] for row in rows]) for i,col in enumerate(cols)]
+    data = list(zip(cols, rows.tolist()))
+    logger.info(f'\n\nTIME TAKEN for data formatting: {time() - t0} \n\n')
     return data

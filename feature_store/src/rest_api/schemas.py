@@ -225,6 +225,7 @@ class TrainingSet(BaseModel):
     metadata: Optional[TrainingSetMetadata] = None
     data: Optional[Any] = None # For storing the result of the query
 
+
 class FeatureStoreSummary(BaseModel):
     num_feature_sets: int
     num_deployed_feature_sets: int

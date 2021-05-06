@@ -217,7 +217,7 @@ def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label
     return ts
 
 
-@SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
+@SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, #response_model=schemas.TrainingSet,
                 description="Returns the training set as a Spark Dataframe from a Training View", 
                 operation_id='get_training_set_from_view', tags=['Training Sets'])
 @managed_transaction
@@ -236,13 +236,26 @@ def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_
     This tracking will occur in the current run (if there is an active run)
     or in the next run that is started after calling this function (if no run is currently active).
     """
+    logger.info('\n\nSTART\n\n')
     create_time = crud.get_current_time(db)
-    ts: schemas.TrainingSet = _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time,
+    from time import time
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.responses import JSONResponse
+
+    ts = _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time,
                                                           ftf.end_time, return_pk_cols, return_ts_col,
                                                           return_type=return_type)
 
     if save_as:
         ts = register_training_set(db, ts, save_as)
+
+    if ts.data:
+        data = ts.__dict__.pop('data')
+        t0 = time()
+        json_data = jsonable_encoder(ts)
+        json_data['data'] = data
+        logger.info(f'\n\njson encoding took {time()-t0} seconds. Type of data is {type(json_data)}\n\n')
+        return JSONResponse(content=json_data)
 
     return ts
 
