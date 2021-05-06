@@ -26,6 +26,5 @@ setup(
     version=VERSION,
     url='https://splicemachine.com',
     packages=find_packages(),
-    # package_data={"shared":['logging.json']}
     include_package_data=True
 )
