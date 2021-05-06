@@ -921,6 +921,15 @@ def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
         most_used_features=most_used_features
     )
 
+def update_feature_set_deployment_status(db: Session, fset_id: int, deploy_status: bool):
+    """
+    Updates the deployment status of a feature set (for example, if someone is undeploying an fset).
+
+    :param db: SqlAlchemy Session
+    :param fset_id: Feature Set ID
+    """
+    db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id==fset_id).update({'deployed':deploy_status})
+
 
 def update_feature_metadata(db: Session, name: str, desc: str = None,
                             tags: List[str] = None, attributes: Dict[str, str] = None) -> schemas.Feature:

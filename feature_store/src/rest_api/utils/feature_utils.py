@@ -96,8 +96,8 @@ def model_to_schema_feature(feat: models.Feature) -> schemas.Feature:
     return schemas.Feature(**f)
 
 
-def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
-                       training_sets: Set[int] = None):
+def delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
+                       training_sets: Set[int] = None, keep_metadata=False):
     """
     Deletes a Feature Set. Drops the table. Removes keys. Potentially removes training sets if there are dependencies
 
@@ -126,64 +126,23 @@ def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascad
         logger.info("Removing training sets")
         crud.delete_training_sets(db, training_sets)
 
-    # Delete features
-    logger.info("Removing features")
-    crud.delete_features_from_feature_set(db, feature_set.feature_set_id)
-    # Delete Feature Set Keys
-    logger.info("Removing feature set keys")
-    crud.delete_features_set_keys(db, feature_set.feature_set_id)
+    if not keep_metadata:
+        # Delete features
+        logger.info("Removing features")
+        crud.delete_features_from_feature_set(db, feature_set.feature_set_id)
+        # Delete Feature Set Keys
+        logger.info("Removing feature set keys")
+        crud.delete_features_set_keys(db, feature_set.feature_set_id)
 
-    # Delete pipeline dependencies
-    logger.info("Deleting any Pipeline dependencies")
-    crud.delete_pipeline(db, feature_set.feature_set_id)
+        # Delete pipeline dependencies
+        logger.info("Deleting any Pipeline dependencies")
+        crud.delete_pipeline(db, feature_set.feature_set_id)
 
-    # Delete feature set
-    logger.info("Removing features set")
-    crud.delete_feature_set(db, feature_set.feature_set_id)
+        # Delete feature set
+        logger.info("Removing features set")
+        crud.delete_feature_set(db, feature_set.feature_set_id)
+    else:
+        # Since we are keeping the feature set but dropping the tables, we need to change its deployment status to 0 (not deployed)
+        crud.update_feature_set_deployment_status(db, feature_set.feature_set_id, False)
 
 
-def undeploy_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
-                       training_sets: Set[int] = None):
-    """
-    Undeploys a Feature Set. Drops the tables but does not remove the records.
-    Potentially removes training sets if there are dependencies
-
-    :param db: Database Session
-    :param feature_set: feature set to delete
-    :param training_sets: Set[int] training sets
-    :param cascade: whether to delete dependent training sets. If this is True training_sets must be set.
-    """
-    logger.info("Dropping table")
-    DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, feature_set.table_name, db.get_bind())
-    logger.info("Dropping history table")
-    DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, f'{feature_set.table_name}_history', db.get_bind())
-    if cascade and training_sets:
-        logger.info(f'linked training sets: {training_sets}')
-
-        logger.info("Removing training set stats")
-        crud.delete_training_set_stats(db, set(training_sets))
-
-        logger.info("Removing training set instances (versions)")
-        crud.delete_training_set_instances(db, set(training_sets))
-        # Delete training set features if any
-        logger.info("Removing training set features")
-        crud.delete_training_set_features(db, training_sets)
-
-        # Delete training sets
-        logger.info("Removing training sets")
-        crud.delete_training_sets(db, training_sets)
-
-    # Delete features
-    logger.info("Removing features")
-    crud.delete_features_from_feature_set(db, feature_set.feature_set_id)
-    # Delete Feature Set Keys
-    logger.info("Removing feature set keys")
-    crud.delete_features_set_keys(db, feature_set.feature_set_id)
-
-    # Delete pipeline dependencies
-    logger.info("Deleting any Pipeline dependencies")
-    crud.delete_pipeline(db, feature_set.feature_set_id)
-
-    # Delete feature set
-    logger.info("Removing features set")
-    crud.delete_feature_set(db, feature_set.feature_set_id)
