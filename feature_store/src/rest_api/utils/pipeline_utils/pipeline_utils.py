@@ -78,7 +78,8 @@ def create_pipeline_entities(db: Session, sf: schemas.SourceFeatureSetAgg, sourc
     crud.bulk_register_feature_metadata(db, agg_features)
 
 
-def generate_backfill_sql(schema: str, table: str, source: schemas.Source, feature_aggs: List[schemas.FeatureAggregation]):
+def generate_backfill_sql(schema: str, table: str, source: schemas.Source,
+                          feature_aggs: List[schemas.FeatureAggregation]):
     """
     Generates the necessary backfill SQL for a feature set from a source with a set of feature aggregations
 
@@ -124,8 +125,11 @@ def generate_backfill_sql(schema: str, table: str, source: schemas.Source, featu
     # Get the SQL integer value of the smallest window and it's length (see function description)
     min_window_length, min_window_value = helpers.get_min_window_sql(all_windows)
 
-    innersource_list += f", FeatureStore.TimestampSnapToInterval(timestamp({source.event_ts_column}), {min_window_value},{min_window_length}) {source.event_ts_column}"
+    innersource_list += f", FeatureStore.TimestampSnapToInterval(timestamp({source.event_ts_column}), " \
+                        f"{min_window_value},{min_window_length}) {source.event_ts_column}"
 
+    where_clause = f" FeatureStore.TimestampSnapToInterval(timestamp('{{backfill_asof_ts}}'), " \
+                   f"{min_window_value},{min_window_length})"
 
     pk_col_list = ",".join(source.pk_columns)
     full_sql = f"""{full_sql} {ins_column_list} ) --splice-properties useSpark=True
@@ -137,8 +141,8 @@ def generate_backfill_sql(schema: str, table: str, source: schemas.Source, featu
                                 FROM ( 
                                     {source.sql_text} 
                                 ) innersrc 
-                                WHERE {source.event_ts_column} <= '{{backfill_asof_ts}}' 
-                                AND {source.event_ts_column} >= ( TIMESTAMP('{{backfill_asof_ts}}') - {largest_window_sql} ) 
+                                WHERE {source.event_ts_column} < {where_clause}
+                                AND {source.event_ts_column} >= ( {where_clause} - {largest_window_sql} ) 
                             )src
                            GROUP BY {source_group_by}
                         ) x 
@@ -165,7 +169,7 @@ def generate_backfill_intervals(db: Session, pipeline: schemas.Pipeline, ) -> Li
     res = db.execute(sql).fetchall()
     return [i for (i,) in res] # Unpack the list of tuples
 
-def generate_pipeline_sql(db,  source: schemas.Source, pipeline: schemas.Pipeline,
+def generate_pipeline_sql(db, source: schemas.Source, pipeline: schemas.Pipeline,
                           feature_aggs: List[schemas.FeatureAggregation] ):
     """
     Generates the incremental pipeline SQL for a Feature Set pipeline to run in Airflow

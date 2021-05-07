@@ -22,8 +22,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.TimeZone;
 
 import io.airlift.log.Logger;
+import org.joda.time.DateTimeZone;
 
 /**
  * The <code>TimestampGeneratorVTI</code> VTI function, which returns a series of timestamps
@@ -239,85 +241,11 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
                                         throws StandardException
     {
         if (sourceTS == null) return null;
-
+        DateTimeZone.setDefault(DateTimeZone.UTC);
         long start_ms = sourceTS.getTime();
+        long interval = getIntervalMillis(intervalType) * intervalLength;
 
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTimeInMillis(start_ms);
-
-            switch (intervalType) {
-                case DateTimeDataValue.FRAC_SECOND_INTERVAL:
-                    int val = calendar.get(Calendar.MILLISECOND);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.MILLISECOND, val);
-                    break;
-                case DateTimeDataValue.SECOND_INTERVAL:
-                    val = calendar.get(Calendar.SECOND);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.SECOND, val);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-                case DateTimeDataValue.MINUTE_INTERVAL:
-                    val = calendar.get(Calendar.MINUTE);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.MINUTE, val);
-                    calendar.set(calendar.SECOND, 0);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-                case DateTimeDataValue.HOUR_INTERVAL:
-                    val = calendar.get(Calendar.HOUR);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.HOUR, val);
-                    calendar.set(calendar.MINUTE, 0);
-                    calendar.set(calendar.SECOND, 0);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-                case DateTimeDataValue.DAY_INTERVAL:
-                    val = calendar.get(Calendar.DAY_OF_YEAR);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.DAY_OF_YEAR, val);
-                    calendar.set(calendar.HOUR, 0);
-                    calendar.set(calendar.MINUTE, 0);
-                    calendar.set(calendar.SECOND, 0);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-
-                case DateTimeDataValue.MONTH_INTERVAL:
-                    val = calendar.get(Calendar.MONTH);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.MONTH, val);
-                    calendar.set(calendar.DAY_OF_MONTH, 0);
-                    calendar.set(calendar.HOUR, 0);
-                    calendar.set(calendar.MINUTE, 0);
-                    calendar.set(calendar.SECOND, 0);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-
-                case DateTimeDataValue.YEAR_INTERVAL:
-                    val = calendar.get(Calendar.YEAR);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.YEAR, val);
-                    calendar.set(calendar.MONTH, 0);
-                    calendar.set(calendar.DAY_OF_MONTH, 0);
-                    calendar.set(calendar.HOUR, 0);
-                    calendar.set(calendar.MINUTE, 0);
-                    calendar.set(calendar.SECOND, 0);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-                default:
-                    throw new InvalidParameterException("Unsupported interval units.");
-            }
-
-//        long millisPerPeriod = getIntervalMillis(intervalType) * intervalLength;
-//
-//        long snappedMultiple;
-//
-//        if ( millisPerPeriod>0) {
-//            snappedMultiple = (long)(Math.ceil(start_ms / millisPerPeriod)) * millisPerPeriod;
-//            result = new Timestamp(snappedMultiple);
-//        }
-
-        return new Timestamp(calendar.getTime().getTime());
+        return new Timestamp((int)(start_ms/interval) * interval);
 
     }
 
