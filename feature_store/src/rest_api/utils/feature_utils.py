@@ -42,6 +42,13 @@ def _deploy_feature_set(schema: str, table: str, db: Session):
                     f"\nInsert trigger for feature set ({schema}.{table}_history_insert) exists: {insert_trigger_exists}"
                     f"\nUpdate trigger for feature set ({schema}.{table}_history_insert) exists: {update_trigger_exists}")
 
+    features = crud.get_features(db, fset)
+    if not features:
+        raise SpliceMachineException(
+            status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+            message=f"Feature set {schema}.{table} has no features. You cannot deploy a feature "
+                    f"set with no features")
+
     fset = crud.deploy_feature_set(db, fset)
     if Airflow.is_active:
         Airflow.schedule_feature_set_calculation(f'{schema}.{table}')
