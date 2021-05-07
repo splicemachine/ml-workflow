@@ -263,9 +263,7 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
     # We will add more return types in the future so we leave it as a string not a bool
     if return_type == 'json':
         d = get_training_set_data(db, ts, return_type)
-        t0 = time()
         ts.data = dumps(d, default=str)
-        logger.info(f'\n\nDumping data took {time()-t0} seconds')
 
     return ts
 
