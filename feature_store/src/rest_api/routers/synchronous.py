@@ -1,5 +1,6 @@
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Query
+from fastapi.responses import JSONResponse, ORJSONResponse
 from typing import List, Dict, Optional, Union, Any
 from shared.logger.logging_config import logger
 from sqlalchemy.orm import Session
@@ -7,7 +8,7 @@ from .auth import authenticate
 from .. import schemas, crud
 from ..utils.training_utils import (dict_to_lower, _get_training_view_by_name,
                                     _get_training_set, _get_training_set_from_view, register_training_set,
-                                    get_training_set_data)
+                                    training_set_to_json)
 from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets, full_delete_feature_set
 from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, generate_backfill_sql,
                                                     generate_backfill_intervals, generate_pipeline_sql, _get_source)
@@ -214,10 +215,13 @@ def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label
     if save_as:
         ts = register_training_set(db, ts, save_as)
 
+    if ts.data:
+        ts: JSONResponse = training_set_to_json(ts)
+
     return ts
 
 
-@SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, #response_model=schemas.TrainingSet,
+@SYNC_ROUTER.post('/training-set-from-view', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Returns the training set as a Spark Dataframe from a Training View", 
                 operation_id='get_training_set_from_view', tags=['Training Sets'])
 @managed_transaction
@@ -236,26 +240,16 @@ def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_
     This tracking will occur in the current run (if there is an active run)
     or in the next run that is started after calling this function (if no run is currently active).
     """
-    logger.info('\n\nSTART\n\n')
     create_time = crud.get_current_time(db)
-    from time import time
-    from fastapi.encoders import jsonable_encoder
-    from fastapi.responses import JSONResponse
 
-    ts = _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time,
-                                                          ftf.end_time, return_pk_cols, return_ts_col,
-                                                          return_type=return_type)
+    ts = _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time, ftf.end_time,
+                                     return_pk_cols, return_ts_col, return_type=return_type)
 
     if save_as:
         ts = register_training_set(db, ts, save_as)
 
     if ts.data:
-        data = ts.__dict__.pop('data')
-        t0 = time()
-        json_data = jsonable_encoder(ts)
-        json_data['data'] = data
-        logger.info(f'\n\njson encoding took {time()-t0} seconds. Type of data is {type(json_data)}\n\n')
-        return JSONResponse(content=json_data)
+        ts = training_set_to_json(ts)
 
     return ts
 
@@ -267,7 +261,8 @@ def get_training_set_by_name(name: str, version: Optional[int] = None, return_pk
                              return_ts_col: bool = Query(False, alias='ts'), return_type: Optional[str] = None,
                              db: Session = Depends(crud.get_db)):
     """
-    Gets an EXISTING training set by name. Returns the Training Set that exists
+    Gets an EXISTING training set by name. Returns the Training Set that exists. If no version is specified, the most
+    recent version (largest version ID) will be returned.
     """
 
     tsm: schemas.TrainingSetMetadata = crud.get_training_set_instance_by_name(db, name, version=version)
@@ -291,6 +286,9 @@ def get_training_set_by_name(name: str, version: Optional[int] = None, return_pk
             current=False, label=tsm.label, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col,
             return_type=return_type
         )
+
+    if ts.data:
+        ts: JSONResponse = training_set_to_json(ts)
 
     return ts
 
@@ -510,17 +508,21 @@ def get_training_set_from_deployment(schema: str, table: str, label: str = None,
     create_time = metadata.training_set_create_ts
 
     if tv_name:
-        ts = _get_training_set_from_view(
+        ts: schemas.TrainingSet = _get_training_set_from_view(
             db, view=tv_name, create_time=create_time, features=features, start_time=start_time,
             end_time=end_time, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col, return_type=return_type
         )
     else:
-        ts = _get_training_set(
+        ts: schemas.TrainingSet = _get_training_set(
             db, features=features, create_time=create_time, start_time=start_time, end_time=end_time,
             label=label, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col, return_type=return_type
         )
 
     ts.metadata = metadata
+
+    if ts.data:
+        ts: JSONResponse = training_set_to_json(ts)
+
     return ts
 
 @SYNC_ROUTER.delete('/features', status_code=status.HTTP_200_OK, description="Remove a feature", 

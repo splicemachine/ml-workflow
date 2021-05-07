@@ -76,9 +76,7 @@ RUN alias pip3=/usr/bin/pip3 && \
 
 COPY shared /tmp/shared
 RUN pip3 install /tmp/shared/.
-
 # Copy Source into Container
 COPY feature_store/src $SRC_HOME
-RUN pip3 install numpy
 CMD $SRC_HOME"/scripts/entrypoint.sh"
 

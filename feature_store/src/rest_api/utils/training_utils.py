@@ -1,15 +1,18 @@
-from fastapi import HTTPException, status
+from fastapi import  status
 from typing import List, Union, Optional, Any, Tuple
+
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
+
 from ..schemas import Feature, FeatureSet, TrainingView, TrainingSet, TrainingSetMetadata
 from .. import crud
 from sqlalchemy.orm import Session
-from datetime import datetime, date, time
+from datetime import datetime
 from .utils import __get_pk_columns
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from shared.logger.logging_config import logger
 from time import time
 from json import dumps
-import numpy as np
 
 """
 A set of utility functions for creating Training Set SQL 
@@ -269,7 +272,7 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
 def _get_training_set_from_view(db: Session, view: str, create_time: datetime, features: Union[List[Feature], List[str]] = None, 
                                 start_time: Optional[datetime] = None, end_time: Optional[datetime] = None,
                                 return_pk_cols: bool = False, return_ts_col: bool = False,
-                                return_type: Optional[str] = None) -> Union[TrainingSet,Any]:
+                                return_type: Optional[str] = None) -> TrainingSet:
     """
     Creates a training set from a training view
     :param db: Session The database connection
@@ -305,9 +308,8 @@ def _get_training_set_from_view(db: Session, view: str, create_time: datetime, f
     # We will add more return types in the future so we leave it as a string not a bool
     if return_type == 'json':
         d = get_training_set_data(db, ts, return_type)
-        t0 = time()
+        logger.info('Serializing resultset')
         ts.data = dumps(d, default=str)
-        logger.info(f'\n\nDumping data took {time()-t0} seconds')
 
     return ts
 
@@ -374,6 +376,8 @@ def register_training_set(db: Session, ts: TrainingSet, save_as: str) -> Trainin
     ts.metadata = new_instance
     return ts
 
+
+
 def get_training_set_data(db: Session, ts: TrainingSet, return_type: str) -> List[Tuple[str, List[Any]]]:
     """
     Runs the SQL for a training set and returns the materialized data (assuming it is smaller than the limit)
@@ -381,36 +385,19 @@ def get_training_set_data(db: Session, ts: TrainingSet, return_type: str) -> Lis
     :param db: SqlAlchemy Session
     :param ts: Training Set (for metadata)
     :param return_type: The requested return type
-    :return: The data as a List of Tuples in the columnar format [(col_name, [column_data])]
+    :return: The data formatted in Columnar format (column_name: [column datum]
     """
     # 50MB max size, assuming each column is a float64 (8 bytes)
     max_rows = int(TRAINING_SET_MAX_SIZE / len(ts.features) * 8)
+
+    logger.info(f'Executing SQL')
     sql = f'select top {max_rows} * from ({ts.sql})'
-    t0 = time()
     res = db.execute(sql)
-    logger.info(f'\n\nTIME TAKEN for SQL execute: {time() - t0} \n\n')
 
+    logger.info(f'Gathering result set')
     cols = [i[0] for i in res.cursor.description]
-    t0 = time()
-    # x = res.fetchall()
-    # rows = []
-    # new_data = res.fetchmany(1000)
-    # while new_data: # We do this instead of .fetchall because fetchall is unreliable and sometimes hangs for minutes
-    #     rows += new_data
-    #     new_data = res.fetchmany(1000)
+    rows = res.fetchall()
 
-
-    new_data = res.fetchmany(1000)
-    rows = np.array(new_data)
-    amrits_bad_code_count  = 0
-    while new_data:
-        logger.info(f'runnind loop {amrits_bad_code_count}')
-        amrits_bad_code_count+=1
-        new_data = res.fetchmany(1000)
-        rows = np.column_stack((rows, new_data)) if new_data else rows
-
-
-    logger.info(f'\n\nTIME TAKEN for SQL fetchall: {time() - t0} \n\n')
     if len(rows) >= max_rows:
         raise SpliceMachineException(code=ExceptionCodes.BAD_ARGUMENTS, status_code=status.HTTP_403_FORBIDDEN,
                                      message=f'This training set is too large to return in the request '
@@ -419,8 +406,23 @@ def get_training_set_data(db: Session, ts: TrainingSet, return_type: str) -> Lis
                                              f'SQL statement that creates this DF. Alternatively, set a smaller '
                                              f'range for start_time and end_time to get less data.')
 
-    t0 = time()
-    # data = [(col,[row[i] for row in rows]) for i,col in enumerate(cols)]
-    data = list(zip(cols, rows.tolist()))
-    logger.info(f'\n\nTIME TAKEN for data formatting: {time() - t0} \n\n')
+    logger.info(f'Formatting data')
+
+    data = [(col,[row[i] for row in rows]) for i,col in enumerate(cols)]
+    # data = [cols] + [list(row) for row in rows] Simple row storage
     return data
+
+def training_set_to_json(ts: TrainingSet) -> JSONResponse:
+    """
+    Converts a TrainingSet object to raw JSON so it can be returned directly in a JSONResponse.
+    We use this function in the event that a user requests their training set in pandas / JSON form,
+    so it can be send via the REST response.
+
+    :param ts: TrainingSet
+    :return: JSON
+    """
+    data = ts.__dict__.pop('data')
+    json_data = jsonable_encoder(ts)
+    json_data['data'] = data
+    logger.info(f'JSON encoding complete')
+    return JSONResponse(content=json_data)

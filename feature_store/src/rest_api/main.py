@@ -38,8 +38,7 @@ APP.add_middleware(
     allow_headers=["*"]
 )
 
-# APP.add_middleware(GZipMiddleware, minimum_size=1e6) # 1MB
-APP.add_middleware(GZipMiddleware, minimum_size=1)
+APP.add_middleware(GZipMiddleware, minimum_size=1e6) # 1MB
 
 @APP.on_event(event_type='startup')
 def on_startup():
