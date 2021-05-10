@@ -1,14 +1,15 @@
-import json
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Query
+from fastapi.responses import JSONResponse, ORJSONResponse
 from typing import List, Dict, Optional, Union, Any
 from shared.logger.logging_config import logger
 from sqlalchemy.orm import Session
 from .auth import authenticate
 from .. import schemas, crud
-from ..utils.training_utils import (dict_to_lower,_get_training_view_by_name,
-                                _get_training_set, _get_training_set_from_view, register_training_set)
 from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets, delete_feature_set
+from ..utils.training_utils import (dict_to_lower, _get_training_view_by_name,
+                                    _get_training_set, _get_training_set_from_view, register_training_set,
+                                    training_set_to_json)
 from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, generate_backfill_sql,
                                                     generate_backfill_intervals, generate_pipeline_sql, _get_source)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
@@ -20,7 +21,6 @@ from ..utils.airflow_utils import Airflow
 SYNC_ROUTER = APIRouter(
     dependencies=[Depends(authenticate)]
 )
-
 
 @SYNC_ROUTER.get('/feature-sets', status_code=status.HTTP_200_OK, response_model=List[schemas.FeatureSetDetail],
                 description="Returns a list of available feature sets", operation_id='get_feature_sets', tags=['Feature Sets'])
@@ -192,7 +192,7 @@ def get_training_view_features(view: str, db: Session = Depends(crud.get_db)):
 @managed_transaction
 def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label: str = None,
                      return_pk_cols: bool = Query(False, alias='pks'), return_ts_col: bool = Query(False, alias='ts'),
-                     save_as: Optional[str] = None, db: Session = Depends(crud.get_db)):
+                     save_as: Optional[str] = None, return_type: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Gets a set of feature values across feature sets that is not time dependent (ie for non time series clustering).
     This feature dataset will be treated and tracked implicitly the same way a training_dataset is tracked from
@@ -210,10 +210,14 @@ def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label
     of the exact Training Set data as an Ad-Hoc query
     """
     create_time = crud.get_current_time(db)
-    ts: schemas.TrainingSet = _get_training_set(db, ftf.features, create_time, ftf.start_time,
-                                                ftf.end_time, current, label, return_pk_cols, return_ts_col)
+    ts: schemas.TrainingSet = _get_training_set(db, ftf.features, create_time, ftf.start_time, ftf.end_time, current,
+                                                label, return_pk_cols, return_ts_col, return_type=return_type)
     if save_as:
         ts = register_training_set(db, ts, save_as)
+
+    if ts.data:
+        ts: JSONResponse = training_set_to_json(ts)
+
     return ts
 
 
@@ -223,7 +227,7 @@ def get_training_set(ftf: schemas.FeatureTimeframe, current: bool = False, label
 @managed_transaction
 def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_pk_cols: bool = Query(False, alias='pks'),
                                return_ts_col: bool = Query(False, alias='ts'), save_as: Optional[str] =  None,
-                               db: Session = Depends(crud.get_db)):
+                               return_type: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Returns the training set as a Spark Dataframe from a Training View. When a user calls this function (assuming they have registered
     the feature store with mlflow using :py:meth:`~mlflow.register_feature_store` )
@@ -237,11 +241,16 @@ def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_
     or in the next run that is started after calling this function (if no run is currently active).
     """
     create_time = crud.get_current_time(db)
-    ts: schemas.TrainingSet = _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time,
-                                                          ftf.end_time, return_pk_cols, return_ts_col)
+
+    ts = _get_training_set_from_view(db, view, create_time, ftf.features, ftf.start_time, ftf.end_time,
+                                     return_pk_cols, return_ts_col, return_type=return_type)
 
     if save_as:
         ts = register_training_set(db, ts, save_as)
+
+    if ts.data:
+        ts = training_set_to_json(ts)
+
     return ts
 
 @SYNC_ROUTER.get('/training-set-by-name', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
@@ -249,9 +258,11 @@ def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_
                 operation_id='get_training_set_by_name', tags=['Training Sets'])
 @managed_transaction
 def get_training_set_by_name(name: str, version: Optional[int] = None, return_pk_cols: bool = Query(False, alias='pks'),
-                               return_ts_col: bool = Query(False, alias='ts'), db: Session = Depends(crud.get_db)):
+                             return_ts_col: bool = Query(False, alias='ts'), return_type: Optional[str] = None,
+                             db: Session = Depends(crud.get_db)):
     """
-    Gets an EXISTING training set by name. Returns the Training Set that exists
+    Gets an EXISTING training set by name. Returns the Training Set that exists. If no version is specified, the most
+    recent version (largest version ID) will be returned.
     """
 
     tsm: schemas.TrainingSetMetadata = crud.get_training_set_instance_by_name(db, name, version=version)
@@ -267,13 +278,18 @@ def get_training_set_by_name(name: str, version: Optional[int] = None, return_pk
         view: schemas.TrainingView = crud.get_training_views(db, _filter={'view_id': tsm.view_id})[0]
         ts: schemas.TrainingSet = _get_training_set_from_view(
             db, view.name, tsm.training_set_create_ts, features, tsm.training_set_start_ts,
-            tsm.training_set_end_ts, return_pk_cols, return_ts_col
+            tsm.training_set_end_ts, return_pk_cols, return_ts_col, return_type=return_type
         )
     else:
         ts: schemas.TrainingSet = _get_training_set(
             db, features, tsm.training_set_create_ts, tsm.training_set_start_ts, tsm.training_set_end_ts,
-            current=False, label=tsm.label, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col
+            current=False, label=tsm.label, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col,
+            return_type=return_type
         )
+
+    if ts.data:
+        ts: JSONResponse = training_set_to_json(ts)
+
     return ts
 
 list_ts_desc = """
@@ -479,7 +495,7 @@ def update_feature_metadata(name: str, metadata: schemas.FeatureMetadata, db: Se
 @managed_transaction
 def get_training_set_from_deployment(schema: str, table: str, label: str = None, 
                             return_pk_cols: bool = Query(False, alias='pks'), return_ts_col: bool = Query(False, alias='ts'), 
-                            db: Session = Depends(crud.get_db)):
+                            return_type: Optional[str] = None, db: Session = Depends(crud.get_db)):
     """
     Reads Feature Store metadata to rebuild orginal training data set used for the given deployed model.
     """
@@ -492,17 +508,21 @@ def get_training_set_from_deployment(schema: str, table: str, label: str = None,
     create_time = metadata.training_set_create_ts
 
     if tv_name:
-        ts = _get_training_set_from_view(
+        ts: schemas.TrainingSet = _get_training_set_from_view(
             db, view=tv_name, create_time=create_time, features=features, start_time=start_time,
-            end_time=end_time, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col
+            end_time=end_time, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col, return_type=return_type
         )
     else:
-        ts = _get_training_set(
+        ts: schemas.TrainingSet = _get_training_set(
             db, features=features, create_time=create_time, start_time=start_time, end_time=end_time,
-            label=label, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col
+            label=label, return_pk_cols=return_pk_cols, return_ts_col=return_ts_col, return_type=return_type
         )
 
     ts.metadata = metadata
+
+    if ts.data:
+        ts: JSONResponse = training_set_to_json(ts)
+
     return ts
 
 @SYNC_ROUTER.delete('/features', status_code=status.HTTP_200_OK, description="Remove a feature", 
@@ -763,8 +783,8 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
     # Now that the features exist we can deploy the feature set
     _deploy_feature_set(sf.schema_name, sf.table_name, db)
     if run_backfill:
-        sql = generate_backfill_sql(sf.schema_name, sf.table_name, source, crud.get_feature_aggregations(db, fset.feature_set_id))
-        # TODO RUN backfill with Airflow
+        if Airflow.is_active:
+            Airflow.trigger_backfill(sf.schema_name, sf.table_name)
     #TODO: RUN incremental pipeline on schedule with Airflow
     return fset
 
