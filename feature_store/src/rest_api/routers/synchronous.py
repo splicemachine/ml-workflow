@@ -741,8 +741,6 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
     # Now that the features exist we can deploy the feature set
     _deploy_feature_set(sf.schema_name, sf.table_name, db)
     if run_backfill:
-        # sql = generate_backfill_sql(sf.schema_name, sf.table_name, source, crud.get_feature_aggregations(db, fset.feature_set_id))
-        # TODO RUN backfill with Airflow
         if Airflow.is_active:
             Airflow.trigger_backfill(sf.schema_name, sf.table_name)
     #TODO: RUN incremental pipeline on schedule with Airflow
