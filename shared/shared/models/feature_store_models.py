@@ -114,14 +114,14 @@ class FeatureStats(SQLAlchemyClient.SpliceBase):
     """
     __tablename__: str = "feature_stats"
     __table_args__ = {'schema': 'featurestore'}
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True, )
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True)
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False, primary_key=True)
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
     feature_mean: Column = Column(Numeric)
     feature_median: Column = Column(Numeric)
     feature_count: Column = Column(Integer)
     feature_stddev: Column = Column(Numeric)
-    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False, primary_key=True)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
 
