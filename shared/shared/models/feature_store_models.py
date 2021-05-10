@@ -91,7 +91,6 @@ class Feature(SQLAlchemyClient.SpliceBase):
     description: Column = Column(String(500), nullable=True)
     feature_data_type: Column = Column(String(255))
     feature_type: Column = Column(String(1))  # 'O'rdinal, 'C'ontinuous, 'N'ominal
-    cardinality: Column = Column(Integer)  # Number of distint values, -1 if undefined
     tags: Column = Column(String(5000), nullable=True)
     attributes: Column = Column(String(5000), nullable=True)
     compliance_level: Column = Column(Integer)
@@ -108,9 +107,8 @@ class Feature(SQLAlchemyClient.SpliceBase):
 
 class FeatureStats(SQLAlchemyClient.SpliceBase):
     """
-    This table keeps track of feature statistics. This is dynamic information and will
-    be updated periodically based on a set interval (or potentially in realtime). The updating schedule of these
-    stats are in progress.
+    Feature Stats are statistics calculated regularly about features. Each feature will have many entries in the table
+    about their statistics. These are calculated in the background so they are readily available in the UI.
     """
     __tablename__: str = "feature_stats"
     __table_args__ = {'schema': 'featurestore'}
