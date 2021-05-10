@@ -93,6 +93,6 @@ class Airflow:
             return
         try:
             requests.get(f'{Airflow.AIRFLOW_URL}/health').raise_for_status()
-        except requests.exceptions.HTTPError:
+        except requests.exceptions.RequestException:
             logger.warning('Could not connect to Airflow API. Airflow functionality will not be available')
             Airflow.is_active = False

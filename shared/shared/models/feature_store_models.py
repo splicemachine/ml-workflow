@@ -106,6 +106,24 @@ class Feature(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
+class FeatureStats(SQLAlchemyClient.SpliceBase):
+    """
+    This table keeps track of feature statistics. This is dynamic information and will
+    be updated periodically based on a set interval (or potentially in realtime). The updating schedule of these
+    stats are in progress.
+    """
+    __tablename__: str = "feature_stats"
+    __table_args__ = {'schema': 'featurestore'}
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True, )
+    feature_cardinality: Column = Column(Integer)
+    feature_histogram: Column = Column(Text)
+    feature_mean: Column = Column(Numeric)
+    feature_median: Column = Column(Numeric)
+    feature_count: Column = Column(Integer)
+    feature_stddev: Column = Column(Numeric)
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False, primary_key=True)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
 
 class TrainingView(SQLAlchemyClient.SpliceBase):
     """
@@ -434,7 +452,7 @@ def create_deploy_historian():
         )
 
 
-TABLES = [FeatureSet, PendingFeatureSetDeployment, FeatureSetKey, Feature, TrainingView, TrainingViewKey, TrainingSet,
+TABLES = [FeatureSet, PendingFeatureSetDeployment, FeatureSetKey, Feature, FeatureStats, TrainingView, TrainingViewKey, TrainingSet,
           TrainingSetInstance, TrainingSetFeature, TrainingSetFeatureStats, TrainingSetLabelStats, Deployment,
           DeploymentHistory, DeploymentFeatureStats, Source, SourceKey, Pipeline, PipelineOps, PipelineAgg]
 
