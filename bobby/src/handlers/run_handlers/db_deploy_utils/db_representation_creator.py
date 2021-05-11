@@ -56,7 +56,22 @@ class DatabaseRepresentationCreator:
         # Load the model from MLModel
         with open(f'{from_dir}/MLmodel') as ml_model:
             self.logger.info("Reading MLModel Flavor from Extracted Archive", send_db=True)
-            loader_module = safe_load(ml_model.read())['flavors']['python_function']['loader_module']
+            mlmodel = safe_load(ml_model.read())
+        try:
+            loader_module = mlmodel['flavors']['python_function']['loader_module']
+        except KeyError: # If the python_function isn't available, fallback and try the raw model flavor
+            # We will look through the other flavors in the MLModel yaml
+            loader_module = None
+            for flavor in mlmodel['flavors'].keys():
+                if hasattr(mlflow, flavor):
+                    loader_module = f'mlflow.{flavor}'
+                    self.logger.info(f'Found module {loader_module}', send_db=True)
+                    break
+            if not loader_module:
+                self.logger.exception("Unable to load the mlflow loader. "
+                                      "Ensure this ML model has been saved using an mlflow module", send_db=True)
+                raise Exception(f"Unable to load the mlflow loader. Ensure this ML model has been "
+                                f"saved using an mlflow module") from None
 
         # TODO use regex
         mlflow_module = loader_module.split('.')[1]  # mlflow.spark --> spark
