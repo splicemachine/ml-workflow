@@ -74,6 +74,17 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
                                      message=f'Table {fset.table_name} does not conform. Must start with an alphabetic character, '
                                              'and can only contains letters, numbers and underscores')
+    if fset.schema_name.lower() in RESERVED_WORDS:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f'Feature set schema {fset.schema_name} is in the list of reserved words. '
+                                             f'Feature set must not use a reserved schema/table name. For the full list see '
+                                             f'https://github.com/splicemachine/splice_sqlalchemy/blob/master/splicemachinesa/constants.py')
+    if fset.table_name.lower() in RESERVED_WORDS:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f'Feature set table {fset.table_name} is in the list of reserved words. '
+                                             f'Feature set must not use a reserved schema/table name. For the full list see '
+                                             f'https://github.com/splicemachine/splice_sqlalchemy/blob/master/splicemachinesa/constants.py')
+
     __validate_primary_keys(fset.primary_keys)
 
 
