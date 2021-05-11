@@ -21,7 +21,6 @@ import org.deeplearning4j.nn.modelimport.keras.exceptions.UnsupportedKerasConfig
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.sql.Blob;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.*;
@@ -62,7 +61,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     }
 
     public static AbstractRunner getRunner(final String modelID)
-            throws UnsupportedLibraryExcetion, ClassNotFoundException, SQLException, IOException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
+            throws UnsupportedLibraryException, ClassNotFoundException, SQLException, IOException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         AbstractRunner runner;
         // Check if the runner is in cache
         if (runnerCache.containsKey(modelID)) {
@@ -89,7 +88,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
                     break;
                 default:
                     // TODO: Review database standards for exceptions
-                    throw new UnsupportedLibraryExcetion(
+                    throw new UnsupportedLibraryException(
                             "Model library of type " + lib + " is not currently supported for in DB deployment!");
             }
             // Add runner to cache
@@ -111,7 +110,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
      */
     @Deprecated public static String predictClassification(final String modelID, final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
-            UnsupportedLibraryExcetion, ClassNotFoundException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
+            UnsupportedLibraryException, ClassNotFoundException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
         if (checkVals(modelID, rawData, schema)){
             return null;
@@ -125,7 +124,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
      * @deprecated  As of release 2.6.0-k8, VTI only now
      */
     @Deprecated public static Double predictRegression(final String modelID, final String rawData, final String schema)
-            throws ClassNotFoundException, UnsupportedLibraryExcetion, SQLException, IOException,
+            throws ClassNotFoundException, UnsupportedLibraryException, SQLException, IOException,
             InvocationTargetException, IllegalAccessException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
         if (checkVals(modelID, rawData, schema)){
@@ -141,7 +140,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
      * @deprecated  As of release 2.6.0-k8, VTI only now
      */
     @Deprecated public static String predictClusterProbabilities(final String modelID, final String rawData, final String schema) throws InvocationTargetException, IllegalAccessException, SQLException, IOException, ClassNotFoundException,
-            UnsupportedLibraryExcetion, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
+            UnsupportedLibraryException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
         if (checkVals(modelID, rawData, schema)){
             return null;
@@ -156,7 +155,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
      */
     @Deprecated public static int predictCluster(final String modelID, final String rawData, final String schema)
             throws InvocationTargetException, IllegalAccessException, SQLException, IOException,
-            ClassNotFoundException, UnsupportedLibraryExcetion, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
+            ClassNotFoundException, UnsupportedLibraryException, PredictException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
         if (checkVals(modelID, rawData, schema)){
             return -1;
@@ -169,7 +168,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
     /**
      * @deprecated  As of release 2.6.0-k8, VTI only now
      */
-    @Deprecated public static double[] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryExcetion, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
+    @Deprecated public static double[] predictKeyValue(final String modelID, final String rawData, final String schema) throws PredictException, ClassNotFoundException, SQLException, UnsupportedLibraryException, IOException, JepException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
         // Defensive in case no values are passed into the function
         if (checkVals(modelID, rawData, schema)){
             return null;
