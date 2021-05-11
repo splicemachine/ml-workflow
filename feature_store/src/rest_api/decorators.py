@@ -24,6 +24,7 @@ def managed_transaction(func):
         finally:
             logger.info("Flushing...")
             db.flush()
+            logger.info("Flushed")
         # don't close session here, or you won't be able to response
         return result
 
