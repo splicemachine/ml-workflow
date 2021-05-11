@@ -2,6 +2,7 @@
 Custom MLFlow Tracking Store for Splice Machine
 DB
 """
+
 import posixpath
 import re
 import uuid
@@ -21,17 +22,11 @@ from mlflow.store.db.utils import (_get_managed_session_maker,
                                    _initialize_tables, _upgrade_db,
                                    _verify_schema)
 from mlflow.store.tracking import SEARCH_MAX_RESULTS_THRESHOLD
-from mlflow.store.tracking.dbmodels.initial_models import Base as InitialBase
-from mlflow.store.tracking.dbmodels.initial_models import \
-    SqlExperiment as InitialSqlExperiment
-from mlflow.store.tracking.dbmodels.initial_models import \
-    SqlMetric as InitialSqlMetric
-from mlflow.store.tracking.dbmodels.initial_models import \
-    SqlParam as InitialSqlParam
-from mlflow.store.tracking.dbmodels.initial_models import \
-    SqlRun as InitialSqlRun
-from mlflow.store.tracking.dbmodels.initial_models import \
-    SqlTag as InitialSqlTag
+
+from mlflow.store.tracking.dbmodels.initial_models import (Base as InitialBase, SqlExperiment as InitialSqlExperiment,
+                                                           SqlMetric as InitialSqlMetric, SqlParam as InitialSqlParam,
+                                                           SqlRun as InitialSqlRun, SqlTag as InitialSqlTag)
+
 from mlflow.store.tracking.dbmodels.models import (SqlExperiment,
                                                    SqlLatestMetric, SqlRun,
                                                    SqlTag)
@@ -39,11 +34,12 @@ from mlflow.store.tracking.sqlalchemy_store import (
     SqlAlchemyStore, _get_attributes_filtering_clauses,
     _get_sqlalchemy_filter_clauses)
 from mlflow.utils.search_utils import SearchUtils
+
 from shared.logger.logging_config import logger
+from shared.services.database import SQLAlchemyClient
 from shared.models.mlflow_models import (DatabaseDeployedMetadata, SqlArtifact,
                                          SysTables, SysTriggers, SysUsers,
                                          live_model_status_view)
-from shared.services.database import SQLAlchemyClient, DatabaseSQL
 
 # ^ we need this in our global namespace so that alembic will be able to find our dialect during
 # DB migrations

@@ -6,10 +6,10 @@ from shared.logger.logging_config import logger
 from sqlalchemy.orm import Session
 from .auth import authenticate
 from .. import schemas, crud
+from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets, delete_feature_set
 from ..utils.training_utils import (dict_to_lower, _get_training_view_by_name,
                                     _get_training_set, _get_training_set_from_view, register_training_set,
                                     training_set_to_json)
-from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets, full_delete_feature_set
 from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, generate_backfill_sql,
                                                     generate_backfill_intervals, generate_pipeline_sql, _get_source)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
@@ -566,15 +566,22 @@ def remove_training_view(name: str, db: Session = Depends(crud.get_db)):
     crud.delete_training_view(db, tvw.view_id)
 
     
-
-@SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK, description="Removes a feature set",
+del_fset_desc = """Removes a Feature Set. You can only delete a feature set if there are no training set or model
+dependencies. If you set purge=True, dependent training sets will be deleted as well, and you will be able to remove
+the feature set. If keep_metadata is true, the feature set table and history table will be dropped, but the metadata
+about the feature set (and features) will remain. The feature set's deploy status will be changed from true to false"""
+@SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK, description=del_fset_desc,
                     operation_id='remove_feature_set', tags=['Feature Sets'])
 @managed_transaction
-def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session = Depends(crud.get_db)) :
+def remove_feature_set(schema: str, table: str, purge: bool = False, keep_metadata: bool = False,
+                       db: Session = Depends(crud.get_db)) :
     """
     Deletes a feature set if appropriate. You can currently delete a feature set in two scenarios:
     1. The feature set has not been deployed
     2. The feature set has been deployed, but not linked to any training sets/model deployments
+
+    if keep_metadata is True, the feature set table and history table will be removed, but the metadata will be stored
+    (the status of the feature set will be reset to not-deployed).
 
     :param db: SQLAlchemy Session
     :return: None
@@ -586,27 +593,29 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, db: Session
                                              'been created. Please ensure the feature set exists.')
     fset = fset[0]
     if not crud.feature_set_is_deployed(db, fset.feature_set_id):
-        full_delete_feature_set(db, fset, cascade=False)
+        delete_feature_set(db, fset, cascade=False, keep_metadata=keep_metadata)
     else:
         deps = crud.get_feature_set_dependencies(db, fset.feature_set_id)
         if deps['model']:
             raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
-                                         message='You cannot drop a Feature Set that has an associated model deployment.'
+                                         message='You cannot remove a Feature Set that has an associated model deployment.'
                                          ' The Following models have been deployed with Training Sets that depend on this'
                                          f' Feature Set: {deps["model"]}')
         elif deps['training_set']:
             if not purge:
                 raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
-                                             message='You cannot delete a Feature Set that has associated Training Sets. '
+                                             message='You cannot remove a Feature Set that has associated Training Sets. '
                                                      f'The following Training Sets depend on this Feature Set: '
                                                      f'{deps["training_set"]}. To drop this Feature Set anyway, '
-                                                     f'set purge=True (be careful!)')
+                                                     f'set purge=True (be careful! the training sets will be deleted)')
             else:
-                full_delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'])
+                delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'],
+                                   keep_metadata=keep_metadata)
         else: # No dependencies
-            full_delete_feature_set(db, fset, cascade=False)
+            delete_feature_set(db, fset, cascade=False,keep_metadata=keep_metadata)
     if Airflow.is_active:
         Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
+
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDetail],
                 description="Get all deployments given either a deployment (schema/table), a training_view (name), "
