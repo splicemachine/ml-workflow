@@ -124,7 +124,7 @@ def validate_feature(db: Session, name: str, data_type: schemas.DataType) -> Non
         sql_type = datatype_to_sql(data_type)
         tmp = str(uuid1()).replace('-', '_')
         db.execute(
-            f'CREATE LOCAL TEMPORARY TABLE COLUMN_TEST_{tmp}({name} {sql_type})')  # Will be deleted when session ends
+            f'CREATE LOCAL TEMPORARY TABLE COLUMN_TEST_{tmp}({name.upper()} {sql_type})')  # Will be deleted when session ends
     except Exception as err:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message=f'The feature {name} of type {data_type} is invalid. The data type could '
