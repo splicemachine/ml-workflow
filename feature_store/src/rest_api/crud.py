@@ -74,6 +74,7 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
                                      message=f'Table {fset.table_name} does not conform. Must start with an alphabetic character, '
                                              'and can only contains letters, numbers and underscores')
+
     if fset.schema_name.lower() in RESERVED_WORDS:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message=f'Feature set schema {fset.schema_name} is in the list of reserved words. '
@@ -1192,9 +1193,12 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     # db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id==fset.feature_set_id).\
     #     update({models.FeatureSet.deployed: True, models.FeatureSet.deploy_ts: datetime.now()})
     updt = update(models.FeatureSet).where(models.FeatureSet.feature_set_id == fset.feature_set_id). \
-        values(deployed=True, deploy_ts=text('CURRENT_TIMESTAMP'))
+        values(deployed=True, deploy_ts=text('CURRENT_TIMESTAMP'), last_update_ts=text('CURRENT_TIMESTAMP'))
     stmt = updt.compile(dialect=db.get_bind().dialect, compile_kwargs={"literal_binds": True})
     db.execute(str(stmt))
+    fset.deploy_ts = db.query(models.FeatureSet.deploy_ts).\
+        filter(models.FeatureSet.feature_set_id == fset.feature_set_id).\
+        first()[0]
     fset.deployed = True
     logger.info('Done.')
     return fset
