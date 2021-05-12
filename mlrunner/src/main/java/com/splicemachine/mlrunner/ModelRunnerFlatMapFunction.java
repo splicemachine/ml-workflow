@@ -1,10 +1,12 @@
 package com.splicemachine.mlrunner;
 
+import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.sql.execute.ExecRow;
 import com.splicemachine.db.iapi.types.ArrayImpl;
 import com.splicemachine.derby.iapi.sql.execute.SpliceOperation;
 import com.splicemachine.derby.stream.function.SpliceFlatMapFunction;
 import com.splicemachine.derby.stream.iapi.OperationContext;
+import static com.splicemachine.db.shared.common.reference.SQLState.LANG_INTERNAL_ERROR;
 
 import io.airlift.log.Logger;
 
@@ -18,7 +20,7 @@ import java.util.*;
 public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOperation, Iterator<ExecRow>, ExecRow> implements Iterator<ExecRow>, Externalizable {
     private static final Logger LOG = Logger.get(MLRunner.class);
     AbstractRunner runner;
-    String modelCategory, predictCall, predictArgs;
+    String modelCategory, predictCall, predictArgs, modelID;
     List<Integer> modelFeaturesIndexes, predictionLabelIndexes;
     List<String> predictionLabels, featureColumnNames;
     double threshold;
@@ -45,12 +47,13 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
      * @param predictionLabels: The labels of the model predictions
      * @param maxBufferSize: The max size of the buffers for model evaluation. Will default to 10000 from the generated
      *                     trigger
+     * @param modelID: the ID of the model
      */
     public ModelRunnerFlatMapFunction(
             OperationContext operationContext, final AbstractRunner runner, final String modelCategory, final String predictCall,
             final String predictArgs, final double threshold, final List<Integer> modelFeaturesIndexes,
             final int predictionColIndex, final List<String> predictionLabels, final List<Integer> predictionLabelIndexes,
-            final List<String> featureColumnNames, final int maxBufferSize){
+            final List<String> featureColumnNames, final int maxBufferSize, final String modelID){
 
         super(operationContext);
         LOG.warn("Proper constructor called");
@@ -66,6 +69,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
         this.predictionLabelIndexes = predictionLabelIndexes;
         this.featureColumnNames = featureColumnNames;
         this.maxBufferSize = maxBufferSize;
+        this.modelID = modelID;
 
         this.remainingBufferAvailability = this.maxBufferSize;
         this.unprocessedRows = new LinkedList<>();
@@ -84,7 +88,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     }
 
     @Override
-    public ExecRow next() {
+    public ExecRow next(){
         // If we have any processed rows available, return the first one
         if(this.processedRows.isEmpty()) { // Fill and transform the buffer
             // Fill the buffer until either there are no more rows or we hit our max buffer size
@@ -97,7 +101,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
             // transform all rows in buffer
             // return first row
             try {
-                LOG.info("Model Category: " + modelCategory + " doing transformation of size " + unprocessedRows.size());
+                LOG.info("RUN_ID: " + modelID + " - Model Category: " + modelCategory + " doing transformation of size " + unprocessedRows.size());
                 switch (modelCategory) {
                     case "key_value":
                         this.processedRows = this.runner.predictKeyValue(unprocessedRows, modelFeaturesIndexes,
@@ -118,9 +122,25 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
                         break;
                 }
                 this.unprocessedRows.clear();
-            } catch (Exception e) {
+            } catch (NullPointerException e){
                 e.printStackTrace();
-                throw new NoSuchElementException("Could not retrieve next row due to error: " + e.getMessage());
+                String err = "Run_ID: " + modelID + " - The model threw a NullPointerException during evaluation. " +
+                        "It's possible this model cannot " +
+                "handle null inputs and one was provided. If this is the case, try inserting a " +
+                        "single record without nulls. The full error was: " + e.getMessage();
+                LOG.error(err);
+                // A StandardException of LANG_INTERNAL_ERROR will get propagated to the user so they can know the problem
+                StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
+                throw new RuntimeException(se);
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+                // A StandardException of LANG_INTERNAL_ERROR will get propagated to the user so they can know the problem
+                String err = "Run_ID: " + modelID + " - There was an unexpected error during model evaluation. " +
+                        "The following exception was thrown: " + e.getMessage();
+                LOG.error(err);
+                StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
+                throw new RuntimeException(se);
             }
         }
         return processedRows.remove();
@@ -134,6 +154,9 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     @Override
     public void writeExternal(ObjectOutput out) throws IOException {
         super.writeExternal(out);
+
+        LOG.info("RUN_ID: " + modelID + " - Serializing data to OLAP engine for execution");
+
         out.writeObject(this.runner); //AbstractRunner
         out.writeUTF(this.modelCategory);
         out.writeUTF((this.predictCall != null) ? this.predictCall  : "NULL"); // Cannot write a null, get NPE
@@ -141,6 +164,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
         out.writeDouble(this.threshold);
         out.writeInt(this.predictionColIndex);
         out.writeInt(this.maxBufferSize);
+        out.writeUTF(this.modelID);
         // Need to use ArrayImpl because it implements readExternal and writeExternal
         // https://github.com/splicemachine/spliceengine/blob/master/db-shared/src/main/java/com/splicemachine/db/iapi/types/ArrayImpl.java
         out.writeObject(new ArrayImpl("null",-1,this.modelFeaturesIndexes.toArray())); //List<Integer>
@@ -164,6 +188,8 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         super.readExternal(in);
 
+        LOG.info("RUN_ID: " + modelID + " - Deserializing data in OLAP engine");
+
         this.runner = (AbstractRunner) in.readObject();
         this.modelCategory = in.readUTF();
         this.predictCall = in.readUTF();
@@ -173,47 +199,24 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
         this.threshold = in.readDouble();
         this.predictionColIndex = in.readInt();
         this.maxBufferSize = in.readInt();
+        this.modelID = in.readUTF();
 
         try {
             // Need to convert arrayimpl back into an array, then to List
             // convert in.readObject() to an ArrayImpl class. Then get the array. Then convert that Object to a Integer[]
             // Then to a List<Integer>
-//            this.modelFeaturesIndexes = Arrays.asList(((Integer[]) ((ArrayImpl) in.readObject()).getArray()));
-
-//            ArrayImpl mfia = (ArrayImpl) in.readObject();
-//            Object[] mfio = (Object[]) mfia.getArray();
-//            Integer[] mfii = Arrays.asList(mfio).toArray(new Integer[0]);
-//            this.modelFeaturesIndexes = Arrays.asList(mfii);
-
             this.modelFeaturesIndexes = arrayImplToIntList((ArrayImpl) in.readObject());
-
-//            ArrayImpl pla = (ArrayImpl) in.readObject();
-//            Object[] plo = (Object[]) pla.getArray();
-//            String[] pls = Arrays.asList(plo).toArray(new String[0]);
-//            this.predictionLabels = Arrays.asList(pls);
             this.predictionLabels = arrayImplToStringList((ArrayImpl) in.readObject());
-
-
-//            ArrayImpl plia = (ArrayImpl) in.readObject();
-//            Object[] plio = (Object[]) plia.getArray();
-//            Integer[] plii = Arrays.asList(plio).toArray(new Integer[0]);
-//            this.predictionLabelIndexes = Arrays.asList(plii);
-
             this.predictionLabelIndexes = arrayImplToIntList((ArrayImpl) in.readObject());
-
             this.featureColumnNames = arrayImplToStringList((ArrayImpl) in.readObject());
-
-//            ArrayImpl fcna = (ArrayImpl) in.readObject();
-//            Object[] fcno = (Object[]) fcna.getArray();
-//            String[] fcns = Arrays.asList(fcno).toArray(new String[0]);
-//            this.featureColumnNames = Arrays.asList(fcns);
-
-//            this.predictionLabels = Arrays.asList(((String[]) ((ArrayImpl) in.readObject()).getArray()));
-//            this.predictionLabelIndexes = Arrays.asList(((Integer[]) ((ArrayImpl) in.readObject()).getArray()));
-//            this.featureColumnNames = Arrays.asList(((String[]) ((ArrayImpl) in.readObject()).getArray()));
         }
         catch(SQLException sqlException){
-            throw new IOException("Could not deserialize arraylists due to error: " + sqlException.getMessage());
+            String err = "Run_ID: " + modelID + "Could not deserialize data in OLAP. " +
+                    "Consider adding useSpark=False hints to your query. " +
+                    "Error thrown: " + sqlException.getMessage();
+            LOG.error(err);
+            StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
+            throw new RuntimeException(se);
         }
     }
 }
