@@ -239,7 +239,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         }
 
         // Initialize runner
-        LOG.warn("Getting runner");
+        LOG.info("RUN_ID: " + this.modelID + " - Getting runner");
         try {
             this.runner = this.modelCategory.equals("endpoint") ? null : getRunner(this.modelID);
 
@@ -261,7 +261,7 @@ public class MLRunner implements DatasetProvider, VTICosting {
         DataSet<ExecRow> rows = this.newTransitionRows.getDataSet(spliceOperation, dataSetProcessor, execRow);
         return rows.mapPartitions(new ModelRunnerFlatMapFunction(operationContext, runner, modelCategory,
                 predictCall, predictArgs, threshold, modelFeaturesIndexes, predictionColIndex, predictionLabels,
-                predictionLabelIndexes, featureColumnNames, maxBufferSize));
+                predictionLabelIndexes, featureColumnNames, maxBufferSize, modelID));
     }
 
     @Override
