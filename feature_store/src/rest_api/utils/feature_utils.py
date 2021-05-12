@@ -18,11 +18,11 @@ def _deploy_feature_set(schema: str, table: str, db: Session):
     The feature set must have already been created with :py:meth:`~features.FeatureStore.create_feature_set`
     """
     try:
-        fset = crud.get_feature_sets(db, _filter={'schema_name': schema, 'table_name': table})[0]
+        fset = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])[0]
     except:
         raise SpliceMachineException(
             status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
-            message=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
+            message=f"Cannot find feature set {schema}.{table}. Ensure you've created this "
             f"feature set using fs.create_feature_set before deploying.")
     if fset.deployed:
         raise SpliceMachineException(
