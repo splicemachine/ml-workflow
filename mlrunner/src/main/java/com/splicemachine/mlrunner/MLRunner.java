@@ -26,6 +26,8 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static com.splicemachine.db.shared.common.reference.SQLState.LANG_INTERNAL_ERROR;
+
 class CacheClearer extends TimerTask {
     public void run(){
         MLRunner.clearCache();
@@ -61,11 +63,11 @@ public class MLRunner implements DatasetProvider, VTICosting {
     }
 
     public static AbstractRunner getRunner(final String modelID)
-            throws UnsupportedLibraryException, ClassNotFoundException, SQLException, IOException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException, StandardException {
+            throws ClassNotFoundException, SQLException, IOException, UnsupportedKerasConfigurationException, InvalidKerasConfigurationException {
         AbstractRunner runner;
         // Check if the runner is in cache
         if (runnerCache.containsKey(modelID)) {
-            LOG.info(String.format("Got model %s from cache", modelID));
+            LOG.info(String.format("Run_ID: %1$s - Got model %1$s from cache", modelID));
             runner = runnerCache.get(modelID);
         }
         else {
@@ -87,13 +89,15 @@ public class MLRunner implements DatasetProvider, VTICosting {
                     runner = new KerasRunner(model);
                     break;
                 default:
-                    // TODO: Review database standards for exceptions
-                    throw new UnsupportedLibraryException(
-                            "Model library of type " + lib + " is not currently supported for in DB deployment!");
+                    String err = "Run_ID: " + modelID + "Model library of type " + lib + " is not currently " +
+                            "supported for Database model deployment!";
+                    LOG.error(err);
+                    StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
+                    throw new RuntimeException(se);
             }
             // Add runner to cache
             runnerCache.put(modelID, runner);
-            LOG.info(String.format("Adding model %s to cache", modelID));
+            LOG.info(String.format("Run_ID: %1$s - Adding %2$s model %1$s to cache", modelID, lib));
         }
         return runner;
     }
@@ -242,18 +246,27 @@ public class MLRunner implements DatasetProvider, VTICosting {
         LOG.info("RUN_ID: " + this.modelID + " - Getting runner");
         try {
             this.runner = this.modelCategory.equals("endpoint") ? null : getRunner(this.modelID);
-
         } catch (SQLException e) {
-            LOG.error("Unexpected SQLException while getting runner: ", e.getMessage());
-            throw StandardException.plainWrapException(e);
+            // A StandardException of LANG_INTERNAL_ERROR will get propagated to the user so they can know the problem
+            String err = "Run_ID: " + modelID + " - Unexpected SQLException while getting runner: " +
+                    "The following exception was thrown: " + e.getMessage();
+            LOG.error(err);
+            StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
+            throw new RuntimeException(se);
         } catch (ClassNotFoundException e) {
-            LOG.error("Unexpected ClassNotFoundException while getting runner: ", e.getMessage());
-            throw StandardException.plainWrapException(e);
+            String err = "Run_ID: " + modelID + " - Unexpected ClassNotFoundException while getting runner: " +
+                    "The following exception was thrown: " + e.getMessage();
+            LOG.error(err);
+            StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
+            throw new RuntimeException(se);
         } catch (Exception e) {
-            LOG.error("Unexpected Exception while getting runner: ", e.getMessage() + "END OF EXCEPTION");
-            throw StandardException.plainWrapException(e);
+            String err = "Run_ID: " + modelID + " - Unexpected Exception while getting runner: " +
+                    "The following exception was thrown: " + e.getMessage();
+            LOG.error(err);
+            StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
+            throw new RuntimeException(se);
         }
-        LOG.warn("Finished getting runner");
+        LOG.warn("RUN_ID: " + this.modelID + " - Finished getting runner");
         LOG.warn("Runner is null " + (runner==null));
         assert runner != null: "runner is null!";
 
@@ -317,8 +330,8 @@ public class MLRunner implements DatasetProvider, VTICosting {
         this.newTransitionRows = newTransitionRows;
         this.schema = schema;
         this.table = table;
-        this.predictCall = (predictCall != "NULL") ? predictCall  : null;
-        this.predictArgs = (predictArgs != "NULL") ? predictArgs  : null;
+        this.predictCall = (!predictCall.equals("NULL")) ? predictCall  : null;
+        this.predictArgs = (!predictArgs.equals("NULL")) ? predictArgs  : null;
         this.threshold = threshold;
         this.featureColumnNames = Arrays.asList(featureColumnNames.split(","));
         this.predictionLabels = Arrays.asList(predictionLabels.split(","));

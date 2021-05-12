@@ -88,7 +88,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     }
 
     @Override
-    public ExecRow next() throws SQLException{
+    public ExecRow next(){
         // If we have any processed rows available, return the first one
         if(this.processedRows.isEmpty()) { // Fill and transform the buffer
             // Fill the buffer until either there are no more rows or we hit our max buffer size
@@ -127,7 +127,7 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
                 String err = "Run_ID: " + modelID + " - The model threw a NullPointerException during evaluation. " +
                         "It's possible this model cannot " +
                 "handle null inputs and one was provided. If this is the case, try inserting a " +
-                        "single record without nulls. The full error was:" + e.getMessage();
+                        "single record without nulls. The full error was: " + e.getMessage();
                 LOG.error(err);
                 // A StandardException of LANG_INTERNAL_ERROR will get propagated to the user so they can know the problem
                 StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
@@ -154,6 +154,9 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     @Override
     public void writeExternal(ObjectOutput out) throws IOException {
         super.writeExternal(out);
+
+        LOG.info("RUN_ID: " + modelID + " - Serializing data to OLAP engine for execution");
+
         out.writeObject(this.runner); //AbstractRunner
         out.writeUTF(this.modelCategory);
         out.writeUTF((this.predictCall != null) ? this.predictCall  : "NULL"); // Cannot write a null, get NPE
@@ -185,6 +188,8 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         super.readExternal(in);
 
+        LOG.info("RUN_ID: " + modelID + " - Deserializing data in OLAP engine");
+
         this.runner = (AbstractRunner) in.readObject();
         this.modelCategory = in.readUTF();
         this.predictCall = in.readUTF();
@@ -206,7 +211,12 @@ public class ModelRunnerFlatMapFunction extends SpliceFlatMapFunction<SpliceOper
             this.featureColumnNames = arrayImplToStringList((ArrayImpl) in.readObject());
         }
         catch(SQLException sqlException){
-            throw new IOException("Could not deserialize arraylists due to error: " + sqlException.getMessage());
+            String err = "Run_ID: " + modelID + "Could not deserialize data in OLAP. " +
+                    "Consider adding useSpark=False hints to your query. " +
+                    "Error thrown: " + sqlException.getMessage();
+            LOG.error(err);
+            StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
+            throw new RuntimeException(se);
         }
     }
 }
