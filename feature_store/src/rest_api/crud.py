@@ -1181,9 +1181,12 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     # db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id==fset.feature_set_id).\
     #     update({models.FeatureSet.deployed: True, models.FeatureSet.deploy_ts: datetime.now()})
     updt = update(models.FeatureSet).where(models.FeatureSet.feature_set_id == fset.feature_set_id). \
-        values(deployed=True, deploy_ts=text('CURRENT_TIMESTAMP'))
+        values(deployed=True, deploy_ts=text('CURRENT_TIMESTAMP'), last_update_ts=text('CURRENT_TIMESTAMP'))
     stmt = updt.compile(dialect=db.get_bind().dialect, compile_kwargs={"literal_binds": True})
     db.execute(str(stmt))
+    fset.deploy_ts = db.query(models.FeatureSet.deploy_ts).\
+        filter(models.FeatureSet.feature_set_id == fset.feature_set_id).\
+        first()[0]
     fset.deployed = True
     logger.info('Done.')
     return fset
