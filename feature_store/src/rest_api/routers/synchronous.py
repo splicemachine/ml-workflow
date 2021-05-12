@@ -592,27 +592,24 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, keep_metada
                                      message=f'The feature set ({schema}.{table}) you are trying to delete has not '
                                              'been created. Please ensure the feature set exists.')
     fset = fset[0]
-    if not crud.feature_set_is_deployed(db, fset.feature_set_id):
-        delete_feature_set(db, fset, cascade=False, keep_metadata=keep_metadata)
-    else:
-        deps = crud.get_feature_set_dependencies(db, fset.feature_set_id)
-        if deps['model']:
+    deps = crud.get_feature_set_dependencies(db, fset.feature_set_id)
+    if deps['model']:
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                     message='You cannot remove a Feature Set that has an associated model deployment.'
+                                     ' The Following models have been deployed with Training Sets that depend on this'
+                                     f' Feature Set: {deps["model"]}')
+    elif deps['training_set']:
+        if not purge:
             raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
-                                         message='You cannot remove a Feature Set that has an associated model deployment.'
-                                         ' The Following models have been deployed with Training Sets that depend on this'
-                                         f' Feature Set: {deps["model"]}')
-        elif deps['training_set']:
-            if not purge:
-                raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
-                                             message='You cannot remove a Feature Set that has associated Training Sets. '
-                                                     f'The following Training Sets depend on this Feature Set: '
-                                                     f'{deps["training_set"]}. To drop this Feature Set anyway, '
-                                                     f'set purge=True (be careful! the training sets will be deleted)')
-            else:
-                delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'],
-                                   keep_metadata=keep_metadata)
-        else: # No dependencies
-            delete_feature_set(db, fset, cascade=False,keep_metadata=keep_metadata)
+                                         message='You cannot remove a Feature Set that has associated Training Sets. '
+                                                 f'The following Training Sets depend on this Feature Set: '
+                                                 f'{deps["training_set"]}. To drop this Feature Set anyway, '
+                                                 f'set purge=True (be careful! the training sets will be deleted)')
+        else:
+            delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'],
+                               keep_metadata=keep_metadata)
+    else: # No dependencies
+        delete_feature_set(db, fset, cascade=False,keep_metadata=keep_metadata)
     if Airflow.is_active:
         Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
 
