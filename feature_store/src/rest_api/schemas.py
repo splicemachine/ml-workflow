@@ -110,6 +110,8 @@ class FeatureSet(FeatureSetBase):
 class FeatureSetDetail(FeatureSet):
     features: Optional[List[Feature]] = None
     num_features: Optional[int] = None
+    has_training_sets: Optional[bool] = None
+    has_deployments: Optional[bool] = None
 
 class TrainingViewBase(BaseModel):
     name: Optional[str] = None

@@ -438,6 +438,9 @@ def get_feature_set_details(schema: Optional[str] = None, table: Optional[str] =
         if not fsets:
             raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
                                      message=f'The feature set {schema}.{table} Does not exist.')
+        deps = crud.get_feature_set_dependencies(db, fsets[0].feature_set_id)
+        fsets[0].has_training_sets = bool(deps.get('training_set'))
+        fsets[0].has_deployments = bool(deps.get('model'))
     else:
         fsets = crud.get_feature_sets(db)
 
