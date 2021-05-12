@@ -27,23 +27,25 @@ COPY mlflow/build $BUILD_HOME
 # Install development packages.
 RUN yum clean all && \
     rm -rf /var/cache/yum && \
-    yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
-
-# Install ODBC Driver
-RUN cd $BUILD_HOME && \
+    yum -y install $(cat /$BUILD_HOME/yum_packages.txt) && \
+    pip3 install -q -r $BUILD_HOME/requirements.txt && \
+    cd $BUILD_HOME && \
     wget -O splice_odbc.tar.gz $ODBC_DRIVER_ARTIFACT && \
     tar xzf splice_odbc.tar.gz && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
-    sh ./install.sh -q
+    sh ./install.sh -q && \
+    rm -rf $BUILD_HOME/*
 
-# Install Python dependencies
+
+COPY shared $BUILD_HOME//shared
 COPY mlflow/splice_mlflow_plugin $BUILD_HOME/splice_mlflow_plugin
-RUN pip3 install -q -r $BUILD_HOME/requirements.txt && \
-    pip3 install  $BUILD_HOME/splice_mlflow_plugin
 
-# Remove Build Directories and Create source directory
-RUN rm -rf $BUILD_HOME/* && \
-    mkdir -p $SRC_HOME/lib
+RUN pip3 install --user /tmp/shared/. && \
+    pip3 install  $BUILD_HOME/splice_mlflow_plugin && \
+    rm -rf $BUILD_HOME/*
+
+# Create source directory
+RUN mkdir -p $SRC_HOME/lib
 
 # Copy Source into Container
 COPY mlflow/src $SRC_HOME
@@ -60,8 +62,6 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
-COPY shared /tmp/shared
-RUN pip3 install --user /tmp/shared/.
 
 # Bug fix for the mlflow 1.15 release
 COPY mlflow/build/39d1c3be5f05_add_is_nan_constraint_for_metrics_tables_if_necessary.py /usr/local/lib/python3.6/site-packages/mlflow/store/db_migrations/versions/

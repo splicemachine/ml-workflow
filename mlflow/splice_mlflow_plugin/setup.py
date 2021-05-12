@@ -27,6 +27,11 @@ setup(
     version=VERSION,
     license="Proprietary",
     packages=find_packages(),
+    install_requires=[
+        'sqlalchemy_views',
+        'mlflow',
+        'shared'
+    ],
     entry_points={
         "mlflow.tracking_store": "splicetracking=sm_mlflow:SpliceMachineTrackingStore",
         "mlflow.artifact_repository": "spliceartifacts=sm_mlflow:SpliceMachineArtifactStore",

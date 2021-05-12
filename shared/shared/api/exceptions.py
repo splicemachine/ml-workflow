@@ -3,6 +3,8 @@ class SpliceMachineException(Exception):
         self.status_code = status_code
         self.code = code
         self.message = message
+    def to_dict(self):
+        return self.__dict__
 
 class ExceptionCodes:
     """
