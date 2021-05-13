@@ -179,6 +179,8 @@ class DatabaseSQL:
     live_status_view_selector: str = \
         """
        SELECT mm.run_uuid,
+           ssa.schemaname as SCHEMA_NAME,
+           sta.tablename TABLE_NAME,
            mm.action,
            CASE
                WHEN (
@@ -186,16 +188,20 @@ class DatabaseSQL:
                      AND mm.action = 'DEPLOYED') THEN 'Table or Trigger Missing'
                ELSE mm.action
            END AS deployment_status,
-           mm.tableid,
-           mm.trigger_type,
-           mm.triggerid,
            mm.db_env,
            mm.db_user,
-           mm.action_date
-    FROM DATABASE_DEPLOYED_METADATA mm
+           mm.action_date,
+           ssa.schemaid,
+           mm.tableid,
+           mm.triggerid,
+           mm.trigger_type
+    FROM mlmanager.DATABASE_DEPLOYED_METADATA mm
     LEFT OUTER JOIN sys.systables sta USING (tableid)
+    LEFT OUTER JOIN sys.sysschemas ssa USING (schemaid)
     LEFT OUTER JOIN sys.systriggers st ON (mm.triggerid = st.triggerid)
         """
+
+    get_deployment_status: str = 'SELECT * from MLMANAGER.LIVE_MODEL_STATUS'
 
     retrieve_jobs: str = \
         """

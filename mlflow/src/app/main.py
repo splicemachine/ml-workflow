@@ -25,7 +25,7 @@ from shared.logger.logging_config import logger
 from shared.models.splice_models import Handler, Job
 from shared.models.mlflow_models import SqlArtifact
 from shared.services.authentication import Authentication, User
-from shared.services.database import SQLAlchemyClient
+from shared.services.database import SQLAlchemyClient, DatabaseSQL
 from shared.services.handlers import HandlerNames, KnownHandlers
 
 __author__: str = "Splice Machine, Inc."
@@ -206,6 +206,23 @@ def watch_job(task_id: int) -> Response:
     :return: (Response) HTML
     """
     return show_html('watch_logs.html', task_id=task_id)
+
+@APP.route('/api/rest/deployments', methods=['GET'])
+@Authentication.basic_auth_required
+@HTTP.generate_json_response
+def get_deployments():
+    """
+    Gets all model deployments and their current status
+    """
+    res = Session.execute(DatabaseSQL.get_deployment_status)
+    cols = [i[0] for i in res.cursor.description]
+    rows = res.fetchall()
+    data = [(col,[row[i] for row in rows]) for i,col in enumerate(cols)]
+    return create_json(data)
+
+
+
+
 
 ########################################################################################################
 #                               Splice Machine Artifact Store                                          #
