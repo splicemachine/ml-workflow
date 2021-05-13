@@ -181,24 +181,20 @@ class DatabaseSQL:
        SELECT mm.run_uuid,
            mm.action,
            CASE
-               WHEN ((sta.tableid IS NULL
-                      OR st.triggerid IS NULL
-                      OR (mm.triggerid_2 IS NOT NULL
-                          AND st2.triggerid IS NULL))
+               WHEN (
+                    (sta.tableid IS NULL OR st.triggerid IS NULL)
                      AND mm.action = 'DEPLOYED') THEN 'Table or Trigger Missing'
                ELSE mm.action
            END AS deployment_status,
            mm.tableid,
            mm.trigger_type,
            mm.triggerid,
-           mm.triggerid_2,
            mm.db_env,
            mm.db_user,
            mm.action_date
     FROM DATABASE_DEPLOYED_METADATA mm
     LEFT OUTER JOIN sys.systables sta USING (tableid)
     LEFT OUTER JOIN sys.systriggers st ON (mm.triggerid = st.triggerid)
-    LEFT OUTER JOIN sys.systriggers st2 ON (mm.triggerid_2 = st2.triggerid)
         """
 
     retrieve_jobs: str = \
