@@ -7,7 +7,7 @@ from shared.logger.logging_config import logger
 from shared.services.database import SQLAlchemyClient, DatabaseSQL, DatabaseFunctions
 from sqlalchemy import event, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
-                        String, Text, DateTime, Numeric)
+                        String, Text, DateTime, Numeric, Float)
 from sqlalchemy.sql.elements import TextClause
 from mlflow.store.tracking.dbmodels.models import SqlRun
 
@@ -112,14 +112,18 @@ class FeatureStats(SQLAlchemyClient.SpliceBase):
     """
     __tablename__: str = "feature_stats"
     __table_args__ = {'schema': 'featurestore'}
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True)
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_feature_stats_feature'), primary_key=True)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False, primary_key=True)
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
-    feature_mean: Column = Column(Numeric)
-    feature_median: Column = Column(Numeric)
+    feature_mean: Column = Column(Float)
+    feature_median: Column = Column(Float)
+    feature_q1: Column = Column(Float)
+    feature_q3: Column = Column(Float)
+    feature_min: Column = Column(Float)
+    feature_max: Column = Column(Float)
     feature_count: Column = Column(Integer)
-    feature_stddev: Column = Column(Numeric)
+    feature_stddev: Column = Column(Float)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
 
@@ -229,10 +233,14 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True)
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
-    feature_mean: Column = Column(Numeric)
-    feature_median: Column = Column(Numeric)
+    feature_mean: Column = Column(Float)
+    feature_median: Column = Column(Float)
+    feature_q1: Column = Column(Float)
+    feature_q3: Column = Column(Float)
+    feature_min: Column = Column(Float)
+    feature_max: Column = Column(Float)
     feature_count: Column = Column(Integer)
-    feature_stddev: Column = Column(Numeric)
+    feature_stddev: Column = Column(Float)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
@@ -261,10 +269,14 @@ class TrainingSetLabelStats(SQLAlchemyClient.SpliceBase):
     label_column: Column = Column(Integer, primary_key=True)
     label_cardinality: Column = Column(Integer)
     label_histogram: Column = Column(Text)
-    label_mean: Column = Column(Numeric)
-    label_median: Column = Column(Numeric)
+    label_mean: Column = Column(Float)
+    label_median: Column = Column(Float)
+    feature_q1: Column = Column(Float)
+    feature_q3: Column = Column(Float)
+    feature_min: Column = Column(Float)
+    feature_max: Column = Column(Float)
     label_count: Column = Column(Integer)
-    label_stddev: Column = Column(Numeric)
+    label_stddev: Column = Column(Float)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
@@ -341,10 +353,14 @@ class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
     model_end_ts: Column = Column(DateTime)  # The end time of the window of calculation for statistics
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
-    feature_mean: Column = Column(Numeric)
-    feature_median: Column = Column(Numeric)
+    feature_mean: Column = Column(Float)
+    feature_median: Column = Column(Float)
+    feature_q1: Column = Column(Float)
+    feature_q3: Column = Column(Float)
+    feature_min: Column = Column(Float)
+    feature_max: Column = Column(Float)
     feature_count: Column = Column(Integer)
-    feature_stddev: Column = Column(Numeric)
+    feature_stddev: Column = Column(Float)
 
     __table_args__ = (
         ForeignKeyConstraint(

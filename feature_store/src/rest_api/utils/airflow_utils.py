@@ -34,14 +34,15 @@ class Airflow:
     def schedule_feature_set_calculation(fset: str):
         variable = Variables.FEATURE_SETS
         fsets = Airflow.get_variable_if_exists(variable)
+        value = { 'schedule_interval': '@daily', 'start_date': datetime.today().strftime('%Y-%m-%d') }
         if fsets == None:
             logger.info(f'Variable {variable} not found in airflow - creating...')
-            fsets = { fset: { 'schedule_interval': '@daily'} }
+            fsets = { fset: value }
             body = { 'key': variable, 'value': json.dumps(fsets) }
             r = requests.post(f'{Airflow.AIRFLOW_URL}/{Endpoints.VARIABLES}', json=body, auth=Airflow.auth)
         else:
             logger.info(f'Variable {variable} found in airflow - updating...')
-            fsets[fset] = { 'schedule_interval': '@daily'}
+            fsets[fset] = value
             body = { 'key': variable, 'value': json.dumps(fsets) }
             r = requests.patch(f'{Airflow.AIRFLOW_URL}/{Endpoints.VARIABLES}/{variable}', json=body, auth=Airflow.auth)
         try:
@@ -53,7 +54,7 @@ class Airflow:
     def unschedule_feature_set_calculation(fset: str):
         variable = Variables.FEATURE_SETS
         fsets = Airflow.get_variable_if_exists(variable)
-        if fsets != None:
+        if fsets != None and fset in fsets:
             fsets.pop(fset)
             body = { 'key': variable, 'value': json.dumps(fsets) }
             try:
@@ -96,3 +97,5 @@ class Airflow:
         except requests.exceptions.RequestException:
             logger.warning('Could not connect to Airflow API. Airflow functionality will not be available')
             Airflow.is_active = False
+            return
+        logger.info('Successfully connected to Airflow API')
