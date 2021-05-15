@@ -98,7 +98,7 @@ sed -i 's/window\.parent\.location\.origin)/"*")/' /usr/local/lib/python3.6/site
 
 
 echo "Starting Job Tracking UI on port :${GUI_PORT}"
-nohup gunicorn --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
+nohup gunicorn --timeout 300 --bind 0.0.0.0:${GUI_PORT} --chdir ${SRC_HOME}/app --workers ${GUNICORN_THREADS} main:APP &
 
 echo "Starting Java Gateway Server for py4j"
 nohup java gateway &
