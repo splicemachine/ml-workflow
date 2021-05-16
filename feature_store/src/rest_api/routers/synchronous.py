@@ -445,7 +445,7 @@ def get_feature_set_details(schema: Optional[str] = None, table: Optional[str] =
     # Will get an error that we are trying to set 2 different values of features for FeatureSetDetail
     fsets = [schemas.FeatureSetDetail(**fset.__dict__, features=fset.__dict__.pop('features') or crud.get_features(db, fset)) for fset in fsets]
 
-    return fsets if len(fsets) > 1 else fsets[0]
+    return fsets if len(fsets) != 1 else fsets[0]
 
 @SYNC_ROUTER.get('/training-view-details', status_code=status.HTTP_200_OK,
                  response_model=Union[List[schemas.TrainingViewDetail],schemas.TrainingViewDetail],
@@ -474,7 +474,7 @@ def get_training_view_details(name: Optional[str] = None, db: Session = Depends(
         fds = list(map(lambda f, feat_sets=feat_sets: schemas.FeatureDetail(**f.__dict__, feature_set_name=feat_sets[f.feature_set_id]), feats))
         descs.append(schemas.TrainingViewDetail(**tvw.__dict__, features=fds))
 
-    return descs if len(descs) > 1 else descs[0]
+    return descs if len(descs) != 1 else descs[0]
 
 @SYNC_ROUTER.put('/features', status_code=status.HTTP_200_OK, response_model=schemas.Feature,
                  description="Updates a feature's metadata (description, tags, attributes)",
