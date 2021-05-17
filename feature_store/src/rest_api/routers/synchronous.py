@@ -611,7 +611,9 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, keep_metada
     else: # No dependencies
         delete_feature_set(db, fset, cascade=False,keep_metadata=keep_metadata)
     if Airflow.is_active:
-        Airflow.unschedule_feature_set_calculation(f'{fset.schema_name}.{fset.table_name}')
+        fset_name = f'{fset.schema_name}.{fset.table_name}'
+        Airflow.unschedule_feature_set_calculation(fset_name)
+        Airflow.unschedule_pipeline(fset_name)
 
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDetail],
@@ -779,10 +781,11 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
     create_pipeline_entities(db, sf, source, fset.feature_set_id)
     # Now that the features exist we can deploy the feature set
     _deploy_feature_set(sf.schema_name, sf.table_name, db)
-    if run_backfill:
-        if Airflow.is_active:
+
+    if Airflow.is_active:
+        if run_backfill:
             Airflow.trigger_backfill(sf.schema_name, sf.table_name)
-    #TODO: RUN incremental pipeline on schedule with Airflow
+        Airflow.schedule_pipeline(f'{sf.schema_name}.{sf.table_name}', sf.schedule_interval, sf.start_time)
     return fset
 
 
