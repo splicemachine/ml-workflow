@@ -7,7 +7,7 @@ from shared.logger.logging_config import logger
 from shared.services.database import SQLAlchemyClient, DatabaseSQL, DatabaseFunctions
 from sqlalchemy import event, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
-                        String, Text, DateTime, Numeric)
+                        String, Text, DateTime, Numeric, Float)
 from sqlalchemy.sql.elements import TextClause
 from mlflow.store.tracking.dbmodels.models import SqlRun
 
@@ -91,7 +91,6 @@ class Feature(SQLAlchemyClient.SpliceBase):
     description: Column = Column(String(500), nullable=True)
     feature_data_type: Column = Column(String(255))
     feature_type: Column = Column(String(1))  # 'O'rdinal, 'C'ontinuous, 'N'ominal
-    cardinality: Column = Column(Integer)  # Number of distint values, -1 if undefined
     tags: Column = Column(String(5000), nullable=True)
     attributes: Column = Column(String(5000), nullable=True)
     compliance_level: Column = Column(Integer)
@@ -105,6 +104,27 @@ class Feature(SQLAlchemyClient.SpliceBase):
         ),
         {'schema': 'featurestore'}
     )
+
+class FeatureStats(SQLAlchemyClient.SpliceBase):
+    """
+    Feature Stats are statistics calculated regularly about features. Each feature will have many entries in the table
+    about their statistics. These are calculated in the background so they are readily available in the UI.
+    """
+    __tablename__: str = "feature_stats"
+    __table_args__ = {'schema': 'featurestore'}
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_feature_stats_feature'), primary_key=True)
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False, primary_key=True)
+    feature_cardinality: Column = Column(Integer)
+    feature_histogram: Column = Column(Text)
+    feature_mean: Column = Column(Float)
+    feature_median: Column = Column(Float)
+    feature_q1: Column = Column(Float)
+    feature_q3: Column = Column(Float)
+    feature_min: Column = Column(Float)
+    feature_max: Column = Column(Float)
+    feature_count: Column = Column(Integer)
+    feature_stddev: Column = Column(Float)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
 
 class TrainingView(SQLAlchemyClient.SpliceBase):
@@ -213,10 +233,14 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True)
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
-    feature_mean: Column = Column(Numeric)
-    feature_median: Column = Column(Numeric)
+    feature_mean: Column = Column(Float)
+    feature_median: Column = Column(Float)
+    feature_q1: Column = Column(Float)
+    feature_q3: Column = Column(Float)
+    feature_min: Column = Column(Float)
+    feature_max: Column = Column(Float)
     feature_count: Column = Column(Integer)
-    feature_stddev: Column = Column(Numeric)
+    feature_stddev: Column = Column(Float)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
@@ -245,10 +269,14 @@ class TrainingSetLabelStats(SQLAlchemyClient.SpliceBase):
     label_column: Column = Column(Integer, primary_key=True)
     label_cardinality: Column = Column(Integer)
     label_histogram: Column = Column(Text)
-    label_mean: Column = Column(Numeric)
-    label_median: Column = Column(Numeric)
+    label_mean: Column = Column(Float)
+    label_median: Column = Column(Float)
+    feature_q1: Column = Column(Float)
+    feature_q3: Column = Column(Float)
+    feature_min: Column = Column(Float)
+    feature_max: Column = Column(Float)
     label_count: Column = Column(Integer)
-    label_stddev: Column = Column(Numeric)
+    label_stddev: Column = Column(Float)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
@@ -325,10 +353,14 @@ class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
     model_end_ts: Column = Column(DateTime)  # The end time of the window of calculation for statistics
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
-    feature_mean: Column = Column(Numeric)
-    feature_median: Column = Column(Numeric)
+    feature_mean: Column = Column(Float)
+    feature_median: Column = Column(Float)
+    feature_q1: Column = Column(Float)
+    feature_q3: Column = Column(Float)
+    feature_min: Column = Column(Float)
+    feature_max: Column = Column(Float)
     feature_count: Column = Column(Integer)
-    feature_stddev: Column = Column(Numeric)
+    feature_stddev: Column = Column(Float)
 
     __table_args__ = (
         ForeignKeyConstraint(
@@ -434,7 +466,7 @@ def create_deploy_historian():
         )
 
 
-TABLES = [FeatureSet, PendingFeatureSetDeployment, FeatureSetKey, Feature, TrainingView, TrainingViewKey, TrainingSet,
+TABLES = [FeatureSet, PendingFeatureSetDeployment, FeatureSetKey, Feature, FeatureStats, TrainingView, TrainingViewKey, TrainingSet,
           TrainingSetInstance, TrainingSetFeature, TrainingSetFeatureStats, TrainingSetLabelStats, Deployment,
           DeploymentHistory, DeploymentFeatureStats, Source, SourceKey, Pipeline, PipelineOps, PipelineAgg]
 

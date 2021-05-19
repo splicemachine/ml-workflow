@@ -1,6 +1,9 @@
 ALTER TABLE MLManager.Artifacts ALTER COLUMN file_extension SET DATA TYPE VARCHAR(25);
 ALTER TABLE MLManager.Artifacts ADD COLUMN artifact_path Varchar(250);
 
+-- Moving cardinality to a new table (Feature_Stats)
+ALTER TABLE FeatureStore.Feature DROP COLUMN "cardinality";
+
 ALTER TABLE FeatureStore.Deployment DROP COLUMN training_set_start_ts;
 ALTER TABLE FeatureStore.Deployment DROP COLUMN training_set_end_ts;
 ALTER TABLE FeatureStore.Deployment DROP COLUMN training_set_create_ts;
