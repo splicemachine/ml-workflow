@@ -1,4 +1,4 @@
-splicemachinesa>=0.3.7
+splicemachinesa>=0.4.2
 boto3==1.9.164
 gunicorn==19.9.0
 cachetools==3.1.1
