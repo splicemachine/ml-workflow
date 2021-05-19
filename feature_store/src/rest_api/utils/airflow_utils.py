@@ -36,7 +36,7 @@ class Airflow:
     @staticmethod
     def create_or_update_variable(variable: str, key: str, value):
         items = Airflow.get_variable_if_exists(variable)
-        if items == None:
+        if items == None: # Need to compare to None because [] and {} require a PUT
             logger.info(f'Variable {variable} not found in airflow - creating...')
             items = { key: value }
             body = { 'key': variable, 'value': json.dumps(items) }
