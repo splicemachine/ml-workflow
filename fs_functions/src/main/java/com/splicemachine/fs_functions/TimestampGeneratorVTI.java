@@ -1,8 +1,5 @@
 package com.splicemachine.fs_functions;
 
-import java.security.InvalidParameterException;
-import java.sql.*;
-
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.sql.Activation;
 import com.splicemachine.db.iapi.sql.conn.LanguageConnectionContext;
@@ -16,14 +13,14 @@ import com.splicemachine.derby.stream.iapi.DataSet;
 import com.splicemachine.derby.stream.iapi.DataSetProcessor;
 import com.splicemachine.derby.stream.iapi.OperationContext;
 import com.splicemachine.derby.vti.iapi.DatasetProvider;
+import io.airlift.log.Logger;
 import org.joda.time.DateTime;
 
-import java.text.SimpleDateFormat;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Date;
-
-import io.airlift.log.Logger;
 
 /**
  * The <code>TimestampGeneratorVTI</code> VTI function, which returns a series of timestamps
@@ -63,10 +60,10 @@ import io.airlift.log.Logger;
 public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
 
     // For VTI Implementation
-    private String startTime = null;
-    private String endTime = null;
-    private int intervalType = 0;
-    private int numberOfUnitsPerInterval = 0;
+    private final String startTime ;
+    private final String endTime ;
+    private final int intervalType;
+    private final int numberOfUnitsPerInterval;
 
 
     //Provide external context which can be carried with the operation
@@ -77,13 +74,13 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
 
 
     @Override
-    public DataSet<ExecRow> getDataSet(SpliceOperation spliceOperation, DataSetProcessor dataSetProcessor, ExecRow execRow) throws StandardException {
+    public DataSet<ExecRow> getDataSet(SpliceOperation spliceOperation, DataSetProcessor dataSetProcessor, ExecRow execRow)  {
 
         if (spliceOperation != null)
             operationContext = dataSetProcessor.createOperationContext(spliceOperation);
         else // this call works even if activation is null
             operationContext = dataSetProcessor.createOperationContext((Activation) null);
-        ArrayList<ExecRow> items = new ArrayList<ExecRow>();
+        ArrayList<ExecRow> items = new ArrayList<>();
 
 
 
@@ -111,31 +108,31 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
 
                 switch (this.intervalType) {
                     case DateTimeDataValue.FRAC_SECOND_INTERVAL:
-                        calendar.add(calendar.MILLISECOND, this.numberOfUnitsPerInterval);
+                        calendar.add(Calendar.MILLISECOND, this.numberOfUnitsPerInterval);
                         break;
                     case DateTimeDataValue.SECOND_INTERVAL:
-                        calendar.add(calendar.SECOND, this.numberOfUnitsPerInterval);
+                        calendar.add(Calendar.SECOND, this.numberOfUnitsPerInterval);
                         break;
                     case DateTimeDataValue.MINUTE_INTERVAL:
-                        calendar.add(calendar.MINUTE, this.numberOfUnitsPerInterval);
+                        calendar.add(Calendar.MINUTE, this.numberOfUnitsPerInterval);
                         break;
                     case DateTimeDataValue.HOUR_INTERVAL:
-                        calendar.add(calendar.HOUR, this.numberOfUnitsPerInterval);
+                        calendar.add(Calendar.HOUR_OF_DAY, this.numberOfUnitsPerInterval);
                         break;
                     case DateTimeDataValue.DAY_INTERVAL:
-                        calendar.add(calendar.DAY_OF_MONTH, this.numberOfUnitsPerInterval);
+                        calendar.add(Calendar.DAY_OF_MONTH, this.numberOfUnitsPerInterval);
                         break;
                     case DateTimeDataValue.WEEK_INTERVAL:
-                        calendar.add(calendar.DAY_OF_MONTH, this.numberOfUnitsPerInterval * 7);
+                        calendar.add(Calendar.DAY_OF_MONTH, this.numberOfUnitsPerInterval * 7);
                         break;
                     case DateTimeDataValue.MONTH_INTERVAL:
-                        calendar.add(calendar.MONTH, this.numberOfUnitsPerInterval);
+                        calendar.add(Calendar.MONTH, this.numberOfUnitsPerInterval);
                         break;
                     case DateTimeDataValue.QUARTER_INTERVAL:
-                        calendar.add(calendar.MONTH, this.numberOfUnitsPerInterval * 3);
+                        calendar.add(Calendar.MONTH, this.numberOfUnitsPerInterval * 3);
                         break;
                     case DateTimeDataValue.YEAR_INTERVAL:
-                        calendar.add(calendar.YEAR, this.numberOfUnitsPerInterval);
+                        calendar.add(Calendar.YEAR, this.numberOfUnitsPerInterval);
                         break;
                 }
                 //set until_ts
@@ -152,7 +149,7 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
     }
 
     @Override
-    public ResultSetMetaData getMetaData() throws SQLException {
+    public ResultSetMetaData getMetaData()  {
 
         return null;
     }
@@ -174,10 +171,10 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
     /**
      * TimestampGeneratorVTI VTI implementation
      *
-     * @param startTime
-     * @param endTime
-     * @param intervalType
-     * @param numberOfUnitsPerInterval
+     * @param startTime Start of the timeframe to be split
+     * @param endTime End of the timeframe to be split
+     * @param intervalType Time units to use for duration of each split
+     * @param numberOfUnitsPerInterval size of each split expressed in [intervalType] units
      */
     public TimestampGeneratorVTI(final String startTime, final String endTime,
                                  final Integer intervalType, final Integer numberOfUnitsPerInterval) {
@@ -241,84 +238,15 @@ public class TimestampGeneratorVTI implements DatasetProvider, VTICosting{
         if (sourceTS == null) return null;
 
         long start_ms = sourceTS.getTime();
+        long interval_ms = getIntervalMillis(intervalType) * intervalLength;
 
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTimeInMillis(start_ms);
+        long result=0L;
 
-            switch (intervalType) {
-                case DateTimeDataValue.FRAC_SECOND_INTERVAL:
-                    int val = calendar.get(Calendar.MILLISECOND);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.MILLISECOND, val);
-                    break;
-                case DateTimeDataValue.SECOND_INTERVAL:
-                    val = calendar.get(Calendar.SECOND);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.SECOND, val);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-                case DateTimeDataValue.MINUTE_INTERVAL:
-                    val = calendar.get(Calendar.MINUTE);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.MINUTE, val);
-                    calendar.set(calendar.SECOND, 0);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-                case DateTimeDataValue.HOUR_INTERVAL:
-                    val = calendar.get(Calendar.HOUR);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.HOUR, val);
-                    calendar.set(calendar.MINUTE, 0);
-                    calendar.set(calendar.SECOND, 0);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-                case DateTimeDataValue.DAY_INTERVAL:
-                    val = calendar.get(Calendar.DAY_OF_YEAR);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.DAY_OF_YEAR, val);
-                    calendar.set(calendar.HOUR, 0);
-                    calendar.set(calendar.MINUTE, 0);
-                    calendar.set(calendar.SECOND, 0);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
 
-                case DateTimeDataValue.MONTH_INTERVAL:
-                    val = calendar.get(Calendar.MONTH);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.MONTH, val);
-                    calendar.set(calendar.DAY_OF_MONTH, 0);
-                    calendar.set(calendar.HOUR, 0);
-                    calendar.set(calendar.MINUTE, 0);
-                    calendar.set(calendar.SECOND, 0);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-
-                case DateTimeDataValue.YEAR_INTERVAL:
-                    val = calendar.get(Calendar.YEAR);
-                    val = (int)Math.ceil(val / intervalLength) * intervalLength;
-                    calendar.set(calendar.YEAR, val);
-                    calendar.set(calendar.MONTH, 0);
-                    calendar.set(calendar.DAY_OF_MONTH, 0);
-                    calendar.set(calendar.HOUR, 0);
-                    calendar.set(calendar.MINUTE, 0);
-                    calendar.set(calendar.SECOND, 0);
-                    calendar.set(calendar.MILLISECOND, 0);
-                    break;
-                default:
-                    throw new InvalidParameterException("Unsupported interval units.");
-            }
-
-//        long millisPerPeriod = getIntervalMillis(intervalType) * intervalLength;
-//
-//        long snappedMultiple;
-//
-//        if ( millisPerPeriod>0) {
-//            snappedMultiple = (long)(Math.ceil(start_ms / millisPerPeriod)) * millisPerPeriod;
-//            result = new Timestamp(snappedMultiple);
-//        }
-
-        return new Timestamp(calendar.getTime().getTime());
-
+        if (interval_ms >0 ) {
+            result = ((long)(start_ms / interval_ms) * interval_ms);
+        }
+        return new Timestamp(result);
     }
 
     @Override
