@@ -1,6 +1,6 @@
 splicemachinesa>=0.4.2
 workerpool==0.9.4
-mlflow==1.15.0
+mlflow-skinny==1.15.0
 pyyaml<=3.13,>=3.10
 awscli>=1.16.177
 boto3==1.9.168
@@ -12,12 +12,12 @@ retrying==1.3.3
 azure-cli-core==2.0.80
 h5py==2.10.0
 h2o-pysparkling-3.0==3.32.0.4-1
-tensorflow==2.2.0rc3
+tensorflow==2.2.0
 kubernetes==11.0.0
-tensorboard==2.2.0
-tensorflow-estimator==2.2.0
 scikit-learn==0.21.3
 loguru==0.5.1
 mleap==0.16.0
 gensim==3.8.3
 cloudpickle==1.6.0
+gunicorn
+flask
