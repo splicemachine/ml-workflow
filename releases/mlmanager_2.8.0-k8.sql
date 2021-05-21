@@ -27,10 +27,7 @@ FROM FeatureStore.Deployment_History;
 DROP TABLE featurestore.deployment_history;
 RENAME TABLE FeatureStore.DEPLOYMENT_HISTORY_TMP to DEPLOYMENT_HISTORY;
 
-
-ALTER TABLE FeatureStore.Training_Set_Feature_Stats DROP COLUMN training_set_start_ts;
-ALTER TABLE FeatureStore.Training_Set_Feature_Stats DROP COLUMN training_set_end_ts;
-ALTER TABLE FeatureStore.Training_Set_Feature_Stats ADD COLUMN training_set_version BIGINT;
+DROP TABLE FeatureStore.Training_Set_Feature_Stats;
 
 CREATE TRIGGER FeatureStore.deployment_historian
 AFTER UPDATE
@@ -39,3 +36,6 @@ REFERENCING OLD AS od
 FOR EACH ROW
 INSERT INTO FeatureStore.deployment_history ( model_schema_name, model_table_name, asof_ts, training_set_id, training_set_version, run_id, last_update_ts, last_update_username)
 VALUES ( od.model_schema_name, od.model_table_name, CURRENT_TIMESTAMP, od.training_set_id, od.training_set_version, od.run_id, od.last_update_ts, od.last_update_username);
+
+DROP TABLE FeatureStore.Training_Set_Label_Stats;
+DROP TABLE FeatureStore.Deployment_Feature_Stats;
