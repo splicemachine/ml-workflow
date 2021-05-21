@@ -1,6 +1,6 @@
 from os import environ as env_vars
 
-from sqlalchemy import create_engine, inspect as peer_into_splice_db, Table
+from sqlalchemy import create_engine, inspect as peer_into_splice_db, Table, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.schema import MetaData
@@ -179,27 +179,29 @@ class DatabaseSQL:
     live_status_view_selector: str = \
         """
        SELECT mm.run_uuid,
+           ssa.schemaname as SCHEMA_NAME,
+           sta.tablename TABLE_NAME,
            mm.action,
            CASE
-               WHEN ((sta.tableid IS NULL
-                      OR st.triggerid IS NULL
-                      OR (mm.triggerid_2 IS NOT NULL
-                          AND st2.triggerid IS NULL))
+               WHEN (
+                    (sta.tableid IS NULL OR st.triggerid IS NULL)
                      AND mm.action = 'DEPLOYED') THEN 'Table or Trigger Missing'
                ELSE mm.action
            END AS deployment_status,
-           mm.tableid,
-           mm.trigger_type,
-           mm.triggerid,
-           mm.triggerid_2,
            mm.db_env,
            mm.db_user,
-           mm.action_date
-    FROM DATABASE_DEPLOYED_METADATA mm
+           mm.action_date,
+           ssa.schemaid,
+           mm.tableid,
+           mm.triggerid,
+           mm.trigger_type
+    FROM mlmanager.DATABASE_DEPLOYED_METADATA mm
     LEFT OUTER JOIN sys.systables sta USING (tableid)
+    LEFT OUTER JOIN sys.sysschemas ssa USING (schemaid)
     LEFT OUTER JOIN sys.systriggers st ON (mm.triggerid = st.triggerid)
-    LEFT OUTER JOIN sys.systriggers st2 ON (mm.triggerid_2 = st2.triggerid)
         """
+
+    get_deployment_status: str = 'SELECT * from MLMANAGER.LIVE_MODEL_STATUS'
 
     retrieve_jobs: str = \
         """
@@ -349,6 +351,7 @@ class DatabaseFunctions:
     def table_exists(schema_name: str, table_name: str, engine) -> bool:
         """
         Check whether or not a given table exists
+
         :param schema_name: schema name
         :param table_name: the table name
         :param engine: the SQLAlchemy Engine
@@ -356,6 +359,19 @@ class DatabaseFunctions:
         """
         inspector = peer_into_splice_db(engine)
         return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
+
+    @staticmethod
+    def trigger_exists(trigger_name: str, db) -> bool:
+        """
+        Check whether or not a given trigger exists
+
+        :param trigger_name: the trigger name
+        :param db: the SQLAlchemy session
+        :return: whether exists or not
+        """
+        from shared.models.mlflow_models import SysTriggers
+        x = db.query(SysTriggers).filter(func.upper(SysTriggers.TRIGGERNAME) == trigger_name.upper()).first()
+        return bool(x)
 
     @staticmethod
     def drop_table_if_exists(schema_name: str, table_name: str, engine):

@@ -5,9 +5,8 @@ from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from typing import Dict, List
 from .. import schemas
 from sqlalchemy import Column, VARCHAR, DECIMAL
-import json
+from splicemachinesa.constants import RESERVED_WORDS
 import re
-from shared.logger.logging_config import logger
 
 def __validate_feature_data_type(feature_data_type: DataType):
     """
@@ -35,6 +34,12 @@ def __validate_primary_keys(pks: Dict[str, DataType]):
             raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
                                      message=f'PK Column {pk} does not conform. Must start with an alphabetic character, '
                                      'and can only contains letters, numbers and underscores')
+        if pk.lower() in RESERVED_WORDS:
+            raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+            message=f'Primary key {pk} is in the list of reserved words. PK name must not use a reserved column name. '
+                    'For the full list see '
+                    'https://github.com/splicemachine/splice_sqlalchemy/blob/master/splicemachinesa/constants.py')
         try:
             __validate_feature_data_type(pks[pk])
         except SpliceMachineException as e:

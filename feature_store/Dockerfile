@@ -11,7 +11,7 @@ ARG SHIRO_WEB_URI=https://splicemachine.s3.amazonaws.com/artifacts/$shiro_web_ve
 ARG SPLICE_SHIRO_URI=https://splicemachine.s3.amazonaws.com/artifacts/splice-shiro-2.7.0.1915.jar
 
 # ODBC Driver Configuration
-ARG odbc_driver_version='2.8.74.0'
+ARG odbc_driver_version='2.8.77.0'
 ARG ODBC_DRIVER_ARTIFACT='https://splice-releases.s3.amazonaws.com/odbc-driver/Linux64/splice_odbc_linux64-'$odbc_driver_version'.tar.gz'
 
 # Defining Root Directory
@@ -74,12 +74,9 @@ RUN adduser postgres && \
 RUN alias pip3=/usr/bin/pip3 && \
     alias python3=/usr/bin/python3
 
-
 COPY shared /tmp/shared
 RUN pip3 install /tmp/shared/.
-
 # Copy Source into Container
 COPY feature_store/src $SRC_HOME
-
 CMD $SRC_HOME"/scripts/entrypoint.sh"
 

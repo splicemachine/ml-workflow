@@ -15,9 +15,10 @@ services:
     image: splicemachine/ml-workflow_jupyter:0.0.3
   mlflow:
     environment:
-      DB_HOST: host.docker.internal
+      DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_USER: mlmanager
       DB_PASSWORD: ${DB_PASSWORD:-admin}
+      DB_DATABASE_NAME: ${DB_DATABASE_NAME:-splicedb}
       FRAMEWORK_NAME: my-framework
       MODE: development
       ENVIRONMENT: ${ENVIRONMENT:-default}
@@ -64,7 +65,7 @@ services:
       MODE: development
       ROOT_PATH: / # Change this to /featurestore in the cloud
       ENVIRONMENT: ${ENVIRONMENT:-default}
-      AIRFLOW_URL: "http://host.docker.internal:8081/api/v1"
+      AIRFLOW_URL: "http://host.docker.internal:9876/api/v1"
       AIRFLOW_USER: airflow
       AIRFLOW_PASSWORD: airflow
     image: splicemachine/sm_k8_feature_store:0.0.5

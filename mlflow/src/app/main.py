@@ -1,24 +1,31 @@
 from collections import defaultdict
 from json import dumps as serialize_json
+import os
+from io import BytesIO
 from os import environ as env_vars
+from sys import getsizeof
 from time import time as timestamp
+from tempfile import TemporaryDirectory
 
 import requests
-from flask import request, url_for, render_template as show_html, redirect, jsonify as create_json, Flask, Response
+from flask import (request, url_for, render_template as show_html, redirect,
+                   jsonify as create_json, Flask, Response, send_file)
 from flask_executor import Executor
 from flask_login import (LoginManager, current_user, login_required,
                          login_user, logout_user)
-from sqlalchemy import text
+from werkzeug.utils import secure_filename
 from sqlalchemy.orm import load_only
 
-from shared.api.models import APIStatuses, TrackerTableMapping
+from shared.api.models import APIStatuses
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from shared.api.responses import HTTP
 from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
 from shared.models.splice_models import Handler, Job
+from shared.models.mlflow_models import SqlArtifact
 from shared.services.authentication import Authentication, User
-from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from shared.services.database import SQLAlchemyClient, DatabaseSQL
 from shared.services.handlers import HandlerNames, KnownHandlers
 
 __author__: str = "Splice Machine, Inc."
@@ -42,6 +49,19 @@ Session = None  # db session-- created with every request
 
 EXECUTOR: Executor = Executor(APP)  # asynchronous parallel processing
 BOBBY_URI = env_vars.get('BOBBY_URL', 'http://bobby')
+
+# Temporary folder for artifacts before moving them into the database
+UPLOAD_FOLDER = '/tmp/artifacts'
+# 50 MB maximum
+MAX_SIZE = 50 * 1000 * 1000
+APP.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+APP.config['MAX_CONTENT_LENGTH'] = MAX_SIZE
+if not os.path.exists(UPLOAD_FOLDER):
+    os.system(f'mkdir -p {UPLOAD_FOLDER}')
+
+@APP.errorhandler(SpliceMachineException)
+def handle_invalid_usage(error):
+    return (error.message, error.status_code)
 
 
 # Flask App Configuration
@@ -131,7 +151,6 @@ def initiate_job_rest() -> dict:
 
     return handler_queue_job(request.json, handler, user=request.authorization.username)
 
-
 def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dict:
     """
     Handler for actions that execute services
@@ -187,6 +206,132 @@ def watch_job(task_id: int) -> Response:
     :return: (Response) HTML
     """
     return show_html('watch_logs.html', task_id=task_id)
+
+@APP.route('/api/rest/deployments', methods=['GET'])
+@Authentication.basic_auth_required
+@HTTP.generate_json_response
+def get_deployments():
+    """
+    Gets all model deployments and their current status
+    """
+    res = Session.execute(DatabaseSQL.get_deployment_status)
+    cols = [i[0] for i in res.cursor.description]
+    rows = res.fetchall()
+    data = [(col,[row[i] for row in rows]) for i,col in enumerate(cols)]
+    return create_json(data)
+
+
+
+
+
+########################################################################################################
+#                               Splice Machine Artifact Store                                          #
+# A HTTP endpoint for uploading artifacts                                                              #
+# This will accept artifacts up to 250MB, move them into the Splice DB MLManager.Aritfact table        #
+# And delete the file from disk                                                                        #
+# Authorization and Authentication included                                                            #
+########################################################################################################
+def insert_artifact(run_id, file, name, file_extension, artifact_path = None):
+    """
+    Inserts an artifact into the database as a SqlArtifact. Used as an intermediary step for the Splice Artifact Store
+
+    :param run_id: The run id
+    :param file: The file object
+    :param name: The name of the file
+    :param size: Size of the file
+    :param file_extension: File extension
+    :param artifact_path: If the file is being stored in a directory, this is that directory path
+    """
+    a = SqlArtifact(
+            run_uuid=run_id,
+            name=name,
+            size=getsizeof(file),
+            binary=file,
+            file_extension=file_extension,
+            artifact_path=artifact_path
+        )
+    try:
+        Session.add(a)
+        Session.commit()
+    except Exception as e:
+        Session.rollback()
+        raise SpliceMachineException(
+            message=f'Failure while trying to upload file: {str(e)}',
+            status_code=400, # bad request
+            code=ExceptionCodes.UNKNOWN
+        )
+
+
+@APP.route('/api/rest/upload-artifact', methods=['POST'])
+@Authentication.basic_auth_required
+def log_artifact() -> str:
+    """
+    Acts as an endpoint for users to upload artifacts. This then uploads the artifacts to the Splice DB in the
+    artifacts table
+    """
+    # If the user does not select a file, the browser submits an
+    # empty file without a filename.
+    if 'file' not in request.files or request.files['file'].filename == '':
+        raise SpliceMachineException(message="No file selected", status_code=404, code=ExceptionCodes.DOES_NOT_EXIST)
+    file = request.files['file']
+    filename = secure_filename(file.filename)
+    payload = request.form
+
+    name = payload.get('name') or filename
+
+    insert_artifact(
+        payload['run_id'],
+        file.read(),
+        name,
+        payload['file_extension'],
+        payload.get('artifact_path')
+    )
+    return "File Uploaded."
+
+def _download_artifact(run_id, name):
+    """
+    Downloads an artifact from the database to disk
+
+    :param run_id: Run ID of artifact
+    :param name: Name of the artifact
+    :return: File name of the downloaded artifact
+    """
+    artifact = Session.query(SqlArtifact) \
+        .filter_by(name=name) \
+        .filter_by(run_uuid=run_id).first()
+    if not artifact:
+        raise SpliceMachineException(message=f"File {name} from run {run_id} not found",
+                                     status_code=404, code=ExceptionCodes.DOES_NOT_EXIST)
+    # Files name may already have the extension
+    if os.path.splitext(artifact.name)[1]:
+        filename = artifact.name
+    # If there is an artifact path, this is a zip file. In this case, override the file extension
+    # and set it to .zip because that is how the file was stored
+    elif artifact.artifact_path:
+        filename = f'{artifact.name}.zip'
+    else:
+        filename = f'{artifact.name}.{artifact.file_extension}'
+
+    # with open(file_path, 'wb') as file:
+    #     file.write(artifact.binary)
+    # return os.path.split(file_path)
+    return artifact.binary, filename
+
+@APP.route('/api/rest/download-artifact', methods=['GET'])
+@Authentication.basic_auth_required
+def download_artifact() -> str:
+    """
+    Returns requested artifacts.
+    """
+    if not 'run_id' in request.args and 'name' in request.args:
+        raise SpliceMachineException(message=f"Name and Run ID must be provided",
+                                     status_code=400, code=ExceptionCodes.BAD_ARGUMENTS)
+    file, name = _download_artifact(request.args.get('run_id'), request.args.get('name'))
+    # except:
+    #     return ('file not found', 404)
+    # https://www.iana.org/assignments/media-types/application/octet-stream octet-stream
+    return send_file(BytesIO(file), mimetype='application/octet-stream', as_attachment=True, attachment_filename=name)
+
 
 
 if CLOUD_ENVIRONMENT.can_deploy:

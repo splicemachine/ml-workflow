@@ -2,24 +2,26 @@ from sqlalchemy.orm import Session, aliased
 from typing import List, Dict, Union, Any, Tuple, Set
 from . import schemas
 from .constants import SQL
+from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text, case
 from sqlalchemy.sql.elements import TextClause
+from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
+from sqlalchemy.types import TIMESTAMP
 from shared.models import feature_store_models as models
 from shared.services.database import SQLAlchemyClient, DatabaseFunctions, Converters, DatabaseSQL
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from shared.logger.logging_config import logger
 from fastapi import status
 import re
 import json
 from datetime import datetime
 from collections import Counter
-from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text, case
 from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           sql_to_datatype, _sql_to_sqlalchemy_columns,
                           __validate_feature_data_type, __validate_primary_keys)
 from .utils.feature_utils import model_to_schema_feature
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
-from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
-from sqlalchemy.types import TIMESTAMP
-from shared.api.exceptions import SpliceMachineException, ExceptionCodes
+from splicemachinesa.constants import RESERVED_WORDS
+
 from decimal import Decimal
 from uuid import uuid1
 
@@ -72,6 +74,17 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
                                      message=f'Table {fset.table_name} does not conform. Must start with an alphabetic character, '
                                              'and can only contains letters, numbers and underscores')
+
+    if fset.schema_name.lower() in RESERVED_WORDS:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f'Feature set schema {fset.schema_name} is in the list of reserved words. '
+                                             f'Feature set must not use a reserved schema/table name. For the full list see '
+                                             f'https://github.com/splicemachine/splice_sqlalchemy/blob/master/splicemachinesa/constants.py')
+    if fset.table_name.lower() in RESERVED_WORDS:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f'Feature set table {fset.table_name} is in the list of reserved words. '
+                                             f'Feature set must not use a reserved schema/table name. For the full list see '
+                                             f'https://github.com/splicemachine/splice_sqlalchemy/blob/master/splicemachinesa/constants.py')
     __validate_primary_keys(fset.primary_keys)
 
 
@@ -103,6 +116,13 @@ def validate_feature(db: Session, name: str, data_type: schemas.DataType) -> Non
                                      message='Feature name does not conform. Must start with an alphabetic character, '
                                              'and can only contains letters, numbers and underscores')
 
+    if name.lower() in RESERVED_WORDS:
+        raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+            message=f'Feature name {name} is in the list of reserved words. Feature name must not use a reserved column name. '
+                    'For the full list see '
+                    'https://github.com/splicemachine/splice_sqlalchemy/blob/master/splicemachinesa/constants.py')
+
     l = db.query(models.Feature.name).filter(func.upper(models.Feature.name) == name.upper()).count()
     if l > 0:
         err_str = f"Cannot add feature {name}, feature already exists in Feature Store. Try a new feature name."
@@ -115,7 +135,7 @@ def validate_feature(db: Session, name: str, data_type: schemas.DataType) -> Non
         sql_type = datatype_to_sql(data_type)
         tmp = str(uuid1()).replace('-', '_')
         db.execute(
-            f'CREATE LOCAL TEMPORARY TABLE COLUMN_TEST_{tmp}({name} {sql_type})')  # Will be deleted when session ends
+            f'CREATE LOCAL TEMPORARY TABLE COLUMN_TEST_{tmp}({name.upper()} {sql_type})')  # Will be deleted when session ends
     except Exception as err:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message=f'The feature {name} of type {data_type} is invalid. The data type could '
@@ -912,6 +932,15 @@ def get_fs_summary(db: Session) -> schemas.FeatureStoreSummary:
         most_used_features=most_used_features
     )
 
+def update_feature_set_deployment_status(db: Session, fset_id: int, deploy_status: bool):
+    """
+    Updates the deployment status of a feature set (for example, if someone is undeploying an fset).
+
+    :param db: SqlAlchemy Session
+    :param fset_id: Feature Set ID
+    """
+    db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id==fset_id).update({'deployed':deploy_status})
+
 
 def update_feature_metadata(db: Session, name: str, desc: str = None,
                             tags: List[str] = None, attributes: Dict[str, str] = None) -> schemas.Feature:
@@ -1163,9 +1192,12 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSet) -> schemas.Feature
     # db.query(models.FeatureSet).filter(models.FeatureSet.feature_set_id==fset.feature_set_id).\
     #     update({models.FeatureSet.deployed: True, models.FeatureSet.deploy_ts: datetime.now()})
     updt = update(models.FeatureSet).where(models.FeatureSet.feature_set_id == fset.feature_set_id). \
-        values(deployed=True, deploy_ts=text('CURRENT_TIMESTAMP'))
+        values(deployed=True, deploy_ts=text('CURRENT_TIMESTAMP'), last_update_ts=text('CURRENT_TIMESTAMP'))
     stmt = updt.compile(dialect=db.get_bind().dialect, compile_kwargs={"literal_binds": True})
     db.execute(str(stmt))
+    fset.deploy_ts = db.query(models.FeatureSet.deploy_ts).\
+        filter(models.FeatureSet.feature_set_id == fset.feature_set_id).\
+        first()[0]
     fset.deployed = True
     logger.info('Done.')
     return fset

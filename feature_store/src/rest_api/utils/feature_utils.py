@@ -18,16 +18,36 @@ def _deploy_feature_set(schema: str, table: str, db: Session):
     The feature set must have already been created with :py:meth:`~features.FeatureStore.create_feature_set`
     """
     try:
-        fset = crud.get_feature_sets(db, _filter={'schema_name': schema, 'table_name': table})[0]
+        fset = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])[0]
     except:
         raise SpliceMachineException(
             status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
-            message=f"Cannot find feature set {schema}.{table}. Ensure you've created this"
+            message=f"Cannot find feature set {schema}.{table}. Ensure you've created this "
             f"feature set using fs.create_feature_set before deploying.")
     if fset.deployed:
         raise SpliceMachineException(
             status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
             message=f"Feature set {schema}.{table} is already deployed.")
+    table_exists = DatabaseFunctions.table_exists(schema, table, db.get_bind())
+    history_table_exists = DatabaseFunctions.table_exists(schema, f'{table}_history', db.get_bind())
+    insert_trigger_exists = DatabaseFunctions.trigger_exists(f'{schema}_{table}_history_insert', db)
+    update_trigger_exists = DatabaseFunctions.trigger_exists(f'{schema}_{table}_history_update', db)
+    if table_exists or history_table_exists or insert_trigger_exists or update_trigger_exists:
+         raise SpliceMachineException(
+            status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+            message=f"There seems to have been metadata corruption. Feature Set data has been created, but the Feature Store"
+                    f" Metadata is not reflecting that. Please drop the following tables / triggers if they exist:"
+                    f"\nTable {schema}.{table} exists: {table_exists}"
+                    f"\nTable {schema}.{table}_history exists: {history_table_exists}"
+                    f"\nInsert trigger for feature set ({schema}.{table}_history_insert) exists: {insert_trigger_exists}"
+                    f"\nUpdate trigger for feature set ({schema}.{table}_history_insert) exists: {update_trigger_exists}")
+
+    features = crud.get_features(db, fset)
+    if not features:
+        raise SpliceMachineException(
+            status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+            message=f"Feature set {schema}.{table} has no features. You cannot deploy a feature "
+                    f"set with no features")
 
     fset = crud.deploy_feature_set(db, fset)
     if Airflow.is_active:
@@ -83,8 +103,8 @@ def model_to_schema_feature(feat: models.Feature) -> schemas.Feature:
     return schemas.Feature(**f)
 
 
-def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
-                       training_sets: Set[int] = None):
+def delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bool = False,
+                       training_sets: Set[int] = None, keep_metadata=False):
     """
     Deletes a Feature Set. Drops the table. Removes keys. Potentially removes training sets if there are dependencies
 
@@ -113,17 +133,23 @@ def full_delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascad
         logger.info("Removing training sets")
         crud.delete_training_sets(db, training_sets)
 
-    # Delete features
-    logger.info("Removing features")
-    crud.delete_features_from_feature_set(db, feature_set.feature_set_id)
-    # Delete Feature Set Keys
-    logger.info("Removing feature set keys")
-    crud.delete_features_set_keys(db, feature_set.feature_set_id)
+    if not keep_metadata:
+        # Delete features
+        logger.info("Removing features")
+        crud.delete_features_from_feature_set(db, feature_set.feature_set_id)
+        # Delete Feature Set Keys
+        logger.info("Removing feature set keys")
+        crud.delete_features_set_keys(db, feature_set.feature_set_id)
 
-    # Delete pipeline dependencies
-    logger.info("Deleting any Pipeline dependencies")
-    crud.delete_pipeline(db, feature_set.feature_set_id)
+        # Delete pipeline dependencies
+        logger.info("Deleting any Pipeline dependencies")
+        crud.delete_pipeline(db, feature_set.feature_set_id)
 
-    # Delete feature set
-    logger.info("Removing features set")
-    crud.delete_feature_set(db, feature_set.feature_set_id)
+        # Delete feature set
+        logger.info("Removing features set")
+        crud.delete_feature_set(db, feature_set.feature_set_id)
+    else:
+        # Since we are keeping the feature set but dropping the tables, we need to change its deployment status to 0 (not deployed)
+        crud.update_feature_set_deployment_status(db, feature_set.feature_set_id, False)
+
+
