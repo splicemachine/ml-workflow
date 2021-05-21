@@ -4,6 +4,11 @@ ALTER TABLE MLManager.Artifacts ADD COLUMN artifact_path Varchar(250);
 -- Moving cardinality to a new table (Feature_Stats)
 ALTER TABLE FeatureStore.Feature DROP COLUMN "cardinality";
 
+ALTER TABLE FeatureStore.Deployment DROP COLUMN training_set_start_ts;
+ALTER TABLE FeatureStore.Deployment DROP COLUMN training_set_end_ts;
+ALTER TABLE FeatureStore.Deployment DROP COLUMN training_set_create_ts;
+ALTER TABLE FeatureStore.Deployment ADD COLUMN training_set_version BIGINT;
+
 
 -- We do this for the history table instead of just dropping and adding columns because it brings very weird behavior
 CREATE TABLE "FEATURESTORE"."DEPLOYMENT_HISTORY_TMP" (
