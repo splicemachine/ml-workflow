@@ -68,13 +68,6 @@ def create_run_contexts():
         .config('spark.scheduler.allocation.file', f'{env_vars["SRC_HOME"]}/{SPARK_SCHEDULING_FILE}') \
         .config('spark.driver.extraClassPath', f'{env_vars["SRC_HOME"]}/lib/*') \
         .getOrCreate()
-            # .config('spark.jars.packages', 'ml.combust.mleap:mleap-spark_2.12:0.16.0,'
-        #                                'ml.combust.mleap:mleap-spark-base_2.12:0.16.0,'
-        #                                'ml.combust.mleap:mleap-runtime_2.12:0.16.0') \
-        # .config('spark.jars', 'https://splicemachine.s3.amazonaws.com/artifacts/fileretriever-0.0.3.jar') \
-        # .config('spark.driver.extraClassPath', f'{env_vars["SRC_HOME"]}/lib/*') \
-        # .config('spark.jars.packages', 'ml.combust.mleap:mleap-spark_2.12:0.16.0,ml.combust.mleap:mleap-runtime_2.12:0.16.0') \
-        # .getOrCreate()
 
     # Create pysparkling context for H2O model serialization/deserialization
     conf = H2OConf().setInternalClusterMode()

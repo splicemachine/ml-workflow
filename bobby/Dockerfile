@@ -73,10 +73,6 @@ RUN rm -r $BUILD_HOME/* && \
 # Install Helm
 RUN curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
 
-# Install Jars
-#RUN mkdir -p $SRC_HOME/lib && \
-#    curl https://splicemachine.s3.amazonaws.com/artifacts/fileretriever-$file_retriever_version.jar -o $SRC_HOME/lib/fileretriever.jar
-
 
 ARG SCALA_VERSION=2.12
 ARG MLEAP_VERSION=0.16.0
@@ -114,34 +110,6 @@ RUN mkdir -p $SRC_HOME/lib && \
     curl -kLs $MLEAP_TENSOR_URI -o $SRC_HOME/lib/mleap-tensor_$SCALA_VERSION-$MLEAP_VERSION.jar && \
     curl -kLs $SPRAY_JSON_URI -o $SRC_HOME/lib/spray-json_$SCALA_VERSION-1.3.5.jar && \
     curl -kLs $PROTOBUF_JAVA_URI -o $SRC_HOME/lib/protobuf-java-3.11.1.jar
-
-#ARG SPRAY_JSON_URI=https://repo1.maven.org/maven2/io/spray/spray-json_$SCALA_VERSION/1.3.5/spray-json_$SCALA_VERSION-1.3.5.jar
-#ARG TYPESAFE_CONFIG_URI=https://repo1.maven.org/maven2/com/typesafe/config/1.4.0/config-1.4.0.jar
-#ARG SCALAPB_RUNTIME_URI=https://repo1.maven.org/maven2/com/thesamet/scalapb/scalapb-runtime_$SCALA_VERSION/0.9.0/scalapb-runtime_$SCALA_VERSION-0.9.0.jar
-#ARG SCALAPB_LENSES_URI=https://repo1.maven.org/maven2/com/thesamet/scalapb/lenses_$SCALA_VERSION/0.9.0/lenses_$SCALA_VERSION-0.9.0.jar
-#ARG SCALA_ARM_URI=https://repo1.maven.org/maven2/com/jsuereth/scala-arm_$SCALA_VERSION/2.0/scala-arm_$SCALA_VERSION-2.0.jar
-#ARG PROTOBUF_JAVA_URI=https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.11.1/protobuf-java-3.11.1.jar
-#RUN \
-#  curl -kLs $MLEAP_CORE_URI      -o $SRC_HOME/lib/mleap-core_$SCALA_VERSION-$MLEAP_VERSION.jar && \
-#  curl -kLs $MLEAP_RUNTIME_URI      -o $SRC_HOME/lib/mleap-runtime_$SCALA_VERSION-$MLEAP_VERSION.jar && \
-#  curl -kLs $MLEAP_BUNDLE_HDFS_URI      -o $SRC_HOME/lib/bundle-hdfs_$SCALA_VERSION-$MLEAP_VERSION.jar && \
-#  curl -kLs $MLEAP_BUNDLE_ML_URI        -o $SRC_HOME/lib/bundle-ml_$SCALA_VERSION-$MLEAP_VERSION.jar && \
-#  curl -kLs $MLEAP_BASE_URI             -o $SRC_HOME/lib/mleap-base_$SCALA_VERSION-$MLEAP_VERSION.jar && \
-#  curl -kLs $SPRAY_JSON_URI -o $SRC_HOME/lib/spray-json_$SCALA_VERSION-1.3.5.jar && \
-#  curl -kLs $TYPESAFE_CONFIG_URI -o $SRC_HOME/lib/config-1.4.0.jar && \
-#  curl -kLs $SCALAPB_RUNTIME_URI -o  $SRC_HOME/lib/scalapb-runtime_$SCALA_VERSION-0.9.0.jar && \
-#  curl -kLs $SCALAPB_LENSES_URI -o $SRC_HOME/lib/lenses_$SCALA_VERSION-0.9.0.jar && \
-#  curl -kLs $MLEAP_TENSOR_URI -o $SRC_HOME/lib/mleap-tensor_$SCALA_VERSION-$MLEAP_VERSION.jar && \
-#  curl -kLs $SCALA_ARM_URI -o $SRC_HOME/lib/scala-arm_$SCALA_VERSION-2.0.jar && \
-#  curl -kLs $PROTOBUF_JAVA_URI -o $SRC_HOME/lib/protobuf-java-3.11.1.jar && \
-#  curl -kLs $MLEAP_SPARK_URI -o $SRC_HOME/lib/mleap-spark_$SCALA_VERSION-$MLEAP_VERSION.jar && \
-#  curl -kLs $MLEAP_SPARK_BASE_URI -o $SRC_HOME/lib/mleap-spark-base_$SCALA_VERSION-$MLEAP_VERSION.jar
-#
-#ARG MLRUNNER_VERSION='0.1.7'
-#ARG MLRUNNER_URI=http://repository.splicemachine.com/nexus/content/repositories/releases/com/splicemachine/mlrunner/$MLRUNNER_VERSION/mlrunner-$MLRUNNER_VERSION-shaded.jar
-#RUN curl -kLs $MLRUNNER_URI -o $SRC_HOME/lib/mlrunner.jar
-
-
 
 # Install Shared Lib
 COPY shared /tmp/shared
