@@ -265,6 +265,10 @@ def delete_features_from_feature_set(db: Session, feature_set_id: int):
     :param db: Database Session
     :param features: feature IDs to delete
     """
+    # Delete feature stats
+    logger.info("Removing feature stats")
+    p = db.query(models.Feature.feature_id).filter(models.Feature.feature_set_id==feature_set_id).subquery('p')
+    db.query(models.FeatureStats).filter(models.FeatureStats.feature_id.in_(p)).delete(synchronize_session='fetch')
     # Delete features
     logger.info("Removing features")
     db.query(models.Feature).filter(models.Feature.feature_set_id == feature_set_id).delete(synchronize_session='fetch')
