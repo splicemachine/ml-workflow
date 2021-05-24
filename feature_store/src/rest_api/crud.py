@@ -1701,8 +1701,16 @@ def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schema
             filter(tsf.feature_id.in_(p))
 
     deployments = []
-    for name, deployment in q.all():
-        deployments.append(schemas.DeploymentDetail(**deployment.__dict__, training_set_name=name))
+    for name, deployment, tset_start, tset_end, tset_create in q.all():
+        deployments.append(
+            schemas.DeploymentDetail(
+                **deployment.__dict__,
+                training_set_name=name,
+                training_set_start_ts=tset_start,
+                training_set_end_ts=tset_end,
+                training_set_create_ts=tset_create
+            )
+        )
     return deployments
 
 
