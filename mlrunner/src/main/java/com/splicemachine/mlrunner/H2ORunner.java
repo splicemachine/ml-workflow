@@ -32,7 +32,13 @@ public class H2ORunner extends AbstractRunner implements Externalizable {
         this.deserModel = new SQLBlob(modelBlob);
         final InputStream bis = new ByteArrayInputStream(modelBlob);
         final ObjectInputStream ois = new ObjectInputStream(bis);
-        this.model = (EasyPredictModelWrapper) ois.readObject();
+        EasyPredictModelWrapper rawModel = (EasyPredictModelWrapper) ois.readObject();
+        this.model = new EasyPredictModelWrapper(
+                new EasyPredictModelWrapper.Config()
+                        .setModel(rawModel.m)
+                        .setConvertInvalidNumbersToNa(true)
+                        .setConvertUnknownCategoricalLevelsToNa(true)
+        );
     }
 
     @Deprecated
@@ -65,7 +71,12 @@ public class H2ORunner extends AbstractRunner implements Externalizable {
             ExecRow dbRow = unpr.next(); // The DB row
             RowData row = new RowData(); // The H2O Row
             for(int ind = 0; ind < featureColumnNames.size(); ind++){
-                row.put(featureColumnNames.get(ind), dbRow.getColumn(modelFeaturesIndexes.get(ind)).getString());
+                try{
+                    row.put(featureColumnNames.get(ind), dbRow.getColumn(modelFeaturesIndexes.get(ind)).getDouble());
+                }
+                catch (Exception e) {
+                    row.put(featureColumnNames.get(ind), dbRow.getColumn(modelFeaturesIndexes.get(ind)).getString());
+                }
             }
             frameRows.add(row);
         }
@@ -438,7 +449,13 @@ public class H2ORunner extends AbstractRunner implements Externalizable {
             modelBlob = (Blob) (sqlModelBlob.getObject());
             final InputStream bis = modelBlob.getBinaryStream();
             final ObjectInputStream ois = new ObjectInputStream(bis);
-            this.model = (EasyPredictModelWrapper) ois.readObject();
+            EasyPredictModelWrapper rawModel = (EasyPredictModelWrapper) ois.readObject();
+            this.model = new EasyPredictModelWrapper(
+                    new EasyPredictModelWrapper.Config()
+                            .setModel(rawModel.m)
+                            .setConvertInvalidNumbersToNa(true)
+                            .setConvertUnknownCategoricalLevelsToNa(true)
+            );
         } catch (StandardException | SQLException e) {
             e.printStackTrace();
         }
