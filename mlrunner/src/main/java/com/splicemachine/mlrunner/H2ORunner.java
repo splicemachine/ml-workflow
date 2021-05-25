@@ -117,14 +117,6 @@ public class H2ORunner extends AbstractRunner implements Externalizable {
                 for(RowData rowData : frameRows){
                     ExecRow transformedRow = rows.remove();
                     p = model.predictBinomial(rowData);
-//                    try {
-//                        p = model.predictBinomial(rowData);
-//                    }
-//                    catch (Exception e){
-//                        LOG.error(e.getMessage());
-//                        StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, e.getMessage());
-//                        throw new RuntimeException(se);
-//                    }
                     // Set all probabilities and the prediction column
                     int predCol = 0;
                     double maxValue = 0.0;
