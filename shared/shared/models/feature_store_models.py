@@ -329,13 +329,7 @@ class DeploymentHistory(SQLAlchemyClient.SpliceBase):
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
-    __table_args__ = (
-        ForeignKeyConstraint(
-            (model_schema_name, model_table_name),
-            [Deployment.model_schema_name, Deployment.model_table_name]
-        ),
-        {'schema': 'featurestore'}
-    )
+    __table_args__ = {'schema': 'featurestore'}
 
 
 class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
