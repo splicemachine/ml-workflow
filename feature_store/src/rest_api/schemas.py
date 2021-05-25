@@ -42,17 +42,20 @@ class FeatureDetail(Feature):
     deployed: Optional[bool] = None
 
 class FeatureSearch(BaseModel):
-    name: Optional[Dict[str, str]] = Field(None, example={'is': 'total_spending'})
+    name: Optional[Dict[str, str]] = Field(None, example={'accuracy': 'is', 'value': 'total_spending'})
     tags: Optional[List[str]] = Field(None, example=['TAG1', 'CUSTOMER', 'ANOTHER_TAG'])
     attributes: Optional[Dict[str, str]] = Field(None, example={'QUALITY': 'GOOD', 'FEAT_TYPE': 'RFM'})
     feature_data_type: Optional[str] = Field(None, example='INTEGER')
     feature_type: Optional[str] = Field(None, example='C')
-    schema_name: Optional[Dict[str, str]] = Field(None, example={'like': 'MY_SCHEMA'})
-    table_name: Optional[Dict[str, str]] = Field(None, example={'like': 'spending'})
+    schema_name: Optional[Dict[str, str]] = Field(None, example={'accuracy': 'like', 'value':'MY_SCHEMA'})
+    table_name: Optional[Dict[str, str]] = Field(None, example={'accuracy': 'like', 'value':'spending'})
     deployed: Optional[bool] = Field(None, example=False)
-    last_update_username: Optional[Dict[str, str]] = Field(None, example={'is': 'jack'})
-    last_update_ts: Optional[Dict[str, datetime]] = Field(None, example={'lte': str(datetime.today()),
-                                                                         'gte':'2010-04-23 19:57:03.243103'})
+    last_update_username: Optional[Dict[str, str]] = Field(None, example={'accuracy':'is', 'value': 'jack'})
+    last_update_ts: Optional[List[Dict[str, Union[str,datetime]]]] = Field(None, example=[
+                                                                        {'accuracy':'lte', 'value': str(datetime.today())},
+                                                                        {'accuracy':'gte', 'value': '2010-04-23 19:57:03.243103'}
+                                                                    ]
+                                                                )
 
     @validator('feature_data_type')
     def convert(cls, v):
@@ -68,23 +71,35 @@ class FeatureSearch(BaseModel):
 
     @validator('name', 'schema_name', 'table_name', 'last_update_username')
     def validate_dict(cls, v):
-        if v and len(v) != 1:
-            raise ValueError("Can only provide 1 filter per field!")
-        if v and list(v.keys())[0] not in ('like', 'is'):
-            raise ValueError("Available keys for this field are 'like' and 'is'")
+        if v:
+            err = "Must provide an accuracy and a value. Example: {'accuracy': 'is', 'value': 'total_spending'}"
+            if len(v) != 2:
+                raise ValueError(err)
+            if 'accuracy' not in v or 'value' not in v:
+                raise ValueError(err)
+        # Convert to a single element dictionary: {'accuracy': 'is', 'value': 'total_spending'} -> {'is': 'total_spending'}
+            return {v['accuracy']: v['value']}
         return v
 
     @validator('last_update_ts')
     def key_must_be_comparitor(cls, v):
+        # Condense into simpler dictionary
+        #[{'accuracy': 'lte', 'value': str(datetime.today())}, {'accuracy': 'gte', 'value':'2010-04-23 19:57:03.243103'}]
+        # to
+        # {'lte': str(datetime.today())}, 'gte': '2010-04-23 19:57:03.243103'}
+        out = {}
         if not v:
             return
-        for key, val in v.items():
-            if key not in ('lt', 'lte', 'eq', 'gt', 'gte'):
-                raise ValueError("last_update_ts key must be one of ('lt', 'lte', 'eq', 'gt', 'gte') ")
-            # Datetime has a larger max precision than the database, so we need to trim
-            # m = str(val.microsecond)
-            # v[key] = val.replace(microsecond=int(m[:4]))
-        return v
+        for vt in v:
+            if 'accuracy' not in vt or 'value' not in vt:
+                err =  "Must provide an accuracy and a value. Example: " \
+                       "[\n\t{'accuracy': 'lte', 'value': str(datetime.today())},\n\t" \
+                       "{'accuracy': 'gte', 'value':'2010-04-23 19:57:03.243103'}\n]"
+                raise ValueError(err)
+            if vt['accuracy'] not in ('lt', 'lte', 'eq', 'gt', 'gte'):
+                raise ValueError("last_update_ts accuracy must be one of ('lt', 'lte', 'eq', 'gt', 'gte') ")
+            out[vt['accuracy']] = vt['value']
+        return out
 
 
 class FeatureSetBase(BaseModel):
