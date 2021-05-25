@@ -531,14 +531,22 @@ def get_training_set_from_deployment(schema: str, table: str, label: str = None,
 @SYNC_ROUTER.delete('/features', status_code=status.HTTP_200_OK, description="Remove a feature", 
                     operation_id='remove_feature', tags=['Features'])
 @managed_transaction
-def remove_feature(name: str, db: Session = Depends(crud.get_db)):
+def remove_feature(names = Query([], alias='name'), db: Session = Depends(crud.get_db)):
     """
     Removes a feature from the Feature Store
     """
-    features = crud.get_features_by_name(db, [name])
-    if not features:
+
+    if not names:
+        raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message="You must provide at least 1 feature.")
+    features = crud.get_features_by_name(db, names)
+    if len(names) != len(features):
+        provided = [n.upper() for n in names]
+        avl_feats = [f.name.upper() for f, _, _, _ in features]
+        missing = set(provided) - set(avl_feats)
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
-                                        message=f"Feature {name} does not exist. Please enter a valid feature.")
+                                        message=f"Features {missing} do not exist. Remove nonexistent features.")
+
     feature, schema, table, deployed = features[0]
     if bool(deployed):
         raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.ALREADY_DEPLOYED,
@@ -629,7 +637,7 @@ def get_deployments(schema: Optional[str] = None, table: Optional[str] = None, n
     """
     Returns a list of available deployments. If no parameters are passed in, all deployments are returned.
     Schema and Table can be passed in to get a specific deployment
-    name can be passed in as a Training View name, and this will return all deployments from tha Training View
+    name can be passed in as a Training View name, and this will return all deployments from that Training View
     feat can be passed in and this will return all deployments that use this feature
     fset can be passed in and this will return all deployments that use this feature set.
     You cannot pass in more than 1 of these options (schema+table counting as 1 parameter)

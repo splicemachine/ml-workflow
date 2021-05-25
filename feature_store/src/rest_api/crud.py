@@ -49,6 +49,7 @@ def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
     str = f'Feature Set {fset.schema_name}.{fset.table_name} already exists. Use a different schema and/or table name.'
     # Validate Table
     if DatabaseFunctions.table_exists(fset.schema_name, fset.table_name, db.get_bind()):
+        str += " If this feature set does not exist, it's possible that this table exists outside of the feature store."
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS,
                                      message=str)
     # Validate metadata
@@ -968,13 +969,13 @@ def update_feature_metadata(db: Session, name: str, desc: str = None,
     return model_to_schema_feature(feat.first())
 
 
-def get_features_by_name(db: Session, names: List[str]) -> List[schemas.FeatureDetail]:
+def get_features_by_name(db: Session, names: List[str]) -> List[Dict[str, Any]]:
     """
     Returns a dataframe or list of features whose names are provided
 
     :param db: SqlAlchemy Session
     :param names: The list of feature names
-    :return: List[Feature] The list of Feature objects and their metadata. Note, this is not the Feature
+    :return: List[Dict] The list of Feature objects and their metadata. Note, this is not the Feature
     values, simply the describing metadata about the features. To create a training dataset with Feature values, see
     :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_feature_dataset`
     """
@@ -1694,7 +1695,7 @@ def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schema
 
     if _filter:
         # if filter key is a column in Training_Set, get compare Training_Set column, else compare to Deployment column
-        q = q.filter(and_(*[(getattr(ts, name) if hasattr(ts, name) else getattr(d, name)) == value
+        q = q.filter(and_(*[func.upper((getattr(ts, name) if hasattr(ts, name) else getattr(d, name))) == value.upper()
                             for name, value in _filter.items()]))
     elif feature:
         q = q.join(tsf, tsf.training_set_id == ts.training_set_id). \
