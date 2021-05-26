@@ -1654,7 +1654,7 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
     ). \
         select_from(d). \
         join(ts, d.training_set_id == ts.training_set_id). \
-        join(tsi, d.training_set_version == tsi.training_set_version and tsi.training_set_id == d.training_set_id). \
+        join(tsi, (d.training_set_version == tsi.training_set_version) & (tsi.training_set_id == d.training_set_id)). \
         join(tsf, tsf.training_set_id == d.training_set_id). \
         outerjoin(tv, tv.view_id == ts.view_id). \
         join(f, tsf.feature_id == f.feature_id). \
