@@ -300,12 +300,14 @@ Returns information about all Training Sets:
 * Last Update TS
 * Last Update Username
 * label column (if one exists)
+
+If a Training View is provided (optional) it will return only training sets created from that Training View
 """
 @SYNC_ROUTER.get('/training-sets', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingSetMetadata],
                 description=list_ts_desc,
                 operation_id='list_training_sets', tags=['Training Sets'])
 @managed_transaction
-def list_training_sets(db: Session = Depends(crud.get_db)):
+def list_training_sets(training_view: str = None, db: Session = Depends(crud.get_db)):
     """
     Returns information about all Training Sets:
     * Name
@@ -315,7 +317,10 @@ def list_training_sets(db: Session = Depends(crud.get_db)):
     * Last Update Username
     * label column (if one exists)
     """
-    return crud.list_training_sets(db)
+    view_id = None
+    if training_view:
+        view_id = crud.get_training_view_id(db, training_view)
+    return crud.list_training_sets(db, tvw_id=view_id)
 
 @SYNC_ROUTER.get('/training-set-details', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description='Returns details about a particular training set instance given a name and version. '
