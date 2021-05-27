@@ -1,0 +1,109 @@
+@Library('jenkins-shared-library')_
+
+def git_username = "cloudspliceci"
+def git_email = "build@splicemachine.com"
+
+// Launch the docker container
+node('dind') {
+
+    def dockerlogin = [
+        [$class: 'VaultSecret', path: "secret/team/docker_hub", secretValues: [
+            [$class: 'VaultSecretValue', envVar: 'username', vaultKey: 'username'],
+            [$class: 'VaultSecretValue', envVar: 'password', vaultKey: 'password']]]
+    ]
+
+    def gitlogin = [
+        [$class: 'VaultSecret', path: "secret/team/git_hub_ssh", secretValues: [
+            [$class: 'VaultSecretValue', envVar: 'git_ssh', vaultKey: 'id_rsa']]]
+    ]
+
+    def vaultlogin = [
+        [$class: 'VaultSecret', path: "secret/team/vault_jenkins", secretValues: [
+            [$class: 'VaultSecretValue', envVar: 'vault_token', vaultKey: 'token']]]
+    ]
+
+    environment {
+        VAULT_ADDR = "https://vault.build.splicemachine-dev.io"
+        VAULT_TOKEN = "$vault_token"
+    }
+
+    try {
+
+    notifyBuild('STARTED')
+
+    stage('Checkout') {
+      // Checkout code from repository
+      checkout([
+            $class: 'GitSCM',
+            branches: [[name: 'master']],
+            doGenerateSubmoduleConfigurations: false,
+            extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'ml-workflow']],
+            submoduleCfg: [],
+            userRemoteConfigs: [[credentialsId: 'cloudspliceci_ssh', url: 'https://github.com/splicemachine/ml-workflow.git']]
+        ])
+    }
+
+    // Login to docker hub in the container
+    stage('Login') {
+        wrap([$class: 'VaultBuildWrapper', vaultSecrets: dockerlogin]) {
+            sh "docker login -u $username -p $password"
+        }
+    }
+
+    stage('Build') {
+        dir("ml-workflow"){
+            sh "nohup dockerd >/dev/null 2>&1 &"
+            sh'''
+            sed -i 's|  dev_.*|  tag: dev_'${BUILD_NUMBER}'|' ./docker-compose.yaml
+            docker-copmpose build mlflow bobby feature_store
+            docker-copmpose push mlflow bobby feature_store
+            '''
+            }
+        }
+
+    stage('UpdateGit') {
+        wrap([$class: 'VaultBuildWrapper', vaultSecrets: gitlogin]) {
+            dir ('/root/.ssh') {
+                writeFile file: 'id_rsa', text: "$git_ssh"
+                sh "chmod 600 id_rsa"
+                writeFile file: 'config', text: "test"
+                sh "echo 'host github.com' > config"
+                sh "echo ' HostName github.com' >> config"
+                sh "echo ' IdentityFile /root/.ssh/id_rsa' >> config"
+                sh "echo ' User git' >> config"
+                sh "echo ' StrictHostKeyChecking no' >> config"
+            }
+            dir ('/home/jenkins/.ssh') {
+                writeFile file: 'id_rsa', text: "$git_ssh"
+                sh "chmod 600 id_rsa"
+                writeFile file: 'config', text: "test"
+                sh "echo 'host github.com' > config"
+                sh "echo ' HostName github.com' >> config"
+                sh "echo ' IdentityFile /home/jenkins/.ssh/id_rsa' >> config"
+                sh "echo ' User git' >> config"
+                sh "echo ' StrictHostKeyChecking no' >> config"
+            }
+            sh "git config --global user.email '$git_email'"
+            sh "git config --global user.name '$git_username'"
+            sh """git clone git@github.com:splicemachine/dbaas-infrastructure.git -q
+            cd dbaas-infrastructure/kubernetes/charts/mlmanager
+            sed -i 's|  dev_.*|  tag: dev_'${BUILD_NUMBER}'|' ./values.yaml
+            git add values.yaml
+            git commit -m 'update mlmanager image versions to dev_${BUILD_NUMBER}'
+            git push
+            cd ../../../..
+            git clone git@github.com:splicemachine/ml-workflow.git -q"""
+            // FIXME: THis won't work ^ a push to master will kick off jenkins again, causing an infinite loop
+        }
+    }
+
+    } catch (any) {
+            // if there was an exception thrown, the build failed
+            currentBuild.result = "FAILED"
+            throw any
+
+    } finally {
+        // success or failure, always send notifications
+        notifyBuild(currentBuild.result)
+    }
+}
