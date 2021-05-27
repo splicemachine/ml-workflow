@@ -320,6 +320,9 @@ def list_training_sets(training_view: str = None, db: Session = Depends(crud.get
     view_id = None
     if training_view:
         view_id = crud.get_training_view_id(db, training_view)
+        if not view_id:
+            raise SpliceMachineException(message=f'Cannot find view {training_view}',
+                                     code=ExceptionCodes.DOES_NOT_EXIST, status_code=status.HTTP_404_NOT_FOUND)
     return crud.list_training_sets(db, tvw_id=view_id)
 
 @SYNC_ROUTER.get('/training-set-details', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
