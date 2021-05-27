@@ -541,9 +541,10 @@ def get_training_set_instance_by_name(db: Session, name: str, version: int = Non
         first()
     return schemas.TrainingSetMetadata(**tsm._asdict()) if tsm else None
 
-def list_training_sets(db: Session) -> List[schemas.TrainingSetMetadata]:
+def list_training_sets(db: Session, tvw_id: int = None) -> List[schemas.TrainingSetMetadata]:
     """
     Gets a list of training sets (Name, View ID, Training Set ID, Last_update_ts, Last_update_username, label)
+    :param tvw_id: A training view ID. If provided, will return only training sets created from that view
 
     :return: List of Training Set Metadata (Name, View ID, Training Set ID, Last_update_ts, Last_update_username, label)
     """
@@ -565,6 +566,8 @@ def list_training_sets(db: Session) -> List[schemas.TrainingSetMetadata]:
         join(tsf, and_(ts.training_set_id==tsf.training_set_id,tsf.is_label==True),isouter=True).\
         join(f, f.feature_id==tsf.feature_id, isouter=True).\
         join(tv, ts.view_id==tv.view_id, isouter=True)
+    if tvw_id:
+        q = q.filter(ts.view_id==tvw_id)
 
     tsms: List[schemas.TrainingSetMetadata] = []
     for name, tsid, view_id, user, ts, label in q.all():
