@@ -51,6 +51,8 @@ elif [[ "$ENVIRONMENT" == "gcp" ]] || [[ "$ENVIRONMENT" == "GCP" ]]
 then
     export ENVIRONMENT="gcp"
 
+else
+    export ENVIRONMENT="default"
 fi
 
 # Test Optional Environment Variables
