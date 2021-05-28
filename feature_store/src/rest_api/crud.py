@@ -761,7 +761,7 @@ def feature_search(db: Session, fs: schemas.FeatureSearch) -> List[schemas.Featu
     # If there's a better way to do this we should fix it
     for col, comp in fs:
         table = fset if col in ('schema_name', 'table_name', 'deployed') else f  # These columns come from feature set
-        if not comp:
+        if comp == None: # Because the comparitor may be "false" (ie deployed=False) but it's not None
             continue
         if type(comp) in (bool, str):  # No dictionary, simple comparison
             q = q.filter(getattr(table, col) == comp)
