@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, aliased
 from typing import List, Dict, Union, Any, Tuple, Set
 from . import schemas
 from .constants import SQL
-from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text, case
+from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text, case, or_
 from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
 from sqlalchemy.types import TIMESTAMP
@@ -761,13 +761,17 @@ def feature_search(db: Session, fs: schemas.FeatureSearch) -> List[schemas.Featu
     # If there's a better way to do this we should fix it
     for col, comp in fs:
         table = fset if col in ('schema_name', 'table_name', 'deployed') else f  # These columns come from feature set
-        if not comp:
+        if comp == None: # Because the comparitor may be "false" (ie deployed=False) but it's not None
             continue
         if type(comp) in (bool, str):  # No dictionary, simple comparison
             q = q.filter(getattr(table, col) == comp)
         elif isinstance(comp, list):
             for tag in comp:
-                q = q.filter(table.tags.like(f"'{tag}'"))
+                # Tag can be in the front, middle, or end of the list
+                filter = [table.tags.like(f"{tag},%"),   # Tag is first in the list (tag,)
+                          table.tags.like(f"%,{tag},%"), # Tag in the middle (,tag,)
+                          table.tags.like(f"%,{tag}")]   # Tag is the last in the list (,tag)
+                q = q.filter(or_(*filter))
         elif col == 'attributes':  # Special comparison for attributes
             for k, v in comp.items():
                 q = q.filter(f.attributes.like(f"%'{k}':'{v}'%"))
