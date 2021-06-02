@@ -63,9 +63,9 @@ node('dind') {
         dir('ml-workflow'){
             sh """
             sed -i 's/_DEV.*//' docker-compose.yaml 
-            sed -i 's/image: splicemachine\\\/sm_k8_mlflow:.*/&_DEV_${BUILD_NUMBER}/' docker-compose.yaml 
-            sed -i 's/image: splicemachine\\\/sm_k8_bobby:.*/&_DEV_${BUILD_NUMBER}/' docker-compose.yaml 
-            sed -i 's/image: splicemachine\\\/sm_k8_feature_store:.*/&_DEV_${BUILD_NUMBER}/' docker-compose.yaml 
+            sed -i 's/image: splicemachine\\/sm_k8_mlflow:.*/&_DEV_${BUILD_NUMBER}/' docker-compose.yaml 
+            sed -i 's/image: splicemachine\\/sm_k8_bobby:.*/&_DEV_${BUILD_NUMBER}/' docker-compose.yaml 
+            sed -i 's/image: splicemachine\\/sm_k8_feature_store:.*/&_DEV_${BUILD_NUMBER}/' docker-compose.yaml 
             cat docker-compose.yaml 
             """
         }
