@@ -384,7 +384,7 @@ class DatabaseFunctions:
     @staticmethod
     def drop_table_if_exists(schema_name: str, table_name: str, engine):
         """
-        Drops trigger if exists
+        Drops table if exists
         :param schema_name: schema name
         :param table_name: the table name
         :param engine: the SQLAlchemy Engine

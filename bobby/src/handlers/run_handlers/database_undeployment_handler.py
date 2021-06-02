@@ -2,14 +2,8 @@
 Contains handler and functions
 pertaining to Database Model Removal
 """
-from os import environ as env_vars
-from subprocess import check_output
-from tempfile import NamedTemporaryFile
-
-from yaml import dump as dump_yaml
-
-from shared.services.kubernetes_api import KubernetesAPIService
-
+from sqlalchemy import func, and_
+from shared.models.feature_store_models import Deployment
 from .base_deployment_handler import BaseDeploymentHandler
 from shared.services.database import DatabaseSQL, DatabaseFunctions
 
@@ -32,7 +26,6 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
         # We may be dropping multiple schemas and tables
         self.schema_names = []
         self.table_names = []
-        self.run_id = self.task.parsed_payload['run_id']
 
     def _get_db_tables(self):
         """
@@ -40,32 +33,42 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
         supplied this will get all schema/tables associated with the model.
         """
         payload = self.task.parsed_payload
-        schema = payload['db_schema']
-        table = payload['db_table']
+        schema = payload.get('db_schema')
+        table = payload.get('db_table')
         if (schema and not table) or (table and not schema):
             raise Exception("You cannot provide only a schema or only a table. Either provide both or neither "
                             "(neither will drop all tables associated to this model)")
         if schema and table:
             # Validate that this table is associated to this model
-            table_exists = self.Session.execute(
-                f"""
+            # We need to execute raw SQL because this is a View, not a table
+            sql = f"""
                 SELECT * FROM mlmanager.live_model_status 
-                WHERE run_id={self.run_id}
-                AND UPPER(schema_name)={schema.upper()}
+                WHERE UPPER(schema_name)={schema.upper()}
                 AND UPPER(table_name)={table.upper()}
                 AND action='DEPLOYED'
-                """).fetchall()
-            if not table_exists:
+            """
+            if self.run_id: # If they passed in a run_id validate it
+                sql += f'AND run_id={self.run_id}'
+
+            model_table_exists = self.Session.execute(sql).fetchall()
+            if self.run_id and not model_table_exists:
                 raise Exception(f'Model {self.run_id} has not been deployed to table {schema}.{table}. You can see '
+                                f'all current and past deployments via mlflow.get_deployed_models()')
+            elif not model_table_exists:
+                raise Exception(f'Cannot find any deployments to table {schema}.{table}. You can see '
                                 f'all current and past deployments via mlflow.get_deployed_models()')
             self.schema_names.append(schema)
             self.table_names.append(table)
-        else:
-            sql = DatabaseSQL.get_model_table_from_run.format(run_id=payload['run_id'])
+        elif self.run_id:
+            sql = DatabaseSQL.get_model_table_from_run.format(run_id=self.run_id)
             res = self.Session.execute(sql).fetchall()
             for schema, table in res:
                 self.schema_names.append(schema)
                 self.table_names.append(table)
+        else:
+            err = 'You must provide either a run_id, a schema and table, or both. You cannot provide nothing.'
+            self.logger.exception(err)
+            raise Exception(err)
 
     def _drop_triggers(self):
         """
@@ -81,6 +84,13 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
         Checks to see if this model is associated to the feature store, and if so removes the deployment record (still
         keeps the history)
         """
+        for schema, table in zip(self.schema_names, self.table_names):
+            self.Session.query(Deployment).filter(
+                and_(
+                    func.upper(Deployment.model_schema_name) == schema.upper(),
+                    func.upper(Deployment.model_table_name) == table.upper()
+                )
+            ).delete(synchronize_session='fetch')
 
     def _drop_tables(self):
         """
@@ -101,6 +111,9 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
         Undeploy model from database
         :return:
         """
+        # We set the run_id here and not in the __init__ because the self.task hasn't been assigned at that point
+        # It gets assigned during the handle() function (see BaseHandler.handle)
+        self.run_id = self.task.parsed_payload.get('run_id')
         steps: tuple = (
             self._get_db_tables,
             self._drop_triggers

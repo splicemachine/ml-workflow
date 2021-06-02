@@ -83,13 +83,13 @@ class KnownHandlers:
         ),
         HandlerNames.undeploy_database: Handler(
             payload_args=[
-                Field('run_id'),
+                Field('run_id', use_default=True, default=None),
                 Field('db_schema', use_default=True, default=None),
                 Field('db_table', use_default=True, default=None),
                 Field('drop_table', callback=Field.string_to_boolean_converter, callback_on=str, default=False,
                       use_default=True)
             ],
-            name=HandlerNames.deploy_database,
+            name=HandlerNames.undeploy_database,
             modifiable=True,
             url='/undeploy/database'
         ),
