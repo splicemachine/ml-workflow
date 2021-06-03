@@ -4,9 +4,11 @@ pertaining to Database Model Removal
 """
 from sqlalchemy import func, and_
 from shared.models.feature_store_models import Deployment
+from shared.models.mlflow_models import DatabaseDeployedMetadata
 from .base_deployment_handler import BaseDeploymentHandler
 from shared.services.database import DatabaseSQL, DatabaseFunctions
-
+from datetime import datetime
+from pytz import utc
 
 class DatabaseUndeploymentHandler(BaseDeploymentHandler):
     """
@@ -43,12 +45,11 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
             # We need to execute raw SQL because this is a View, not a table
             sql = f"""
                 SELECT * FROM mlmanager.live_model_status 
-                WHERE UPPER(schema_name)={schema.upper()}
-                AND UPPER(table_name)={table.upper()}
+                WHERE UPPER(schema_name)='{schema.upper()}'
+                AND UPPER(table_name)='{table.upper()}'
                 AND action='DEPLOYED'
+                AND run_uuid='{self.run_id}'
             """
-            if self.run_id: # If they passed in a run_id validate it
-                sql += f'AND run_id={self.run_id}'
 
             model_table_exists = self.Session.execute(sql).fetchall()
             if self.run_id and not model_table_exists:
@@ -59,16 +60,14 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
                                 f'all current and past deployments via mlflow.get_deployed_models()')
             self.schema_names.append(schema)
             self.table_names.append(table)
-        elif self.run_id:
+        else:
             sql = DatabaseSQL.get_model_table_from_run.format(run_id=self.run_id)
             res = self.Session.execute(sql).fetchall()
             for schema, table in res:
                 self.schema_names.append(schema)
                 self.table_names.append(table)
-        else:
-            err = 'You must provide either a run_id, a schema and table, or both. You cannot provide nothing.'
-            self.logger.exception(err)
-            raise Exception(err)
+            self.logger.info(f'Found {len(self.table_names)} tables for model {self.run_id}', send_db=True)
+
 
     def _drop_triggers(self):
         """
@@ -76,15 +75,19 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
         """
 
         for schema, table in zip(self.schema_names, self.table_names):
-            trigger_name = f'{schema}.runModel_{table}_{self.run_id}'
-            DatabaseFunctions.drop_trigger_if_exists(trigger_name, self.Session)
+            trigger_name = f'runModel_{table}_{self.run_id}'
+            self.logger.info(f'TRIGGER EXISTS: {DatabaseFunctions.trigger_exists(schema, trigger_name, db=self.Session)}', send_db=True)
+            self.logger.info(f'Dropping trigger for table {schema}.{table}', send_db=True)
+            self.logger.info(f'Dropping trigger {schema}.{trigger_name}')
+            DatabaseFunctions.drop_trigger_if_exists(schema, trigger_name, self.Session)
 
-    def remove_deployment_from_feature_store(self):
+    def _remove_deployment_from_feature_store(self):
         """
         Checks to see if this model is associated to the feature store, and if so removes the deployment record (still
         keeps the history)
         """
         for schema, table in zip(self.schema_names, self.table_names):
+            self.logger.info(f'Removing deployment table {schema}.{table} from Feature Store metadata', send_db=True)
             self.Session.query(Deployment).filter(
                 and_(
                     func.upper(Deployment.model_schema_name) == schema.upper(),
@@ -92,12 +95,41 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
                 )
             ).delete(synchronize_session='fetch')
 
+    def _update_deployment_metadata(self):
+        """
+        Updates the DB_DEPLOYED_METADATA and sets the table(s) status to undeployed or deleted depending on if
+        the user requested to drop the table
+        """
+        for schema, table in zip(self.schema_names, self.table_names):
+            if self.task.parsed_payload['drop_table']:
+                new_status = 'DELETED'
+            else:
+                new_status = 'UNDEPLOYED'
+
+            self.logger.info(f'Updating deployment {schema}.{table} status to {new_status}', send_db=True)
+            update_payload = dict(
+                action=new_status,
+                action_date=datetime.now(tz=utc),
+                db_user=self.task.user
+            )
+
+            tableid = self.Session.execute(
+                DatabaseSQL.get_table_id.format(table_name=table, schema_name=schema)
+            ).fetchone()[0]
+            self.Session.query(DatabaseDeployedMetadata).filter(
+                and_(
+                    DatabaseDeployedMetadata.tableid == tableid,
+                    func.upper(DatabaseDeployedMetadata.run_uuid) == self.run_id.upper()
+                )
+            ).update(update_payload, synchronize_session='fetch')
+
     def _drop_tables(self):
         """
         Drops the model table(s) (if the user explicitly requests the table be dropped)
         """
         for schema, table in zip(self.schema_names, self.table_names):
-            DatabaseFunctions.drop_table_if_exists(schema, table, self.Session.get_bind())
+            self.logger.info(f'Dropping table {schema}.{table}', send_db=True)
+            DatabaseFunctions.drop_table_if_exists(schema, table, self.Session)
 
     def exception_handler(self, exc: Exception):
         self.logger.info("Rolling back...",send_db=True)
@@ -116,10 +148,16 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
         self.run_id = self.task.parsed_payload.get('run_id')
         steps: tuple = (
             self._get_db_tables,
-            self._drop_triggers
+            self._drop_triggers,
+            self._remove_deployment_from_feature_store,
+            self._update_deployment_metadata
         )
-        if self.task.parsed_payload['drop_tables']:
-            steps += (self._drop_tables(),)
+        if self.task.parsed_payload['drop_table']:
+            self.logger.info('Drop table flag was set to true. Table(s) will be dropped', send_db=True)
+            steps += (self._drop_tables,)
 
         for execute_step in steps:
             execute_step()
+        # Release the savepoint so we can commit changes
+        self.savepoint.commit()
+        self.Session.commit()

@@ -83,7 +83,7 @@ class KnownHandlers:
         ),
         HandlerNames.undeploy_database: Handler(
             payload_args=[
-                Field('run_id', use_default=True, default=None),
+                Field('run_id'),
                 Field('db_schema', use_default=True, default=None),
                 Field('db_table', use_default=True, default=None),
                 Field('drop_table', callback=Field.string_to_boolean_converter, callback_on=str, default=False,

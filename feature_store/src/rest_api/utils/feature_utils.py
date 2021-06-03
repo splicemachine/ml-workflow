@@ -30,8 +30,8 @@ def _deploy_feature_set(schema: str, table: str, db: Session):
             message=f"Feature set {schema}.{table} is already deployed.")
     table_exists = DatabaseFunctions.table_exists(schema, table, db.get_bind())
     history_table_exists = DatabaseFunctions.table_exists(schema, f'{table}_history', db.get_bind())
-    insert_trigger_exists = DatabaseFunctions.trigger_exists(f'{schema}_{table}_history_insert', db)
-    update_trigger_exists = DatabaseFunctions.trigger_exists(f'{schema}_{table}_history_update', db)
+    insert_trigger_exists = DatabaseFunctions.trigger_exists(schema, f'{table}_history_insert', db)
+    update_trigger_exists = DatabaseFunctions.trigger_exists(schema, f'{table}_history_update', db)
     if table_exists or history_table_exists or insert_trigger_exists or update_trigger_exists:
          raise SpliceMachineException(
             status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
@@ -114,9 +114,9 @@ def delete_feature_set(db: Session, feature_set: schemas.FeatureSet, cascade: bo
     :param cascade: whether to delete dependent training sets. If this is True training_sets must be set.
     """
     logger.info("Dropping table")
-    DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, feature_set.table_name, db.get_bind())
+    DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, feature_set.table_name, db)
     logger.info("Dropping history table")
-    DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, f'{feature_set.table_name}_history', db.get_bind())
+    DatabaseFunctions.drop_table_if_exists(feature_set.schema_name, f'{feature_set.table_name}_history', db)
     if cascade and training_sets:
         logger.info(f'linked training sets: {training_sets}')
 

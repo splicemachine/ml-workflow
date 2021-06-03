@@ -126,6 +126,16 @@ class SysTriggers(SQLAlchemyClient.MlflowBase):
     NEWREFERENCINGNAME: Column = Column(String(100), nullable=False)
     WHENCLAUSETEXT: Column = Column(String(5000), nullable=False)
 
+class SysSchemas(SQLAlchemyClient.MlflowBase):
+    """
+    System Table for managing schemas
+    """
+    __tablename__: str = "sysschemas"
+    __table_args__: Dict[str, str] = {"schema": "sys"}
+    SCHEMAID: Column = Column(String(1), primary_key=True, nullable=False)
+    SCHEMANAME: Column = Column(String(128), nullable=False)
+    AUTHORIZATIONID: Column = Column(String(128), nullable=False)
+
 
 class DatabaseDeployedMetadata(SQLAlchemyClient.MlflowBase):
     """
@@ -133,7 +143,7 @@ class DatabaseDeployedMetadata(SQLAlchemyClient.MlflowBase):
     """
     __tablename__: str = "database_deployed_metadata"
     run_uuid: Column = Column(String(32), ForeignKey(SqlRun.run_uuid), primary_key=True)
-    action: Column = Column(String(50), nullable=False)  # Deployed, Deleted
+    action: Column = Column(String(50), nullable=False)  # Deployed, Deleted, Undeployed
     tableid: Column = Column(String(250), nullable=False, primary_key=True)  # TableID of the deployed table
     trigger_type: Column = Column(String(250), nullable=False)  # What causes prediction? INSERT/UPSERT/UPDATE/DELETE
     triggerid: Column = Column(String(250), nullable=False)

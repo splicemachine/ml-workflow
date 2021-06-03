@@ -1,6 +1,6 @@
 from os import environ as env_vars
 
-from sqlalchemy import create_engine, inspect as peer_into_splice_db, Table, func
+from sqlalchemy import create_engine, inspect as peer_into_splice_db, Table, func, and_
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -206,7 +206,8 @@ class DatabaseSQL:
     SELECT schema_name, table_name FROM mlmanager.live_model_status 
     WHERE run_uuid='{run_id}' 
     AND action='DEPLOYED' 
-    ORDER BY action_date DESC;
+    AND deployment_status='DEPLOYED' 
+    ORDER BY action_date DESC
     """
 
     get_deployment_status: str = 'SELECT * from MLMANAGER.LIVE_MODEL_STATUS'
@@ -279,6 +280,12 @@ class DatabaseSQL:
          where HANDLER_NAME in ('DEPLOY_KUBERNETES','UNDEPLOY_KUBERNETES')  
          group by 1 ) LatestEvent using ("timestamp",MLFLOW_URL)
     where HANDLER_NAME='DEPLOY_KUBERNETES'
+    """
+
+    get_table_id = \
+    """
+    SELECT TABLEID FROM SYSVW.SYSTABLESVIEW WHERE TABLENAME='{table_name}' 
+    AND SCHEMANAME='{schema_name}'
     """
 
 class Converters:
@@ -369,39 +376,46 @@ class DatabaseFunctions:
         return table_name.lower() in [value.lower() for value in inspector.get_table_names(schema=schema_name)]
 
     @staticmethod
-    def trigger_exists(trigger_name: str, db: Session) -> bool:
+    def trigger_exists(schema_name: str, trigger_name: str, db) -> bool:
         """
         Check whether or not a given trigger exists
 
+        :param schema_name: The schema of the trigger
         :param trigger_name: the trigger name
-        :param db: the SQLAlchemy session (NOT engine)
+        :param db: the SQLAlchemy session
         :return: whether exists or not
         """
-        from shared.models.mlflow_models import SysTriggers
-        x = db.query(SysTriggers).filter(func.upper(SysTriggers.TRIGGERNAME) == trigger_name.upper()).first()
+        from shared.models.mlflow_models import SysTriggers, SysSchemas
+        x = db.query(SysTriggers). \
+            join(SysSchemas, SysTriggers.SCHEMAID == SysSchemas.SCHEMAID). \
+            filter((func.upper(SysSchemas.SCHEMANAME) == schema_name.upper()) &
+                (func.upper(SysTriggers.TRIGGERNAME) == trigger_name.upper())). \
+            count()
         return bool(x)
 
     @staticmethod
-    def drop_table_if_exists(schema_name: str, table_name: str, engine):
+    def drop_table_if_exists(schema_name: str, table_name: str, db: Session):
         """
         Drops table if exists
         :param schema_name: schema name
         :param table_name: the table name
-        :param engine: the SQLAlchemy Engine
+        :param engine: the SQLAlchemy Session
         """
-        if DatabaseFunctions.table_exists(schema_name, table_name, engine):
-            t = Table(table_name.upper(), MetaData(engine), schema=schema_name.upper(), autoload=True)
-            t.drop(engine)
+        # We are using the execute so we can preserve the session object, instead of having to use the engine,
+        #  which is NOT thread safe
+        db.execute(f'Drop table if exists {schema_name}.{table_name}')
 
     @staticmethod
-    def drop_trigger_if_exists(trigger_name: str, db: Session):
+    def drop_trigger_if_exists(schema_name: str, trigger_name: str, db: Session):
         """
         Drops a trigger if it exists
+
+        :param schema_name: The schema of the trigger
         :param trigger_name: Name of the trigger
         :param db: SQLAlchemy Session (NOT engine)
         """
-        if DatabaseFunctions.trigger_exists(trigger_name, db):
-            db.execute(f'DROP TRIGGER {trigger_name}')
+        if DatabaseFunctions.trigger_exists(schema_name, trigger_name, db):
+            db.execute(f'DROP TRIGGER {schema_name}.{trigger_name}')
 
 
 SQLAlchemyClient.create()
