@@ -1,11 +1,9 @@
-from collections import defaultdict
-from json import dumps as serialize_json
+from json import dumps as serialize_json, loads
 import os
 from io import BytesIO
 from os import environ as env_vars
 from sys import getsizeof
 from time import time as timestamp
-from tempfile import TemporaryDirectory
 
 import requests
 from flask import (request, url_for, render_template as show_html, redirect,
@@ -208,19 +206,43 @@ def watch_job(task_id: int) -> Response:
     return show_html('watch_logs.html', task_id=task_id)
 
 @APP.route('/api/rest/deployments', methods=['GET'])
-@Authentication.basic_auth_required
+# @Authentication.basic_auth_required
 @HTTP.generate_json_response
 def get_deployments():
     """
     Gets all model deployments and their current status
     """
-    res = Session.execute(DatabaseSQL.get_deployment_status)
-    cols = [i[0] for i in res.cursor.description]
-    rows = res.fetchall()
-    data = [(col,[row[i] for row in rows]) for i,col in enumerate(cols)]
-    return create_json(data)
+    db_res = Session.execute(DatabaseSQL.get_deployment_status)
+    k8s_res = Session.execute(DatabaseSQL.get_k8s_deployment_status)
 
+    cols = [i[0] for i in db_res.cursor.description]
+    cols.insert(2, 'DEPLOYMENT_TYPE') # Kubernetes vs Database
 
+    # Add 'Database' to the db_row data as the type of deployment (k8s vs db)
+    # Make the "ACTION" column reflect the request from the user
+    db_rows_rs = db_res.fetchall()
+    db_rows = []
+    action_conv = dict(
+        DEPLOYED='DEPLOY_DATABASE',
+        DELETED='UNDEPLOY_DATABASE_DELETE',
+        UNDEPLOYED='UNDEPLOY_DATABASE'
+    )
+    for rs in db_rows_rs:
+        db_row = list(rs)
+        db_row.insert(2, 'Database') # Deployment type
+        db_row[5] = action_conv[db_row[5]] # Convert the ACTION column
+        db_rows.append(db_row)
+
+    # Artificially add the kubernetes deployment data to the db deployment data to combine all deployment information
+    k8s_rows = k8s_res.fetchall()
+    for user, payload, action, update_ts in k8s_rows:
+        run_id = loads(payload)['run_id']
+        status = 'DEPLOYED' if action == 'DEPLOY_KUBERNETES' else 'UNDEPLOYED' if action == 'UNDEPLOY_KUBERNETES' else None
+        # timestamp, Run ID, Type, Schema, Table, action, status, env, user, schemaid, tableid, triggerid, trigger_type
+        db_rows.append((update_ts, run_id, 'Kubernetes', None, None, action, status, 'PROD', user, None, None, None, None))
+
+    db_data = [(col,[row[i] for row in db_rows]) for i,col in enumerate(cols)]
+    return create_json(db_data)
 
 
 

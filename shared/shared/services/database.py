@@ -178,19 +178,25 @@ class DatabaseSQL:
 
     live_status_view_selector: str = \
         """
-       SELECT mm.run_uuid,
+       SELECT
+           mm.action_date, 
+           mm.run_uuid,
            ssa.schemaname as SCHEMA_NAME,
            sta.tablename TABLE_NAME,
            mm.action,
            CASE
-               WHEN (
-                    (sta.tableid IS NULL OR st.triggerid IS NULL)
-                     AND mm.action = 'DEPLOYED') THEN 'Table or Trigger Missing'
+                WHEN (
+                         (sta.tableid IS NULL OR st.triggerid IS NULL)
+                          AND mm.action = 'DEPLOYED'
+                     ) THEN 'Table or Trigger Missing'
+                WHEN (
+                         (sta.tableid IS NULL)
+                          AND mm.action = 'UNDEPLOYED'
+                     ) THEN 'Table Missing'
                ELSE mm.action
            END AS deployment_status,
            mm.db_env,
            mm.db_user,
-           mm.action_date,
            ssa.schemaid,
            mm.tableid,
            mm.triggerid,
@@ -271,6 +277,17 @@ class DatabaseSQL:
          where HANDLER_NAME in ('DEPLOY_KUBERNETES','UNDEPLOY_KUBERNETES')  
          group by 1 ) LatestEvent using ("timestamp",MLFLOW_URL)
     where HANDLER_NAME='DEPLOY_KUBERNETES'
+    """
+
+    get_k8s_deployment_status = \
+    """
+    SELECT "user",payload, handler_name, "timestamp" FROM MLManager.Jobs
+    INNER JOIN 
+       ( SELECT MLFlow_URL, max("timestamp") "timestamp" 
+         FROM MLManager.Jobs 
+         where HANDLER_NAME in ('DEPLOY_KUBERNETES','UNDEPLOY_KUBERNETES')  
+         group by 1 
+       ) LatestEvent using ("timestamp",MLFLOW_URL)
     """
 
 class Converters:
