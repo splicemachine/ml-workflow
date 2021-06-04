@@ -205,8 +205,9 @@ def watch_job(task_id: int) -> Response:
     """
     return show_html('watch_logs.html', task_id=task_id)
 
+
 @APP.route('/api/rest/deployments', methods=['GET'])
-# @Authentication.basic_auth_required
+@Authentication.basic_auth_required
 @HTTP.generate_json_response
 def get_deployments():
     """
@@ -240,9 +241,53 @@ def get_deployments():
         status = 'DEPLOYED' if action == 'DEPLOY_KUBERNETES' else 'UNDEPLOYED' if action == 'UNDEPLOY_KUBERNETES' else None
         # timestamp, Run ID, Type, Schema, Table, action, status, env, user, schemaid, tableid, triggerid, trigger_type
         db_rows.append((update_ts, run_id, 'Kubernetes', None, None, action, status, 'PROD', user, None, None, None, None))
-
     db_data = [(col,[row[i] for row in db_rows]) for i,col in enumerate(cols)]
     return create_json(db_data)
+
+@APP.route('/api/rest/deployments/<str:run_id>/logs')
+@Authentication.basic_auth_required
+@HTTP.generate_json_response
+def get_deployment_logs(run_id: str):
+    """
+    Gets the logs for a deployment. If a deployment_type is specified, the function will look for those logs
+    (kubernetes vs database). If no type is specified, this will attempt to figure out which type. If the model is
+    deployed in both environments (kubernetes AND database), the function will return an error.
+
+    :param run_id: Run ID of the deployed model
+    :return: Dict[List[str]] logs
+    """
+    dep_type = request.args.get('deployment_type')
+    db_ids = Session.execute(DatabaseSQL.get_db_deployment_ids).fetchall() # Live database deployments
+    db_ids = set([i for (i,) in db_ids])
+
+    k8s_ids = Session.execute(DatabaseSQL.get_k8s_deployments_on_restart).fetchall()
+    k8s_ids = set([loads(payload)['run_id'] for _, payload in k8s_ids ])
+
+    if run_id not in db_ids and run_id not in k8s_ids:
+        raise SpliceMachineException(
+            message=f'Run ID {run_id} not found in any deployments',
+            status_code=400, # bad request
+            code=ExceptionCodes.BAD_ARGUMENTS
+        )
+
+    if dep_type and dep_type not in ('database', 'kubernetes'):
+        raise SpliceMachineException(
+            message=f'Bad argument. deployment_type must be one of (database, kubernetes) but received {dep_type}',
+            status_code=400, # bad request
+            code=ExceptionCodes.BAD_ARGUMENTS
+        )
+
+    else:
+        if run_id in db_ids and run_id in k8s_ids:
+            raise SpliceMachineException(
+                message=f'Model {run_id} is deployed to both kubernetes and database. Specify deployment_type to one of '
+                        f'(database, kubernetes) to specify the logs required.',
+                status_code=400, # bad request
+                code=ExceptionCodes.MISSING_ARGUMENTS
+            )
+        dep_type = 'database' if run_id in db_ids else 'kubernetes'
+
+
 
 
 

@@ -209,6 +209,8 @@ class DatabaseSQL:
 
     get_deployment_status: str = 'SELECT * from MLMANAGER.LIVE_MODEL_STATUS'
 
+    get_db_deployment_ids: str = "SELECT run_uuid from MLMANAGER.LIVE_MODEL_STATUS where DEPLOYMENT_STATUS='DEPLOYED'"
+
     retrieve_jobs: str = \
         """
         SELECT id, handler_name FROM JOBS
