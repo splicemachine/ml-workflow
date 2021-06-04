@@ -1,9 +1,7 @@
-CALL SQLJ.INSTALL_JAR('http://repository.splicemachine.com/nexus/content/repositories/releases/com/splicemachine/fs_functions/0.0.1/fs_functions-0.0.1.jar',
+CALL SQLJ.INSTALL_JAR('http://repository.splicemachine.com/nexus/content/repositories/releases/com/splicemachine/fs_functions/0.0.2/fs_functions-0.0.2.jar',
                  'FS_FUNCTIONS',
                  1);
-CALL SYSCS_UTIL.SYSCS_SET_GLOBAL_DATABASE_PROPERTY(
-                    'derby.database.classpath',
-                    'FS_FUNCTIONS');
+CALL SYSCS_UTIL.SYSCS_SET_GLOBAL_DATABASE_PROPERTY('derby.database.classpath','FS_FUNCTIONS');
 
 CREATE FUNCTION FEATURESTORE.TimestampSnapToInterval(raw_time TIMESTAMP, interval_units INTEGER, interval_length INTEGER)
 RETURNS TIMESTAMP

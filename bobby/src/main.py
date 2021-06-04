@@ -13,7 +13,8 @@ from handlers.run_handlers import (AzureDeploymentHandler,
                                    KubernetesDeploymentHandler,
                                    KubernetesUndeploymentHandler,
                                    SageMakerDeploymentHandler,
-                                   DatabaseDeploymentHandler)
+                                   DatabaseDeploymentHandler,
+                                   DatabaseUndeploymentHandler)
 from pyspark.sql import SparkSession
 from pysparkling import H2OConf, H2OContext
 from workerpool import Job as ThreadedTask
@@ -93,6 +94,7 @@ def register_handlers() -> None:
     KnownHandlers.register(HandlerNames.deploy_k8s, KubernetesDeploymentHandler)
     KnownHandlers.register(HandlerNames.undeploy_k8s, KubernetesUndeploymentHandler)
     KnownHandlers.register(HandlerNames.deploy_database, DatabaseDeploymentHandler)
+    KnownHandlers.register(HandlerNames.undeploy_database, DatabaseUndeploymentHandler)
 
 
 class Runner(ThreadedTask):
