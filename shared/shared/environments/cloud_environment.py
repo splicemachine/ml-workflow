@@ -109,4 +109,8 @@ class CloudEnvironments:
         Get the current Cloud Environment
         :return: (CloudEnvironment) The current cloud environments
         """
-        return CloudEnvironments.__dict__[env_vars['ENVIRONMENT']]
+        try:
+            ce = CloudEnvironments.__dict__[env_vars['ENVIRONMENT']]
+        except:
+            ce = CloudEnvironments.default
+        return ce

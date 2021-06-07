@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, aliased
 from typing import List, Dict, Union, Any, Tuple, Set
 from . import schemas
 from .constants import SQL
-from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text, case
+from sqlalchemy import desc, update, String, func, distinct, cast, and_, Column, literal_column, text, case, or_
 from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
 from sqlalchemy.types import TIMESTAMP
@@ -265,6 +265,10 @@ def delete_features_from_feature_set(db: Session, feature_set_id: int):
     :param db: Database Session
     :param features: feature IDs to delete
     """
+    # Delete feature stats
+    logger.info("Removing feature stats")
+    p = db.query(models.Feature.feature_id).filter(models.Feature.feature_set_id==feature_set_id).subquery('p')
+    db.query(models.FeatureStats).filter(models.FeatureStats.feature_id.in_(p)).delete(synchronize_session='fetch')
     # Delete features
     logger.info("Removing features")
     db.query(models.Feature).filter(models.Feature.feature_set_id == feature_set_id).delete(synchronize_session='fetch')
@@ -537,9 +541,10 @@ def get_training_set_instance_by_name(db: Session, name: str, version: int = Non
         first()
     return schemas.TrainingSetMetadata(**tsm._asdict()) if tsm else None
 
-def list_training_sets(db: Session) -> List[schemas.TrainingSetMetadata]:
+def list_training_sets(db: Session, tvw_id: int = None) -> List[schemas.TrainingSetMetadata]:
     """
     Gets a list of training sets (Name, View ID, Training Set ID, Last_update_ts, Last_update_username, label)
+    :param tvw_id: A training view ID. If provided, will return only training sets created from that view
 
     :return: List of Training Set Metadata (Name, View ID, Training Set ID, Last_update_ts, Last_update_username, label)
     """
@@ -561,6 +566,8 @@ def list_training_sets(db: Session) -> List[schemas.TrainingSetMetadata]:
         join(tsf, and_(ts.training_set_id==tsf.training_set_id,tsf.is_label==True),isouter=True).\
         join(f, f.feature_id==tsf.feature_id, isouter=True).\
         join(tv, ts.view_id==tv.view_id, isouter=True)
+    if tvw_id:
+        q = q.filter(ts.view_id==tvw_id)
 
     tsms: List[schemas.TrainingSetMetadata] = []
     for name, tsid, view_id, user, ts, label in q.all():
@@ -754,13 +761,17 @@ def feature_search(db: Session, fs: schemas.FeatureSearch) -> List[schemas.Featu
     # If there's a better way to do this we should fix it
     for col, comp in fs:
         table = fset if col in ('schema_name', 'table_name', 'deployed') else f  # These columns come from feature set
-        if not comp:
+        if comp == None: # Because the comparitor may be "false" (ie deployed=False) but it's not None
             continue
         if type(comp) in (bool, str):  # No dictionary, simple comparison
             q = q.filter(getattr(table, col) == comp)
         elif isinstance(comp, list):
             for tag in comp:
-                q = q.filter(table.tags.like(f"'{tag}'"))
+                # Tag can be in the front, middle, or end of the list
+                filter = [table.tags.like(f"{tag},%"),   # Tag is first in the list (tag,)
+                          table.tags.like(f"%,{tag},%"), # Tag in the middle (,tag,)
+                          table.tags.like(f"%,{tag}")]   # Tag is the last in the list (,tag)
+                q = q.filter(or_(*filter))
         elif col == 'attributes':  # Special comparison for attributes
             for k, v in comp.items():
                 q = q.filter(f.attributes.like(f"%'{k}':'{v}'%"))
@@ -1650,7 +1661,7 @@ def retrieve_training_set_metadata_from_deployment(db: Session, schema_name: str
     ). \
         select_from(d). \
         join(ts, d.training_set_id == ts.training_set_id). \
-        join(tsi, d.training_set_version == tsi.training_set_version and tsi.training_set_id == d.training_set_id). \
+        join(tsi, (d.training_set_version == tsi.training_set_version) & (tsi.training_set_id == d.training_set_id)). \
         join(tsf, tsf.training_set_id == d.training_set_id). \
         outerjoin(tv, tv.view_id == ts.view_id). \
         join(f, tsf.feature_id == f.feature_id). \
@@ -1701,8 +1712,16 @@ def get_deployments(db: Session, _filter: Dict[str, str] = None, feature: schema
             filter(tsf.feature_id.in_(p))
 
     deployments = []
-    for name, deployment in q.all():
-        deployments.append(schemas.DeploymentDetail(**deployment.__dict__, training_set_name=name))
+    for name, deployment, tset_start, tset_end, tset_create in q.all():
+        deployments.append(
+            schemas.DeploymentDetail(
+                **deployment.__dict__,
+                training_set_name=name,
+                training_set_start_ts=tset_start,
+                training_set_end_ts=tset_end,
+                training_set_create_ts=tset_create
+            )
+        )
     return deployments
 
 

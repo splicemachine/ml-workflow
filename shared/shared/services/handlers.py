@@ -14,6 +14,7 @@ class HandlerNames:
     deploy_k8s: str = 'DEPLOY_KUBERNETES'
     undeploy_k8s: str = 'UNDEPLOY_KUBERNETES'
     deploy_database: str = 'DEPLOY_DATABASE'
+    undeploy_database: str = 'UNDEPLOY_DATABASE'
     deploy_csp: str = CloudEnvironments.get_current().handler_mapping.get('deploy')
 
     @staticmethod
@@ -21,7 +22,8 @@ class HandlerNames:
         """
         Get handlers that can run operations
         """
-        run_handlers = [HandlerNames.deploy_database, HandlerNames.deploy_k8s]
+        run_handlers = [HandlerNames.deploy_database, HandlerNames.undeploy_database,
+                        HandlerNames.deploy_k8s, HandlerNames.undeploy_k8s]
 
         if HandlerNames.deploy_csp:
             run_handlers.append(HandlerNames.deploy_csp)
@@ -78,6 +80,18 @@ class KnownHandlers:
             name=HandlerNames.deploy_database,
             modifiable=True,
             url='/deploy/database'
+        ),
+        HandlerNames.undeploy_database: Handler(
+            payload_args=[
+                Field('run_id'),
+                Field('db_schema', use_default=True, default=None),
+                Field('db_table', use_default=True, default=None),
+                Field('drop_table', callback=Field.string_to_boolean_converter, callback_on=str, default=False,
+                      use_default=True)
+            ],
+            name=HandlerNames.undeploy_database,
+            modifiable=True,
+            url='/undeploy/database'
         ),
         HandlerNames.deploy_k8s: Handler(
             payload_args=[

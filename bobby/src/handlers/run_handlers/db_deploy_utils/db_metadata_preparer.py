@@ -87,7 +87,7 @@ class DatabaseModelMetadataPreparer:
         SparkUtils.try_run_model(self.model)
 
         if self._classes:
-            if self.model_type not in {SparkModelType.SINGLE_PRED_INT, SparkModelType.MULTI_PRED_INT}:
+            if self.model_type != SparkModelType.MULTI_PRED_INT:
                 self.logger.warning("Labels were specified, but the model type deployed does not support them. "
                                     "Ignoring...", send_db=True)
                 self._classes = None
@@ -95,7 +95,7 @@ class DatabaseModelMetadataPreparer:
                 self._classes = [cls.replace(' ', '_') for cls in self._classes]  # remove spaces in class names
                 self.logger.info(f"Labels found. Using {self._classes} as labels for predictions 0-{len(self._classes)-1}"
                                  " respectively", send_db=True)
-            if len(self._classes) != SparkUtils.get_num_classes(model_stage):
+            if self._classes and len(self._classes) != SparkUtils.get_num_classes(model_stage):
                 self.logger.warning(f"You've passed in {len(self._classes)} classes but it looks like your model expects "
                                     f"{SparkUtils.get_num_classes(model_stage)} classes. You will likely see issues with "
                                     f"model inference.", send_db=True)
