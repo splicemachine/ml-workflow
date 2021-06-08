@@ -4,9 +4,10 @@ to Splice Machine
 """
 from typing import Dict, List, Optional, Tuple
 from collections import OrderedDict
+from datetime import datetime
 
 from sqlalchemy import inspect as peer_into_splice_db, text, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.engine.result import ResultProxy
 from mlflow.store.tracking.dbmodels.models import SqlParam
 
@@ -428,8 +429,13 @@ class DatabaseModelDDL:
         training_set_features: List[SqlParam] = self.session.query(SqlParam).filter_by(run_uuid=self.run_id) \
             .filter(SqlParam.key.like('splice.feature_store.training_set_feature%')).all()
         self.logger.info("Done. Getting feature IDs for each feature...")
-        l = self.session.query(FeatureSetVersion.feature_set_id, func.max(FeatureSetVersion.feature_set_version).label('feature_set_version'))\
-            .filter(FeatureSetVersion.deployed == True).group_by(FeatureSetVersion.feature_set_id).subquery('l')
+        create_time = datetime.strptime(key_vals['splice.feature_store.training_set_create_time'], '%Y-%m-%dT%H:%M:%S.%f')
+        fsv = aliased(FeatureSetVersion, name='fsv')
+        t = self.session.query(fsv.feature_set_id, func.max(fsv.deploy_ts).label('deploy_ts'))\
+            .filter(fsv.deploy_ts <= create_time).group_by(fsv.feature_set_id).subquery('t')
+        l = self.session.query(FeatureSetVersion.feature_set_id, FeatureSetVersion.feature_set_version)\
+            .join(t, (FeatureSetVersion.feature_set_id == t.c.feature_set_id) & (FeatureSetVersion.deploy_ts == t.c.deploy_ts))\
+            .subquery('l')
         features: List[Feature] = self.session.query(Feature, FeatureVersion.feature_set_id, FeatureVersion.feature_set_version)\
             .join(l, (FeatureVersion.feature_set_id == l.c.feature_set_id) & (FeatureVersion.feature_set_version == l.c.feature_set_version))\
             .filter(func.upper(Feature.name).in_([feat.value.upper() for feat in training_set_features])).all()
