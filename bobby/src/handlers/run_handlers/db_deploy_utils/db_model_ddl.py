@@ -5,7 +5,7 @@ to Splice Machine
 from typing import Dict, List, Optional, Tuple
 from collections import OrderedDict
 
-from sqlalchemy import inspect as peer_into_splice_db, text, func, tuple_
+from sqlalchemy import inspect as peer_into_splice_db, text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.engine.result import ResultProxy
 from mlflow.store.tracking.dbmodels.models import SqlParam
@@ -428,15 +428,15 @@ class DatabaseModelDDL:
         training_set_features: List[SqlParam] = self.session.query(SqlParam).filter_by(run_uuid=self.run_id) \
             .filter(SqlParam.key.like('splice.feature_store.training_set_feature%')).all()
         self.logger.info("Done. Getting feature IDs for each feature...")
-        l = self.session.query(FeatureSetVersion.feature_set_id, func.max(FeatureSetVersion.feature_set_version))\
+        l = self.session.query(FeatureSetVersion.feature_set_id, func.max(FeatureSetVersion.feature_set_version).label('feature_set_version'))\
             .filter(FeatureSetVersion.deployed == True).group_by(FeatureSetVersion.feature_set_id).subquery('l')
         features: List[Feature] = self.session.query(Feature, FeatureVersion.feature_set_id, FeatureVersion.feature_set_version)\
-            .filter((func.upper(Feature.name).in_([feat.value.upper() for feat in training_set_features])) & 
-                (tuple_(FeatureVersion.feature_set_id, FeatureVersion.feature_set_version).in_(l))).all()
+            .join(l, (FeatureVersion.feature_set_id == l.c.feature_set_id) & (FeatureVersion.feature_set_version == l.c.feature_set_version))\
+            .filter(func.upper(Feature.name).in_([feat.value.upper() for feat in training_set_features])).all()
 
         # Validate that these features have not been deleted. If they have we cannot deploy
         if len(features) < len(training_set_features):
-            feats = [f.name.lower() for f in features]
+            feats = [f.name.lower() for f, _, _ in features]
             tsf = [f.value.lower() for f in training_set_features]
             missing_features = set(tsf) - set(feats)
             raise Exception(f"Some of the features used in this model's training have been deleted: {missing_features}"

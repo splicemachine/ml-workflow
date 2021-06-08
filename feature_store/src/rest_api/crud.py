@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, aliased
 from typing import List, Dict, Union, Any, Tuple, Set
 from . import schemas
 from .constants import SQL
-from sqlalchemy import desc, String, func, distinct, and_, or_, Column, literal_column, case, tuple_, select
+from sqlalchemy import desc, String, func, distinct, and_, or_, Column, literal_column, case, select
 from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
 from sqlalchemy.types import TIMESTAMP
@@ -210,7 +210,8 @@ def get_training_view_features(db: Session, view: schemas.TrainingViewDetail) ->
     :param view: The training view
     :return: A list of available Feature objects
     """
-    m = db.query(models.FeatureSetVersion.feature_set_id, func.max(models.FeatureSetVersion.feature_set_version)). \
+    m = db.query(models.FeatureSetVersion.feature_set_id, 
+            func.max(models.FeatureSetVersion.feature_set_version).label('feature_set_version')). \
         group_by(models.FeatureSetVersion.feature_set_id). \
         subquery('m')
     fsk = db.query(
@@ -219,9 +220,8 @@ def get_training_view_features(db: Session, view: schemas.TrainingViewDetail) ->
         models.FeatureSetKey.key_column_name,
         func.count().over(partition_by=[models.FeatureSetKey.feature_set_id, models.FeatureSetKey.feature_set_version]). \
             label('KeyCount')). \
-        join(models.FeatureSetVersion, (models.FeatureSetVersion.feature_set_id == models.FeatureSetKey.feature_set_id) &
-            (models.FeatureSetVersion.feature_set_version == models.FeatureSetKey.feature_set_version)). \
-        filter(tuple_(models.FeatureSetVersion.feature_set_id, models.FeatureSetVersion.feature_set_version).in_(m)). \
+        join(m, (m.c.feature_set_id == models.FeatureSetKey.feature_set_id) & 
+            (m.c.feature_set_version == models.FeatureSetKey.feature_set_version)). \
         subquery('fsk')
 
     tc = aliased(models.TrainingViewVersion, name='tc')
@@ -231,6 +231,8 @@ def get_training_view_features(db: Session, view: schemas.TrainingViewDetail) ->
 
     match_keys = db.query(
         f.feature_id,
+        fsk.c.feature_set_id,
+        fsk.c.feature_set_version,
         fsk.c.KeyCount,
         func.count(distinct(fsk.c.key_column_name)). \
             label('JoinKeyMatchCount')). \
@@ -242,16 +244,17 @@ def get_training_view_features(db: Session, view: schemas.TrainingViewDetail) ->
         filter((tc.view_id == view.view_id) & (tc.view_version == view.view_version)). \
         group_by(
         f.feature_id,
+        fsk.c.feature_set_id,
+        fsk.c.feature_set_version,
         fsk.c.KeyCount). \
         subquery('match_keys')
 
-    fl = db.query(match_keys.c.feature_id). \
+    fl = db.query(match_keys.c.feature_id, match_keys.c.feature_set_id, match_keys.c.feature_set_version). \
         filter(match_keys.c.JoinKeyMatchCount == match_keys.c.KeyCount). \
         subquery('fl')
 
-    q = db.query(f, fv.feature_set_id, fv.feature_set_version). \
-        join(fv, fv.feature_id == f.feature_id). \
-        filter(f.feature_id.in_(fl) & tuple_(fv.feature_set_id, fv.feature_set_version).in_(m))
+    q = db.query(f, fl.c.feature_set_id, fl.c.feature_set_version). \
+        join(fl, fl.c.feature_id == f.feature_id)
 
     features = []
     for f, fsid, fsv in q.all():
@@ -286,15 +289,11 @@ def delete_features_from_feature_set(db: Session, feature_set_id: int, version: 
     """
     # Delete feature stats
     logger.info("Removing feature stats")
-    v = db.query(models.FeatureVersion.feature_id, models.FeatureVersion.feature_set_version). \
-            filter(models.FeatureVersion.feature_set_id == feature_set_id)
+    s = db.query(models.FeatureStats). \
+        filter(models.FeatureStats.feature_set_id == feature_set_id)
     if version:
-        v.filter(models.FeatureVersion.feature_set_version == version)
-    v = v.subquery('v')
-
-    db.query(models.FeatureStats). \
-        filter(tuple_(models.FeatureStats.feature_id, models.FeatureStats.feature_set_version).in_(v)). \
-        delete(synchronize_session='fetch')
+        s = s.filter(models.FeatureStats.feature_set_version == version)
+    s.delete(synchronize_session='fetch')
 
     # Delete feature versions
     logger.info("Removing feature versions")
@@ -534,10 +533,11 @@ def get_feature_set_dependencies(db: Session, fset: schemas.FeatureSetDetail) ->
         filter((fv.feature_set_id == fset.feature_set_id) & (fv.feature_set_version == fset.feature_set_version)). \
         subquery('p')
     p1 = db.query(tset_feat.training_set_id). \
-        filter(
-            tuple_(tset_feat.feature_id, tset_feat.feature_set_id, tset_feat.feature_set_version). \
-            in_(p)). \
+        join(p, (tset_feat.feature_id == p.c.feature_id) & 
+            (tset_feat.feature_set_id == p.c.feature_set_id) & 
+            (tset_feat.feature_set_version == p.c.feature_set_version)). \
         subquery('p1')
+
     r = db.query(tset.training_set_id, d.model_schema_name, d.model_table_name). \
         select_from(tset). \
         join(d, d.training_set_id == tset.training_set_id, isouter=True). \
@@ -697,38 +697,6 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set
     fset = aliased(models.FeatureSet, name='fset')
     fsv = aliased(models.FeatureSetVersion, name='fsv')
 
-    queries = []
-    if feature_set_ids:
-        queries.append(fset.feature_set_id.in_(tuple(set(feature_set_ids))))
-    if feature_set_names:
-        queries.extend([and_(func.upper(fset.schema_name) == name.split('.')[0].upper(),
-                             func.upper(fset.table_name) == name.split('.')[1].upper()) for name in feature_set_names])
-    if _filter:
-        version = _filter.pop('feature_set_version', None)
-        if version:
-            if version == 'latest':
-                mv = db.query(fsv.feature_set_id, func.max(fsv.feature_set_version)).\
-                    group_by(fsv.feature_set_id).subquery('mv')
-                queries.append(tuple_(fsv.feature_set_id, fsv.feature_set_version).in_(mv))
-            else:
-                queries.append(fsv.feature_set_version == version)
-        queries.extend([getattr(fset, name) == value for name, value in _filter.items()])
-    else:
-        d = db.query(fsv.feature_set_id, func.max(fsv.feature_set_version)). \
-            filter(fsv.deployed == True). \
-            group_by(fsv.feature_set_id). \
-            subquery('d')
-        # Python numbers here will cause an error
-        u = db.query(fsv.feature_set_id, func.max(fsv.feature_set_version)).\
-                group_by(fsv.feature_set_id). \
-                having(func.sum(
-                    case([(fsv.deployed == True, literal_column("1"))],
-                    else_=literal_column("0")
-                )) == literal_column("0")). \
-                subquery('u')
-        queries.append(or_(tuple_(fsv.feature_set_id, fsv.feature_set_version).in_(d),
-            tuple_(fsv.feature_set_id, fsv.feature_set_version).in_(u)))
-
     p = db.query(
         models.FeatureSetKey.feature_set_id,
         models.FeatureSetKey.feature_set_version,
@@ -761,8 +729,43 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set
         join(p, (fsv.feature_set_id == p.c.feature_set_id) & 
             (fsv.feature_set_version == p.c.feature_set_version)). \
         outerjoin(num_feats, (fsv.feature_set_id == num_feats.c.feature_set_id) & 
-            (fsv.feature_set_version == num_feats.c.feature_set_version)). \
-        filter(and_(*queries))
+            (fsv.feature_set_version == num_feats.c.feature_set_version))
+
+    queries = []
+    if feature_set_ids:
+        queries.append(fset.feature_set_id.in_(tuple(set(feature_set_ids))))
+    if feature_set_names:
+        queries.extend([and_(func.upper(fset.schema_name) == name.split('.')[0].upper(),
+                             func.upper(fset.table_name) == name.split('.')[1].upper()) for name in feature_set_names])
+    if _filter:
+        version = _filter.pop('feature_set_version', None)
+        if version:
+            if version == 'latest':
+                mv = db.query(models.FeatureSetVersion.feature_set_id, 
+                            func.max(models.FeatureSetVersion.feature_set_version).label('feature_set_version')).\
+                        group_by(fsv.feature_set_id).subquery('mv')
+                q = q.join(mv, (fsv.feature_set_id == mv.c.feature_set_id) & (fsv.feature_set_version == mv.c.feature_set_version))
+            else:
+                queries.append(fsv.feature_set_version == version)
+        queries.extend([getattr(fset, name) == value for name, value in _filter.items()])
+    else:
+        d = db.query(models.FeatureSetVersion.feature_set_id.label('feature_set_id'), 
+                    func.max(models.FeatureSetVersion.feature_set_version).label('feature_set_version')). \
+                filter(models.FeatureSetVersion.deployed == True). \
+                group_by(models.FeatureSetVersion.feature_set_id)
+        # Python numbers here will cause an error
+        u = db.query(models.FeatureSetVersion.feature_set_id.label('feature_set_id'), 
+                    func.max(models.FeatureSetVersion.feature_set_version).label('feature_set_version')).\
+                group_by(models.FeatureSetVersion.feature_set_id). \
+                having(func.sum(
+                    case([(models.FeatureSetVersion.deployed == True, literal_column("1"))],
+                    else_=literal_column("0")
+                )) == literal_column("0"))
+        mv = d.union(u).subquery('mv')
+        q = q.join(mv, (fsv.feature_set_id == mv.c.feature_set_id) & (fsv.feature_set_version == mv.c.feature_set_version))
+
+    if queries:
+        q = q.filter(and_(*queries))
 
     for fs, fsv, nf, pk_columns, pk_types in q.all():
         pkcols = pk_columns.split('|')
@@ -816,22 +819,22 @@ def get_training_views(db: Session, _filter: Dict[str, Union[int, str]] = None) 
         join(c, (tvv.view_id == c.c.view_id) & (tvv.view_version == c.c.view_version))
 
     filters = []
-    mv = db.query(tvv.view_id, func.max(tvv.view_version)).\
-        group_by(tvv.view_id).\
-        subquery('mv')
-    max_version = tuple_(tvv.view_id, tvv.view_version).in_(mv)
+    mv = db.query(models.TrainingViewVersion.view_id, 
+                func.max(models.TrainingViewVersion.view_version).label('view_version')).\
+            group_by(models.TrainingViewVersion.view_id).\
+            subquery('mv')
     if _filter:
         version = _filter.pop('view_version', None)
         if version:
             if version == 'latest':
-                filters.append(max_version)
+                q = q.join(mv, (tvv.view_id == mv.c.view_id) & (tvv.view_version == mv.c.view_version))
             else:
                 filters.append(tvv.view_version == version)
         else:
-            filters.append(max_version)
+            q = q.join(mv, (tvv.view_id == mv.c.view_id) & (tvv.view_version == mv.c.view_version))
         filters.extend([getattr(tv, name) == value for name, value in _filter.items()])
     else:
-        filters.append(max_version)
+        q = q.join(mv, (tvv.view_id == mv.c.view_id) & (tvv.view_version == mv.c.view_version))
     
     q = q.filter(and_(*filters))
 
@@ -911,14 +914,14 @@ def get_latest_features(db: Session, names: List[str]) -> List[schemas.FeatureDe
     fv = aliased(models.FeatureVersion, name='fv')
     fsv = aliased(models.FeatureSetVersion, name='fsv')
 
-    l = db.query(fsv.feature_set_id, func.max(fsv.feature_set_version)). \
+    l = db.query(fsv.feature_set_id, func.max(fsv.feature_set_version).label('feature_set_version')). \
         filter(fsv.deployed == True). \
         group_by(fsv.feature_set_id). \
         subquery('l')
 
     df = db.query(f, fv.feature_set_id, fv.feature_set_version). \
         join(fv, fv.feature_id == f.feature_id). \
-        filter(tuple_(fv.feature_set_id, fv.feature_set_version).in_(l))
+        join(l, (fv.feature_set_id == l.c.feature_set_id) & (fv.feature_set_version == l.c.feature_set_version))
 
     if names:
         df = df.filter(func.upper(f.name).in_([name.upper() for name in names]))
@@ -1207,19 +1210,18 @@ def get_latest_feature(db: Session, name: str):
     fsv = aliased(models.FeatureSetVersion, name='fsv')
     fv = aliased(models.FeatureVersion, name='fv')
 
-    mv = db.query(fsv.feature_set_id, func.max(fsv.feature_set_version)).\
-                    group_by(fsv.feature_set_id).\
-                    subquery('mv')
+    mv = db.query(models.FeatureSetVersion.feature_set_id, 
+                func.max(models.FeatureSetVersion.feature_set_version).label('feature_set_version')).\
+            group_by(models.FeatureSetVersion.feature_set_id).\
+            subquery('mv')
 
     df = db.query(f, fset.schema_name, fset.table_name, fsv.feature_set_version, fsv.deployed). \
         select_from(f). \
         join(fv, f.feature_id == fv.feature_id). \
         join(fsv, and_(fv.feature_set_id == fsv.feature_set_id, fv.feature_set_version == fsv.feature_set_version)). \
         join(fset, fsv.feature_set_id == fset.feature_set_id). \
-        filter(and_(
-            tuple_(fsv.feature_set_id, fsv.feature_set_version).in_(mv),
-            f.name == name
-        ))
+        join(mv, and_(fv.feature_set_id == mv.c.feature_set_id, fv.feature_set_version == mv.c.feature_set_version)). \
+        filter(f.name == name)
 
     return df.all()
 
