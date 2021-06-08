@@ -743,7 +743,7 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set
             if version == 'latest':
                 mv = db.query(models.FeatureSetVersion.feature_set_id, 
                             func.max(models.FeatureSetVersion.feature_set_version).label('feature_set_version')).\
-                        group_by(fsv.feature_set_id).subquery('mv')
+                        group_by(models.FeatureSetVersion.feature_set_id).subquery('mv')
                 q = q.join(mv, (fsv.feature_set_id == mv.c.feature_set_id) & (fsv.feature_set_version == mv.c.feature_set_version))
             else:
                 queries.append(fsv.feature_set_version == version)
