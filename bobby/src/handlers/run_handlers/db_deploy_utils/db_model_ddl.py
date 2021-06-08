@@ -357,8 +357,8 @@ class DatabaseModelDDL:
         # If we are at this point, the user did not save their training set, which means it does not have a name.
         # Since we are going to save it, we will use the run_id as the name to it's guaranteed unique
         ts_name = f'{self.run_id}_training_set'
-        if eval(view_id): # may return 'None' not None so need eval
-            self.logger.info(f"Found training view with ID {view_id}")
+        if eval(view_id) and eval(view_version): # may return 'None' not None so need eval
+            self.logger.info(f"Found training view with ID {view_id} and version {view_version}", send_db=True)
 
             # Create training set
             ts = TrainingSet(
@@ -378,7 +378,7 @@ class DatabaseModelDDL:
                 name=ts_name,
                 last_update_username=self.request_user
             )
-        self.logger.info(f"Registering new Training Set {ts_name} at version 1")
+        self.logger.info(f"Registering new Training Set {ts_name} at version 1", send_db=True)
         self.session.add(ts)
         self.session.merge(ts) # Get the training_set_id
 
@@ -540,10 +540,11 @@ class DatabaseModelDDL:
         """
         self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
+        # The list here needs to match the parameters that are stored in mlflow for training sets
         training_set_params = [
             f'splice.feature_store.{i}' for i in [
                 'training_set_start_time', 'training_set_end_time', 'training_set_create_time','training_view_id',
-                'training_set_label', 'training_set_id', 'training_set_version', 'training_set_name'
+                'training_view_version', 'training_set_label', 'training_set_id', 'training_set_version', 'training_set_name'
             ]
         ]
         params: List[SqlParam] = self.session.query(SqlParam)\
