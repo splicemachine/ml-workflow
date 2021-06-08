@@ -1402,7 +1402,7 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
         new_names = set([f.name.upper() for f in all_features])
         missing = ', '.join(old_names - new_names)
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
-                                     message=f'Could not find the following features: {missing}')
+                                     message=f'Could not find the following features in the latest Feature Sets: {missing}')
     return all_features
 
 def create_historian_triggers(db: Session, fset: schemas.FeatureSet) -> None:
@@ -1481,14 +1481,14 @@ def migrate_feature_set(db: Session, previous: schemas.FeatureSetDetail, live: s
     old_name = __get_table_name(previous)
     new_name = __get_table_name(live)
     old_serving = Table(old_name, metadata, PrimaryKeyConstraint(*[pk.lower() for pk in previous.primary_keys]),
-                    schema=previous.schema_name.lower(), autoload=True)
+                    schema=previous.schema_name.lower(), autoload=True, keep_existing=True)
     old_history = Table(f'{old_name}_history', metadata, PrimaryKeyConstraint(*[pk.lower() for pk in previous.primary_keys]),
-                    schema=previous.schema_name.lower(), autoload=True)
+                    schema=previous.schema_name.lower(), autoload=True, keep_existing=True)
     
     live_serving = Table(new_name, metadata, PrimaryKeyConstraint(*[pk.lower() for pk in live.primary_keys]),
-                    schema=live.schema_name.lower(), autoload=True)
+                    schema=live.schema_name.lower(), autoload=True, keep_existing=True)
     live_history = Table(f'{new_name}_history', metadata, PrimaryKeyConstraint(*[pk.lower() for pk in live.primary_keys]),
-                    schema=live.schema_name.lower(), autoload=True)
+                    schema=live.schema_name.lower(), autoload=True, keep_existing=True)
     
     _migrate_data(db, old_serving, live_serving)
     _migrate_data(db, old_history, live_history)
@@ -1594,6 +1594,7 @@ def create_training_view_version(db: Session, tv: schemas.TrainingViewDetail, ve
     tvv = models.TrainingViewVersion(view_id=tv.view_id, view_version=version, sql_text=tv.sql_text,
                                             label_column=tv.label_column, ts_column=tv.ts_column)
     db.add(tvv)
+    db.flush()
     tv.view_version = version
 
     _register_training_view_keys(db, tv)

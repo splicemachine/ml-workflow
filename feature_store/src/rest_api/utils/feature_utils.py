@@ -37,9 +37,9 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
             message=f"Feature set {schema}.{table} has no features. You cannot deploy a feature "
                     f"set with no features")
 
+    current = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])[0]
     fset = crud.deploy_feature_set(db, fset)
     if migrate:
-        current = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])[0]
         if current.deployed:
             crud.migrate_feature_set(db, current, fset)
         else:

@@ -268,10 +268,9 @@ def _get_training_set(db: Session, features: Union[List[Feature], List[str]], cr
 
     return ts
 
-def _get_training_set_from_view(db: Session, view: str, create_time: datetime, version: Optional[Union[str, int]] = 'latest',
-                                features: Union[List[Feature], List[str]] = None, start_time: Optional[datetime] = None, 
-                                end_time: Optional[datetime] = None, return_pk_cols: bool = False, 
-                                return_ts_col: bool = False, return_type: Optional[str] = None) -> TrainingSet:
+def _get_training_set_from_view(db: Session, view: str, create_time: datetime, features: Union[List[Feature], 
+                                List[str]] = None, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None, 
+                                return_pk_cols: bool = False, return_ts_col: bool = False, return_type: Optional[str] = None) -> TrainingSet:
     """
     Creates a training set from a training view
     :param db: Session The database connection

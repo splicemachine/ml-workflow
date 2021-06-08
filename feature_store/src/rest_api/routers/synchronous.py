@@ -500,6 +500,7 @@ def update_training_view(name: str, tv: schemas.TrainingViewUpdate, db: Session 
         logger.info(f'Updating description for {name}')
         crud.update_feature_set_description(db, view.view_id, tv.description)
 
+    tv = schemas.TrainingViewDetail(**tv.__dict__, view_id=view.view_id)
     return crud.create_training_view_version(db, tv, view.view_version + 1)
 
 @SYNC_ROUTER.patch('/training-views/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.TrainingViewDetail,
@@ -752,14 +753,12 @@ def remove_feature_set(schema: str, table: str, purge: bool = False,
         elif deps['training_set']:
             training_sets[fset.feature_set_version] = deps['training_set']
     if models:
-        err += 'You cannot remove a Feature Set that has an associated model deployment.'
-        ' The Following Feature Set Versions have these models as dependents: '
-        f'{models}\n'
+        err += f'''You cannot remove a Feature Set that has an associated model deployment. 
+        The Following Feature Set Versions have these models as dependents: {models}\n'''
     if training_sets and not purge:
-        err += 'You cannot remove a Feature Set that has associated Training Sets. '
-        f'The following Feature Set Versions have these Training Sets as dependents: '
-        f'{training_sets}. To drop these Feature Set Versions anyway, '
-        f'set purge=True (be careful! the training sets will be deleted)'
+        err += f'''You cannot remove a Feature Set that has associated Training Sets. 
+        The following Feature Set Versions have these Training Sets as dependents: {training_sets}. 
+        To drop these Feature Set Versions anyway, set purge=True (be careful! the training sets will be deleted)'''
     if err:
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
                                     message=err)
