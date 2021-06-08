@@ -541,21 +541,22 @@ class DatabaseModelDDL:
         self.logger.info("Checking if run was created with Feature Store training set", send_db=True)
         # Check if run has training set
         # The list here needs to match the parameters that are stored in mlflow for training sets
+        required_ts_params = [
+            'training_set_start_time', 'training_set_end_time', 'training_set_create_time'
+        ]
+        optional_ts_params = [
+            'training_view_id', 'training_view_version', 'training_set_label', 'training_set_id', 'training_set_version', 'training_set_name'
+        ]
         training_set_params = [
-            f'splice.feature_store.{i}' for i in [
-                'training_set_start_time', 'training_set_end_time', 'training_set_create_time','training_view_id',
-                'training_view_version', 'training_set_label', 'training_set_id', 'training_set_version', 'training_set_name'
-            ]
+            f'splice.feature_store.{i}' for i in required_ts_params + optional_ts_params
         ]
         params: List[SqlParam] = self.session.query(SqlParam)\
             .filter_by(run_uuid=self.run_id)\
             .filter(SqlParam.key.in_(training_set_params))\
             .all()
 
-        # We compare to -3 because the last 3 params (training_set_id,training_set_version, training_set_name)
-        # may not have been set yet if the user didn't "save" their training set.
-        # If they aren't set, we will do that now
-        if len(params)>=len(training_set_params)-3: # Run has associated training set.
+        # If the optional params aren't set, we will do that now
+        if len(params)>=len(required_ts_params): # Run has associated training set.
             key_vals = {param.key:param.value for param in params}
             self.logger.info("Training set found! Registering...", send_db=True)
 
