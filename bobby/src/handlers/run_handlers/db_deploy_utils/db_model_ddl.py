@@ -437,6 +437,7 @@ class DatabaseModelDDL:
             .join(t, (FeatureSetVersion.feature_set_id == t.c.feature_set_id) & (FeatureSetVersion.deploy_ts == t.c.deploy_ts))\
             .subquery('l')
         features: List[Feature] = self.session.query(Feature, FeatureVersion.feature_set_id, FeatureVersion.feature_set_version)\
+            .join(FeatureVersion, Feature.feature_id == FeatureVersion.feature_id)\
             .join(l, (FeatureVersion.feature_set_id == l.c.feature_set_id) & (FeatureVersion.feature_set_version == l.c.feature_set_version))\
             .filter(func.upper(Feature.name).in_([feat.value.upper() for feat in training_set_features])).all()
 
