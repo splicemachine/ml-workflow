@@ -1,7 +1,9 @@
 import functools
-import inspect
 
-from fastapi import Depends
+from fastapi import Depends, status
+from fastapi.exceptions import RequestValidationError
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.orm import Session
 
 from .crud import get_db
@@ -20,6 +22,9 @@ def managed_transaction(func):
             logger.error(e)
             logger.warning("Rolling back...")
             db.rollback()
+            # if not isinstance(e, (RequestValidationError, SpliceMachineException, StarletteHTTPException)):
+            #     e = SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.UNKNOWN,
+            #         message=str(e))
             raise e
         finally:
             logger.info("Flushing...")

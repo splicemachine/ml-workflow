@@ -39,7 +39,7 @@ class SQL:
 class Columns:
     feature = ['feature_id', 'feature_set_id', 'name', 'description', 'feature_data_type', 'feature_type',
                'tags', 'compliance_level', 'last_update_ts', 'last_update_username']
-    training_view = ['view_id','name','description','view_sql','pk_columns','ts_column','label_column','join_columns']
+    training_view = ['view_id','name','description','sql_text','pk_columns','ts_column','label_column','join_columns']
     feature_set = ['feature_set_id', 'table_name', 'schema_name', 'description', 'pk_columns', 'pk_types', 'deployed']
     history_table_pk = ['ASOF_TS','UNTIL_TS']
 

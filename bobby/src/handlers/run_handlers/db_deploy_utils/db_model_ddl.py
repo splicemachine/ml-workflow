@@ -5,7 +5,7 @@ to Splice Machine
 from typing import Dict, List, Optional, Tuple
 from collections import OrderedDict
 
-from sqlalchemy import inspect as peer_into_splice_db, text, func
+from sqlalchemy import inspect as peer_into_splice_db, text, func, tuple_
 from sqlalchemy.orm import Session
 from sqlalchemy.engine.result import ResultProxy
 from mlflow.store.tracking.dbmodels.models import SqlParam
@@ -15,8 +15,9 @@ from shared.models.model_types import (DeploymentModelType, H2OModelType,
                                        KerasModelType, Metadata,
                                        SklearnModelType, SparkModelType)
 from shared.services.database import SQLAlchemyClient, Converters, DatabaseSQL, DatabaseFunctions
-from shared.models.feature_store_models import (Deployment, TrainingView, TrainingSetInstance,
-                                                TrainingSet, TrainingSetFeature, Feature)
+from shared.models.feature_store_models import (Deployment, TrainingViewVersion, TrainingSetInstance,
+                                                TrainingSet, TrainingSetFeature, Feature, FeatureVersion,
+                                                FeatureSetVersion)
 
 from .entities.db_model import Model
 
@@ -351,6 +352,7 @@ class DatabaseModelDDL:
         self.logger.info(f"Dictionary of params {str(key_vals)}")
 
         view_id = key_vals['splice.feature_store.training_view_id']
+        view_version = key_vals['splice.feature_store.training_view_version']
         # If we are at this point, the user did not save their training set, which means it does not have a name.
         # Since we are going to save it, we will use the run_id as the name to it's guaranteed unique
         ts_name = f'{self.run_id}_training_set'
@@ -360,6 +362,7 @@ class DatabaseModelDDL:
             # Create training set
             ts = TrainingSet(
                 view_id=int(view_id),
+                view_version=int(view_version),
                 name=ts_name,
                 last_update_username=self.request_user
             )
@@ -370,6 +373,7 @@ class DatabaseModelDDL:
         else:
             ts = TrainingSet(
                 view_id=None,
+                view_version=None,
                 name=ts_name,
                 last_update_username=self.request_user
             )
@@ -424,8 +428,11 @@ class DatabaseModelDDL:
         training_set_features: List[SqlParam] = self.session.query(SqlParam).filter_by(run_uuid=self.run_id) \
             .filter(SqlParam.key.like('splice.feature_store.training_set_feature%')).all()
         self.logger.info("Done. Getting feature IDs for each feature...")
-        features: List[Feature] =  self.session.query(Feature)\
-            .filter(func.upper(Feature.name).in_([feat.value.upper() for feat in training_set_features])).all()
+        l = self.session.query(FeatureSetVersion.feature_set_id, func.max(FeatureSetVersion.feature_set_version))\
+            .filter(FeatureSetVersion.deployed == True).group_by(FeatureSetVersion.feature_set_id).subquery('l')
+        features: List[Feature] = self.session.query(Feature, FeatureVersion.feature_set_id, FeatureVersion.feature_set_version)\
+            .filter((func.upper(Feature.name).in_([feat.value.upper() for feat in training_set_features])) & 
+                (tuple_(FeatureVersion.feature_set_id, FeatureVersion.feature_set_version).in_(l))).all()
 
         # Validate that these features have not been deleted. If they have we cannot deploy
         if len(features) < len(training_set_features):
@@ -436,11 +443,13 @@ class DatabaseModelDDL:
                             f" You cannot deploy a model that was trained on features that have been deleted.")
 
         self.logger.info(f"Done. Registering all {len(features)} features")
-        for feat in features:
+        for feat, fsid, fsv in features:
             self.session.add(
                 TrainingSetFeature(
                     training_set_id=ts.training_set_id,
                     feature_id=feat.feature_id, # The mlflow param's value is the feature name
+                    feature_set_id=fsid,
+                    feature_set_version=fsv,
                     last_update_username=self.request_user,
                     is_label=(feat.name.lower() == key_vals['splice.feature_store.training_set_label'].lower())
                 )
@@ -481,7 +490,7 @@ class DatabaseModelDDL:
                 DatabaseSQL.add_feature_store_deployment.format(**deployment)
             )
 
-    def _validate_training_view(self, view_id: int):
+    def _validate_training_view(self, view_id: int, view_version: int):
         """
         Validates that a particular training view exists. If a run in mlflow was training using a training set from
         the feature store, and that training set was taken from a training view that no longer exists, we cannot
@@ -489,10 +498,10 @@ class DatabaseModelDDL:
 
         :param view_id: The view ID
         """
-        tvw: TrainingView = self.session.query(TrainingView)\
-            .filter(TrainingView.view_id==view_id).first()
+        tvw: TrainingViewVersion = self.session.query(TrainingViewVersion)\
+            .filter((TrainingViewVersion.view_id==view_id) & (TrainingViewVersion.view_version==view_version)).first()
         if not tvw:
-            raise Exception(f"The training view (id:{view_id}) used for this run has been deleted."
+            raise Exception(f"The version of the training view (id:{view_id}, version:{view_version}) used for this run has been deleted."
                             f" You cannot deploy a model that was trained using a training view that no longer exists.")
 
     def _validate_training_set(self, tset_id: int, tset_version: int) -> TrainingSet:
@@ -544,9 +553,9 @@ class DatabaseModelDDL:
             self.logger.info("Training set found! Registering...", send_db=True)
 
             # We need to ensure this view hasn't been deleted since the time this run was created
-            if eval(key_vals['splice.feature_store.training_view_id']): # returns 'None' not None so need eval
+            if eval(key_vals['splice.feature_store.training_view_id']) and eval(key_vals['splice.feature_store.training_view_version']): # returns 'None' not None so need eval
                 self.logger.info('Validating that the Training View still exists')
-                self._validate_training_view(int(key_vals['splice.feature_store.training_view_id']))
+                self._validate_training_view(int(key_vals['splice.feature_store.training_view_id']), int(key_vals['splice.feature_store.training_view_version']))
 
             # If this mlflow run has a training set ID and version, that means the user manually saved the Training Set.
             # We need to ensure that training set instance still exists.

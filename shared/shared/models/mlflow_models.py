@@ -137,6 +137,17 @@ class SysSchemas(SQLAlchemyClient.MlflowBase):
     AUTHORIZATIONID: Column = Column(String(128), nullable=False)
 
 
+class SysSchemas(SQLAlchemyClient.MlflowBase):
+    """
+    System Table for managing schemas
+    """
+    __tablename__: str = "sysschemas"
+    __table_args__: Dict[str, str] = {"schema": "sys"}
+    SCHEMAID: Column = Column(String(1), primary_key=True, nullable=False)
+    SCHEMANAME: Column = Column(String(128), nullable=False)
+    AUTHORIZATIONID: Column = Column(String(128), nullable=False)
+
+
 class DatabaseDeployedMetadata(SQLAlchemyClient.MlflowBase):
     """
     Table for storing metadata information about the deployed models.

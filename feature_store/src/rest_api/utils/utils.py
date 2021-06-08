@@ -1,8 +1,8 @@
 from fastapi import status
-from ..schemas import FeatureSetBase, FeatureSet, DataType
+from ..schemas import FeatureSetBase, FeatureSet, DataType, FeatureSetDetail, FeatureSetUpdate
 from ..constants import Columns, SQL_TO_SQLALCHEMY
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
-from typing import Dict, List
+from typing import Dict, List, Union
 from .. import schemas
 from sqlalchemy import Column, VARCHAR, DECIMAL
 from splicemachinesa.constants import RESERVED_WORDS
@@ -52,8 +52,11 @@ def get_pk_column_str(fset: FeatureSet, history=False):
         return ','.join(__get_pk_columns(fset) + Columns.history_table_pk)
     return ','.join(__get_pk_columns(fset))
 
-def __get_pk_columns(fset: FeatureSetBase):
+def __get_pk_columns(fset: Union[FeatureSetBase, FeatureSetUpdate]):
     return list(fset.primary_keys.keys())
+
+def __get_table_name(fset: FeatureSetDetail):
+    return f'{fset.table_name.lower()}_v{fset.feature_set_version}'
 
 def datatype_to_sql(typ: DataType) -> str:
     """
@@ -122,3 +125,16 @@ def _sql_to_sqlalchemy_columns(sql_cols: Dict[str,schemas.DataType], pk: bool=Fa
             cols.append(Column(k.lower(), SQL_TO_SQLALCHEMY[sql_type.data_type], primary_key=pk))
     return cols
 
+def parse_version(version: Union[str, int]):
+    try:
+        version = int(version)
+    except:
+        pass
+
+    if isinstance(version, str):
+        version = version.lower()
+        if version != 'latest':
+            raise SpliceMachineException(
+                status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                message=f"Version parameter must be a number or 'latest'")
+    return version

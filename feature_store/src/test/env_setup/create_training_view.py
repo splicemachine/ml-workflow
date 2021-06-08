@@ -16,7 +16,7 @@ SELECT ltv.CUSTOMERID,
        ltv.CUSTOMER_LIFETIME_VALUE as CUSTOMER_LTV
 FROM retail_rfm.weeks w --splice-properties useSpark=True
 INNER JOIN 
-    retail_fs.customer_lifetime ltv 
+    retail_fs.customer_lifetime_v1 ltv 
     ON w.WEEK_END_DATE > ltv.CUSTOMER_START_DATE AND w.WEEK_END_DATE <= ltv.CUSTOMER_START_DATE + 28 --only first 4 weeks
 """
 pks = ['CUSTOMERID','CUSTOMERWEEK'] # Each unique training row is identified by the customer and their week of spending activity
