@@ -1,5 +1,20 @@
-ALTER TABLE MLManager.Artifacts ALTER COLUMN file_extension SET DATA TYPE VARCHAR(25);
-ALTER TABLE MLManager.Artifacts ADD COLUMN artifact_path Varchar(250);
+
+-- Drop and recreate so the order of the columns matches the SQLAlchemy Class (they MUST match)
+drop table if exists "MLMANAGER"."ARTIFACTS2";
+CREATE TABLE "MLMANAGER"."ARTIFACTS2" (
+"RUN_UUID" VARCHAR(32) NOT NULL
+,"NAME" VARCHAR(500) NOT NULL
+,"size" INTEGER
+,"binary" BLOB(2000000000) NOT NULL
+,"ARTIFACT_PATH" VARCHAR(250)
+,"FILE_EXTENSION" VARCHAR(25)
+,"DATABASE_BINARY" BLOB(2000000000)
+, CONSTRAINT ARTIFACT_PK2 PRIMARY KEY("RUN_UUID","NAME"), CONSTRAINT SQLB849C19605798BDC141A0004DDCB06F8 FOREIGN KEY ("RUN_UUID") REFERENCES "MLMANAGER"."RUNS"("RUN_UUID") ON UPDATE NO ACTION ON DELETE NO ACTION) ;
+insert into mlmanager.artifacts2 (run_uuid, name, "size", "binary", file_extension, database_binary, artifact_path) select run_uuid, name, "size", "binary", file_extension, database_binary, artifact_path from mlmanager.artifacts;
+drop table mlmanager.artifacts;
+rename mlmanager.artifacts2 to artifacts;
+
+
 
 -- Moving cardinality to a new table (Feature_Stats)
 ALTER TABLE FeatureStore.Feature DROP COLUMN "cardinality";
