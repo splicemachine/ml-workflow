@@ -77,10 +77,10 @@ def _create_feature_set(fset: schemas.FeatureSetCreate, db: Session):
 
 def _update_feature_set(update: schemas.FeatureSetUpdate, schema: str, table: str, db: Session):
     """
-    The implementation of the create_feature_set route with logic here so other functions can call it
-    :param fset: The feature set schema to create
+    The implementation of the update_feature_set route with logic here so other functions can call it
+    :param fset: The feature set schema to update
     :param db: The database session
-    :return: The created Feature Set
+    :return: The created Feature Set Version
     """
     __validate_primary_keys(update.primary_keys)
 
@@ -119,12 +119,12 @@ def _update_feature_set(update: schemas.FeatureSetUpdate, schema: str, table: st
 
 def _alter_feature_set(alter: schemas.FeatureSetAlter, schema: str, table: str, version: Union[str, int], db: Session):
     """
-    The implementation of the update_feature_set route with logic here so other functions can call it
-    :param alter: The feature set schema to update
+    The implementation of the alter_feature_set route with logic here so other functions can call it
+    :param alter: The feature set schema to alter
     :param schema: The schema name
     :param table: The table name
     :param db: The database session
-    :return: The updated Feature Set
+    :return: The altered Feature Set
     """
     fsets: List[schemas.FeatureSetDetail] = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema, 'feature_set_version': version})
     if not fsets:
