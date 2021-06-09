@@ -293,11 +293,6 @@ class DatabaseSQL:
     DROP TRIGGER {trigger_name}
     """
 
-    rename_table = \
-    """
-    RENAME TABLE {schema_name}.{table_name} TO {new_table_name}
-    """
-
 class Converters:
     """
     Converters for the database
@@ -436,18 +431,6 @@ class DatabaseFunctions:
         """
         if DatabaseFunctions.trigger_exists(schema_name, trigger_name, db):
             db.execute(DatabaseSQL.drop_trigger.format(trigger_name=f'{schema_name}.{trigger_name}'))
-
-    @staticmethod
-    def rename_table(schema_name: str, table_name: str, new_table_name: str, db):
-        """
-        Drops table if exists
-        :param schema_name: schema name
-        :param table_name: the table name
-        :param new_table_name: the new table name
-        :param db: the SQLAlchemy session
-        """
-        if DatabaseFunctions.table_exists(schema_name, table_name, db.get_bind()):
-           db.execute(DatabaseSQL.rename_table.format(schema_name=schema_name, table_name=table_name, new_table_name=new_table_name))
 
 
 SQLAlchemyClient.create()

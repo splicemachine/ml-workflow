@@ -562,7 +562,8 @@ class DatabaseModelDDL:
             self.logger.info("Training set found! Registering...", send_db=True)
 
             # We need to ensure this view hasn't been deleted since the time this run was created
-            if eval(key_vals['splice.feature_store.training_view_id']) and eval(key_vals['splice.feature_store.training_view_version']): # returns 'None' not None so need eval
+            if eval(key_vals.get('splice.feature_store.training_view_id', 'None')) and \
+                eval(key_vals.get('splice.feature_store.training_view_version', 'None')): # returns 'None' not None so need eval
                 self.logger.info('Validating that the Training View still exists')
                 self._validate_training_view(int(key_vals['splice.feature_store.training_view_id']), int(key_vals['splice.feature_store.training_view_version']))
 
