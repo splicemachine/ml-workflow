@@ -399,22 +399,22 @@ def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(cru
     return _create_feature_set(fset, db)
 
 @SYNC_ROUTER.put('/feature-sets/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.FeatureSetDetail, 
-                description="Creates a new version of an existing feature set", operation_id='version_feature_set', tags=['Feature Sets'])
+                description="Creates a new version of an existing feature set", operation_id='update_feature_set', tags=['Feature Sets'])
 @managed_transaction
 def update_feature_set(name: str, fset: schemas.FeatureSetUpdate, db: Session = Depends(crud.get_db)):
     """
-    Updates an existing feature set
+    Creates a new version of an existing feature set
     """
     crud.validate_schema_table([name])
     schema, table = name.split('.')
     return _update_feature_set(fset, schema, table, db)
 
 @SYNC_ROUTER.patch('/feature-sets/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.FeatureSet, 
-                description="Updates an existing feature set", operation_id='update_feature_set', tags=['Feature Sets'])
+                description="Updates an existing feature set", operation_id='alter_feature_set', tags=['Feature Sets'])
 @managed_transaction
 def alter_feature_set(name: str, fset: schemas.FeatureSetAlter, version: Union[str, int] = 'latest', db: Session = Depends(crud.get_db)):
     """
-    Updates an existing feature set
+    Alters an existing feature set version
     """
     version = parse_version(version)
 
@@ -449,7 +449,7 @@ def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db: Sessi
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
                                         message=f"Feature Set {schema}.{table} is already deployed. You cannot "
                                         f"add features to a deployed feature set. If you wish to create a new version "
-                                        "of this feature set with different features, you can do so with fs.version_feature_set()")
+                                        "of this feature set with different features, you can do so with fs.update_feature_set()")
     crud.validate_feature(db, fc.name, fc.feature_data_type)
     fc.feature_set_id = fset.feature_set_id
     logger.info(f'Registering feature {fc.name} in Feature Store')
@@ -504,8 +504,8 @@ def update_training_view(name: str, tv: schemas.TrainingViewUpdate, db: Session 
     return crud.create_training_view_version(db, tv, view.view_version + 1)
 
 @SYNC_ROUTER.patch('/training-views/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.TrainingViewDetail,
-                description="Registers a training view for use in generating training SQL", 
-                operation_id='create_training_view', tags=['Training Views'])
+                description="Updates an unreferenced version of a training view", 
+                operation_id='alter_training_view', tags=['Training Views'])
 @managed_transaction
 def alter_training_view(name: str, tv: schemas.TrainingViewAlter, version: Optional[Union[str, int]] = 'latest', db: Session = Depends(crud.get_db)):
     """
@@ -686,7 +686,7 @@ def remove_feature(name: str, db: Session = Depends(crud.get_db)):
         raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.ALREADY_DEPLOYED,
                                         message=f"Cannot delete Feature {feature.name} from deployed Feature Set {schema}.{table}. "
                                         "If you wish to create a new version "
-                                        "of this feature set with different features, you can do so with fs.version_feature_set()")
+                                        "of this feature set with different features, you can do so with fs.update_feature_set()")
     crud.remove_feature(db, feature, version)
 
 @SYNC_ROUTER.delete('/training-views/{name}', status_code=status.HTTP_200_OK, description="Remove a training view",
