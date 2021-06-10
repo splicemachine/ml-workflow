@@ -1,7 +1,8 @@
 from os import environ as env_vars
 import sys
 
-file_name = sys.argv[0]
+assert len(sys.argv) == 2, "You must provide a path to a file to edit. python update_tag.py /path/to/file"
+file_name = sys.argv[1]
 BUILD_NUMBER = env_vars['BUILD_NUMBER']
 newlines = []
 f = open(file_name).readlines()
