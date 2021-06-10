@@ -61,7 +61,7 @@ node('dind-compose') {
 
     stage('Prep Image') {
         dir('ml-workflow'){
-            sh "python3 update_tag.py $(pwd)/docker-compose.yaml"
+            sh "python3 update_tag.py \$(pwd)/docker-compose.yaml"
             sh "cat docker-compose.yaml"
         }
     }
@@ -79,7 +79,7 @@ node('dind-compose') {
 
     stage('Edit dbaas-infrastructure') {
         dir('dbaas-infrastructure/dbaas-infrastructure/kubernetes/charts/splice/'){
-            sh "python3 ../ml-workflow/update_tag.py $(pwd)/values.yaml"
+            sh "python3 ../ml-workflow/update_tag.py \$(pwd)/values.yaml"
             sh "cat values.yaml"
             sh "git checkout -b update_ml_manager_${BUILD_NUMBER}"
             sh "git status"
