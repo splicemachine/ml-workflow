@@ -1,5 +1,5 @@
 -- backfill load of history values for customer lifetime features
-INSERT INTO retail_fs.customer_lifetime_history
+INSERT INTO retail_fs.customer_lifetime_v1_history
 ( CUSTOMERID, ASOF_TS, ingest_ts,  CUSTOMER_LIFETIME_ACTIVE_DAYS,CUSTOMER_LIFETIME_QTY,
   CUSTOMER_LIFETIME_ITEMS_PER_ACTIVE_DAY,CUSTOMER_LIFETIME_REVENUE_PER_ACTIVE_DAY,
   CUSTOMER_LIFETIME_DAYS,CUSTOMER_DAYS_SINCE_PURCHASE,
@@ -34,7 +34,7 @@ FROM
 )x  --splice-properties useSpark=true
 ;
 
-INSERT INTO retail_fs.CUSTOMER_RFM_BY_CATEGORY_HISTORY
+INSERT INTO retail_fs.CUSTOMER_RFM_BY_CATEGORY_v1_HISTORY
 (
         CUSTOMERID,
         ASOF_TS,

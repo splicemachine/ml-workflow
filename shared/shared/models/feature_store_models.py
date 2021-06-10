@@ -34,8 +34,6 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     description: Column = Column(String(500), nullable=True)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
-    deployed: Column = Column(Boolean, default=False)
-    deploy_ts: Column = Column(DateTime, nullable=True)
     __table_args__: tuple = (
         UniqueConstraint(
             schema_name, table_name
@@ -44,25 +42,47 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     )
 
 
+class FeatureSetVersion(SQLAlchemyClient.SpliceBase):
+    """
+    Feature Set Version keeps track of the different versions of Feature Sets that are created
+    This is used by the Feature Store to maintain versioning
+    """
+    __tablename__: str = "feature_set_version"
+    __table_args__ = {'schema': 'featurestore'}
+    feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id, name='fk_feature_set_version_feature_set'), primary_key=True)
+    feature_set_version: Column = Column(Integer, primary_key=True)
+    deployed: Column = Column(Boolean, default=False)
+    deploy_ts: Column = Column(DateTime, nullable=True)
+    create_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    create_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
+
 class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
     """
     A queue of feature sets that have been requested to be deployed, but have not been approved.
     """
     __tablename__: str = "pending_feature_set_deployment"
-    feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id), primary_key=True)
+    feature_set_id: Column = Column(Integer, primary_key=True)
+    feature_set_version: Column = Column(Integer, primary_key=True)
     request_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     request_username: Column = Column(String(128), nullable=False)
     status: Column = Column(String(128), nullable=True, default='PENDING')
     approver_username: Column = Column(String(128), nullable=False)
     status_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    deployed: Column = Column(Boolean)
     # Table Options Configuration
     __table_args__: tuple = (
         CheckConstraint(
             status.in_(('PENDING', 'ACCEPTED', 'REJECTED'))
         ),
+        ForeignKeyConstraint(
+            (feature_set_id, feature_set_version),
+            [FeatureSetVersion.feature_set_id, FeatureSetVersion.feature_set_version],
+            name='fk_pending_feature_set_deployment_feature_set_version'
+        ),
         {'schema': 'featurestore'}
     )
-    deployed: Column = Column(Boolean)
+
 
 class FeatureSetKey(SQLAlchemyClient.SpliceBase):
     """
@@ -70,12 +90,20 @@ class FeatureSetKey(SQLAlchemyClient.SpliceBase):
     user will NOT interact with. This is used by the Feature Store to maintain governance
     """
     __tablename__: str = "feature_set_key"
-    __table_args__ = {'schema': 'featurestore'}
-    feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id), primary_key=True)
+    feature_set_id: Column = Column(Integer, primary_key=True)
+    feature_set_version: Column = Column(Integer, primary_key=True)
     key_column_name: Column = Column(String(128), primary_key=True)
     key_column_data_type: Column = Column(String(128))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+    __table_args__: tuple = (
+        ForeignKeyConstraint(
+            (feature_set_id, feature_set_version),
+            [FeatureSetVersion.feature_set_id, FeatureSetVersion.feature_set_version],
+            name='fk_feature_set_key_feature_set_version'
+        ),
+        {'schema': 'featurestore'}
+    )
 
 
 class Feature(SQLAlchemyClient.SpliceBase):
@@ -86,7 +114,6 @@ class Feature(SQLAlchemyClient.SpliceBase):
     """
     __tablename__: str = "feature"
     feature_id: Column = Column(Integer, primary_key=True, autoincrement=True)
-    feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id))
     name: Column = Column(String(128), index=True, unique=True)
     description: Column = Column(String(500), nullable=True)
     feature_data_type: Column = Column(String(255))
@@ -105,14 +132,33 @@ class Feature(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
+class FeatureVersion(SQLAlchemyClient.SpliceBase):
+    """
+    Feature Version keeps track of what version of a Feature Set that a Feature belongs to.
+    This is used by the Feature Store to maintain versioning
+    """
+    __tablename__: str = "feature_version"
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_feature_version_feature'), primary_key=True)
+    feature_set_id: Column = Column(Integer, primary_key=True)
+    feature_set_version: Column = Column(Integer, primary_key=True)
+    __table_args__: tuple = (
+        ForeignKeyConstraint(
+            (feature_set_id, feature_set_version),
+            [FeatureSetVersion.feature_set_id, FeatureSetVersion.feature_set_version],
+            name='fk_feature_version_feature_set_version'
+        ),
+        {'schema': 'featurestore'}
+    )
+
 class FeatureStats(SQLAlchemyClient.SpliceBase):
     """
     Feature Stats are statistics calculated regularly about features. Each feature will have many entries in the table
     about their statistics. These are calculated in the background so they are readily available in the UI.
     """
     __tablename__: str = "feature_stats"
-    __table_args__ = {'schema': 'featurestore'}
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_feature_stats_feature'), primary_key=True)
+    feature_id: Column = Column(Integer, primary_key=True)
+    feature_set_id: Column = Column(Integer, primary_key=True)
+    feature_set_version: Column = Column(Integer, primary_key=True)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False, primary_key=True)
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
@@ -125,7 +171,14 @@ class FeatureStats(SQLAlchemyClient.SpliceBase):
     feature_count: Column = Column(Integer)
     feature_stddev: Column = Column(Float)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
-
+    _table_args__: tuple = (
+        ForeignKeyConstraint(
+            (feature_id, feature_set_id, feature_set_version),
+            [FeatureVersion.feature_id, FeatureVersion.feature_set_id, FeatureVersion.feature_set_version],
+            name='fk_feature_stats_feature_version'
+        ),
+        {'schema': 'featurestore'}
+    )
 
 class TrainingView(SQLAlchemyClient.SpliceBase):
     """
@@ -140,7 +193,18 @@ class TrainingView(SQLAlchemyClient.SpliceBase):
     view_id: Column = Column(Integer, primary_key=True, autoincrement=True)
     name: Column = Column(String(128), nullable=False, index=True, unique=True)
     description: Column = Column(String(500), nullable=True)
-    sql_text:Column = Column(Text)
+
+
+class TrainingViewVersion(SQLAlchemyClient.SpliceBase):
+    """
+    Training View Version keeps track of the different versions of Training Views that are created.
+    This is used by the Feature Store to maintain versioning
+    """
+    __tablename__: str = "training_view_version"
+    __table_args__ = {'schema': 'featurestore'}
+    view_id: Column = Column(Integer, ForeignKey(TrainingView.view_id, name='fk_training_view_version_training_view'), primary_key=True)
+    view_version: Column = Column(Integer, primary_key=True)
+    sql_text: Column = Column(Text)
     label_column: Column = Column(String(128))
     ts_column: Column = Column(String(128))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
@@ -154,7 +218,8 @@ class TrainingViewKey(SQLAlchemyClient.SpliceBase):
     with their feature sets (the primary key(s) of the Feature Sets. This is bottom level metadata that a user will NOT interact with.
     """
     __tablename__: str = "training_view_key"
-    view_id: Column = Column(Integer, ForeignKey(TrainingView.view_id), primary_key=True)
+    view_id: Column = Column(Integer, primary_key=True)
+    view_version: Column = Column(Integer, primary_key=True)
     key_column_name: Column = Column(String(128), primary_key=True)
     key_type: Column = Column(String(1), primary_key=True)  # 'P'rimary key, 'J'oin key
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
@@ -164,6 +229,11 @@ class TrainingViewKey(SQLAlchemyClient.SpliceBase):
     __table_args__: tuple = (
         CheckConstraint(
             key_type.in_(('P', 'J'))  # no funny business allowed!
+        ),
+        ForeignKeyConstraint(
+            (view_id, view_version),
+            [TrainingViewVersion.view_id, TrainingViewVersion.view_version],
+            name='fk_training_view_key_training_view_version'
         ),
         {'schema': 'featurestore'}
     )
@@ -179,12 +249,20 @@ class TrainingSet(SQLAlchemyClient.SpliceBase):
     This is a top level metadata that a user will interact with
     """
     __tablename__: str = "training_set"
-    __table_args__ = {'schema': 'featurestore'}
     training_set_id: Column = Column(Integer, primary_key=True, autoincrement=True)
     name: Column = Column(String(255), unique=True)
-    view_id: Column = Column(Integer, ForeignKey(TrainingView.view_id))
+    view_id: Column = Column(Integer)
+    view_version: Column = Column(Integer)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+    __table_args__: tuple = (
+        ForeignKeyConstraint(
+            (view_id, view_version),
+            [TrainingViewVersion.view_id, TrainingViewVersion.view_version],
+            name='fk_training_set_training_view_version'
+        ),
+        {'schema': 'featurestore'}
+    )
 
 
 class TrainingSetInstance(SQLAlchemyClient.SpliceBase):
@@ -196,7 +274,7 @@ class TrainingSetInstance(SQLAlchemyClient.SpliceBase):
     """
     __tablename__: str = "training_set_instance"
     __table_args__ = {'schema': 'featurestore'}
-    training_set_id: Column = Column(Integer, ForeignKey(TrainingSet.training_set_id), primary_key=True)
+    training_set_id: Column = Column(Integer, ForeignKey(TrainingSet.training_set_id, name='fk_training_set_instance_training_set'), primary_key=True)
     training_set_version: Column = Column(Integer, primary_key=True)
     training_set_start_ts: Column = Column(DateTime)
     training_set_end_ts: Column = Column(DateTime)
@@ -212,12 +290,21 @@ class TrainingSetFeature(SQLAlchemyClient.SpliceBase):
     within that Training Set. This is bottom level metadata that a user will NOT interact with.
     """
     __tablename__: str = "training_set_feature"
-    __table_args__ = {'schema': 'featurestore'}
-    training_set_id: Column = Column(Integer, ForeignKey(TrainingSet.training_set_id), primary_key=True)
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True )
+    training_set_id: Column = Column(Integer, ForeignKey(TrainingSet.training_set_id, name='fk_training_set_feature_training_set'), primary_key=True)
+    feature_id: Column = Column(Integer, primary_key=True)
+    feature_set_id: Column = Column(Integer, primary_key=True)
+    feature_set_version: Column = Column(Integer, primary_key=True)
     is_label: Column = Column(Boolean, default=False)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+    __table_args__: tuple = (
+        ForeignKeyConstraint(
+            (feature_id, feature_set_id, feature_set_version),
+            [FeatureVersion.feature_id, FeatureVersion.feature_set_id, FeatureVersion.feature_set_version],
+            name='fk_training_set_feature_feature_version'
+        ),
+        {'schema': 'featurestore'}
+    )
 
 
 class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
@@ -230,7 +317,7 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     __tablename__: str = "training_set_feature_stats"
     training_set_id: Column = Column(Integer, primary_key=True)
     training_set_version: Column = Column(Integer, primary_key=True)
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True)
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_training_set_feature_stats_feature'), primary_key=True)
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
     feature_mean: Column = Column(Float)
@@ -247,7 +334,8 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     __table_args__ = (
         ForeignKeyConstraint(
             (training_set_id, training_set_version),
-            [TrainingSetInstance.training_set_id, TrainingSetInstance.training_set_version]
+            [TrainingSetInstance.training_set_id, TrainingSetInstance.training_set_version],
+            name='fk_training_set_feature_stats_training_set_instance'
         ),
         {'schema': 'featurestore'}
     )
@@ -283,7 +371,8 @@ class TrainingSetLabelStats(SQLAlchemyClient.SpliceBase):
     __table_args__ = (
         ForeignKeyConstraint(
             (training_set_id, training_set_version),
-            [TrainingSetInstance.training_set_id, TrainingSetInstance.training_set_version]
+            [TrainingSetInstance.training_set_id, TrainingSetInstance.training_set_version],
+            name='fk_training_set_label_stats_training_set_instance'
         ),
         {'schema': 'featurestore'}
     )
@@ -300,14 +389,15 @@ class Deployment(SQLAlchemyClient.SpliceBase):
     model_table_name: Column = Column(String(128), primary_key=True)
     training_set_id: Column = Column(Integer, nullable=False)
     training_set_version: Column = Column(Integer, nullable=False)
-    run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
+    run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid, name='fk_deployment_runs'))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
     __table_args__ = (
         ForeignKeyConstraint(
             (training_set_id, training_set_version),
-            [TrainingSetInstance.training_set_id, TrainingSetInstance.training_set_version]
+            [TrainingSetInstance.training_set_id, TrainingSetInstance.training_set_version],
+            name='fk_deployment_training_set_instance'
         ),
         {'schema': 'featurestore'}
     )
@@ -325,11 +415,18 @@ class DeploymentHistory(SQLAlchemyClient.SpliceBase):
     asof_ts: Column = Column(DateTime, primary_key=True)
     training_set_id: Column = Column(Integer, nullable=False)
     training_set_version: Column = Column(Integer, nullable=False)
-    run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid))
+    run_id: Column = Column(String(32), ForeignKey(SqlRun.run_uuid, name='fk_deployment_history_runs'))
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
-    __table_args__ = {'schema': 'featurestore'}
+    __table_args__ = (
+        ForeignKeyConstraint(
+            (model_schema_name, model_table_name),
+            [Deployment.model_schema_name, Deployment.model_table_name],
+            name='fk_deployment_history_deployment'
+        ),
+        {'schema': 'featurestore'}
+    )
 
 
 class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
@@ -342,7 +439,7 @@ class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
 
     model_schema_name: Column = Column(String(128), primary_key=True)
     model_table_name: Column = Column(String(128), primary_key=True)
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id), primary_key=True, )
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_deployment_feature_stats_feature'), primary_key=True, )
     model_start_ts: Column = Column(DateTime)  # The start time of the window of calculation for statistics
     model_end_ts: Column = Column(DateTime)  # The end time of the window of calculation for statistics
     feature_cardinality: Column = Column(Integer)
@@ -359,7 +456,8 @@ class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
     __table_args__ = (
         ForeignKeyConstraint(
             (model_schema_name, model_table_name),
-            [Deployment.model_schema_name, Deployment.model_table_name]
+            [Deployment.model_schema_name, Deployment.model_table_name],
+            name='fk_deployment_feature_stats_deployment'
         ),
         {'schema': 'featurestore'}
     )
@@ -460,9 +558,10 @@ def create_deploy_historian():
         )
 
 
-TABLES = [FeatureSet, PendingFeatureSetDeployment, FeatureSetKey, Feature, FeatureStats, TrainingView, TrainingViewKey, TrainingSet,
-          TrainingSetInstance, TrainingSetFeature, TrainingSetFeatureStats, TrainingSetLabelStats, Deployment,
-          DeploymentHistory, DeploymentFeatureStats, Source, SourceKey, Pipeline, PipelineOps, PipelineAgg]
+TABLES = [FeatureSet, FeatureSetVersion, PendingFeatureSetDeployment, FeatureSetKey, Feature, FeatureVersion, FeatureStats, 
+          TrainingView, TrainingViewVersion, TrainingViewKey, TrainingSet, TrainingSetInstance, TrainingSetFeature, 
+          TrainingSetFeatureStats, TrainingSetLabelStats, Deployment, DeploymentHistory, DeploymentFeatureStats, 
+          Source, SourceKey, Pipeline, PipelineOps, PipelineAgg]
 
 def create_feature_store_tables(_sleep_secs=1) -> None:
     """

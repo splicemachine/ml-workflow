@@ -1,12 +1,12 @@
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Query
-from fastapi.responses import JSONResponse, ORJSONResponse
+from fastapi.responses import JSONResponse
 from typing import List, Dict, Optional, Union, Any
 from shared.logger.logging_config import logger
 from sqlalchemy.orm import Session
 from .auth import authenticate
 from .. import schemas, crud
-from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets, delete_feature_set
+from ..utils.feature_utils import _deploy_feature_set, _create_feature_set, _get_feature_sets, delete_feature_set, _update_feature_set, _alter_feature_set, drop_feature_set_table
 from ..utils.training_utils import (dict_to_lower, _get_training_view_by_name,
                                     _get_training_set, _get_training_set_from_view, register_training_set,
                                     training_set_to_json)
@@ -14,8 +14,8 @@ from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, gen
                                                     generate_backfill_intervals, generate_pipeline_sql, _get_source)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from ..decorators import managed_transaction
-from shared.services.database import DatabaseFunctions
 from ..utils.airflow_utils import Airflow
+from ..utils.utils import parse_version, __get_table_name
 
 # Synchronous API Router -- we can mount it to the main API
 SYNC_ROUTER = APIRouter(
@@ -30,6 +30,28 @@ def get_feature_sets(names: Optional[List[str]] = Query([], alias="name"), db: S
     Returns a list of available feature sets
     """
     return _get_feature_sets(names, db)
+
+@SYNC_ROUTER.get('/feature-sets/{name}', status_code=status.HTTP_200_OK, response_model=schemas.FeatureSetDetail,
+                description="Returns a specific feature set if it exists", operation_id='get_feature_set', tags=['Feature Sets'])
+@managed_transaction
+def get_feature_set(name: str, version: Optional[Union[int, str]] = None, db: Session = Depends(crud.get_db)):
+    """
+    Returns a specific feature set if it exists
+    """
+    version = parse_version(version)
+
+    crud.validate_schema_table([name])
+    schema, table = name.split('.')
+    _filter = {'table_name': table, 'schema_name': schema}
+    if version:
+        _filter['feature_set_version'] = version
+    fsets = crud.get_feature_sets(db, _filter=_filter)
+    if not fsets:
+        v = f"with version '{version}' " if version and version != 'latest' else ""
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                message=f"Feature Set {schema}.{table} {v}does not exist. Please enter "
+                                f"a valid feature set.")
+    return fsets[0]
 
 @SYNC_ROUTER.get('/summary', status_code=status.HTTP_200_OK, response_model=schemas.FeatureStoreSummary,
                 description="Returns feature store summary metrics", operation_id='get_summary', tags=['Feature Store'])
@@ -52,16 +74,24 @@ def get_summary(db: Session = Depends(crud.get_db)):
     return crud.get_fs_summary(db)
 
 @SYNC_ROUTER.get('/training-views', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingView],
+                description="Returns a list of all available training views", operation_id='get_training_views', tags=['Training Views'])
+@managed_transaction
+def get_training_views(db: Session = Depends(crud.get_db)):
+    """
+    Returns a list of all available training views
+    """
+    return crud.get_training_views(db)
+
+@SYNC_ROUTER.get('/training-views/{name}', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingView],
                 description="Returns a list of all available training views with an optional filter", operation_id='get_training_views', tags=['Training Views'])
 @managed_transaction
-def get_training_views(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
+def get_training_view(name: str, version: Optional[Union[str, int]] = 'latest', db: Session = Depends(crud.get_db)):
     """
-    Returns a list of all available training views with an optional filter
+    Returns a specified training view with an optional version filter
     """
-    if name:
-        return _get_training_view_by_name(db, name)
-    else:
-        return crud.get_training_views(db)
+    version = parse_version(version)
+
+    return _get_training_view_by_name(db, name, version)
 
 @SYNC_ROUTER.get('/training-view-id', status_code=status.HTTP_200_OK, response_model=int,
                 description="Returns the unique view ID from a name", operation_id='get_training_view_id', tags=['Training Views'])
@@ -116,7 +146,7 @@ def feature_exists(name: str, db: Session = Depends(crud.get_db)):
     Returns whether or not a given feature exists
 
     """
-    return bool(crud.get_features_by_name(db, [name]))
+    return bool(crud.get_feature_descriptions_by_name(db, [name]))
 
 @SYNC_ROUTER.get('/feature-details', status_code=status.HTTP_200_OK, response_model=schemas.FeatureDetail,
                 description="Returns Feature Details for a single feature", operation_id='get_feature_details', tags=['Features'])
@@ -141,6 +171,12 @@ def get_feature_vector(fjk: schemas.FeatureJoinKeys, pks: bool = True, sql: bool
     Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets
     """
     feats: List[schemas.Feature] = crud.process_features(db, fjk.features)
+
+    not_live = [f.name for f in feats if not f.deployed]
+    if not_live:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f"Some of the provided features are not live: {not_live}. Either deploy a new version "
+                                     "of your feature set that includes these features, or remove them from your query.")
     # Match the case of the keys
     join_keys = dict_to_lower(fjk.join_key_values)
 
@@ -179,11 +215,13 @@ def get_feature_vector_sql_from_training_view(features: List[Union[schemas.Featu
                 description="Returns the available features for the given a training view name", 
                 operation_id='get_training_view_features', tags=['Training Views'])
 @managed_transaction
-def get_training_view_features(view: str, db: Session = Depends(crud.get_db)):
+def get_training_view_features(view: str, version: Union[str, int] = 'latest', db: Session = Depends(crud.get_db)):
     """
     Returns the available features for the given a training view name
     """
-    return crud.get_training_view_features(db, view)
+    version = parse_version(version)
+    tv = _get_training_view_by_name(db, view, version)[0]
+    return crud.get_training_view_features(db, tv)
 
 
 @SYNC_ROUTER.post('/training-sets', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
@@ -253,7 +291,7 @@ def get_training_set_from_view(view: str, ftf: schemas.FeatureTimeframe, return_
 
     return ts
 
-@SYNC_ROUTER.get('/training-set-by-name', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
+@SYNC_ROUTER.get('/training-sets/{name}', status_code=status.HTTP_200_OK, response_model=schemas.TrainingSet,
                 description="Returns the training set as a Spark Dataframe from an EXISTING training set",
                 operation_id='get_training_set_by_name', tags=['Training Sets'])
 @managed_transaction
@@ -274,8 +312,8 @@ def get_training_set_by_name(name: str, version: Optional[int] = None, return_pk
                                      code=ExceptionCodes.DOES_NOT_EXIST, message=err)
 
     features: List[schemas.Feature] = crud.get_features_by_id(db, [int(i) for i in tsm.features.split(',')])
-    if tsm.view_id:
-        view: schemas.TrainingView = crud.get_training_views(db, _filter={'view_id': tsm.view_id})[0]
+    if tsm.view_id and tsm.view_version:
+        view: schemas.TrainingView = crud.get_training_views(db, _filter={'view_id': tsm.view_id, 'view_version': tsm.view_version})[0]
         ts: schemas.TrainingSet = _get_training_set_from_view(
             db, view.name, tsm.training_set_create_ts, features, tsm.training_set_start_ts,
             tsm.training_set_end_ts, return_pk_cols, return_ts_col, return_type=return_type
@@ -342,7 +380,7 @@ def get_training_set_details(name: str, version: int = None, db: Session = Depen
                                      code=ExceptionCodes.DOES_NOT_EXIST, status_code=status.HTTP_404_NOT_FOUND)
     # This returns features as a comma seperated string of IDs, we want the features
     ids = [int(id_) for id_ in tsi.features.split(',')]
-    tvws = crud.get_training_views(db, _filter={'view_id': tsi.view_id})
+    tvws = crud.get_training_views(db, _filter={'view_id': tsi.view_id, 'view_version': tsi.view_version})
     ts = schemas.TrainingSet(
         sql='', # Don't need the SQL for the UI
         training_view = tvws[0] if tvws else None, # This training set may not have a view
@@ -351,7 +389,7 @@ def get_training_set_details(name: str, version: int = None, db: Session = Depen
     )
     return ts
 
-@SYNC_ROUTER.post('/feature-sets', status_code=status.HTTP_201_CREATED, response_model=schemas.FeatureSet, 
+@SYNC_ROUTER.post('/feature-sets', status_code=status.HTTP_201_CREATED, response_model=schemas.FeatureSetDetail, 
                 description="Creates and returns a new feature set", operation_id='create_feature_set', tags=['Feature Sets'])
 @managed_transaction
 def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(crud.get_db)):
@@ -360,6 +398,29 @@ def create_feature_set(fset: schemas.FeatureSetCreate, db: Session = Depends(cru
     """
     return _create_feature_set(fset, db)
 
+@SYNC_ROUTER.put('/feature-sets/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.FeatureSetDetail, 
+                description="Creates a new version of an existing feature set", operation_id='update_feature_set', tags=['Feature Sets'])
+@managed_transaction
+def update_feature_set(name: str, fset: schemas.FeatureSetUpdate, db: Session = Depends(crud.get_db)):
+    """
+    Creates a new version of an existing feature set
+    """
+    crud.validate_schema_table([name])
+    schema, table = name.split('.')
+    return _update_feature_set(fset, schema, table, db)
+
+@SYNC_ROUTER.patch('/feature-sets/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.FeatureSet, 
+                description="Updates an existing feature set", operation_id='alter_feature_set', tags=['Feature Sets'])
+@managed_transaction
+def alter_feature_set(name: str, fset: schemas.FeatureSetAlter, version: Union[str, int] = 'latest', db: Session = Depends(crud.get_db)):
+    """
+    Alters an existing feature set version
+    """
+    version = parse_version(version)
+
+    crud.validate_schema_table([name])
+    schema, table = name.split('.')
+    return _alter_feature_set(fset, schema, table, version, db)
 
 @SYNC_ROUTER.get('/feature-set-exists', status_code=status.HTTP_200_OK, response_model=bool,
                 description="Returns whether or not a feature set exists", operation_id='feature_set_exists', tags=['Feature Set'])
@@ -378,23 +439,25 @@ def create_feature(fc: schemas.FeatureCreate, schema: str, table: str, db: Sessi
     """
     Add a feature to a feature set
     """
-
-    if DatabaseFunctions.table_exists(schema, table, db.get_bind()):
-        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
-                                        message=f"Feature Set {schema}.{table} is already deployed. You cannot "
-                                        f"add features to a deployed feature set.")
-    fsets: List[schemas.FeatureSet] = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema})
+    fsets: List[schemas.FeatureSetDetail] = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema, 'feature_set_version': 'latest'})
     if not fsets:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
                                         message=f"Feature Set {schema}.{table} does not exist. Please enter "
                                         f"a valid feature set.")
     fset = fsets[0]
+    if fset.deployed:
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
+                                        message=f"Feature Set {schema}.{table} is already deployed. You cannot "
+                                        f"add features to a deployed feature set. If you wish to create a new version "
+                                        "of this feature set with different features, you can do so with fs.update_feature_set()")
     crud.validate_feature(db, fc.name, fc.feature_data_type)
     fc.feature_set_id = fset.feature_set_id
     logger.info(f'Registering feature {fc.name} in Feature Store')
-    return crud.register_feature_metadata(db, fc)
+    feature = crud.register_feature_metadata(db, fc)
+    crud.register_feature_version(db, feature, fset.feature_set_id, fset.feature_set_version)
+    return feature
 
-@SYNC_ROUTER.post('/training-views', status_code=status.HTTP_201_CREATED,
+@SYNC_ROUTER.post('/training-views', status_code=status.HTTP_201_CREATED, response_model=schemas.TrainingViewDetail,
                 description="Registers a training view for use in generating training SQL", 
                 operation_id='create_training_view', tags=['Training Views'])
 @managed_transaction
@@ -407,8 +470,79 @@ def create_training_view(tv: schemas.TrainingViewCreate, db: Session = Depends(c
             status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
             message="Name of training view cannot be None!")
 
+    if len(crud.get_training_views(db, _filter={'name': tv.name})) > 0:
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS,
+                                     message=f"Training View {tv.name} already exists!")
+
     crud.validate_training_view(db, tv)
-    crud.create_training_view(db, tv)
+    detail = crud.create_training_view(db, tv)
+    return crud.create_training_view_version(db, detail)
+
+@SYNC_ROUTER.put('/training-views/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.TrainingViewDetail,
+                description="Creates a new version of an existing training view", 
+                operation_id='update_training_view', tags=['Training Views'])
+@managed_transaction
+def update_training_view(name: str, tv: schemas.TrainingViewUpdate, db: Session = Depends(crud.get_db)):
+    """
+    Creates a new version of an already existing training view for use in generating training SQL
+    """
+    views = crud.get_training_views(db, _filter={'name': name})
+    if not views:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                     message=f"Training View {name} does not exist. Please create it, or enter "
+                                        "an existing training view.")
+
+    view = views[0]
+
+    crud.validate_training_view(db, tv)
+
+    if tv.description:
+        logger.info(f'Updating description for {name}')
+        crud.update_feature_set_description(db, view.view_id, tv.description)
+
+    tv = schemas.TrainingViewDetail(**tv.__dict__, view_id=view.view_id)
+    return crud.create_training_view_version(db, tv, view.view_version + 1)
+
+@SYNC_ROUTER.patch('/training-views/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.TrainingViewDetail,
+                description="Updates an unreferenced version of a training view", 
+                operation_id='alter_training_view', tags=['Training Views'])
+@managed_transaction
+def alter_training_view(name: str, tv: schemas.TrainingViewAlter, version: Optional[Union[str, int]] = 'latest', db: Session = Depends(crud.get_db)):
+    """
+    Updates an unreferenced version of a training view
+    """
+    version = parse_version(version)
+    
+    views = crud.get_training_views(db, _filter={'name': name, 'view_version': version})
+    if not views:
+        v = f'with version {version}' if version != 'latest' else ''
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                     message=f"Training View {name} {v}does not exist. Please create it, or enter "
+                                        "an existing training view.")
+
+    view = views[0]
+
+    changes = {k: v for k, v in tv.items() if v is not None}
+    desc = changes.pop('description', None)
+
+    if changes:
+        tsets = crud.get_training_sets_from_view(db, view)
+        if tsets:
+            tsets = [tset[1] for tset in tsets]
+            raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                     message=f'The training view {name} cannot be altered because the following training '
+                                          f'sets are using it: {tsets}')
+        new = schemas.TrainingViewDetail(sql_text=view.sql_text, ts_column=view.ts_column, pk_columns=view.pk_columns)
+        new.__dict__.update((k, view.__dict__[k]) for k in new.__dict__.keys() & view.__dict__.keys())
+        new.__dict__.update((k, changes[k]) for k in new.__dict__.keys() & changes.keys())
+
+        crud.validate_training_view(db, new)
+        crud.alter_training_view_version(db, new)
+        crud.alter_training_view_keys(db, new)
+    if desc:
+        crud.update_training_view_description(db, view.view_id, desc)
+        new.description = desc
+    return new
 
 @SYNC_ROUTER.get('/training-view-exists', status_code=status.HTTP_200_OK, response_model=bool,
                 description="Returns whether or not a training view exists", operation_id='training_view_exists', tags=['Training Views'])
@@ -422,13 +556,14 @@ def training_view_exists(name: str, db: Session = Depends(crud.get_db)):
 @SYNC_ROUTER.post('/deploy-feature-set', status_code=status.HTTP_200_OK, response_model=schemas.FeatureSet,
                 description="Deploys a feature set to the database", operation_id='deploy_feature_set', tags=['Feature Sets'])
 @managed_transaction
-def deploy_feature_set(schema: str, table: str, db: Session = Depends(crud.get_db)):
+def deploy_feature_set(schema: str, table: str, version: Union[str, int] = 'latest', migrate: bool = False, db: Session = Depends(crud.get_db)):
     """
     Deploys a feature set to the database. This persists the feature stores existence.
     As of now, once deployed you cannot delete the feature set or add/delete features.
     The feature set must have already been created with :py:meth:`~features.FeatureStore.create_feature_set`
     """
-    return _deploy_feature_set(schema, table, db)
+    version = parse_version(version)
+    return _deploy_feature_set(schema, table, version, migrate, db)
 
 @SYNC_ROUTER.get('/feature-set-details', status_code=status.HTTP_200_OK,
                  response_model=Union[List[schemas.FeatureSetDetail],schemas.FeatureSetDetail],
@@ -446,7 +581,7 @@ def get_feature_set_details(schema: Optional[str] = None, table: Optional[str] =
         if not fsets:
             raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
                                      message=f'The feature set {schema}.{table} Does not exist.')
-        deps = crud.get_feature_set_dependencies(db, fsets[0].feature_set_id)
+        deps = crud.get_feature_set_dependencies(db, fsets[0])
         fsets[0].has_training_sets = bool(deps.get('training_set'))
         fsets[0].has_deployments = bool(deps.get('model'))
     else:
@@ -464,21 +599,20 @@ def get_feature_set_details(schema: Optional[str] = None, table: Optional[str] =
                              "description and optional label",
                  operation_id='get_training_view_details', tags=['Training Views'])
 @managed_transaction
-def get_training_view_details(name: Optional[str] = None, db: Session = Depends(crud.get_db)):
+def get_training_view_details(name: Optional[str] = None, version: Optional[Union[str, int]] = 'latest', db: Session = Depends(crud.get_db)):
     """
     Returns a description of all (or the specified) training views, the ID, name, description and optional label
     """
+    version = parse_version(version)
+
     if name:
-        tvws = _get_training_view_by_name(db, name)
-        if not tvws:
-            raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
-                                     message=f'The training view {name} Does not exist.')
+        tvws = _get_training_view_by_name(db, name, version)
 
     else:
         tvws = crud.get_training_views(db)
     descs = []
     for tvw in tvws:
-        feats: List[schemas.Feature] = crud.get_training_view_features(db, tvw.name)
+        feats: List[schemas.Feature] = crud.get_training_view_features(db, tvw)
         # Grab the feature set info and their corresponding names (schema.table) for the display table
         feat_sets: List[schemas.FeatureSet] = crud.get_feature_sets(db, feature_set_ids=[f.feature_set_id for f in feats])
         feat_sets: Dict[int, str] = {fset.feature_set_id: f'{fset.schema_name}.{fset.table_name}' for fset in feat_sets}
@@ -487,7 +621,7 @@ def get_training_view_details(name: Optional[str] = None, db: Session = Depends(
 
     return descs if len(descs) != 1 else descs[0]
 
-@SYNC_ROUTER.put('/features', status_code=status.HTTP_200_OK, response_model=schemas.Feature,
+@SYNC_ROUTER.put('/features/{name}', status_code=status.HTTP_200_OK, response_model=schemas.Feature,
                  description="Updates a feature's metadata (description, tags, attributes)",
                  operation_id='set_feature_description', tags=['Features'])
 @managed_transaction
@@ -536,45 +670,50 @@ def get_training_set_from_deployment(schema: str, table: str, label: str = None,
 
     return ts
 
-@SYNC_ROUTER.delete('/features', status_code=status.HTTP_200_OK, description="Remove a feature", 
+@SYNC_ROUTER.delete('/features/{name}', status_code=status.HTTP_200_OK, description="Remove a feature",
                     operation_id='remove_feature', tags=['Features'])
 @managed_transaction
 def remove_feature(name: str, db: Session = Depends(crud.get_db)):
     """
     Removes a feature from the Feature Store
     """
-    features = crud.get_features_by_name(db, [name])
+    features = crud.get_latest_feature(db, name)
     if not features:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
                                         message=f"Feature {name} does not exist. Please enter a valid feature.")
-    feature, schema, table, deployed = features[0]
+    feature, schema, table, version, deployed = features[0]
     if bool(deployed):
         raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.ALREADY_DEPLOYED,
-                                        message=f"Cannot delete Feature {feature.name} from deployed Feature Set {schema}.{table}")
-    crud.delete_feature(db, feature)
+                                        message=f"Cannot delete Feature {feature.name} from deployed Feature Set {schema}.{table}. "
+                                        "If you wish to create a new version "
+                                        "of this feature set with different features, you can do so with fs.update_feature_set()")
+    crud.remove_feature(db, feature, version)
 
-@SYNC_ROUTER.delete('/training-views', status_code=status.HTTP_200_OK, description="Remove a training view",
+@SYNC_ROUTER.delete('/training-views/{name}', status_code=status.HTTP_200_OK, description="Remove a training view",
                     operation_id='remove_training_view', tags=['Training Views'])
 @managed_transaction
-def remove_training_view(name: str, db: Session = Depends(crud.get_db)):
+def remove_training_view(name: str, version: Optional[Union[str, int]] = 'latest', db: Session = Depends(crud.get_db)):
     """
     Removes a Training View from the feature store as long as the training view isn't being used in a deployment
     """
-    tvw: schemas.TrainingView = _get_training_view_by_name(db, name)[0]
-    deps = crud.get_training_view_dependencies(db, tvw.view_id)
+    version = parse_version(version)
+
+    tvw: schemas.TrainingViewDetail = _get_training_view_by_name(db, name, version)[0]
+    deps = crud.get_training_view_dependencies(db, tvw)
     if deps:
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
                                      message=f'The training view {name} cannot be deleted because the following models '
                                              f'have been deployed using it: {deps}')
-    tset_ids = crud.get_training_sets_from_view(db, tvw.view_id)
+    tsets = crud.get_training_sets_from_view(db, tvw)
+    tset_ids = [tset[0] for tset in tsets]
     # Delete the dependent training sets
     crud.delete_training_set_stats(db, set(tset_ids))
     crud.delete_training_set_instances(db, set(tset_ids))
     crud.delete_training_set_features(db, set(tset_ids))
     crud.delete_training_sets(db, set(tset_ids))
-    # Delete the training view components (key and view)
-    crud.delete_training_view_keys(db, tvw.view_id)
-    crud.delete_training_view(db, tvw.view_id)
+    # Delete the training view components (key, version and view)
+    crud.delete_training_view_keys(db, tvw)
+    crud.delete_training_view_version(db, tvw)
 
     
 del_fset_desc = """Removes a Feature Set. You can only delete a feature set if there are no training set or model
@@ -584,47 +723,59 @@ about the feature set (and features) will remain. The feature set's deploy statu
 @SYNC_ROUTER.delete('/feature-sets', status_code=status.HTTP_200_OK, description=del_fset_desc,
                     operation_id='remove_feature_set', tags=['Feature Sets'])
 @managed_transaction
-def remove_feature_set(schema: str, table: str, purge: bool = False, keep_metadata: bool = False,
-                       db: Session = Depends(crud.get_db)) :
+def remove_feature_set(schema: str, table: str, purge: bool = False,
+                       version: Union[str, int] = None, db: Session = Depends(crud.get_db)) :
     """
     Deletes a feature set if appropriate. You can currently delete a feature set in two scenarios:
     1. The feature set has not been deployed
     2. The feature set has been deployed, but not linked to any training sets/model deployments
 
-    if keep_metadata is True, the feature set table and history table will be removed, but the metadata will be stored
-    (the status of the feature set will be reset to not-deployed).
-
     :param db: SQLAlchemy Session
     :return: None
     """
-    fset = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])
-    if not fset:
+    version = parse_version(version)
+
+    schema = schema.upper()
+    table = table.upper()
+
+    fsets = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema, 'feature_set_version': version})
+    if not fsets:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND ,code=ExceptionCodes.DOES_NOT_EXIST,
                                      message=f'The feature set ({schema}.{table}) you are trying to delete has not '
                                              'been created. Please ensure the feature set exists.')
-    fset = fset[0]
-    deps = crud.get_feature_set_dependencies(db, fset.feature_set_id)
-    if deps['model']:
+    err = ''
+    models = {}
+    training_sets = {}
+    for fset in fsets:
+        deps = crud.get_feature_set_dependencies(db, fset)
+        if deps['model']:
+            models[fset.feature_set_version] = deps["model"]
+        elif deps['training_set']:
+            training_sets[fset.feature_set_version] = deps['training_set']
+    if models:
+        err += f'''You cannot remove a Feature Set that has an associated model deployment. 
+        The Following Feature Set Versions have these models as dependents: {models}\n'''
+    if training_sets and not purge:
+        err += f'''You cannot remove a Feature Set that has associated Training Sets. 
+        The following Feature Set Versions have these Training Sets as dependents: {training_sets}. 
+        To drop these Feature Set Versions anyway, set purge=True (be careful! the training sets will be deleted)'''
+    if err:
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
-                                     message='You cannot remove a Feature Set that has an associated model deployment.'
-                                     ' The Following models have been deployed with Training Sets that depend on this'
-                                     f' Feature Set: {deps["model"]}')
-    elif deps['training_set']:
-        if not purge:
-            raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
-                                         message='You cannot remove a Feature Set that has associated Training Sets. '
-                                                 f'The following Training Sets depend on this Feature Set: '
-                                                 f'{deps["training_set"]}. To drop this Feature Set anyway, '
-                                                 f'set purge=True (be careful! the training sets will be deleted)')
-        else:
-            delete_feature_set(db, fset, cascade=True, training_sets=deps['training_set'],
-                               keep_metadata=keep_metadata)
-    else: # No dependencies
-        delete_feature_set(db, fset, cascade=False,keep_metadata=keep_metadata)
-    if Airflow.is_active:
-        fset_name = f'{fset.schema_name}.{fset.table_name}'
-        Airflow.unschedule_feature_set_calculation(fset_name)
-        Airflow.unschedule_pipeline(fset_name)
+                                    message=err)
+    # No dependencies
+    if training_sets:
+        sets = set()
+        [sets.update(ts) for ts in training_sets.values()]
+        delete_feature_set(db, fset.feature_set_id, version, cascade=True, training_sets=sets)
+    else:
+        delete_feature_set(db, fset.feature_set_id, version, cascade=False)
+    for fset in fsets:
+        table_name = __get_table_name(fset)
+        drop_feature_set_table(db, fset.schema_name, table_name)
+        if Airflow.is_active:
+            fset_name = f'{fset.schema_name}.{table_name}'
+            Airflow.unschedule_feature_set_calculation(fset_name)
+            Airflow.unschedule_pipeline(fset_name)
 
 
 @SYNC_ROUTER.get('/deployments', status_code=status.HTTP_200_OK, response_model=List[schemas.DeploymentDetail],
@@ -633,7 +784,7 @@ def remove_feature_set(schema: str, table: str, purge: bool = False, keep_metada
 @managed_transaction
 def get_deployments(schema: Optional[str] = None, table: Optional[str] = None, name: Optional[str] = None,
                     feature = Query('', alias='feat'), feature_set = Query('', alias='fset'),
-                    db: Session = Depends(crud.get_db)):
+                    version: Optional[Union[str, int]] = None, db: Session = Depends(crud.get_db)):
     """
     Returns a list of available deployments. If no parameters are passed in, all deployments are returned.
     Schema and Table can be passed in to get a specific deployment
@@ -656,7 +807,8 @@ def get_deployments(schema: Optional[str] = None, table: Optional[str] = None, n
                                         message=f"Feature {feature} does not exist!")
         return crud.get_deployments(db, feature=f[0])
     if feature_set:
-        fset = crud.get_feature_sets(db, feature_set_names=[feature_set])
+        version = parse_version(version)
+        fset = crud.get_feature_sets(db, _filter={'name': feature_set, 'feature_set_version': version})
         if not fset:
             raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.DOES_NOT_EXIST,
                                         message=f"Feature Set {feature_set} does not exist!")
@@ -791,7 +943,7 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
     # This registers the features and pipeline aggregations in the feature store
     create_pipeline_entities(db, sf, source, fset.feature_set_id)
     # Now that the features exist we can deploy the feature set
-    _deploy_feature_set(sf.schema_name, sf.table_name, db)
+    _deploy_feature_set(sf.schema_name, sf.table_name, fset.feature_set_version, False, db)
 
     if Airflow.is_active:
         if run_backfill:

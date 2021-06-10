@@ -71,7 +71,7 @@ def splice_machine_exception_handler(request: Request, exc: SpliceMachineExcepti
     logger.error(exc)
     return JSONResponse(
         status_code=exc.status_code,
-        content={ "code": exc.code, "message": exc.message },
+        content={ "code": exc.code, "message": exc.message }
     )
 
 @APP.exception_handler(StarletteHTTPException)
@@ -79,7 +79,7 @@ def http_exception_handler(request: Request, exc: StarletteHTTPException):
     logger.error(exc)
     return JSONResponse(
         status_code=exc.status_code,
-        content={ "code": ExceptionCodes.UNKNOWN, "message": exc.detail },
+        content={ "code": ExceptionCodes.UNKNOWN, "message": exc.detail }
     )
 
 

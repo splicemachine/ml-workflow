@@ -136,7 +136,6 @@ class SysSchemas(SQLAlchemyClient.MlflowBase):
     SCHEMANAME: Column = Column(String(128), nullable=False)
     AUTHORIZATIONID: Column = Column(String(128), nullable=False)
 
-
 class DatabaseDeployedMetadata(SQLAlchemyClient.MlflowBase):
     """
     Table for storing metadata information about the deployed models.

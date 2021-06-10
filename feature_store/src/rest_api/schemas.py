@@ -39,6 +39,8 @@ class Feature(FeatureBase):
 
 class FeatureDetail(Feature):
     feature_set_name: Optional[str] = None
+    feature_set_id: Optional[int] = None
+    feature_set_version: Optional[int] = None
     deployed: Optional[bool] = None
 
 class FeatureSearch(BaseModel):
@@ -110,19 +112,33 @@ class FeatureSetBase(BaseModel):
 
 class FeatureSetCreate(FeatureSetBase):
     features: Optional[List[FeatureCreate]] = None
-    pass
 
 class FeatureSet(FeatureSetBase):
     feature_set_id: int
-    deployed: Optional[bool] = False
-    deploy_ts: Optional[datetime] = None
     last_update_username: Optional[str] = None
     last_update_ts: Optional[datetime] = None
 
     class Config:
         orm_mode = True
 
-class FeatureSetDetail(FeatureSet):
+class FeatureSetAlter(BaseModel):
+    feature_set_id: Optional[int] = None
+    description: Optional[str] = None
+    primary_keys: Optional[Dict[str, DataType]] = None
+
+class FeatureSetUpdate(FeatureSetAlter):
+    primary_keys: Dict[str, DataType]
+    features: Optional[List[FeatureCreate]] = None
+
+class FeatureSetVersion(BaseModel):
+    feature_set_id: int
+    feature_set_version: int
+    deployed: bool = False
+    deploy_ts: Optional[datetime] = None
+    create_ts: datetime
+    create_username: Optional[str] = None
+
+class FeatureSetDetail(FeatureSet, FeatureSetVersion):
     features: Optional[List[Feature]] = None
     num_features: Optional[int] = None
     has_training_sets: Optional[bool] = None
@@ -131,23 +147,50 @@ class FeatureSetDetail(FeatureSet):
 class TrainingViewBase(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+
+class TrainingViewCreate(TrainingViewBase):
     pk_columns: List[str]
+    sql_text: str
     ts_column: str
     label_column: Optional[str] = None
     join_columns: Optional[List[str]] = None
 
-class TrainingViewCreate(TrainingViewBase):
+class TrainingViewUpdate(BaseModel):
+    description: Optional[str] = None
+    pk_columns: List[str]
     sql_text: str
+    ts_column: str
+    label_column: Optional[str] = None
+    join_columns: Optional[List[str]] = None
+
+class TrainingViewAlter(BaseModel):
+    description: Optional[str] = None
+    pk_columns: Optional[List[str]]
+    sql_text: Optional[str]
+    ts_column: Optional[str]
+    label_column: Optional[str] = None
+    join_columns: Optional[List[str]] = None
 
 class TrainingView(TrainingViewBase):
     view_id: Optional[int] = None
-    view_sql: str
+    # view_sql: str
 
     class Config:
         orm_mode = True
 
-class TrainingViewDetail(TrainingView):
-    features: List[FeatureDetail]
+class TrainingViewVersion(BaseModel):
+    view_id: Optional[int] = None
+    view_version: Optional[int] = None
+    sql_text: str
+    ts_column: str
+    label_column: Optional[str] = None
+    last_update_username: Optional[str] = None
+    last_update_ts: Optional[datetime] = None
+
+class TrainingViewDetail(TrainingView, TrainingViewVersion):
+    pk_columns: List[str]
+    join_columns: Optional[List[str]] = None
+    features: Optional[List[FeatureDetail]] = None
 
 class Source(BaseModel):
     name: str
@@ -229,6 +272,7 @@ class TrainingSetMetadata(BaseModel):
     features: Optional[str] = None
     label: Optional[str] = None
     view_id: Optional[int] = None
+    view_version: Optional[int] = None
     last_update_username: Optional[str] = None
     last_update_ts: Optional[datetime] = None
 
@@ -237,7 +281,7 @@ class TrainingSetMetadata(BaseModel):
 
 class TrainingSet(BaseModel):
     sql: str
-    training_view: Optional[TrainingView] = None
+    training_view: Optional[TrainingViewDetail] = None
     features: List[Feature]
     metadata: Optional[TrainingSetMetadata] = None
     data: Optional[Any] = None # For storing the result of the query

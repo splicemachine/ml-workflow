@@ -288,6 +288,11 @@ class DatabaseSQL:
     AND SCHEMANAME='{schema_name}'
     """
 
+    drop_trigger = \
+    """
+    DROP TRIGGER {trigger_name}
+    """
+
 class Converters:
     """
     Converters for the database
@@ -416,6 +421,16 @@ class DatabaseFunctions:
         """
         if DatabaseFunctions.trigger_exists(schema_name, trigger_name, db):
             db.execute(f'DROP TRIGGER {schema_name}.{trigger_name}')
+
+    @staticmethod
+    def drop_trigger_if_exists(schema_name: str, trigger_name: str, db):
+        """
+        Drops trigger if exists
+        :param trigger_name: trigger name
+        :param db: the SQLAlchemy session
+        """
+        if DatabaseFunctions.trigger_exists(schema_name, trigger_name, db):
+            db.execute(DatabaseSQL.drop_trigger.format(trigger_name=f'{schema_name}.{trigger_name}'))
 
 
 SQLAlchemyClient.create()
