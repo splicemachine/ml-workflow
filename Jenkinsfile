@@ -4,7 +4,7 @@ def git_email = "build@splicemachine.com"
 def vault_addr="https://vault.build.splicemachine-dev.io"
 
 // Launch the docker container
-node('dind') {
+node('dind-compose') {
 
     def dockerlogin = [
         [$class: 'VaultSecret', path: "secret/team/docker_hub", secretValues: [
@@ -62,10 +62,7 @@ node('dind') {
     stage('Prep Image') {
         dir('ml-workflow'){
             sh """
-            sed -i 's/_DEV.*//' docker-compose.yaml 
-            sed -i 's/image: splicemachine\\/sm_k8_mlflow:.*/&_DEV_${BUILD_NUMBER}/' docker-compose.yaml 
-            sed -i 's/image: splicemachine\\/sm_k8_bobby:.*/&_DEV_${BUILD_NUMBER}/' docker-compose.yaml 
-            sed -i 's/image: splicemachine\\/sm_k8_feature_store:.*/&_DEV_${BUILD_NUMBER}/' docker-compose.yaml 
+            python3 update_tag.py $(pwd)/docker-compose.yaml 
             cat docker-compose.yaml 
             """
         }
@@ -76,8 +73,25 @@ node('dind') {
         dir('ml-workflow'){
             sh "nohup dockerd >/dev/null 2>&1 &"
             sh "docker-compose build mlflow bobby feature_store"
+            sh "git status"
+            sh "git add docker-compose.yaml"
+            sh "git commit -m 'Update image tag to ${BUILD_NUMBER}'"
         }
     }
+
+    stage('Edit dbaas-infrastructure') {
+        dir('dbaas-infrastructure/dbaas-infrastructure/kubernetes/charts/splice/'){
+            sh """
+            python3 ../ml-workflow/update_tag.py $(pwd)/values.yaml
+            cat values.yaml 
+            git checkout -b update_ml_manager_${BUILD_NUMBER}
+            git status
+            git add values.yaml 
+            git commit -m 'Update image tag to ${BUILD_NUMBER}'
+            """
+        }
+    }
+    
 
     } catch (any) {
         // if there was an exception thrown, the build failed
