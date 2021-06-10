@@ -81,14 +81,13 @@ node('dind-compose') {
 
     stage('Edit dbaas-infrastructure') {
         dir('dbaas-infrastructure/dbaas-infrastructure/kubernetes/charts/splice/'){
-            sh """
-            python3 ../ml-workflow/update_tag.py $(pwd)/values.yaml
-            cat values.yaml 
-            git checkout -b update_ml_manager_${BUILD_NUMBER}
-            git status
-            git add values.yaml 
-            git commit -m 'Update image tag to ${BUILD_NUMBER}'
-            """
+            sh "python3 ../ml-workflow/update_tag.py $(pwd)/values.yaml"
+            sh "cat values.yaml"
+            sh "git checkout -b update_ml_manager_${BUILD_NUMBER}"
+            sh "git status"
+            sh "git add values.yaml"
+            sh "git commit -m 'Update image tag to ${BUILD_NUMBER}'"
+
         }
     }
     
