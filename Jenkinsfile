@@ -61,10 +61,8 @@ node('dind-compose') {
 
     stage('Prep Image') {
         dir('ml-workflow'){
-            sh """
-            python3 update_tag.py $(pwd)/docker-compose.yaml 
-            cat docker-compose.yaml 
-            """
+            sh "python3 update_tag.py $(pwd)/docker-compose.yaml"
+            sh "cat docker-compose.yaml"
         }
     }
     
