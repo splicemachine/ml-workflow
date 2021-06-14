@@ -43,7 +43,7 @@ node('dind-compose') {
           ])
        checkout([  
               $class: 'GitSCM', 
-              branches: [[name: '*/test']],
+              branches: [[name: '*/master']],
               doGenerateSubmoduleConfigurations: false, 
               extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'ml-workflow']], 
               submoduleCfg: [], 
@@ -71,12 +71,14 @@ node('dind-compose') {
         dir('ml-workflow'){
             sh "nohup dockerd >/dev/null 2>&1 &"
             sh "docker-compose build mlflow bobby feature_store"
+            sh "docker-compose push mlflow bobby feature_store"
             sh  """
             git config --global user.email "build@splicemachine.com"
             git config --global user.name "cloudspliceci"
             git status
             git add docker-compose.yaml
             git commit -m 'Update image tag to ${BUILD_NUMBER}'
+            git push
             """
         }
     }
@@ -92,7 +94,7 @@ node('dind-compose') {
             git status
             git add \$(pwd)/kubernetes/charts/splice/values.yaml
             git commit -m 'Update image tag to ${BUILD_NUMBER}'
-            hub pull-request -m 'Update ml-manager image tags to ${BUILD_NUMBER}'
+            git push 
             """
 
         }
