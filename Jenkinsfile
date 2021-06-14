@@ -71,20 +71,29 @@ node('dind-compose') {
         dir('ml-workflow'){
             sh "nohup dockerd >/dev/null 2>&1 &"
             sh "docker-compose build mlflow bobby feature_store"
-            sh "git status"
-            sh "git add docker-compose.yaml"
-            sh "git commit -m 'Update image tag to ${BUILD_NUMBER}'"
+            sh  """
+            git config --global user.email "build@splicemachine.com"
+            git config --global user.name "cloudspliceci"
+            git status
+            git add docker-compose.yaml
+            git commit -m 'Update image tag to ${BUILD_NUMBER}'
+            """
         }
     }
 
     stage('Edit dbaas-infrastructure') {
-        dir('dbaas-infrastructure/dbaas-infrastructure/kubernetes/charts/splice/'){
-            sh "python3 ../ml-workflow/update_tag.py \$(pwd)/values.yaml"
-            sh "cat values.yaml"
-            sh "git checkout -b update_ml_manager_${BUILD_NUMBER}"
-            sh "git status"
-            sh "git add values.yaml"
-            sh "git commit -m 'Update image tag to ${BUILD_NUMBER}'"
+        dir('dbaas-infrastructure'){
+            sh "python3 ../ml-workflow/update_tag.py \$(pwd)/kubernetes/charts/splice/values.yaml"
+            sh "cat \$(pwd)/kubernetes/charts/splice/values.yaml"
+            sh """
+            git config --global user.email "build@splicemachine.com"
+            git config --global user.name "cloudspliceci"
+            git checkout -b update_ml_manager_${BUILD_NUMBER}
+            git status
+            git add \$(pwd)/kubernetes/charts/splice/values.yaml
+            git commit -m 'Update image tag to ${BUILD_NUMBER}'
+            hub pull-request -m 'Update ml-manager image tags to ${BUILD_NUMBER}'
+            """
 
         }
     }
