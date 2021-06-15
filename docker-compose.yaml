@@ -75,4 +75,4 @@ services:
       args:
         splice_base_image_version: 0.0.2
       context: ./
-      dockerfile: feature_store/Dockerfile
+      dockerfile: ./feature_store/Dockerfile
