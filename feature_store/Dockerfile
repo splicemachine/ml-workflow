@@ -1,6 +1,3 @@
-#ARG splice_base_image_version
-#FROM splicemachine/sm_k8_base:$splice_base_image_version
-
 FROM python:3.7.3-slim
 
 # Shiro config
@@ -25,11 +22,6 @@ ENV LC_ALL en_US.utf-8
 ENV LANG en_US.utf-8
 
 COPY feature_store/build $BUILD_HOME
-
-# Install development packages.
-#RUN yum clean all && \
-#    rm -rf /var/cache/yum && \
-#    yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
 
 
 ## development packages, Install ODBC Driver, Install Python deps, Cleanup
@@ -60,24 +52,6 @@ RUN \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
-
-#RUN wget -q \
-#    https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-#    && mkdir /root/.conda \
-#    && bash Miniconda3-latest-Linux-x86_64.sh -b \
-#    && rm -f Miniconda3-latest-Linux-x86_64.sh
-#
-#ENV PATH="${PATH}:/root/miniconda3/bin"
-## Install Python dependencies
-#
-#RUN conda install -c anaconda postgresql
-#
-#RUN adduser postgres && \
-#    usermod -aG root postgres && \
-#    ln -s /root/miniconda3/bin/pg_ctl /usr/bin/pg_ctl
-#
-#RUN alias pip3=/usr/bin/pip3 && \
-#    alias python3=/usr/bin/python3
 
 COPY shared /tmp/shared
 RUN pip3 install /tmp/shared/.
