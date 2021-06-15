@@ -1,5 +1,5 @@
 """
-Build the Model Deployment Dockerfile and push to container
+Build the Model Deployment Dockerfile_old and push to container
 registry
 """
 import argparse

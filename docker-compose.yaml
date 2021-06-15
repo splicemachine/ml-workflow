@@ -68,11 +68,11 @@ services:
       AIRFLOW_URL: "http://host.docker.internal:9876/api/v1"
       AIRFLOW_USER: airflow
       AIRFLOW_PASSWORD: airflow
-    image: splicemachine/sm_k8_feature_store:0.0.5_patch7
+    image: splicemachine/sm_k8_feature_store:0.0.5_patch7_small1
     ports:
       - "8000:8000"
     build:
       args:
         splice_base_image_version: 0.0.2
       context: ./
-      dockerfile: ./feature_store/Dockerfile
+      dockerfile: feature_store/Dockerfile

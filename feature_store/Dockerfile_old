@@ -27,26 +27,23 @@ ENV LANG en_US.utf-8
 COPY feature_store/build $BUILD_HOME
 
 # Install development packages.
-#RUN yum clean all && \
-#    rm -rf /var/cache/yum && \
-#    yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
+RUN yum clean all && \
+    rm -rf /var/cache/yum && \
+    yum -y install $(cat /$BUILD_HOME/yum_packages.txt)
 
-
-## development packages, Install ODBC Driver, Install Python deps, Cleanup
-RUN mkdir -p mkdir -p /usr/share/man/man1 && \
-    apt-get update && \
-    apt-get install -y $(cat $BUILD_HOME/apt-packages.txt) && \
-    cd $BUILD_HOME && \
+# Install ODBC Driver
+RUN cd $BUILD_HOME && \
     wget -O splice_odbc.tar.gz $ODBC_DRIVER_ARTIFACT && \
     tar xzf splice_odbc.tar.gz && \
     cd splice_odbc_linux64-${odbc_driver_version} && \
-    ./install.sh -q && \
-    pip3 install -q --no-cache-dir -r $BUILD_HOME/requirements.txt && \
-    apt-get purge -y wget unzip build-essential libffi-dev libssl-dev && \
-    apt-get clean && \
-    rm -rf $BUILD_HOME/* && \
-    mkdir -p $SRC_HOME/lib
+    sh ./install.sh -q
 
+# Install Python dependencies
+RUN pip3 install -q --no-cache-dir -r $BUILD_HOME/requirements.txt
+
+# Remove Build Directories and Create source directory
+RUN rm -rf $BUILD_HOME/* && \
+    mkdir -p $SRC_HOME/lib
 
 # Copy Shiro (and dependencies) for authentication
 RUN \
@@ -61,23 +58,23 @@ RUN \
 
 ENV CLASSPATH=$SRC_HOME/lib/*:/usr/local/share/py4j/py4j0.10.8.1.jar
 
-#RUN wget -q \
-#    https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-#    && mkdir /root/.conda \
-#    && bash Miniconda3-latest-Linux-x86_64.sh -b \
-#    && rm -f Miniconda3-latest-Linux-x86_64.sh
-#
-#ENV PATH="${PATH}:/root/miniconda3/bin"
-## Install Python dependencies
-#
-#RUN conda install -c anaconda postgresql
-#
-#RUN adduser postgres && \
-#    usermod -aG root postgres && \
-#    ln -s /root/miniconda3/bin/pg_ctl /usr/bin/pg_ctl
-#
-#RUN alias pip3=/usr/bin/pip3 && \
-#    alias python3=/usr/bin/python3
+RUN wget -q \
+    https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+    && mkdir /root/.conda \
+    && bash Miniconda3-latest-Linux-x86_64.sh -b \
+    && rm -f Miniconda3-latest-Linux-x86_64.sh
+
+ENV PATH="${PATH}:/root/miniconda3/bin"
+# Install Python dependencies
+
+RUN conda install -c anaconda postgresql
+
+RUN adduser postgres && \
+    usermod -aG root postgres && \
+    ln -s /root/miniconda3/bin/pg_ctl /usr/bin/pg_ctl
+
+RUN alias pip3=/usr/bin/pip3 && \
+    alias python3=/usr/bin/python3
 
 COPY shared /tmp/shared
 RUN pip3 install /tmp/shared/.
