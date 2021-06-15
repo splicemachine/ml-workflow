@@ -1,4 +1,4 @@
-package com.splicemachine.mlrunner
+package com.splicemachine.mlrunner2
 
 import ml.combust.mleap.runtime.frame.{DefaultLeapFrame, Transformer}
 

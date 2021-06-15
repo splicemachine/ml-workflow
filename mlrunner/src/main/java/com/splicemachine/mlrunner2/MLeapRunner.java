@@ -1,4 +1,4 @@
-package com.splicemachine.mlrunner;
+package com.splicemachine.mlrunner2;
 
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.types.*;

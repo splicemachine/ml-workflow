@@ -1,4 +1,4 @@
-package com.splicemachine.mlrunner;
+package com.splicemachine.mlrunner2;
 
 import com.splicemachine.db.iapi.error.StandardException;
 import com.splicemachine.db.iapi.sql.Activation;
@@ -72,32 +72,42 @@ public class MLRunner implements DatasetProvider, VTICosting {
         }
         else {
             // Get the model blob and the library
-            final Object[] modelAndLibrary = AbstractRunner.getModelBlob(modelID);
-            final String lib = ((String) modelAndLibrary[1]).toLowerCase();
-            byte[] model = (byte[]) modelAndLibrary[0];
-            switch (lib) {
-                case "h2o":
-                    runner = new H2ORunner(model);
-                    break;
-                case "spark":
-                    runner = new MLeapRunner(model);
-                    break;
-                case "pkl":
-                    runner = new SKRunner(model);
-                    break;
-                case "h5":
-                    runner = new KerasRunner(model);
-                    break;
-                default:
-                    String err = "Run_ID: " + modelID + "Model library of type " + lib + " is not currently " +
-                            "supported for Database model deployment!";
-                    LOG.error(err);
-                    StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
-                    throw new RuntimeException(se);
+            Object[] modelAndLibrary;
+            synchronized(AbstractRunner.class) {
+                if (runnerCache.containsKey(modelID)) {
+                    LOG.info(String.format("Run_ID: %1$s - Got model %1$s from cache in another thread", modelID));
+                    runner = runnerCache.get(modelID);
+                    return runner;
+
+                }
+
+                modelAndLibrary = AbstractRunner.getModelBlob(modelID);
+                final String lib = ((String) modelAndLibrary[1]).toLowerCase();
+                byte[] model = (byte[]) modelAndLibrary[0];
+                switch (lib) {
+                    case "h2o":
+                        runner = new H2ORunner(model);
+                        break;
+                    case "spark":
+                        runner = new MLeapRunner(model);
+                        break;
+                    case "pkl":
+                        runner = new SKRunner(model);
+                        break;
+                    case "h5":
+                        runner = new KerasRunner(model);
+                        break;
+                    default:
+                        String err = "Run_ID: " + modelID + "Model library of type " + lib + " is not currently " +
+                                "supported for Database model deployment!";
+                        LOG.error(err);
+                        StandardException se = StandardException.newException(LANG_INTERNAL_ERROR, err);
+                        throw new RuntimeException(se);
+                }
+                // Add runner to cache
+                runnerCache.put(modelID, runner);
+                LOG.info(String.format("Run_ID: %1$s - Adding %2$s model %1$s to cache", modelID, lib));
             }
-            // Add runner to cache
-            runnerCache.put(modelID, runner);
-            LOG.info(String.format("Run_ID: %1$s - Adding %2$s model %1$s to cache", modelID, lib));
         }
         return runner;
     }

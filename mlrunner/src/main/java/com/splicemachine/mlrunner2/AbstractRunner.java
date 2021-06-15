@@ -1,4 +1,4 @@
-package com.splicemachine.mlrunner;
+package com.splicemachine.mlrunner2;
 
 import java.io.Externalizable;
 import java.io.IOException;
