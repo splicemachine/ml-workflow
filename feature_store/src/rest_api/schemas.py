@@ -299,3 +299,43 @@ class FeatureStoreSummary(BaseModel):
     num_pending_feature_set_deployments: int
     recent_features: List[str]
     most_used_features: List[str]
+
+class PipeAlter(BaseModel):
+    description: Optional[str] = None
+    function: Optional[str] = None
+    code: Optional[str] = None
+
+class PipeUpdate(PipeAlter):
+    function: str
+    code: str
+
+class PipeCreate(PipeUpdate):
+    name: str
+    type: str
+    language: str
+
+    @validator('type')
+    def check_type(cls, t):
+        if t not in ('S', 'B', 'O', 'R'):
+            raise ValueError("Type must be one of ('S','B','O','R')")
+        return t
+
+    @validator('language')
+    def check_language(cls, l):
+        if l not in ('python', 'pyspark', 'sql'):
+            raise ValueError("Language must be one of the currently supported languages: ('python', 'pyspark', 'sql')")
+        return l
+
+class PipeVersion(BaseModel):
+    pipe_id: int
+    pipe_version: int
+    function: str
+    code: str
+    last_update_ts: Optional[datetime] = None
+    last_update_username: Optional[str] = None
+
+class Pipe(PipeCreate):
+    pipe_id: int
+
+class PipeDetail(Pipe, PipeVersion):
+    pass

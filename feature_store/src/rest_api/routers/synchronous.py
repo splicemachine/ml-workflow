@@ -11,7 +11,8 @@ from ..utils.training_utils import (dict_to_lower, _get_training_view_by_name,
                                     _get_training_set, _get_training_set_from_view, register_training_set,
                                     training_set_to_json)
 from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, generate_backfill_sql,
-                                                    generate_backfill_intervals, generate_pipeline_sql, _get_source)
+                                                    generate_backfill_intervals, generate_pipeline_sql, _get_source, 
+                                                    _create_pipe, _update_pipe, _alter_pipe)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from ..decorators import managed_transaction
 from ..utils.airflow_utils import Airflow
@@ -73,7 +74,7 @@ def get_summary(db: Session = Depends(crud.get_db)):
     """
     return crud.get_fs_summary(db)
 
-@SYNC_ROUTER.get('/training-views', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingView],
+@SYNC_ROUTER.get('/training-views', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDetail],
                 description="Returns a list of all available training views", operation_id='get_training_views', tags=['Training Views'])
 @managed_transaction
 def get_training_views(db: Session = Depends(crud.get_db)):
@@ -82,7 +83,7 @@ def get_training_views(db: Session = Depends(crud.get_db)):
     """
     return crud.get_training_views(db)
 
-@SYNC_ROUTER.get('/training-views/{name}', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingView],
+@SYNC_ROUTER.get('/training-views/{name}', status_code=status.HTTP_200_OK, response_model=List[schemas.TrainingViewDetail],
                 description="Returns a list of all available training views with an optional filter", operation_id='get_training_views', tags=['Training Views'])
 @managed_transaction
 def get_training_view(name: str, version: Optional[Union[str, int]] = 'latest', db: Session = Depends(crud.get_db)):
@@ -500,8 +501,8 @@ def update_training_view(name: str, tv: schemas.TrainingViewUpdate, db: Session 
         logger.info(f'Updating description for {name}')
         crud.update_feature_set_description(db, view.view_id, tv.description)
 
-    tv = schemas.TrainingViewDetail(**tv.__dict__, view_id=view.view_id)
-    return crud.create_training_view_version(db, tv, view.view_version + 1)
+    view.__dict__.update(tv.__dict__)
+    return crud.create_training_view_version(db, view, view.view_version + 1)
 
 @SYNC_ROUTER.patch('/training-views/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.TrainingViewDetail,
                 description="Updates an unreferenced version of a training view", 
@@ -522,7 +523,7 @@ def alter_training_view(name: str, tv: schemas.TrainingViewAlter, version: Optio
 
     view = views[0]
 
-    changes = {k: v for k, v in tv.items() if v is not None}
+    changes = {k: v for k, v in tv.__dict__.items() if v is not None}
     desc = changes.pop('description', None)
 
     if changes:
@@ -980,7 +981,55 @@ def get_pipeline_sql(schema: str, table: str, db: Session = Depends(crud.get_db)
     source = crud.get_pipeline_source(db, pipeline.source_id)
     return generate_pipeline_sql(db, source, pipeline, feature_aggs)
 
+@SYNC_ROUTER.get('/pipes', status_code=status.HTTP_200_OK, response_model=List[schemas.PipeDetail],
+                description="Returns a list of available pipes", operation_id='get_pipes', tags=['Pipes'])
+@managed_transaction
+def get_pipes(names: Optional[List[str]] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
+    """
+    Returns a list of available pipes
+    """
+    return crud.get_pipes(db, names)
 
+@SYNC_ROUTER.post('/pipes', status_code=status.HTTP_201_CREATED, response_model=schemas.PipeDetail, 
+                description="Creates and returns a new pipe", operation_id='create_pipe', tags=['Pipes'])
+@managed_transaction
+def create_pipe(pipe: schemas.PipeCreate, db: Session = Depends(crud.get_db)):
+    """
+    Creates and returns a new pipe
+    """
+    return _create_pipe(pipe, db)
 
+@SYNC_ROUTER.put('/pipes/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.PipeDetail, 
+                description="Creates a new version of an existing pipe", operation_id='update_pipe', tags=['Pipes'])
+@managed_transaction
+def update_pipe(name: str, pipe: schemas.PipeUpdate, db: Session = Depends(crud.get_db)):
+    """
+    Creates a new version of an existing pipe
+    """
+    return _update_pipe(pipe, name, db)
 
+@SYNC_ROUTER.patch('/pipes/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.PipeDetail, 
+                description="Alters an undeployed version of a pipe", operation_id='alter_pipe', tags=['Pipes'])
+@managed_transaction
+def alter_pipe(name: str, pipe: schemas.PipeAlter, version: Union[str, int] = 'latest', db: Session = Depends(crud.get_db)):
+    """
+    Alters an undeployed version of a pipe
+    """
+    version = parse_version(version)
+    return _alter_pipe(pipe, name, version, db)
 
+@SYNC_ROUTER.delete('/pipes/{name}', status_code=status.HTTP_200_OK, description="Remove a pipe",
+                    operation_id='remove_pipe', tags=['Pipes'])
+@managed_transaction
+def remove_pipe(name: str, version: Optional[Union[str, int]] = None, db: Session = Depends(crud.get_db)):
+    """
+    Removes a pipe from the Feature Store
+    """
+    version = parse_version(version)
+    pipes = crud.get_pipes(db, _filter={'name': name, 'pipe_version': version})
+    if not pipes:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Pipe {name} does not exist. Please enter a valid pipe.")
+    pipe = pipes[0]
+    # check for pipeline dependencies
+    crud.delete_pipe(db, pipe.pipe_id, pipe.pipe_version if version == 'latest' else version)
