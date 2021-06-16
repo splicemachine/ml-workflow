@@ -990,6 +990,16 @@ def get_pipes(names: Optional[List[str]] = Query([], alias="name"), db: Session 
     """
     return crud.get_pipes(db, names)
 
+@SYNC_ROUTER.get('/pipes/{name}', status_code=status.HTTP_200_OK, response_model=List[schemas.PipeDetail],
+                description="Returns a list of available pipes", operation_id='get_pipes', tags=['Pipes'])
+@managed_transaction
+def get_pipe(name: str, version: Optional[Union[str, int]] = None, db: Session = Depends(crud.get_db)):
+    """
+    Returns a list of available pipes
+    """
+    version = parse_version(version)
+    return crud.get_pipes(db, _filter={"name": name, "pipe_version": version})
+
 @SYNC_ROUTER.post('/pipes', status_code=status.HTTP_201_CREATED, response_model=schemas.PipeDetail, 
                 description="Creates and returns a new pipe", operation_id='create_pipe', tags=['Pipes'])
 @managed_transaction

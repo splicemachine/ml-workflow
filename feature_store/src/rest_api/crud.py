@@ -2151,8 +2151,6 @@ def get_pipes(db: Session, names: List[str] = None, _filter: Dict[str, str] = No
                 q = q.join(mv, (pv.pipe_id == mv.c.pipe_id) & (pv.pipe_version == mv.c.pipe_version))
             else:
                 filters.append(pv.pipe_version == version)
-        else:
-            q = q.join(mv, (pv.pipe_id == mv.c.pipe_id) & (pv.pipe_version == mv.c.pipe_version))
         for name, value in _filter.items():
             if isinstance(value, str):
                 filters.append(func.upper(getattr(p, name)) == value.upper())
@@ -2185,7 +2183,7 @@ def alter_pipe_function(db: Session, pipe: schemas.PipeDetail, function: str, co
     db.query(models.PipeVersion). \
         filter((models.PipeVersion.pipe_id == pipe.pipe_id) &
             (models.PipeVersion.pipe_version == pipe.pipe_version)). \
-        update({'function': destringify_function(function), 'code': code})
+        update({'function': destringify_function(function), 'code': code, 'last_update_ts': datetime.now()})
 
 def delete_pipe(db: Session, pipe_id: int, version: int) -> None:
     """
