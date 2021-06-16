@@ -36,7 +36,7 @@ RUN mkdir -p mkdir -p /usr/share/man/man1 && \
     pip3 install -q --no-cache-dir -r $BUILD_HOME/requirements.txt && \
     apt-get purge -y wget unzip build-essential libffi-dev libssl-dev && \
     apt-get clean && \
-    rm -rf $BUILD_HOME/* && \
+    rm -rf $BUILD_HOME && \
     mkdir -p $SRC_HOME/lib
 
 
