@@ -998,7 +998,11 @@ def get_pipe(name: str, version: Optional[Union[str, int]] = None, db: Session =
     Returns a list of available pipes
     """
     version = parse_version(version)
-    return crud.get_pipes(db, _filter={"name": name, "pipe_version": version})
+    pipes = crud.get_pipes(db, _filter={"name": name, "pipe_version": version})
+    if not pipes:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any pipe with name '{name}'.")
+    return pipes
 
 @SYNC_ROUTER.post('/pipes', status_code=status.HTTP_201_CREATED, response_model=schemas.PipeDetail, 
                 description="Creates and returns a new pipe", operation_id='create_pipe', tags=['Pipes'])
@@ -1025,6 +1029,9 @@ def alter_pipe(name: str, pipe: schemas.PipeAlter, version: Union[str, int] = 'l
     """
     Alters an undeployed version of a pipe
     """
+    if not (pipe.description or pipe.func):
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f"Either description or func must be set to alter a pipe.")
     version = parse_version(version)
     return _alter_pipe(pipe, name, version, db)
 
