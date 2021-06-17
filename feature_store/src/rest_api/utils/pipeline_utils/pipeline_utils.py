@@ -285,7 +285,7 @@ def _alter_pipe(alter: schemas.PipeAlter, name: str, version: Union[str, int], d
                                         message=f"Pipe {name} {v}does not exist. Please enter a valid pipe.")
     pipe = pipes[0]
 
-    if alter.function:
+    if alter.func:
         #if pipe has dependent pipeline, throw error
         #else
         crud.validate_pipe_function(alter, pipe.ptype)
