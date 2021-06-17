@@ -26,7 +26,7 @@ from splicemachinesa.constants import RESERVED_WORDS
 
 from decimal import Decimal
 from uuid import uuid1
-from inspect import signature
+from inspect import signature, getsource
 import ast
 import cloudpickle
 
@@ -179,13 +179,15 @@ def validate_pipe(db, pipe: schemas.PipeCreate):
     validate_pipe_function(pipe, pipe.ptype)
 
 def validate_pipe_function(pipe: schemas.PipeAlter, ptype: str):
+    func = cloudpickle.loads(destringify_function(pipe.func))
+    pipe.code = getsource(func)
+
     if not any(isinstance(node, ast.Return) for node in ast.walk(ast.parse(pipe.code))):
         raise SpliceMachineException(
             status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
             message=f'Pipe functions must have a return statement')
 
     if ptype != 'S':
-        func = cloudpickle.loads(destringify_function(pipe.func))
         params = signature(func).parameters
 
         if len(params) == 0:

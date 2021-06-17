@@ -307,7 +307,6 @@ class PipeAlter(BaseModel):
 
 class PipeUpdate(PipeAlter):
     func: str
-    code: str
 
 class PipeCreate(PipeUpdate):
     name: str
