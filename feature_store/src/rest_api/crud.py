@@ -176,7 +176,7 @@ def validate_pipe(db, pipe: schemas.PipeCreate):
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS,
                                      message=f'Cannot create Pipe {pipe.name} as it already exists. Please try a new Pipe name.')
 
-    validate_pipe_function(pipe, pipe.type)
+    validate_pipe_function(pipe, pipe.ptype)
 
 def validate_pipe_function(pipe: schemas.PipeAlter, ptype: str):
     if not any(isinstance(node, ast.Return) for node in ast.walk(ast.parse(pipe.code))):
@@ -185,7 +185,7 @@ def validate_pipe_function(pipe: schemas.PipeAlter, ptype: str):
             message=f'Pipe functions must have a return statement')
 
     if ptype != 'S':
-        func = cloudpickle.loads(destringify_function(pipe.function))
+        func = cloudpickle.loads(destringify_function(pipe.func))
         params = signature(func).parameters
 
         if len(params) == 0:
@@ -2101,7 +2101,7 @@ def get_features_from_deployment(db: Session, tsid: int) -> List[schemas.Feature
 
 def register_pipe_metadata(db: Session, pipe: schemas.PipeCreate) -> schemas.Pipe:
     p = models.Pipe(name=pipe.name, description=pipe.description, 
-                    type=pipe.type, language=pipe.language)
+                    type=pipe.ptype, language=pipe.lang)
 
     db.add(p)
     db.flush()
@@ -2112,12 +2112,11 @@ def register_pipe_metadata(db: Session, pipe: schemas.PipeCreate) -> schemas.Pip
     return schemas.Pipe(**pd)
 
 def create_pipe_version(db: Session, pipe: schemas.Pipe, version: int = 1) -> schemas.PipeVersion:
-    pv = models.PipeVersion(pipe_id=pipe.pipe_id, pipe_version=version, function=destringify_function(pipe.function), code=pipe.code)
-    logger.info(type(pv.function))
+    pv = models.PipeVersion(pipe_id=pipe.pipe_id, pipe_version=version, function=destringify_function(pipe.func), code=pipe.code)
     db.add(pv)
     
     pvd = pv.__dict__.copy()
-    pvd['function'] = stringify_function(pvd['function'])
+    pvd['func'] = stringify_function(pvd['func'])
     return schemas.PipeVersion(**pvd)
 
 def get_pipes(db: Session, names: List[str] = None, _filter: Dict[str, str] = None) -> List[schemas.PipeDetail]:
@@ -2166,7 +2165,7 @@ def get_pipes(db: Session, names: List[str] = None, _filter: Dict[str, str] = No
         pd = pipe.__dict__.copy()
         pvd = pipe_version.__dict__.copy()
         pd.update(pvd)
-        pd['function'] = stringify_function(pd['function'])
+        pd['func'] = stringify_function(pd['func'])
         pipes.append(schemas.PipeDetail(**pd))
     return pipes
 
@@ -2179,11 +2178,11 @@ def update_pipe_description(db: Session, pipe_id: int, description: str):
     """
     db.query(models.Pipe).filter(models.Pipe.pipe_id==pipe_id).update({'description':description})
 
-def alter_pipe_function(db: Session, pipe: schemas.PipeDetail, function: str, code: str):
+def alter_pipe_function(db: Session, pipe: schemas.PipeDetail, func: str, code: str):
     db.query(models.PipeVersion). \
         filter((models.PipeVersion.pipe_id == pipe.pipe_id) &
             (models.PipeVersion.pipe_version == pipe.pipe_version)). \
-        update({'function': destringify_function(function), 'code': code, 'last_update_ts': datetime.now()})
+        update({'func': destringify_function(func), 'code': code, 'last_update_ts': datetime.now()})
 
 def delete_pipe(db: Session, pipe_id: int, version: int) -> None:
     """

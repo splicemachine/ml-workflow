@@ -262,7 +262,7 @@ def _update_pipe(update: schemas.PipeUpdate, name: str, db: Session):
         logger.info(f'Updating description for {name}')
         crud.update_pipe_description(db, pipe.pipe_id, update.description)
 
-    crud.validate_pipe_function(update, pipe.type)
+    crud.validate_pipe_function(update, pipe.ptype)
     pipe.__dict__.update(update.__dict__)
     pipe_version = crud.create_pipe_version(db, pipe, pipe.pipe_version + 1)
     pipe.pipe_version = pipe_version.pipe_version
@@ -288,9 +288,9 @@ def _alter_pipe(alter: schemas.PipeAlter, name: str, version: Union[str, int], d
     if alter.function:
         #if pipe has dependent pipeline, throw error
         #else
-        crud.validate_pipe_function(alter, pipe.type)
-        crud.alter_pipe_function(db, pipe, alter.function, alter.code)
-        pipe.function = alter.function
+        crud.validate_pipe_function(alter, pipe.ptype)
+        crud.alter_pipe_function(db, pipe, alter.func, alter.code)
+        pipe.func = alter.func
         pipe.code = alter.code
 
     if alter.description:
@@ -300,8 +300,8 @@ def _alter_pipe(alter: schemas.PipeAlter, name: str, version: Union[str, int], d
 
     return pipe
 
-def stringify_function(function: bytes) -> str:
-    return base64.encodebytes(function).decode('ascii').strip()
+def stringify_function(func: bytes) -> str:
+    return base64.encodebytes(func).decode('ascii').strip()
 
-def destringify_function(function: str) -> bytes:
-    return base64.decodebytes(function.strip().encode('ascii'))
+def destringify_function(func: str) -> bytes:
+    return base64.decodebytes(func.strip().encode('ascii'))

@@ -302,34 +302,34 @@ class FeatureStoreSummary(BaseModel):
 
 class PipeAlter(BaseModel):
     description: Optional[str] = None
-    function: Optional[str] = None
+    func: Optional[str] = None
     code: Optional[str] = None
 
 class PipeUpdate(PipeAlter):
-    function: str
+    func: str
     code: str
 
 class PipeCreate(PipeUpdate):
     name: str
-    type: str
-    language: str
+    ptype: str
+    lang: str
 
-    @validator('type')
-    def check_type(cls, t):
+    @validator('ptype')
+    def check_ptype(cls, t):
         if t not in ('S', 'B', 'O', 'R'):
-            raise ValueError("Type must be one of ('S','B','O','R')")
+            raise ValueError("ptype must be one of ('S','B','O','R')")
         return t
 
-    @validator('language')
-    def check_language(cls, l):
+    @validator('lang')
+    def check_lang(cls, l):
         if l not in ('python', 'pyspark', 'sql'):
-            raise ValueError("Language must be one of the currently supported languages: ('python', 'pyspark', 'sql')")
+            raise ValueError("lang must be one of the currently supported languages: ('python', 'pyspark', 'sql')")
         return l
 
 class PipeVersion(BaseModel):
     pipe_id: int
     pipe_version: int
-    function: str
+    func: str
     code: str
     last_update_ts: Optional[datetime] = None
     last_update_username: Optional[str] = None

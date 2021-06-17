@@ -505,12 +505,12 @@ class Pipe(SQLAlchemyClient.SpliceBase):
     pipe_id: Column = Column(Integer, primary_key=True)
     name: Column = Column(String(128), nullable=False, index=True, unique=True)
     description: Column = Column(String(500), nullable=True)
-    type: Column = Column(String(1)) # 'S'ource, 'B'atch, 'O'nline, 'R'ealtime
-    language: Column = Column(String(128))
+    ptype: Column = Column(String(1)) # 'S'ource, 'B'atch, 'O'nline, 'R'ealtime
+    lang: Column = Column(String(128))
 
     __table_args__: tuple = (
         CheckConstraint(
-            type.in_(('S', 'B', 'O', 'R'))
+            ptype.in_(('S', 'B', 'O', 'R'))
         ),
         {'schema': 'featurestore'}
     )
@@ -524,7 +524,7 @@ class PipeVersion(SQLAlchemyClient.SpliceBase):
     __table_args__ = {'schema': 'featurestore'}
     pipe_id: Column = Column(Integer, ForeignKey(Pipe.pipe_id, name='fk_pipe_version_pipe'), primary_key=True)
     pipe_version: Column = Column(Integer, primary_key=True)
-    function: Column = Column(LargeBinary(length=int(2e9)))
+    func: Column = Column(LargeBinary(length=int(2e9)))
     code: Column = Column(Text)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
