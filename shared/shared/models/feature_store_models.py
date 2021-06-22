@@ -7,7 +7,7 @@ from shared.logger.logging_config import logger
 from shared.services.database import SQLAlchemyClient, DatabaseSQL, DatabaseFunctions
 from sqlalchemy import event, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
-                        String, Text, DateTime, Numeric, Float)
+                        String, Text, DateTime, Numeric, Float, LargeBinary)
 from sqlalchemy.sql.elements import TextClause
 from mlflow.store.tracking.dbmodels.models import SqlRun
 
@@ -496,6 +496,39 @@ class SourceKey(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
+class Pipe(SQLAlchemyClient.SpliceBase):
+    """
+    This table keeps track of individual Pipes that can be chained together to form Pipelines. Pipes represent some function applied to data
+    being pushed to a Feature Set
+    """
+    __tablename__: str = "pipe"
+    pipe_id: Column = Column(Integer, primary_key=True)
+    name: Column = Column(String(128), nullable=False, index=True, unique=True)
+    description: Column = Column(String(500), nullable=True)
+    ptype: Column = Column(String(1)) # 'S'ource, 'B'atch, 'O'nline, 'R'ealtime
+    lang: Column = Column(String(128))
+
+    __table_args__: tuple = (
+        CheckConstraint(
+            ptype.in_(('S', 'B', 'O', 'R'))
+        ),
+        {'schema': 'featurestore'}
+    )
+
+class PipeVersion(SQLAlchemyClient.SpliceBase):
+    """
+    Pipe Version keeps track of the different versions of Pipes that are created
+    This is used by the Feature Store to maintain versioning
+    """
+    __tablename__: str = "pipe_version"
+    __table_args__ = {'schema': 'featurestore'}
+    pipe_id: Column = Column(Integer, ForeignKey(Pipe.pipe_id, name='fk_pipe_version_pipe'), primary_key=True)
+    pipe_version: Column = Column(Integer, primary_key=True)
+    func: Column = Column(LargeBinary(length=int(2e9)))
+    code: Column = Column(Text)
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
+    last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
+
 class Pipeline(SQLAlchemyClient.SpliceBase):
     """
     This table represents the instantiation of a Pipeline to feed a particular Feature Set from a Source. Pipelines
@@ -561,7 +594,7 @@ def create_deploy_historian():
 TABLES = [FeatureSet, FeatureSetVersion, PendingFeatureSetDeployment, FeatureSetKey, Feature, FeatureVersion, FeatureStats, 
           TrainingView, TrainingViewVersion, TrainingViewKey, TrainingSet, TrainingSetInstance, TrainingSetFeature, 
           TrainingSetFeatureStats, TrainingSetLabelStats, Deployment, DeploymentHistory, DeploymentFeatureStats, 
-          Source, SourceKey, Pipeline, PipelineOps, PipelineAgg]
+          Source, SourceKey, Pipe, PipeVersion, Pipeline, PipelineOps, PipelineAgg]
 
 def create_feature_store_tables(_sleep_secs=1) -> None:
     """

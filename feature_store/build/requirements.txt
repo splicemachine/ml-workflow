@@ -16,3 +16,4 @@ fastapi-utils==0.2.1
 uvloop==0.14.0
 httptools==0.1.1
 sqlalchemy_views
+cloudpickle==1.6.0

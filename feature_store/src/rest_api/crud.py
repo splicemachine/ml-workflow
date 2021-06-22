@@ -20,11 +20,15 @@ from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           __validate_feature_data_type, __validate_primary_keys,
                           __get_table_name)
 from .utils.feature_utils import model_to_schema_feature
+from .utils.pipeline_utils.pipeline_utils import stringify_function, destringify_function
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from splicemachinesa.constants import RESERVED_WORDS
 
 from decimal import Decimal
 from uuid import uuid1
+from inspect import signature, getsource
+import ast
+import cloudpickle
 
 
 def get_db():
@@ -158,6 +162,38 @@ def validate_feature_vector_keys(join_key_values, feature_sets) -> None:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.MISSING_ARGUMENTS,
                                      message=f"The following keys were not provided and must be: {missing_keys}")
 
+
+def validate_pipe(db, pipe: schemas.PipeCreate):
+    logger.info('Validating pipe')
+    if pipe.name.lower() in RESERVED_WORDS:
+        raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+            message=f'Pipe name {pipe.name} is in the list of reserved words. Pipe name must not use a reserved column name. '
+                    'For the full list see '
+                    'https://github.com/splicemachine/splice_sqlalchemy/blob/master/splicemachinesa/constants.py')
+
+    if db.query(models.Pipe).filter(models.Pipe.name == pipe.name).all():
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS,
+                                     message=f'Cannot create Pipe {pipe.name} as it already exists. Please try a new Pipe name.')
+
+    validate_pipe_function(pipe, pipe.ptype)
+
+def validate_pipe_function(pipe: schemas.PipeAlter, ptype: str):
+    func = cloudpickle.loads(destringify_function(pipe.func))
+    pipe.code = getsource(func)
+
+    if not any(isinstance(node, ast.Return) for node in ast.walk(ast.parse(pipe.code))):
+        raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+            message=f'Pipe functions must have a return statement')
+
+    if ptype != 'S':
+        params = signature(func).parameters
+
+        if len(params) == 0:
+            raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+            message=f'Non-source pipes must have at least 1 parameter.')
 
 def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, Union[str, int]],
                        feature_sets: List[schemas.FeatureSet],
@@ -1152,7 +1188,7 @@ def update_feature_set_deployment_status(db: Session, fset_id: int, deploy_statu
 
 def update_feature_set_description(db: Session, fset_id: int, description: str):
     """
-    Updates the deployment status of a feature set (for example, if someone is undeploying an fset).
+    Updates the description of a feature set.
 
     :param db: SqlAlchemy Session
     :param fset_id: Feature Set ID
@@ -1618,8 +1654,8 @@ def _register_training_view_keys(db: Session, tv: schemas.TrainingViewDetail) ->
     logger.info('Done.')
 
 def alter_training_view_version(db: Session, tv: schemas.TrainingViewDetail):
-    db.query(models.TrainingView). \
-        filter((models.TrainingView.view_id == tv.view_id) &
+    db.query(models.TrainingViewVersion). \
+        filter((models.TrainingViewVersion.view_id == tv.view_id) &
             (models.TrainingViewVersion.view_version == tv.view_version)). \
         update({
             'sql_text': tv.sql_text,
@@ -1631,7 +1667,7 @@ def alter_training_view_version(db: Session, tv: schemas.TrainingViewDetail):
 def alter_training_view_keys(db: Session, tv: schemas.TrainingViewDetail):
     db.query(models.TrainingViewKey). \
         filter((models.TrainingViewKey.view_id == tv.view_id) &
-            (models.TrainingViewVersionKey.view_version == tv.view_version)). \
+            (models.TrainingViewKey.view_version == tv.view_version)). \
         delete(synchronize_session='fetch')
 
     _register_training_view_keys(db, tv)
@@ -2065,6 +2101,111 @@ def get_features_from_deployment(db: Session, tsid: int) -> List[schemas.Feature
     features = [model_to_schema_feature(f) for f in q.all()]
     return features
 
+def register_pipe_metadata(db: Session, pipe: schemas.PipeCreate) -> schemas.Pipe:
+    p = models.Pipe(name=pipe.name, description=pipe.description, 
+                    type=pipe.ptype, language=pipe.lang)
+
+    db.add(p)
+    db.flush()
+
+    pd = pipe.__dict__
+    pd.update(p.__dict__)
+
+    return schemas.Pipe(**pd)
+
+def create_pipe_version(db: Session, pipe: schemas.Pipe, version: int = 1) -> schemas.PipeVersion:
+    pv = models.PipeVersion(pipe_id=pipe.pipe_id, pipe_version=version, function=destringify_function(pipe.func), code=pipe.code)
+    db.add(pv)
+    
+    pvd = pv.__dict__.copy()
+    pvd['func'] = stringify_function(pvd['func'])
+    return schemas.PipeVersion(**pvd)
+
+def get_pipes(db: Session, names: List[str] = None, _filter: Dict[str, str] = None) -> List[schemas.PipeDetail]:
+    """
+    Returns a list of available pipes
+
+    :param db: SqlAlchemy Session
+    :param _filter: Dictionary of filters to apply to the query. This filter can be on any attribute of Pipes.
+        If None, will return all Pipes
+    :return: List[PipeDetail] the list of Pipes
+    """
+    p = aliased(models.Pipe, name='p')
+    pv = aliased(models.PipeVersion, name='pv')
+
+    q = db.query(p, pv). \
+        join(pv, p.pipe_id == pv.pipe_id)
+
+    filters = []
+    
+    if names:
+        filters.append(func.upper(p.name).in_([name.upper() for name in names]))
+
+    mv = db.query(models.PipeVersion.pipe_id, 
+                func.max(models.PipeVersion.pipe_version).label('pipe_version')).\
+            group_by(models.PipeVersion.pipe_id).\
+            subquery('mv')
+    if _filter:
+        version = _filter.pop('pipe_version', None)
+        if version:
+            if version == 'latest':
+                q = q.join(mv, (pv.pipe_id == mv.c.pipe_id) & (pv.pipe_version == mv.c.pipe_version))
+            else:
+                filters.append(pv.pipe_version == version)
+        for name, value in _filter.items():
+            if isinstance(value, str):
+                filters.append(func.upper(getattr(p, name)) == value.upper())
+            else:
+                filters.append(getattr(p, name) == value)
+    else:
+        q = q.join(mv, (pv.pipe_id == mv.c.pipe_id) & (pv.pipe_version == mv.c.pipe_version))
+    
+    q = q.filter(and_(*filters))
+
+    pipes = []
+    for pipe, pipe_version in q.all():
+        pd = pipe.__dict__.copy()
+        pvd = pipe_version.__dict__.copy()
+        pd.update(pvd)
+        pd['func'] = stringify_function(pd['func'])
+        pipes.append(schemas.PipeDetail(**pd))
+    return pipes
+
+def update_pipe_description(db: Session, pipe_id: int, description: str):
+    """
+    Updates the description of a pipe
+
+    :param db: SqlAlchemy Session
+    :param pipe_id: Pipe ID
+    """
+    db.query(models.Pipe).filter(models.Pipe.pipe_id==pipe_id).update({'description':description})
+
+def alter_pipe_function(db: Session, pipe: schemas.PipeDetail, func: str, code: str):
+    db.query(models.PipeVersion). \
+        filter((models.PipeVersion.pipe_id == pipe.pipe_id) &
+            (models.PipeVersion.pipe_version == pipe.pipe_version)). \
+        update({'func': destringify_function(func), 'code': code, 'last_update_ts': datetime.now()})
+
+def delete_pipe(db: Session, pipe_id: int, version: int) -> None:
+    """
+    Deletes particular pipe version for a pipe
+
+    :param db: Database Session
+    :param pipe_id: ID of pipe to be deleted
+    :param version: version of pipe to be deleted
+    """
+    # Delete pipe version
+    logger.info("Removing version")
+    d = db.query(models.PipeVersion). \
+        filter(models.PipeVersion.pipe_id == pipe_id)
+    if version:
+        d = d.filter(models.PipeVersion.pipe_version == version)
+    d.delete(synchronize_session='fetch')
+
+    if not version or db.query(models.PipeVersion). \
+        filter(models.PipeVersion.pipe_id == pipe_id). \
+        count() == 0:
+            db.query(models.Pipe).filter(models.Pipe.pipe_id == pipe_id).delete(synchronize_session='fetch')
 
 # Feature/FeatureSet specific
 

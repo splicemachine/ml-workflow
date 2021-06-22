@@ -2,13 +2,15 @@ import shared.models.feature_store_models as models
 from ... import schemas, crud
 from . import helpers, constants
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Union
 import json
 from datetime import datetime
+import base64
 from ...constants import SQL
 from ..utils import sql_to_datatype
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from fastapi import status
+from shared.logger.logging_config import logger
 
 def _get_source(name: str, db: Session):
     """
@@ -225,3 +227,81 @@ def generate_pipeline_sql(db,  source: schemas.Source, pipeline: schemas.Pipelin
                '''
 
     return full_sql
+
+def _create_pipe(pipe: schemas.PipeCreate, db: Session) -> schemas.PipeDetail:
+    """
+    The implementation of the create_pipe route with logic here so other functions can call it
+    :param pipe: The pipe to create
+    :param db: The database session
+    :return: The created Pipe
+    """
+    crud.validate_pipe(db, pipe)
+    logger.info(f'Registering pipe {pipe.name} in Feature Store')
+    pipe_metadata = crud.register_pipe_metadata(db, pipe)
+    pipe_version = crud.create_pipe_version(db, pipe_metadata)
+    pd = pipe_metadata.__dict__
+    pd.update(pipe_version.__dict__)
+    return schemas.PipeDetail(**pd)
+
+def _update_pipe(update: schemas.PipeUpdate, name: str, db: Session):
+    """
+    The implementation of the update_pipe route with logic here so other functions can call it
+    :param update: The pipe version to create
+    :param db: The database session
+    :return: The created Pipe version
+    """
+
+    pipes: List[schemas.PipeDetail] = crud.get_pipes(db, _filter={'name': name, 'pipe_version': 'latest'})
+    if not pipes:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Pipe {name} does not exist. Please enter "
+                                        f"a valid pipe, or create this pipe using fs.create_pipe()")
+    pipe = pipes[0]
+
+    if update.description:
+        logger.info(f'Updating description for {name}')
+        crud.update_pipe_description(db, pipe.pipe_id, update.description)
+
+    crud.validate_pipe_function(update, pipe.ptype)
+    pipe.__dict__.update(update.__dict__)
+    pipe_version = crud.create_pipe_version(db, pipe, pipe.pipe_version + 1)
+    pipe.pipe_version = pipe_version.pipe_version
+
+    return pipe
+
+def _alter_pipe(alter: schemas.PipeAlter, name: str, version: Union[str, int], db: Session):
+    """
+    The implementation of the update_pipe route with logic here so other functions can call it
+    :param alter: The pipe to alter
+    :param name: The pipe name
+    :param version: The version to alter
+    :param db: The database session
+    :return: The updated Pipe
+    """
+    pipes: List[schemas.PipeDetail] = crud.get_pipes(db, _filter={'name': name, 'pipe_version': version})
+    if not pipes:
+        v = f'with version {version} ' if isinstance(version, int) else ''
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Pipe {name} {v}does not exist. Please enter a valid pipe.")
+    pipe = pipes[0]
+
+    if alter.func:
+        #if pipe has dependent pipeline, throw error
+        #else
+        crud.validate_pipe_function(alter, pipe.ptype)
+        crud.alter_pipe_function(db, pipe, alter.func, alter.code)
+        pipe.func = alter.func
+        pipe.code = alter.code
+
+    if alter.description:
+        logger.info(f'Updating description for {name}')
+        crud.update_pipe_description(db, pipe.pipe_id, alter.description)
+        pipe.description = alter.description
+
+    return pipe
+
+def stringify_function(func: bytes) -> str:
+    return base64.encodebytes(func).decode('ascii').strip()
+
+def destringify_function(func: str) -> bytes:
+    return base64.decodebytes(func.strip().encode('ascii'))
