@@ -1,5 +1,6 @@
 from .conftest import *
 
+
 @pytest.fixture(scope='function')
 def test_session_create(get_my_session):
     """

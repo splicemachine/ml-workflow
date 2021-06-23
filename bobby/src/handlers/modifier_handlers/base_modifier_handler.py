@@ -4,8 +4,9 @@ Handlers that modify other handlers.
 """
 from abc import abstractmethod
 
+from shared.db.connection import SQLAlchemyClient
 from shared.models.splice_models import Handler
-from shared.services.database import SQLAlchemyClient
+
 from ..base_handler import BaseHandler
 
 __author__: str = "Splice Machine, Inc."

@@ -2,8 +2,9 @@ import base64
 import json
 import logging
 import os
-from subprocess import Popen,check_output
+from subprocess import Popen, check_output
 from time import sleep, time
+
 import boto3
 import docker
 

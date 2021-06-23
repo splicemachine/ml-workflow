@@ -8,12 +8,13 @@ from typing import Dict
 import pytz
 from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer,
                         LargeBinary, PrimaryKeyConstraint, String, Table)
-from sqlalchemy.orm import backref, relationship, deferred
+from sqlalchemy.orm import backref, deferred, relationship
 from sqlalchemy.sql import text
 from sqlalchemy_views import CreateView
 
 from mlflow.store.tracking.dbmodels.models import SqlRun
-from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from shared.db.connection import SQLAlchemyClient
+from shared.db.sql import SQL
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -157,5 +158,5 @@ class DatabaseDeployedMetadata(SQLAlchemyClient.MlflowBase):
 live_model_status_view_name = 'LIVE_MODEL_STATUS'
 live_model_status_view = CreateView(
     element=Table(live_model_status_view_name, SQLAlchemyClient.MlflowBase.metadata),
-    selectable=text(DatabaseSQL.live_status_view_selector)
+    selectable=text(SQL.live_status_view_selector)
 )

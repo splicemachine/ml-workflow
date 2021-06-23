@@ -2,13 +2,18 @@
 Contains handler and functions
 pertaining to Database Model Removal
 """
-from sqlalchemy import func, and_
+from datetime import datetime
+
+from pytz import utc
+from sqlalchemy import and_, func
+
+from shared.db.functions import DatabaseFunctions
+from shared.db.sql import SQL
 from shared.models.feature_store_models import Deployment
 from shared.models.mlflow_models import DatabaseDeployedMetadata
+
 from .base_deployment_handler import BaseDeploymentHandler
-from shared.services.database import DatabaseSQL, DatabaseFunctions
-from datetime import datetime
-from pytz import utc
+
 
 class DatabaseUndeploymentHandler(BaseDeploymentHandler):
     """
@@ -61,7 +66,7 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
             self.schema_names.append(schema)
             self.table_names.append(table)
         else:
-            sql = DatabaseSQL.get_model_table_from_run.format(run_id=self.run_id)
+            sql = SQL.get_model_table_from_run.format(run_id=self.run_id)
             res = self.Session.execute(sql).fetchall()
             for schema, table in res:
                 self.schema_names.append(schema)
@@ -114,7 +119,7 @@ class DatabaseUndeploymentHandler(BaseDeploymentHandler):
             )
 
             tableid = self.Session.execute(
-                DatabaseSQL.get_table_id.format(table_name=table, schema_name=schema)
+                SQL.get_table_id.format(table_name=table, schema_name=schema)
             ).fetchone()[0]
             self.Session.query(DatabaseDeployedMetadata).filter(
                 and_(

@@ -22,11 +22,17 @@ from mlflow.store.db.utils import (_get_managed_session_maker,
                                    _initialize_tables, _upgrade_db,
                                    _verify_schema)
 from mlflow.store.tracking import SEARCH_MAX_RESULTS_THRESHOLD
-
-from mlflow.store.tracking.dbmodels.initial_models import (Base as InitialBase, SqlExperiment as InitialSqlExperiment,
-                                                           SqlMetric as InitialSqlMetric, SqlParam as InitialSqlParam,
-                                                           SqlRun as InitialSqlRun, SqlTag as InitialSqlTag)
-
+from mlflow.store.tracking.dbmodels.initial_models import Base as InitialBase
+from mlflow.store.tracking.dbmodels.initial_models import \
+    SqlExperiment as InitialSqlExperiment
+from mlflow.store.tracking.dbmodels.initial_models import \
+    SqlMetric as InitialSqlMetric
+from mlflow.store.tracking.dbmodels.initial_models import \
+    SqlParam as InitialSqlParam
+from mlflow.store.tracking.dbmodels.initial_models import \
+    SqlRun as InitialSqlRun
+from mlflow.store.tracking.dbmodels.initial_models import \
+    SqlTag as InitialSqlTag
 from mlflow.store.tracking.dbmodels.models import (SqlExperiment,
                                                    SqlLatestMetric, SqlRun,
                                                    SqlTag)
@@ -34,9 +40,8 @@ from mlflow.store.tracking.sqlalchemy_store import (
     SqlAlchemyStore, _get_attributes_filtering_clauses,
     _get_sqlalchemy_filter_clauses)
 from mlflow.utils.search_utils import SearchUtils
-
+from shared.db.connection import SQLAlchemyClient
 from shared.logger.logging_config import logger
-from shared.services.database import SQLAlchemyClient
 from shared.models.mlflow_models import (DatabaseDeployedMetadata, SqlArtifact,
                                          SysTables, SysTriggers, SysUsers,
                                          live_model_status_view)
@@ -77,20 +82,20 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         try:
             self.db_type: str = 'splicemachinesa'
             self.artifact_root_uri: str = artifact_uri
-            self.engine = SQLAlchemyClient.engine
+            self.engine = SQLAlchemyClient().engine
             self.inspector = peer_into_splice_db(self.engine)
 
             expected_tables = {table.__tablename__ for table in self.TABLES}
 
             logger.info("Initializing DB...")
             if len(expected_tables & set(self.inspector.get_table_names())) == 0:
-                _initialize_tables(SQLAlchemyClient.engine)
+                _initialize_tables(SQLAlchemyClient().engine)
             self._initialize_tables()
             logger.info("Finished Initialization...")
 
             Base.metadata.bind = self.engine
-            self.ManagedSessionMaker = _get_managed_session_maker(SQLAlchemyClient.SessionMaker, self.db_type)
-            _verify_schema(SQLAlchemyClient.engine)
+            self.ManagedSessionMaker = _get_managed_session_maker(SQLAlchemyClient().SessionMaker, self.db_type)
+            _verify_schema(SQLAlchemyClient().engine)
 
             if len(self.list_experiments()) == 0:
                 with self.ManagedSessionMaker() as session:
@@ -124,7 +129,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
 
         if 'live_model_status' not in self.inspector.get_view_names():
             logger.warning("Could not locate Live Model Status View... Creating")
-            with SQLAlchemyClient.engine.begin() as transaction:
+            with SQLAlchemyClient().engine.begin() as transaction:
                 transaction.execute(live_model_status_view)
 
     def _get_artifact_location(self, experiment_id: int) -> str:
@@ -145,7 +150,7 @@ class SpliceMachineTrackingStore(SqlAlchemyStore):
         Gets the current database transaction and returns it
         :return: (int) the Database transaction timestamp
         """
-        with SQLAlchemyClient.engine.begin() as transaction:
+        with SQLAlchemyClient().engine.begin() as transaction:
             tid = transaction.execute('CALL SYSCS_UTIL.SYSCS_GET_CURRENT_TRANSACTION()').fetchall()[0][0]
         return tid
 

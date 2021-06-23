@@ -1,5 +1,7 @@
-from sqlalchemy.types import (CHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, TEXT, BIGINT,
-                                DECIMAL, FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, BOOLEAN)
+from sqlalchemy.types import (BIGINT, BLOB, BOOLEAN, CHAR, CLOB, DATE, DECIMAL,
+                              FLOAT, INTEGER, NUMERIC, REAL, SMALLINT, TEXT,
+                              TIME, TIMESTAMP, VARCHAR)
+
 
 class SQL:
     FEATURE_STORE_SCHEMA = 'FeatureStore'

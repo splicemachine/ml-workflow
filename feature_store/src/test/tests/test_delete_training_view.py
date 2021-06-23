@@ -1,16 +1,21 @@
 from typing import List
 
 from requests.auth import HTTPBasicAuth
-from shared.logger.logging_config import logger
-from shared.models.feature_store_models import Feature, FeatureSet, FeatureSetKey
-from shared.services.database import DatabaseFunctions
 
-from ..fixtures.conftest import get_my_session, test_app, override_get_db, APP
-from ..fixtures.feature import test_session_create, create_deployed_fset, create_undeployed_fset
-from ..fixtures.feature_set import create_schema, create_fset_with_features, create_undeployed_fset
-from ..fixtures.training_set import create_training_set, create_deployment
-from shared.models.feature_store_models import TrainingView, TrainingViewKey, TrainingSet, TrainingSetFeature
+from shared.db.functions import DatabaseFunctions
+from shared.logger.logging_config import logger
+from shared.models.feature_store_models import (Feature, FeatureSet,
+                                                FeatureSetKey, TrainingSet,
+                                                TrainingSetFeature,
+                                                TrainingView, TrainingViewKey)
+
 from ...rest_api import crud
+from ..fixtures.conftest import APP, get_my_session, override_get_db, test_app
+from ..fixtures.feature import (create_deployed_fset, create_undeployed_fset,
+                                test_session_create)
+from ..fixtures.feature_set import (create_fset_with_features, create_schema,
+                                    create_undeployed_fset)
+from ..fixtures.training_set import create_deployment, create_training_set
 
 APP.dependency_overrides[crud.get_db] = override_get_db
 

@@ -1,15 +1,18 @@
-from .. import crud
-from .. import schemas
-import shared.models.feature_store_models as models
-from sqlalchemy.orm import Session
-from shared.api.exceptions import SpliceMachineException, ExceptionCodes
-from shared.services.database import DatabaseFunctions
-from fastapi import status
-from shared.logger.logging_config import logger
-from ..utils.airflow_utils import Airflow
-from typing import List, Set, Union
 import json
-from .utils import sql_to_datatype, __validate_primary_keys, __get_table_name
+from typing import List, Set, Union
+
+from fastapi import status
+from sqlalchemy.orm import Session
+
+import shared.models.feature_store_models as models
+from shared.api.exceptions import ExceptionCodes, SpliceMachineException
+from shared.db.functions import DatabaseFunctions
+from shared.logger.logging_config import logger
+
+from .. import crud, schemas
+from ..utils.airflow_utils import Airflow
+from .utils import __get_table_name, __validate_primary_keys, sql_to_datatype
+
 
 def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migrate: bool, db: Session):
     """
@@ -18,13 +21,15 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
     The feature set must have already been created with :py:meth:`~features.FeatureStore.create_feature_set`
     """
     try:
-        fset = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema, 'feature_set_version': version})[0]
+        fset = \
+        crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema, 'feature_set_version': version})[
+            0]
     except:
         version_text = '' if version == 'latest' else f' with version {version}'
         raise SpliceMachineException(
             status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
             message=f"Cannot find feature set {schema}.{table}{version_text}. Ensure you've created this "
-            f"feature set using fs.create_feature_set before deploying.")
+                    f"feature set using fs.create_feature_set before deploying.")
     if fset.deployed:
         raise SpliceMachineException(
             status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
@@ -35,7 +40,7 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
         raise SpliceMachineException(
             status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.OUTDATED_VERSION,
             message=f"Cannot deploy feature set with a lower version than the latest deployed version "
-            f"(v{current.feature_set_version}")
+                    f"(v{current.feature_set_version}")
 
     features = crud.get_features(db, fset)
     if not features:
@@ -56,6 +61,7 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
     if Airflow.is_active:
         Airflow.schedule_feature_set_calculation(f'{schema}.{__get_table_name(fset)}')
     return fset
+
 
 def _create_feature_set(fset: schemas.FeatureSetCreate, db: Session):
     """
@@ -81,6 +87,7 @@ def _create_feature_set(fset: schemas.FeatureSetCreate, db: Session):
         crud.bulk_register_feature_versions(db, fset.features, created_fset.feature_set_id)
     return created_fset
 
+
 def _update_feature_set(update: schemas.FeatureSetUpdate, schema: str, table: str, db: Session):
     """
     The implementation of the update_feature_set route with logic here so other functions can call it
@@ -90,11 +97,13 @@ def _update_feature_set(update: schemas.FeatureSetUpdate, schema: str, table: st
     """
     __validate_primary_keys(update.primary_keys)
 
-    fsets: List[schemas.FeatureSetDetail] = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema, 'feature_set_version': 'latest'})
+    fsets: List[schemas.FeatureSetDetail] = crud.get_feature_sets(db,
+                                                                  _filter={'table_name': table, 'schema_name': schema,
+                                                                           'feature_set_version': 'latest'})
     if not fsets:
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
-                                        message=f"Feature Set {schema}.{table} does not exist. Please enter "
-                                        f"a valid feature set, or create this feature set using fs.create_feature_set()")
+                                     message=f"Feature Set {schema}.{table} does not exist. Please enter "
+                                             f"a valid feature set, or create this feature set using fs.create_feature_set()")
     fset = fsets[0]
 
     if update.description:
@@ -123,6 +132,7 @@ def _update_feature_set(update: schemas.FeatureSetUpdate, schema: str, table: st
 
     return fset
 
+
 def _alter_feature_set(alter: schemas.FeatureSetAlter, schema: str, table: str, version: Union[str, int], db: Session):
     """
     The implementation of the alter_feature_set route with logic here so other functions can call it
@@ -132,31 +142,35 @@ def _alter_feature_set(alter: schemas.FeatureSetAlter, schema: str, table: str, 
     :param db: The database session
     :return: The altered Feature Set
     """
-    fsets: List[schemas.FeatureSetDetail] = crud.get_feature_sets(db, _filter={'table_name': table, 'schema_name': schema, 'feature_set_version': version})
+    fsets: List[schemas.FeatureSetDetail] = crud.get_feature_sets(db,
+                                                                  _filter={'table_name': table, 'schema_name': schema,
+                                                                           'feature_set_version': version})
     if not fsets:
         v = f'with version {version} ' if isinstance(version, int) else ''
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
-                                        message=f"Feature Set {schema}.{table} {v}does not exist. Please enter "
-                                        f"a valid feature set.")
+                                     message=f"Feature Set {schema}.{table} {v}does not exist. Please enter "
+                                             f"a valid feature set.")
     fset = fsets[0]
 
     if alter.primary_keys:
         if fset.deployed:
-            raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.ALREADY_DEPLOYED,
-                                        message=f"Cannot update primary keys of a deployed feature set. "
-                                        "If you wish to change the primary keys, please create a new version of the feature set")
+            raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE,
+                                         code=ExceptionCodes.ALREADY_DEPLOYED,
+                                         message=f"Cannot update primary keys of a deployed feature set. "
+                                                 "If you wish to change the primary keys, please create a new version of the feature set")
         __validate_primary_keys(alter.primary_keys)
         logger.info(f'Updating keys for {fset.schema_name}.{fset.table_name}')
         alter.feature_set_id = fset.feature_set_id
         crud.update_feature_set_keys(db, alter, fset.feature_set_version)
         fset.primary_keys = alter.primary_keys
-    
+
     if alter.description:
         logger.info(f'Updating description for {fset.schema_name}.{fset.table_name}')
         crud.update_feature_set_description(db, fset.id, alter.description)
         fset.description = alter.description
 
     return fset
+
 
 def _get_feature_sets(names: List[str], db: Session) -> List[schemas.FeatureSet]:
     """
@@ -169,6 +183,7 @@ def _get_feature_sets(names: List[str], db: Session) -> List[schemas.FeatureSet]
     """
     crud.validate_schema_table(names)
     return crud.get_feature_sets(db, feature_set_names=names)
+
 
 def model_to_schema_feature(feat: models.Feature) -> schemas.FeatureDetail:
     """
@@ -234,4 +249,3 @@ def drop_feature_set_table(db: Session, schema_name: str, table_name: str):
     DatabaseFunctions.drop_table_if_exists(schema_name, table_name, db.get_bind())
     logger.info("Dropping history table")
     DatabaseFunctions.drop_table_if_exists(schema_name, f'{table_name}_history', db.get_bind())
-

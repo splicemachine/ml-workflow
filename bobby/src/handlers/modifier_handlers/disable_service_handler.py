@@ -1,6 +1,6 @@
-from .base_modifier_handler import BaseModifierHandler
-
 from shared.services.handlers import HandlerNames
+
+from .base_modifier_handler import BaseModifierHandler
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"

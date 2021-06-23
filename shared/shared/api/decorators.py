@@ -1,18 +1,17 @@
 import functools
 
-from fastapi import Depends, status
-from fastapi.exceptions import RequestValidationError
-from shared.api.exceptions import SpliceMachineException, ExceptionCodes
-from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi import Depends
 from sqlalchemy.orm import Session
-
-from .crud import get_db
+from shared.db.connection import SQLAlchemyClient
 from shared.logger.logging_config import logger
 
-def managed_transaction(func):
 
+def managed_transaction(func):
+    """
+    Managed Transaction with automatic rollback, flushing, and exception handling
+    """
     @functools.wraps(func)
-    def wrap_func(*args, db: Session = Depends(get_db), **kwargs):
+    def wrap_func(*args, db: Session = Depends(SQLAlchemyClient().get_session), **kwargs):
         try:
             result = func(*args, db=db, **kwargs)
             logger.info("Committing...")

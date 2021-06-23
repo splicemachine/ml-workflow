@@ -1,8 +1,12 @@
-from typing import Tuple, List
 import re
-from shared.api.exceptions import SpliceMachineException, ExceptionCodes
+from typing import List, Tuple
+
 from fastapi import status
+
+from shared.api.exceptions import ExceptionCodes, SpliceMachineException
+
 from . import constants as c
+
 
 def build_agg_feature_name(feature_prefix: str, agg_func: str, agg_window: str) -> str:
     """

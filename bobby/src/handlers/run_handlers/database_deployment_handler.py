@@ -6,17 +6,20 @@ from typing import Optional
 
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructField, StructType
-from sqlalchemy import inspect as peer_into_splice_db, text
-from mlflow.store.tracking.dbmodels.models import SqlParam
+from sqlalchemy import inspect as peer_into_splice_db
+from sqlalchemy import text
 
+from mlflow.store.tracking.dbmodels.models import SqlParam
+from shared.db.connection import SQLAlchemyClient
+from shared.db.converters import Converters
+from shared.db.sql import SQL
 from shared.models.model_types import Metadata, Representations
-from shared.services.database import Converters, SQLAlchemyClient, DatabaseSQL
-from shared.services.database import SQLAlchemyClient
 
 from .base_deployment_handler import BaseDeploymentHandler
-from .db_deploy_utils.db_representation_creator import DatabaseRepresentationCreator
-from .db_deploy_utils.db_model_ddl import DatabaseModelDDL
 from .db_deploy_utils.db_metadata_preparer import DatabaseModelMetadataPreparer
+from .db_deploy_utils.db_model_ddl import DatabaseModelDDL
+from .db_deploy_utils.db_representation_creator import \
+    DatabaseRepresentationCreator
 from .db_deploy_utils.entities.db_model import Model
 
 
@@ -41,14 +44,14 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.jvm = self.spark_session._jvm
         self.model: Optional[Model] = None
 
-        self.savepoint = self.Session.begin_nested() # Create a savepoint in case of errors
+        self.savepoint = self.Session.begin_nested()  # Create a savepoint in case of errors
 
     def _validate_primary_key(self):
         """
         Validates the primary key passed by the user conforms to SQL. If the user is deploying to an existing table
         This verifies that the table has a primary key
         """
-        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
+        inspector = peer_into_splice_db(SQLAlchemyClient().engine)
         create_model_table = self.task.parsed_payload['create_model_table']
         primary_key = self.task.parsed_payload['primary_key']
 
@@ -85,7 +88,6 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         self.model = self.creator.model
         self.logger.info("Done.", send_db=True)
 
-
     def _add_model_examples_from_df(self):
         """
         Add model examples from a dataframe
@@ -102,8 +104,9 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
                                  for field in struct_schema})
         # The database
         self.model.add_metadata(Metadata.SCHEMA_STR,
-                                ', '.join([f"{field.name.upper()} {Converters.SPARK_DB_CONVERSIONS[str(field.dataType).split('(')[0]].upper()}"
-                                 for field in struct_schema]) + ',')
+                                ', '.join([
+                                              f"{field.name.upper()} {Converters.SPARK_DB_CONVERSIONS[str(field.dataType).split('(')[0]].upper()}"
+                                              for field in struct_schema]) + ',')
         self.logger.info("Done.")
 
     def _add_model_examples_from_db(self, table_name: str, schema_name: str):
@@ -113,7 +116,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         :param schema_name: schema to retrieve examples from
         """
         import pyspark.sql.types as spark_types
-        inspector = peer_into_splice_db(SQLAlchemyClient.engine)
+        inspector = peer_into_splice_db(SQLAlchemyClient().engine)
         struct_type = StructType()
         schema_dict = {}
         schema_str = []
@@ -188,7 +191,7 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         Update the artifact with the retrieved data
         """
         self.Session.execute(
-            text(DatabaseSQL.update_artifact_database_blob.format(
+            text(SQL.update_artifact_database_blob.format(
                 run_uuid=self.artifact.run_uuid, name=self.artifact.name
             )), dict(binary=self.model.get_representation(Representations.BYTES))
         )
@@ -202,20 +205,21 @@ class DatabaseDeploymentHandler(BaseDeploymentHandler):
         payload = self.task.parsed_payload
         ddl_creator = DatabaseModelDDL(session=self.Session, model=self.model, run_id=payload['run_id'],
                                        primary_key=payload['primary_key'], schema_name=payload['db_schema'],
-                                       table_name=payload['db_table'], model_columns=self.model.get_metadata(Metadata.MODEL_COLUMNS),
-                                       create_model_table=payload['create_model_table'],logger=self.logger,
+                                       table_name=payload['db_table'],
+                                       model_columns=self.model.get_metadata(Metadata.MODEL_COLUMNS),
+                                       create_model_table=payload['create_model_table'], logger=self.logger,
                                        library_specific_args=payload['library_specific'], request_user=self.task.user,
-                                       max_batch_size=payload.get('max_batch_size',10000))
+                                       max_batch_size=payload.get('max_batch_size', 10000))
         ddl_creator.create()
         self.logger.info("Flushing", send_db=True)
         self.Session.flush()
         self.logger.info("Committing Transaction to Database", send_db=True)
-        self.savepoint.commit() # Release the savepoint so we can commit transactions
+        self.savepoint.commit()  # Release the savepoint so we can commit transactions
         self.Session.commit()
         self.logger.info("Committed.", send_db=True)
 
     def exception_handler(self, exc: Exception):
-        self.logger.info("Rolling back...",send_db=True)
+        self.logger.info("Rolling back...", send_db=True)
         self.savepoint.rollback()
         self.Session.rollback()
         self._cleanup()  # always run cleanup, regardless of success or failure

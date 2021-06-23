@@ -10,8 +10,8 @@ from subprocess import check_call as run_shell_command
 from zipfile import ZipFile
 
 from mlflow.tracking import MlflowClient
-from shared.models.mlflow_models import SqlArtifact
 from shared.logger.job_lifecycle_manager import JobLifecycleManager
+from shared.models.mlflow_models import SqlArtifact
 
 from ..base_handler import BaseHandler
 
