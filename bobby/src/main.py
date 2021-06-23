@@ -169,8 +169,7 @@ def check_for_k8s_deployments() -> None:
     check_db_for_jobs()  # Add new jobs to the Job Ledger
 
 
-@APP.route('/job', methods=['POST'])
-@HTTP.generate_json_response
+@APP.post('/job', summary="Have bobby search for new jobs in the database", response_model=dict)
 def get_new_jobs():
     """
     Calls the function to get the new pending jobs via the API endpoint /job
