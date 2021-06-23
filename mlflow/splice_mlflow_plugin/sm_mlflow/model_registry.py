@@ -1,6 +1,6 @@
 from mlflow.store.db.utils import _get_managed_session_maker
 from mlflow.store.model_registry.sqlalchemy_store import SqlAlchemyStore
-from shared.services.database import SQLAlchemyClient
+from shared.db.connection import SQLAlchemyClient
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
@@ -25,5 +25,5 @@ class SpliceMachineModelRegistry(SqlAlchemyStore):
         :param db_uri: variable containing dummy tracking uri
         """
         self.db_type: str = 'splicemachinesa'
-        self.engine = SQLAlchemyClient.engine
-        self.ManagedSessionMaker = _get_managed_session_maker(SQLAlchemyClient.SessionMaker, self.db_type)
+        self.engine = SQLAlchemyClient().engine
+        self.ManagedSessionMaker = _get_managed_session_maker(SQLAlchemyClient().SessionMaker, self.db_type)

@@ -1,12 +1,13 @@
+from typing import Dict, List
+
 from pyspark.ml import PipelineModel
 from pyspark.ml import classification as spark_classification
 from pyspark.ml import clustering as spark_clustering
 from pyspark.ml import recommendation as spark_recommendation
 from pyspark.ml import regression as spark_regression
 from pyspark.ml.feature import IndexToString
-from shared.models.model_types import Metadata, Representations
-from typing import List, Dict
-from shared.models.model_types import SparkModelType
+
+from shared.models.model_types import Metadata, Representations, SparkModelType
 
 
 class SparkUtils:

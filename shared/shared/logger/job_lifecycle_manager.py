@@ -5,9 +5,9 @@ by updating the contents of a cell
 from sqlalchemy import text
 
 from shared.logger.logging_config import logger
-from shared.services.database import DatabaseSQL, SQLAlchemyClient
 from shared.models.splice_models import Job
-
+from shared.db.connection import DBLoggingClient
+from shared.db.sql import SQL
 
 class JobLifecycleManager:
     """
@@ -28,7 +28,7 @@ class JobLifecycleManager:
         self.task_id = task_id
         self.task = None
 
-        self.Session = SQLAlchemyClient.LoggingSessionFactory()
+        self.Session = DBLoggingClient().LoggingSessionFactory()
 
         self.handler_id = logger.add(
             self.splice_sink, format=self.logging_format, filter=self.message_filter
@@ -67,7 +67,7 @@ class JobLifecycleManager:
             self.Session.add(self.task)
 
         self.Session.execute(
-            text(DatabaseSQL.update_job_log),
+            text(SQL.update_job_log),
             params={'message': bytes(str(message), encoding='utf-8'), 'task_id': self.task_id}
         )
         self.safe_commit()
@@ -95,7 +95,7 @@ class JobLifecycleManager:
         Destroys the scoped Session at the end of the loggers life
         """
         self.Session.close()
-        SQLAlchemyClient.LoggingSessionFactory.remove()
+        DBLoggingClient().LoggingSessionFactory.remove()
         self.Session = None
 
     def destroy_logger(self):

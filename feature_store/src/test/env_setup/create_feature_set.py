@@ -1,5 +1,5 @@
-from splicemachine.features import FeatureStore
-from splicemachine.features import FeatureType
+from splicemachine.features import FeatureStore, FeatureType
+
 fs = FeatureStore()
 fs.set_feature_store_url('http://localhost:8000')
 fs.login_fs('local','testing')

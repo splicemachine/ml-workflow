@@ -2,18 +2,16 @@
 Contains handler and functions
 pertaining to Kubernetes Model Deployment
 """
+from base64 import b64encode as e
 from os import environ as env_vars
 from subprocess import check_output
 from tempfile import NamedTemporaryFile
 
-from yaml import dump as dump_yaml
-
 import requests
-from requests.exceptions import ConnectionError
 from requests.auth import HTTPBasicAuth
-from base64 import b64encode as e
-
+from requests.exceptions import ConnectionError
 from retrying import retry
+from yaml import dump as dump_yaml
 
 from shared.services.kubernetes_api import KubernetesAPIService
 

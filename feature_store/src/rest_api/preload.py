@@ -1,5 +1,7 @@
 from shared.logger.logging_config import logger
-from shared.models.feature_store_models import wait_for_runs_table, create_feature_store_tables
+from shared.models.feature_store_models import (create_feature_store_tables,
+                                                wait_for_runs_table)
+
 
 def setup():
     """

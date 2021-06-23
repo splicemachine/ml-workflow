@@ -1,9 +1,9 @@
 from .aws_deployment_handler import SageMakerDeploymentHandler
 from .azure_deployment_handler import AzureDeploymentHandler
-from .kubernetes_deployment_handler import KubernetesDeploymentHandler
-from .kubernetes_undeployment_handler import KubernetesUndeploymentHandler
 from .database_deployment_handler import DatabaseDeploymentHandler
 from .database_undeployment_handler import DatabaseUndeploymentHandler
+from .kubernetes_deployment_handler import KubernetesDeploymentHandler
+from .kubernetes_undeployment_handler import KubernetesUndeploymentHandler
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"

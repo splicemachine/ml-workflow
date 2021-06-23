@@ -6,14 +6,14 @@ import re
 import string
 from typing import List
 
-from .entities.db_model import Model
 from shared.logger.logging_config import logger
 from shared.models.enums import FileExtensions
-from shared.models.model_types import (H2OModelType, KerasModelType,
-                                              Metadata, ModelTypeMapper,
-                                              Representations, DeploymentModelType,
-                                              SklearnModelType, SparkModelType)
+from shared.models.model_types import (DeploymentModelType, H2OModelType,
+                                       KerasModelType, Metadata,
+                                       ModelTypeMapper, Representations,
+                                       SklearnModelType, SparkModelType)
 
+from .entities.db_model import Model
 from .preparation.h2o_utils import H2OUtils
 from .preparation.keras_utils import KerasUtils
 from .preparation.sklearn_utils import ScikitUtils

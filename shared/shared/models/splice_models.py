@@ -6,14 +6,14 @@ from datetime import datetime
 from json import loads as parse_dict
 from time import sleep
 
-from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
-                        String, Text, DateTime)
-from sqlalchemy.orm import relationship, deferred
-
+from sqlalchemy import (Boolean, CheckConstraint, Column, DateTime, ForeignKey,
+                        Integer, String, Text)
+from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.sql.elements import TextClause
+
+from shared.db.connection import SQLAlchemyClient
 from shared.logger.logging_config import logger
 from shared.models.enums import JobStatuses
-from shared.services.database import SQLAlchemyClient
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -41,7 +41,7 @@ def format_timestamp() -> str:
 ############################
 
 # noinspection PyTypeChecker
-class Handler(SQLAlchemyClient.SpliceBase):
+class Handler(SQLAlchemyClient().SpliceBase):
     """
     A Service e.g. Deployment, Start/Stop Service etc.
     """
@@ -98,7 +98,7 @@ class Handler(SQLAlchemyClient.SpliceBase):
 
 
 # noinspection PyTypeChecker
-class Job(SQLAlchemyClient.SpliceBase):
+class Job(SQLAlchemyClient().SpliceBase):
     """
     A Job, e.g. Deploy this model, stop this service etc.
     """
@@ -161,11 +161,13 @@ class Job(SQLAlchemyClient.SpliceBase):
         """
         self.parsed_payload = parse_dict(self.payload)
 
+
 TABLES = [Handler, Job]
+
 
 def create_bobby_tables(_sleep_secs=1) -> None:
     """
-    Function that create's all of the tables in a retry loop in case the database.py doesn't exist
+    Function that create's all of the tables in a retry loop in case the database doesn't exist
     Tries to create the necessary tables, retrying every 30 seconds, max 10 times
     Will gracefully fail after that if no DB exists
     """
@@ -175,7 +177,7 @@ def create_bobby_tables(_sleep_secs=1) -> None:
     # noinspection PyBroadException
     try:
         logger.warning("Creating Splice Tables inside Splice DB...")
-        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True, tables=[t.__table__ for t in TABLES])
+        SQLAlchemyClient().SpliceBase.metadata.create_all(checkfirst=True, tables=[t.__table__ for t in TABLES])
         logger.info("Created Tables")
     except Exception:
         logger.exception(f"Encountered Error while initializing")  # logger might have failed

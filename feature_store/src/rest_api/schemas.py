@@ -1,7 +1,10 @@
-from typing import List, Optional, Dict, Union, Any
 from datetime import datetime
-from pydantic import BaseModel, validator, Field
-from shared.services.database import Converters
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, Field, validator
+
+from shared.db.converters import Converters
+
 
 class DataType(BaseModel):
     """

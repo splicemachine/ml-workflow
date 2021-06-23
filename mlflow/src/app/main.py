@@ -1,36 +1,39 @@
-from collections import defaultdict
-from json import dumps as serialize_json
 import os
+from collections import defaultdict
 from io import BytesIO
+from json import dumps as serialize_json
 from os import environ as env_vars
 from sys import getsizeof
-from time import time as timestamp
 from tempfile import TemporaryDirectory
+from time import time as timestamp
 
 import requests
-from flask import (request, url_for, render_template as show_html, redirect,
-                   jsonify as create_json, Flask, Response, send_file)
+from flask import Flask, Response
+from flask import jsonify as create_json
+from flask import redirect
+from flask import render_template as show_html
+from flask import request, send_file, url_for
 from flask_executor import Executor
 from flask_login import (LoginManager, current_user, login_required,
                          login_user, logout_user)
-from werkzeug.utils import secure_filename
 from sqlalchemy.orm import load_only
+from werkzeug.utils import secure_filename
 
+from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 from shared.api.models import APIStatuses
-from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from shared.api.responses import HTTP
+from shared.db.connection import SQL, SQLAlchemyClient
 from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
-from shared.models.splice_models import Handler, Job
 from shared.models.mlflow_models import SqlArtifact
+from shared.models.splice_models import Handler, Job
 from shared.services.authentication import Authentication, User
-from shared.services.database import SQLAlchemyClient, DatabaseSQL
 from shared.services.handlers import HandlerNames, KnownHandlers
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
-__credits__: list = ["Amrit Baveja", "Murray Brown", "Monte Zweben", "Ben Epstein"]
+__credits__: list = ["Amrit Baveja", "Ben Epstein"]
 
 __license__: str = "Commercial"
 __version__: str = "2.0"
@@ -59,6 +62,7 @@ APP.config['MAX_CONTENT_LENGTH'] = MAX_SIZE
 if not os.path.exists(UPLOAD_FOLDER):
     os.system(f'mkdir -p {UPLOAD_FOLDER}')
 
+
 @APP.errorhandler(SpliceMachineException)
 def handle_invalid_usage(error):
     return (error.message, error.status_code)
@@ -71,7 +75,7 @@ def create_session() -> None:
     Create a Session-Local SQLAlchemy Session
     """
     global Session
-    Session = SQLAlchemyClient.SessionFactory()
+    Session = SQLAlchemyClient().SessionFactory()
 
 
 @APP.after_request
@@ -84,7 +88,7 @@ def remove_session(response: Response) -> Response:
     :return: (Response) response object passed in
     """
     global Session
-    SQLAlchemyClient.SessionFactory.remove()
+    SQLAlchemyClient().SessionFactory.remove()
     return response
 
 
@@ -151,6 +155,7 @@ def initiate_job_rest() -> dict:
 
     return handler_queue_job(request.json, handler, user=request.authorization.username)
 
+
 def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dict:
     """
     Handler for actions that execute services
@@ -161,7 +166,8 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
     :return: (Response) JSON payload for success
     """
     # Format Payload
-    payload: dict = {field.name: field.get_value(request_payload.get(field.name) or None) for field in handler.payload_args
+    payload: dict = {field.name: field.get_value(request_payload.get(field.name) or None) for field in
+                     handler.payload_args
                      if field.name != 'payload'}
 
     job: Job = Job(handler_name=handler.name,
@@ -170,7 +176,7 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
 
     Session.add(job)
     Session.commit()
-    Session.merge(job) # get identity col
+    Session.merge(job)  # get identity col
 
     try:
         # Tell bobby there's a new job to process
@@ -181,6 +187,7 @@ def handler_queue_job(request_payload: dict, handler: Handler, user: str) -> dic
     return dict(job_status=APIStatuses.pending,
                 job_id=job.id,
                 timestamp=timestamp())  # turned into JSON and returned
+
 
 @login_required
 def deploy_csp() -> Response:
@@ -207,6 +214,7 @@ def watch_job(task_id: int) -> Response:
     """
     return show_html('watch_logs.html', task_id=task_id)
 
+
 @APP.route('/api/rest/deployments', methods=['GET'])
 @Authentication.basic_auth_required
 @HTTP.generate_json_response
@@ -214,14 +222,11 @@ def get_deployments():
     """
     Gets all model deployments and their current status
     """
-    res = Session.execute(DatabaseSQL.get_deployment_status)
+    res = Session.execute(SQL.get_deployment_status)
     cols = [i[0] for i in res.cursor.description]
     rows = res.fetchall()
-    data = [(col,[row[i] for row in rows]) for i,col in enumerate(cols)]
+    data = [(col, [row[i] for row in rows]) for i, col in enumerate(cols)]
     return create_json(data)
-
-
-
 
 
 ########################################################################################################
@@ -231,7 +236,7 @@ def get_deployments():
 # And delete the file from disk                                                                        #
 # Authorization and Authentication included                                                            #
 ########################################################################################################
-def insert_artifact(run_id, file, name, file_extension, artifact_path = None):
+def insert_artifact(run_id, file, name, file_extension, artifact_path=None):
     """
     Inserts an artifact into the database as a SqlArtifact. Used as an intermediary step for the Splice Artifact Store
 
@@ -243,13 +248,13 @@ def insert_artifact(run_id, file, name, file_extension, artifact_path = None):
     :param artifact_path: If the file is being stored in a directory, this is that directory path
     """
     a = SqlArtifact(
-            run_uuid=run_id,
-            name=name,
-            size=getsizeof(file),
-            binary=file,
-            file_extension=file_extension,
-            artifact_path=artifact_path
-        )
+        run_uuid=run_id,
+        name=name,
+        size=getsizeof(file),
+        binary=file,
+        file_extension=file_extension,
+        artifact_path=artifact_path
+    )
     try:
         Session.add(a)
         Session.commit()
@@ -257,7 +262,7 @@ def insert_artifact(run_id, file, name, file_extension, artifact_path = None):
         Session.rollback()
         raise SpliceMachineException(
             message=f'Failure while trying to upload file: {str(e)}',
-            status_code=400, # bad request
+            status_code=400,  # bad request
             code=ExceptionCodes.UNKNOWN
         )
 
@@ -288,34 +293,6 @@ def log_artifact() -> str:
     )
     return "File Uploaded."
 
-def _download_artifact(run_id, name):
-    """
-    Downloads an artifact from the database to disk
-
-    :param run_id: Run ID of artifact
-    :param name: Name of the artifact
-    :return: File name of the downloaded artifact
-    """
-    artifact = Session.query(SqlArtifact) \
-        .filter_by(name=name) \
-        .filter_by(run_uuid=run_id).first()
-    if not artifact:
-        raise SpliceMachineException(message=f"File {name} from run {run_id} not found",
-                                     status_code=404, code=ExceptionCodes.DOES_NOT_EXIST)
-    # Files name may already have the extension
-    if os.path.splitext(artifact.name)[1]:
-        filename = artifact.name
-    # If there is an artifact path, this is a zip file. In this case, override the file extension
-    # and set it to .zip because that is how the file was stored
-    elif artifact.artifact_path:
-        filename = f'{artifact.name}.zip'
-    else:
-        filename = f'{artifact.name}.{artifact.file_extension}'
-
-    # with open(file_path, 'wb') as file:
-    #     file.write(artifact.binary)
-    # return os.path.split(file_path)
-    return artifact.binary, filename
 
 @APP.route('/api/rest/download-artifact', methods=['GET'])
 @Authentication.basic_auth_required
@@ -331,7 +308,6 @@ def download_artifact() -> str:
     #     return ('file not found', 404)
     # https://www.iana.org/assignments/media-types/application/octet-stream octet-stream
     return send_file(BytesIO(file), mimetype='application/octet-stream', as_attachment=True, attachment_filename=name)
-
 
 
 if CLOUD_ENVIRONMENT.can_deploy:
