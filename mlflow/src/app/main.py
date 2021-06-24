@@ -41,8 +41,11 @@ def on_shutdown():
     logger.info("****** API IS SHUTTING DOWN ******")
 
 
-@APP.get('/health', summary="Health Check", response_model=str, id='health', status_code=status.HTTP_200_OK)
+@APP.get('/health', summary="Health Check", response_model=str, operation_id='health', status_code=status.HTTP_200_OK)
 def health_check():
+    """
+    Make sure that the server is alive
+    """
     return 'Ok'
 
 

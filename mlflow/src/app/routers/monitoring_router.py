@@ -19,7 +19,7 @@ def _get_logs(task_id: int, session):
     return job.logs.split('\n')
 
 
-@MONITORING_ROUTER.get('/deployments', summary="Get deployments and statuses",
+@MONITORING_ROUTER.get('/deployments', summary="Get deployments and statuses", operation_id='get_deployments',
                        response_model=GetDeploymentsResponse, status_code=status.HTTP_200_OK)
 def get_deployments(db: Session = DB_SESSION):
     """
@@ -33,7 +33,7 @@ def get_deployments(db: Session = DB_SESSION):
 
 
 @MONITORING_ROUTER.get('/job-logs/{job_id}', summary="Get the logs for a specified job", response_model=GetLogsResponse,
-                       status_code=status.HTTP_200_OK)
+                       status_code=status.HTTP_200_OK, operation_id='get_logs')
 def get_logs(job_id: int, db: Session = DB_SESSION):
     """
     Get a list of the logs from the job identified with the specified id. Requires Basic Auth validated against the DB.

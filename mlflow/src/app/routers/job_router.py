@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, status
 from schemas import InitiateJobRequest, InitiateJobResponse
 from sqlalchemy.orm import Session
 
+from shared.db.connection import SQLAlchemyClient
 from shared.api.auth_dependency import authenticate
 from shared.api.models import APIStatuses, AuthUser
 from shared.logger.logging_config import logger
@@ -53,7 +54,7 @@ def _initiate_job(job_payload: dict, handler: Handler, user: str, session):
                 timestamp=timestamp())  # turned into JSON and returned
 
 
-@JOB_ROUTER.post('/initiate-job', summary='Initiate an asynchronous job',
+@JOB_ROUTER.post('/initiate-job', summary='Initiate an asynchronous job', operation_id='initiate_job',
                  response_model=InitiateJobResponse, status_code=status.HTTP_202_ACCEPTED)
 def initiate_job(properties: InitiateJobRequest, user: AuthUser = Depends(authenticate), db: Session = DB_SESSION):
     """

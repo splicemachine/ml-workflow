@@ -7,6 +7,8 @@ from shared.api.models import AuthUser
 from shared.services.authentication import Authentication
 
 security = HTTPBasic()
+
+
 #
 # class AuthScheme:
 #     """

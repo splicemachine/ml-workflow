@@ -32,7 +32,7 @@ class GetDeploymentsResponse(BaseModel):
     """
     Response  for getting deployments
     """
-    deployments: Dict[str, str]
+    deployments: Dict
 
 
 class GetLogsResponse(BaseModel):
