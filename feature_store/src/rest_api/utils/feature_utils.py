@@ -30,6 +30,13 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
             status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
             message=f"Feature set {schema}.{table} v{fset.feature_set_version} is already deployed.")
 
+    current = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])[0]
+    if current.feature_set_version > fset.feature_set_version:
+        raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.OUTDATED_VERSION,
+            message=f"Cannot deploy feature set with a lower version than the latest deployed version "
+            f"(v{current.feature_set_version}")
+
     features = crud.get_features(db, fset)
     if not features:
         raise SpliceMachineException(
@@ -37,7 +44,6 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
             message=f"Feature set {schema}.{table} has no features. You cannot deploy a feature "
                     f"set with no features")
 
-    current = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])[0]
     fset = crud.deploy_feature_set(db, fset)
     if migrate:
         if current.deployed:
