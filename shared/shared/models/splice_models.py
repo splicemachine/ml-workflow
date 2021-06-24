@@ -5,6 +5,7 @@ used for the Queue
 from datetime import datetime
 from json import loads as parse_dict
 from time import sleep
+from pydantic import BaseModel
 
 from sqlalchemy import (Boolean, CheckConstraint, Column, DateTime, ForeignKey,
                         Integer, String, Text)
@@ -57,14 +58,14 @@ class Handler(SQLAlchemyClient().SpliceBase):
     modifiable: Column = Column(Boolean, default=True)
     enabled: Column = Column(Boolean, default=True)
 
-    def __init__(self, payload_args: list, *args,
+    def __init__(self, model: BaseModel, *args,
                  **kwargs) -> None:
         """
         :param payload_args: list of fields for the API
         """
         super().__init__(*args, **kwargs)
         # these attributes are used for the API, not persisted in the database
-        self.payload_args = payload_args
+        self.model = payload_args
         self.handler_class: object = None
 
     def __repr__(self) -> None:
