@@ -783,7 +783,11 @@ def get_feature_sets(db: Session, feature_set_ids: List[int] = None, feature_set
                 q = q.join(mv, (fsv.feature_set_id == mv.c.feature_set_id) & (fsv.feature_set_version == mv.c.feature_set_version))
             else:
                 queries.append(fsv.feature_set_version == version)
-        queries.extend([getattr(fset, name) == value for name, value in _filter.items()])
+        for name, value in _filter.items():
+            if isinstance(value, str):
+                queries.append(func.upper(getattr(fset, name)) == value.upper())
+            else:
+                queries.append(getattr(fset, name) == value)
     else:
         d = db.query(models.FeatureSetVersion.feature_set_id.label('feature_set_id'), 
                     func.max(models.FeatureSetVersion.feature_set_version).label('feature_set_version')). \
