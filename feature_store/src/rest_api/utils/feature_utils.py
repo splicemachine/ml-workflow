@@ -33,7 +33,7 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
     features = crud.get_features(db, fset)
     if not features:
         raise SpliceMachineException(
-            status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+            status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.NOT_DEPLOYABLE,
             message=f"Feature set {schema}.{table} has no features. You cannot deploy a feature "
                     f"set with no features")
 
@@ -182,7 +182,7 @@ def model_to_schema_feature(feat: models.Feature) -> schemas.FeatureDetail:
     return schemas.FeatureDetail(**f)
 
 
-def delete_feature_set(db: Session, feature_set_id: int, version: int = None, cascade: bool = False,
+def delete_feature_set(db: Session, feature_set_id: int, version: int = None, purge: bool = False,
                        training_sets: Set[int] = None):
     """
     Deletes a Feature Set. Drops the table. Removes keys. Potentially removes training sets if there are dependencies
@@ -192,7 +192,7 @@ def delete_feature_set(db: Session, feature_set_id: int, version: int = None, ca
     :param training_sets: Set[int] training sets
     :param cascade: whether to delete dependent training sets. If this is True training_sets must be set.
     """
-    if cascade and training_sets:
+    if training_sets:
         logger.info(f'linked training sets: {training_sets}')
 
         logger.info("Removing training set stats")
@@ -208,6 +208,11 @@ def delete_feature_set(db: Session, feature_set_id: int, version: int = None, ca
         logger.info("Removing training sets")
         crud.delete_training_sets(db, training_sets)
 
+    if Airflow.is_active:
+        # Remove pipeline dependencies
+        logger.info("Removing any Pipeline dependencies")
+        crud.remove_feature_set_pipelines(db, feature_set_id, version, delete=purge)
+
     # Delete features
     logger.info("Removing features")
     crud.delete_features_from_feature_set(db, feature_set_id, version)
@@ -217,10 +222,6 @@ def delete_feature_set(db: Session, feature_set_id: int, version: int = None, ca
     # Delete Feature Set Version
     logger.info("Removing feature set version")
     crud.delete_feature_set_version(db, feature_set_id, version)
-
-    # Delete pipeline dependencies
-    logger.info("Deleting any Pipeline dependencies")
-    crud.delete_pipeline(db, feature_set_id)
 
 
 def drop_feature_set_table(db: Session, schema_name: str, table_name: str):

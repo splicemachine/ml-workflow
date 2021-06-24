@@ -200,18 +200,18 @@ class Source(BaseModel):
     source_id: Optional[int] = None
     pk_columns: List[str]
 
-class Pipeline(BaseModel):
-    feature_set_id: int
-    source_id: int
-    pipeline_start_ts: datetime
-    pipeline_interval: str
-    backfill_start_ts: datetime
-    backfill_interval: str
-    pipeline_url: str
-    last_update_ts: datetime
-    last_update_username: str
-    class Config:
-        orm_mode = True
+# class Pipeline(BaseModel):
+#     feature_set_id: int
+#     source_id: int
+#     pipeline_start_ts: datetime
+#     pipeline_interval: str
+#     backfill_start_ts: datetime
+#     backfill_interval: str
+#     pipeline_url: str
+#     last_update_ts: datetime
+#     last_update_username: str
+#     class Config:
+#         orm_mode = True
 
 class FeatureAggregation(BaseModel):
     column_name: str
@@ -338,3 +338,40 @@ class Pipe(PipeCreate):
 
 class PipeDetail(Pipe, PipeVersion):
     pass
+
+class PipelineBase(BaseModel):
+    pipeline_start_ts: datetime
+    pipeline_interval: str
+
+class PipelineAlter(BaseModel):
+    description: Optional[str] = None
+    pipeline_start_ts: Optional[datetime] = None
+    pipeline_interval: Optional[str] = None
+    pipes: Optional[List[Union[str, PipeDetail]]] = None
+
+class PipelineUpdate(PipelineAlter, PipelineBase):
+    pipes: List[Union[str, PipeDetail]]
+
+class PipelineCreate(PipelineUpdate):
+    name: str
+
+class Pipeline(PipelineCreate):
+    pipeline_id: int
+
+    class Config:
+        orm_mode = True
+
+class PipelineVersion(PipelineBase):
+    pipeline_id: int
+    pipeline_version: int
+    feature_set_id: Optional[int] = None
+    feature_set_version: Optional[int] = None
+    pipeline_url: Optional[str] = None
+    last_update_ts: Optional[datetime] = None
+    last_update_username: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+class PipelineDetail(Pipeline, PipelineVersion):
+    pipes: Optional[List[PipeDetail]] = None

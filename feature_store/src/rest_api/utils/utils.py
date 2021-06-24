@@ -1,5 +1,5 @@
 from fastapi import status
-from ..schemas import FeatureSetBase, FeatureSet, DataType, FeatureSetDetail, FeatureSetUpdate
+from ..schemas import FeatureSetBase, FeatureSet, DataType, FeatureSetDetail, FeatureSetUpdate, PipelineDetail
 from ..constants import Columns, SQL_TO_SQLALCHEMY
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from typing import Dict, List, Union

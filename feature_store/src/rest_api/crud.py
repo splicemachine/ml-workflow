@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, aliased
 from typing import List, Dict, Union, Any, Tuple, Set
 from . import schemas
 from .constants import SQL
-from sqlalchemy import desc, String, func, distinct, and_, or_, Column, literal_column, case, select
+from sqlalchemy import desc, asc, String, func, distinct, and_, or_, Column, literal_column, case, select
 from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.schema import MetaData, Table, PrimaryKeyConstraint, DDL
 from sqlalchemy.types import TIMESTAMP
@@ -21,6 +21,7 @@ from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           __get_table_name)
 from .utils.feature_utils import model_to_schema_feature
 from .utils.pipeline_utils.pipeline_utils import stringify_function, destringify_function
+from .utils.airflow_utils import Airflow
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from splicemachinesa.constants import RESERVED_WORDS
 
@@ -194,6 +195,63 @@ def validate_pipe_function(pipe: schemas.PipeAlter, ptype: str):
             raise SpliceMachineException(
             status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
             message=f'Non-source pipes must have at least 1 parameter.')
+
+def validate_pipeline(db, pipeline: schemas.PipelineCreate):
+    logger.info('Validating pipeline')
+    if pipeline.name.lower() in RESERVED_WORDS:
+        raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+            message=f'Pipeline name {pipeline.name} is in the list of reserved words. Pipeline name must not use a reserved column name. '
+                    'For the full list see '
+                    'https://github.com/splicemachine/splice_sqlalchemy/blob/master/splicemachinesa/constants.py')
+
+    if db.query(models.Pipeline).filter(models.Pipeline.name == pipeline.name).all():
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_EXISTS,
+                                     message=f'Cannot create Pipeline {pipeline.name} as it already exists. Please try a new Pipeline name.')
+
+    if pipeline.pipes:
+        pipeline.pipes = process_pipes(db, pipeline.pipes)
+
+def process_pipes(db: Session, pipes: List[Union[schemas.PipeDetail, str]]) -> List[schemas.PipeDetail]:
+    """
+    Process a list of Pipes parameter. If the list is strings, it converts them to Pipes, else returns itself
+
+    :param db: SqlAlchemy Session
+    :param features: The list of Pipe names or Pipe objects
+    :return: List[Pipe]
+    """
+    try:
+        pipe_str = [(p if isinstance(p, str) else p.name).upper() for p in pipes]
+    except:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message="It seems you've passed in Pipes that are neither" \
+                                             " a pipe name (string) nor a Pipe object")
+    all_pipes = get_pipes(db, names=pipe_str)
+    pipe_order = [next((x for x in all_pipes if x.name.upper() == name.upper()), None) for name in pipe_str]
+    pipe_order = list(filter(None, pipe_order))
+    if len(pipe_order) != len(pipe_str):
+        old_names = set(pipe_str)
+        new_names = set([p.name.upper() for p in pipe_order])
+        missing = ', '.join(old_names - new_names)
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                     message=f'Could not find the following pipes: {missing}')
+    
+    for index, pipe in enumerate(pipes):
+        try:
+            if pipe.pipe_id and pipe.pipe_version:
+                pipe_order[index] = pipe
+        except:
+            pass
+
+    if not pipe_order[0].ptype == 'S':
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f"The first Pipe in a Pipeline must be of ptype 'S'.")
+
+    if any([p.ptype == 'S' for p in pipe_order[1:]]):
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+                                     message=f"Only 1 Pipe of ptype 'S' is allowed per Pipeline.")
+
+    return pipe_order
 
 def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, Union[str, int]],
                        feature_sets: List[schemas.FeatureSet],
@@ -394,22 +452,22 @@ def delete_feature_set(db: Session, feature_set_id: int):
         synchronize_session='fetch')
 
 
-def delete_pipeline(db: Session, feature_set_id: int):
-    """
-    Deletes pipeline and dependencies from feature store with a given feature set id
+# def delete_pipeline(db: Session, feature_set_id: int):
+#     """
+#     Deletes pipeline and dependencies from feature store with a given feature set id
 
-    :param db: Database Session
-    :param feature_set_id: feature set ID to delete
-    """
-    # Pipeline Operations
-    db.query(models.PipelineOps).filter(models.PipelineOps.feature_set_id == feature_set_id) \
-        .delete(synchronize_session='fetch')
-    # Pipeline aggregations
-    db.query(models.PipelineAgg).filter(models.PipelineAgg.feature_set_id == feature_set_id) \
-        .delete(synchronize_session='fetch')
-    # Pipeline
-    db.query(models.Pipeline).filter(models.Pipeline.feature_set_id == feature_set_id) \
-        .delete(synchronize_session='fetch')
+#     :param db: Database Session
+#     :param feature_set_id: feature set ID to delete
+#     """
+#     # Pipeline Operations
+#     db.query(models.PipelineOps).filter(models.PipelineOps.feature_set_id == feature_set_id) \
+#         .delete(synchronize_session='fetch')
+#     # Pipeline aggregations
+#     db.query(models.PipelineAgg).filter(models.PipelineAgg.feature_set_id == feature_set_id) \
+#         .delete(synchronize_session='fetch')
+#     # Pipeline
+#     db.query(models.Pipeline).filter(models.Pipeline.feature_set_id == feature_set_id) \
+#         .delete(synchronize_session='fetch')
 
 
 def delete_training_set_features(db: Session, training_sets: Set[int]):
@@ -1222,7 +1280,7 @@ def get_features_by_id(db: Session, ids: List[int]) -> List[schemas.Feature]:
     Returns a dataframe or list of features whose IDs are provided
 
     :param db: SqlAlchemy Session
-    :param names: The list of feature names
+    :param ids: The list of feature ids
     :return: List[Feature] The list of Feature objects and their metadata. Note, this is not the Feature
     values, simply the describing metadata about the features. To create a training dataset with Feature values, see
     :py:meth:`features.FeatureStore.get_training_set` or :py:meth:`features.FeatureStore.get_feature_dataset`
@@ -1338,12 +1396,7 @@ def create_feature_set_version(db: Session, fset: schemas.FeatureSet, version: i
     return fset_version
 
 def update_feature_set_keys(db: Session, fset: schemas.FeatureSetUpdate, version: int):
-    db.query(models.FeatureSetKey). \
-        filter(and_(
-            models.FeatureSetKey.feature_set_id == fset.feature_set_id,
-            models.FeatureSetKey.feature_set_version == version)). \
-        delete(synchronize_session='fetch')
-
+    delete_feature_set_keys(db, fset.feature_set_id, version)
     _register_feature_set_keys(db, fset, version)
 
 def register_feature_metadata(db: Session, f: schemas.FeatureCreate) -> schemas.Feature:
@@ -1420,7 +1473,7 @@ def bulk_register_feature_versions(db: Session, feats: List[models.Feature], fea
         for f in feats
     ]
 
-def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -> List[schemas.Feature]:
+def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -> List[schemas.FeatureDetail]:
     """
     Process a list of Features parameter. If the list is strings, it converts them to Features, else returns itself
 
@@ -2121,11 +2174,14 @@ def create_pipe_version(db: Session, pipe: schemas.Pipe, version: int = 1) -> sc
     pvd['func'] = stringify_function(pvd['func'])
     return schemas.PipeVersion(**pvd)
 
-def get_pipes(db: Session, names: List[str] = None, _filter: Dict[str, str] = None) -> List[schemas.PipeDetail]:
+def get_pipes(db: Session, names: List[str] = None, sort: bool = False, _filter: Dict[str, str] = None) -> List[schemas.PipeDetail]:
     """
     Returns a list of available pipes
 
     :param db: SqlAlchemy Session
+    :param names: List of names of pipes to query for. If None, will return all Pipes
+    :param sort: Whether or not to enforce that the order of results is the same as the order of names in 'names' param. 
+        Default False 
     :param _filter: Dictionary of filters to apply to the query. This filter can be on any attribute of Pipes.
         If None, will return all Pipes
     :return: List[PipeDetail] the list of Pipes
@@ -2169,6 +2225,11 @@ def get_pipes(db: Session, names: List[str] = None, _filter: Dict[str, str] = No
         pd.update(pvd)
         pd['func'] = stringify_function(pd['func'])
         pipes.append(schemas.PipeDetail(**pd))
+
+    if sort and names:
+        indices = {v.upper(): i for i, v in enumerate(names)}
+        pipes = sorted(pipes, key=lambda f: indices[f.name.upper()])
+
     return pipes
 
 def update_pipe_description(db: Session, pipe_id: int, description: str):
@@ -2177,6 +2238,7 @@ def update_pipe_description(db: Session, pipe_id: int, description: str):
 
     :param db: SqlAlchemy Session
     :param pipe_id: Pipe ID
+    :param description: the description to update
     """
     db.query(models.Pipe).filter(models.Pipe.pipe_id==pipe_id).update({'description':description})
 
@@ -2207,11 +2269,181 @@ def delete_pipe(db: Session, pipe_id: int, version: int) -> None:
         count() == 0:
             db.query(models.Pipe).filter(models.Pipe.pipe_id == pipe_id).delete(synchronize_session='fetch')
 
+def register_pipeline_metadata(db: Session, pipeline: schemas.PipelineCreate) -> schemas.Pipeline:
+    p = models.Pipeline(name=pipeline.name, description=pipeline.description)
+
+    db.add(p)
+    db.flush()
+
+    return schemas.Pipeline(**pipeline.__dict__, pipeline_id=p.pipeline_id)
+
+def create_pipeline_version(db: Session, pipeline: schemas.Pipeline, version: int = 1) -> schemas.PipelineVersion:
+    pv = models.PipelineVersion(pipeline_id=pipeline.pipeline_id, pipeline_version=version, 
+                            pipeline_start_ts=pipeline.pipeline_start_ts,
+                            pipeline_interval=pipeline.pipeline_interval)
+    db.add(pv)
+    
+    return schemas.PipelineVersion(**pv.__dict__)
+
+def register_pipeline_pipes(db: Session, pipeline: schemas.PipelineDetail, pipes: List[schemas.PipeDetail]):
+    seq = [
+        models.PipelineSequence(pipeline_id=pipeline.pipeline_id, pipeline_version=pipeline.pipeline_version,
+                                    pipe_id=p.pipe_id, pipe_version=p.pipe_version, pipe_index=i)
+        for i, p in enumerate(pipes)
+    ]
+    [db.add(ps) for ps in seq]
+
+def delete_pipeline_pipes(db: Session, pipeline_id: int, version: int):
+    """
+    Deletes pipe sequence for a particular pipeline
+
+    :param db: Database Session
+    :param pipeline_id: ID of pipeline tied to the sequence
+    :param version: version of pipeline tied to the sequence
+    """
+    # Delete pipeline sequence
+    logger.info("Removing pipeline sequence")
+    d = db.query(models.PipelineSequence). \
+        filter(models.PipelineSequence.pipeline_id == pipeline_id)
+    if version:
+        d = d.filter(models.PipelineSequence.pipeline_version == version)
+    d.delete(synchronize_session='fetch')
+
+def update_pipeline_pipes(db: Session, pipeline: schemas.PipelineDetail, pipes: List[Union[str, schemas.PipeDetail]]):
+    delete_pipeline_pipes(db, pipeline.pipeline_id, pipeline.pipeline_version)
+    register_pipeline_pipes(db, pipeline, pipes)
+
+def get_pipelines(db: Session, names: List[str] = None, _filter: Dict[str, str] = None) -> List[schemas.PipelineDetail]:
+    """
+    Returns a list of available pipelines
+
+    :param db: SqlAlchemy Session
+    :param names: List of names of pipelines to query for. If None, will return all Pipelines
+    :param sort: Whether or not to enforce that the order of results is the same as the order of names in 'names' param. 
+        Default False 
+    :param _filter: Dictionary of filters to apply to the query. This filter can be on any attribute of Pipelines.
+        If None, will return all Pipelines
+    :return: List[PipelineDetail] the list of Pipelines
+    """
+    p = aliased(models.Pipeline, name='p')
+    pv = aliased(models.PipelineVersion, name='pv')
+
+    q = db.query(p, pv). \
+        join(pv, p.pipeline_id == pv.pipeline_id)
+
+    filters = []
+    
+    if names:
+        filters.append(func.upper(p.name).in_([name.upper() for name in names]))
+
+    mv = db.query(models.PipelineVersion.pipeline_id, 
+                func.max(models.PipelineVersion.pipeline_version).label('pipeline_version')).\
+            group_by(models.PipelineVersion.pipeline_id).\
+            subquery('mv')
+    if _filter:
+        version = _filter.pop('pipeline_version', None)
+        if version:
+            if version == 'latest':
+                q = q.join(mv, (pv.pipeline_id == mv.c.pipeline_id) & (pv.pipeline_version == mv.c.pipeline_version))
+            else:
+                filters.append(pv.pipeline_version == version)
+        for name, value in _filter.items():
+            if isinstance(value, str):
+                filters.append(func.upper(getattr(p, name)) == value.upper())
+            else:
+                filters.append(getattr(p, name) == value)
+    else:
+        q = q.join(mv, (pv.pipeline_id == mv.c.pipeline_id) & (pv.pipeline_version == mv.c.pipeline_version))
+    
+    q = q.filter(and_(*filters))
+
+    pipelines = []
+    for pipeline, pipeline_version in q.all():
+        pd = pipeline.__dict__.copy()
+        pvd = pipeline_version.__dict__.copy()
+        pd.update(pvd)
+        pld = schemas.PipelineDetail(**pd)
+        pld.pipes = get_pipes_in_pipeline(db, pld)
+        pipelines.append(pld)
+    return pipelines
+
+def update_pipeline_description(db: Session, pipeline_id: int, description: str):
+    """
+    Updates the description of a pipeline
+
+    :param db: SqlAlchemy Session
+    :param pipeline_id: Pipeline ID
+    :param description: the description to update
+    """
+    db.query(models.Pipeline).filter(models.Pipeline.pipe_id==pipeline_id).update({'description':description})
+
+def alter_pipeline_version(db: Session, pipeline: schemas.PipelineDetail):
+    db.query(models.PipelineVersion). \
+        filter((models.PipelineVersion.pipe_id == pipeline.pipeline_id) &
+            (models.PipelineVersion.pipe_version == pipeline.pipeline_version)). \
+        update({'pipeline_start_ts': pipeline.pipeline_start_ts, 'pipeline_interval': pipeline.pipeline_interval, 
+                'last_update_ts': datetime.now()})
+
+def delete_pipeline(db: Session, pipeline_id: int, version: int) -> None:
+    """
+    Deletes particular pipeline version for a pipeline
+
+    :param db: Database Session
+    :param pipe_id: ID of pipeline to be deleted
+    :param version: version of pipeline to be deleted
+    """
+    # Delete pipeline version
+    logger.info("Removing pipeline")
+    s = db.query(models.PipelineSequence). \
+        filter(models.PipelineSequence.pipeline_id == pipeline_id)
+    if version:
+        s = s.filter(models.PipelineSequence.pipeline_version == version)
+    s.delete(synchronize_session='fetch')
+
+    d = db.query(models.PipelineVersion). \
+        filter(models.PipelineVersion.pipeline_id == pipeline_id)
+    if version:
+        d = d.filter(models.PipelineVersion.pipeline_version == version)
+    d.delete(synchronize_session='fetch')
+
+    if not version or db.query(models.PipelineVersion). \
+        filter(models.PipelineVersion.pipeline_id == pipeline_id). \
+        count() == 0:
+            db.query(models.Pipeline).filter(models.Pipeline.pipeline_id == pipeline_id).delete(synchronize_session='fetch')
+
+def update_deployed_pipeline(db: Session, pipeline: schemas.PipelineDetail, fset: schemas.FeatureSetDetail):
+    """
+    Updates a deployed pipeline version with metadata about the feature set it was deployed to
+    """
+    db.query(models.PipelineVersion). \
+        filter((models.PipelineVersion.pipeline_id == pipeline.pipeline_id) &
+            (models.PipelineVersion.pipeline_version == pipeline.pipeline_version)). \
+        update({'feature_set_id': fset.feature_set_id, 'feature_set_version': fset.feature_set_version,
+                'pipeline_url': Airflow.get_dag_url(pipeline.name, pipeline.pipeline_version), 'last_update_ts': datetime.now()})
+
+    pipeline.feature_set_id = fset.feature_set_id
+    pipeline.feature_set_version = pipeline.feature_set_version
+    pipeline.pipeline_url = Airflow.get_dag_url(pipeline.name, pipeline.pipeline_version)
+
+def update_undeployed_pipeline(db: Session, pipeline: schemas.PipelineDetail):
+    """
+    Removes feature set metadata from an undeployed pipeline version
+    """
+    db.query(models.PipelineVersion). \
+        filter((models.PipelineVersion.pipeline_id == pipeline.pipeline_id) &
+            (models.PipelineVersion.pipeline_version == pipeline.pipeline_version)). \
+        update({'feature_set_id': None, 'feature_set_version': None,
+                'pipeline_url': None, 'last_update_ts': datetime.now()})
+
+    pipeline.feature_set_id = None
+    pipeline.feature_set_version = None
+    pipeline.pipeline_url = None
+
 # Feature/FeatureSet specific
 
 def get_features(db: Session, fset: schemas.FeatureSet) -> List[schemas.Feature]:
     """
-    Get's all of the features from this featureset as a list of splicemachine.features.Feature
+    Gets all of the features from this featureset as a list of splicemachine.features.Feature
 
     :param db: SqlAlchemy Session
     :param fset: The feature set from which to get features
@@ -2227,9 +2459,85 @@ def get_features(db: Session, fset: schemas.FeatureSet) -> List[schemas.Feature]
         features = [model_to_schema_feature(f) for f in features_rows]
     return features
 
+def remove_feature_set_pipelines(db: Session, feature_set_id: int, version: int, delete = False):
+    """
+    Removes pipelines associated with a specific feature set (and optional version)
+    """
+    u = db.query(models.Pipeline.name, models.PipelineVersion.pipeline_id, models.PipelineVersion.pipeline_version). \
+        join(models.PipelineVersion, models.Pipeline.pipeline_id == models.PipelineVersion.pipeline_id). \
+        filter(models.PipelineVersion.feature_set_id == feature_set_id)
+    if version:
+            u = u.filter(models.PipelineVersion.feature_set_version == version)
+
+    pipelines = u.all() 
+    names = [f'{name}_v{vers}' for name, _, vers in pipelines]
+    Airflow.undeploy_pipelines(names)
+
+    d = db.query(models.PipelineVersion). \
+        filter(models.PipelineVersion.feature_set_id == feature_set_id)
+    if version:
+            d = d.filter(models.PipelineVersion.feature_set_version == version)
+
+    if delete:
+        for _, pid, vers in pipelines:
+            db.query(models.PipelineSequence). \
+                filter((models.PipelineSequence.pipeline_id == pid) &
+                    (models.PipelineSequence.pipeline_version == vers)). \
+                delete(synchronize_session='fetch')
+        d.delete(synchronize_session='fetch')
+
+        p = db.query(distinct(models.PipelineVersion.pipeline_id)).subquery('p')
+        db.query(models.Pipeline).filter(models.Pipeline.pipeline_id.notin_(p)).delete(synchronize_session='fetch')
+    else:
+        d.update({'feature_set_id': None, 'feature_set_version': None,
+                    'pipeline_url': None, 'last_update_ts': datetime.now()})
+
 
 def get_feature_column_str(db: Session, fset: schemas.FeatureSet):
     return ','.join([f.name for f in get_features(db, fset)])
+
+
+# Pipe/Pipeline specific
+def get_pipes_in_pipeline(db: Session, pipeline: schemas.PipelineDetail):
+    p = aliased(models.Pipe, name='p')
+    pv = aliased(models.PipeVersion, name='pv')
+    ps = aliased(models.PipelineSequence, name='ps')
+
+    q = db.query(p, pv). \
+        join(pv, p.pipe_id == pv.pipe_id). \
+        join(ps, (pv.pipe_id == ps.pipe_id) & (pv.pipe_version == ps.pipe_version)). \
+        filter((ps.pipeline_id == pipeline.pipeline_id) & (ps.pipeline_version == pipeline.pipeline_version)). \
+        order_by(asc(ps.pipe_index))
+
+    pipes = []
+    for pipe, pipe_version in q.all():
+        pd = pipe.__dict__.copy()
+        pvd = pipe_version.__dict__.copy()
+        pd.update(pvd)
+        pd['func'] = stringify_function(pd['func'])
+        pipes.append(schemas.PipeDetail(**pd))
+    return pipes
+
+def get_pipelines_using_pipe(db: Session, pipe: schemas.PipeDetail) -> List[schemas.PipelineDetail]:
+    p = aliased(models.Pipeline, name='p')
+    pv = aliased(models.PipelineVersion, name='pv')
+    ps = aliased(models.PipeSequence, name='ps')
+
+    q = db.query(p, pv). \
+        join(pv, p.pipeline_id == pv.pipeline_id). \
+        join(ps, (pv.pipeline_id == ps.pipeline_id) & (pv.pipeline_version == ps.pipeline_version)). \
+        filter((ps.pipe_id == pipe.pipe_id) & (ps.pipe_version == pipe.pipe_version))
+
+    pipelines = []
+    for pipeline, pipeline_version in q.all():
+        pd = pipeline.__dict__.copy()
+        pvd = pipeline_version.__dict__.copy()
+        pd.update(pvd)
+        pd['func'] = stringify_function(pd['func'])
+        pld = schemas.PipelineDetail(**pd)
+        # pld.pipes = get_pipes_in_pipeline(db, pld)
+        pipelines.append(pld)
+    return pipelines
 
 
 def get_current_time(db: Session) -> datetime:
