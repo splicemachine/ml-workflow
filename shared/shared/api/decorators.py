@@ -2,6 +2,7 @@ import functools
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
+
 from shared.db.connection import SQLAlchemyClient
 from shared.logger.logging_config import logger
 

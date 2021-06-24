@@ -1,18 +1,21 @@
-import os
 import json
-import requests
+import os
 from time import time as timestamp
 
-from fastapi import APIRouter, status, Depends, HTTPException
+import requests
+from fastapi import APIRouter, Depends, status
+from schemas import InitiateJobRequest, InitiateJobResponse
+from sqlalchemy.orm import Session
+
+from shared.api.auth_dependency import authenticate
+from shared.api.models import APIStatuses, AuthUser
+from shared.logger.logging_config import logger
 from shared.models.splice_models import Handler, Job
 from shared.services.handlers import HandlerNames, KnownHandlers
-from shared.logger.logging_config import logger
-from shared.api.models import APIStatuses, AuthUser
-from shared.api.auth_dependency import authenticate
-
-from ..schemas import InitiateJobRequest, InitiateJobResponse
+from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 
 JOB_ROUTER = APIRouter()
+DB_SESSION = Depends(SQLAlchemyClient.get_session)
 
 BOBBY_URI = os.environ.get('BOBBY_URL', 'http://bobby')
 
@@ -52,7 +55,7 @@ def _initiate_job(job_payload: dict, handler: Handler, user: str, session):
 
 @JOB_ROUTER.post('/initiate-job', summary='Initiate an asynchronous job',
                  response_model=InitiateJobResponse, status_code=status.HTTP_202_ACCEPTED)
-async def initiate_job(properties: InitiateJobRequest, user: AuthUser = Depends(authenticate)):
+def initiate_job(properties: InitiateJobRequest, user: AuthUser = Depends(authenticate), db: Session = DB_SESSION):
     """
     Initiate an asynchronous job in bobby. Requires a request payload and basic auth credentials.
     """
@@ -60,6 +63,7 @@ async def initiate_job(properties: InitiateJobRequest, user: AuthUser = Depends(
     if not handler:
         message: str = f"Handler {properties.handler_name} is an unknown service"
         logger.error(message)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, message=message,
+                                     code=ExceptionCodes.BAD_ARGUMENTS)
 
-    return _initiate_job(job_payload=properties.job_payload, handler=handler, user=user.username)
+    return _initiate_job(job_payload=properties.job_payload, handler=handler, user=user.username, session=db)

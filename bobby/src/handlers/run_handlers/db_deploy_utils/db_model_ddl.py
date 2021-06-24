@@ -2,19 +2,18 @@
 Class to prepare database models for deployment
 to Splice Machine
 """
-from collections import OrderedDict
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from sqlalchemy import func
 from sqlalchemy import inspect as peer_into_splice_db
-from sqlalchemy import text
 from sqlalchemy.engine.result import ResultProxy
 from sqlalchemy.orm import Session, aliased
 
 from mlflow.store.tracking.dbmodels.models import SqlParam
-from shared.db.connection import (SQL, Converters, DatabaseFunctions,
-                                  SQLAlchemyClient)
+from shared.db.connection import SQLAlchemyClient
+from shared.db.functions import DatabaseFunctions
+from shared.db.sql import SQL
 from shared.logger.logging_config import log_operation_status, logger
 from shared.models.feature_store_models import (Deployment, Feature,
                                                 FeatureSetVersion,

@@ -1,7 +1,9 @@
-from typing import Dict, List
 from time import time as timestamp
-from shared.api.models import APIStatuses
+from typing import Dict, List
+
 from pydantic import BaseModel, Field
+
+from shared.api.models import APIStatuses
 
 
 class GenericSuccessResponse(BaseModel):

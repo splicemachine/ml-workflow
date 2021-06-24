@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
+from schemas import GetDeploymentsResponse, GetLogsResponse
+from sqlalchemy.orm import Session, load_only
 
 from shared.db.connection import SQLAlchemyClient
 from shared.db.sql import SQL
 from shared.models.splice_models import Job
-from sqlalchemy.orm import load_only
-from mlflow.src.app.schemas import GetDeploymentsResponse, GetLogsResponse
 
 MONITORING_ROUTER = APIRouter()
 DB_SESSION = Depends(SQLAlchemyClient.get_session)
@@ -22,7 +21,7 @@ def _get_logs(task_id: int, session):
 
 @MONITORING_ROUTER.get('/deployments', summary="Get deployments and statuses",
                        response_model=GetDeploymentsResponse, status_code=status.HTTP_200_OK)
-async def get_deployments(db: Session = DB_SESSION):
+def get_deployments(db: Session = DB_SESSION):
     """
     Get a list of all deployed models and their associated statuses. Requires Basic Auth validated
     against the database
@@ -35,7 +34,7 @@ async def get_deployments(db: Session = DB_SESSION):
 
 @MONITORING_ROUTER.get('/job-logs/{job_id}', summary="Get the logs for a specified job", response_model=GetLogsResponse,
                        status_code=status.HTTP_200_OK)
-async def get_logs(job_id: int, db: Session = DB_SESSION):
+def get_logs(job_id: int, db: Session = DB_SESSION):
     """
     Get a list of the logs from the job identified with the specified id. Requires Basic Auth validated against the DB.
     """

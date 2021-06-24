@@ -1,24 +1,23 @@
 import os
 
-from fastapi import FastAPI, Request, status
+from fastapi import Depends, FastAPI, Request, status
 from fastapi.responses import JSONResponse
-from shared.logger.logging_config import logger
 from fastapi_utils.timing import add_timing_middleware, record_timing
-
-from shared.shared.api.exceptions import ExceptionCodes
-from shared.db.connection import SQLAlchemyClient
-from shared.shared.api.exceptions import SpliceMachineException
+from routers.artifact_router import ARTIFACT_ROUTER
+from routers.job_router import JOB_ROUTER
+from routers.monitoring_router import MONITORING_ROUTER
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .routers.job_router import JOB_ROUTER
-from .routers.artifact_router import ARTIFACT_ROUTER
-from .routers.monitoring_router import MONITORING_ROUTER
+from shared.api.auth_dependency import authenticate
+from shared.api.exceptions import ExceptionCodes, SpliceMachineException
+from shared.db.connection import SQLAlchemyClient
+from shared.logger.logging_config import logger
 
 APP: FastAPI = FastAPI(
     title="MLManager Director API",
     debug=os.environ.get('DEBUG', False),
     description="API for asynchronous and synchronous calls to the MLManager Director API",
-    dependencies=[]
+    dependencies=[Depends(authenticate)]
 )
 
 add_timing_middleware(app=APP, record=logger.info, exclude='health')
@@ -42,8 +41,8 @@ def on_shutdown():
     logger.info("****** API IS SHUTTING DOWN ******")
 
 
-@APP.get('/health', summary="Health Check", response_model=str, status_code=status.HTTP_200_OK)
-async def health_check():
+@APP.get('/health', summary="Health Check", response_model=str, id='health', status_code=status.HTTP_200_OK)
+def health_check():
     return 'Ok'
 
 
@@ -67,18 +66,18 @@ def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 APP.include_router(
     router=MONITORING_ROUTER,
-    prefix='monitoring',
+    prefix='/monitoring',
     tags=['Monitoring']
 )
 
 APP.include_router(
     router=JOB_ROUTER,
-    prefix='jobs',
+    prefix='/jobs',
     tags=['Job Management']
 )
 
 APP.include_router(
     router=ARTIFACT_ROUTER,
-    prefix='artifacts',
+    prefix='/artifacts',
     tags=['Artifacts']
 )

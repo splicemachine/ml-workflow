@@ -20,7 +20,6 @@ from pysparkling import H2OConf, H2OContext
 from workerpool import Job as ThreadedTask
 from workerpool import WorkerPool
 
-from shared.api.responses import HTTP
 from shared.db.connection import SQLAlchemyClient
 from shared.db.sql import SQL
 from shared.environments.cloud_environment import (CloudEnvironment,
@@ -193,6 +192,4 @@ def main():
     logger.info('Waiting for new jobs...')
     check_db_for_jobs()  # get initial set of jobs from the DB
 
-
-if __name__ == "__main__":
-    main()
+main()

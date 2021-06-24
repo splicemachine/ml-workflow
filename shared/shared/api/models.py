@@ -2,6 +2,7 @@
 Definitions for Flask API
 """
 from typing import List
+
 from pydantic import BaseModel
 
 __author__: str = "Splice Machine, Inc."

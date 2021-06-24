@@ -5,7 +5,9 @@ import os
 from io import BytesIO
 from sys import getsizeof
 
-from fastapi import APIRouter, Depends, UploadFile, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from schemas import (DownloadArtifactRequest, GenericSuccessResponse,
+                     LogArtifactRequest)
 from sqlalchemy.orm import Session
 from starlette.responses import StreamingResponse
 from werkzeug.utils import secure_filename
@@ -13,9 +15,6 @@ from werkzeug.utils import secure_filename
 from shared.db.connection import SQLAlchemyClient
 from shared.logger.logging_config import logger
 from shared.models.mlflow_models import SqlArtifact
-from mlflow.src.app.schemas import (DownloadArtifactRequest, GenericSuccessResponse,
-                                    LogArtifactRequest)
-from .utils.artifact_utils import download_artifact, insert_artifact
 
 ARTIFACT_ROUTER = APIRouter()
 
@@ -83,19 +82,19 @@ def _download_artifact(run_id: str, name: str, session):
     return artifact.binary, filename
 
 
-@ARTIFACT_ROUTER.post('/upload-artifact', summary="Log an artifact to MLFow via HTTP",
+@ARTIFACT_ROUTER.post('/upload-artifact', operation_id='upload_artifact', summary="Log an artifact to MLFow via HTTP",
                       response_model=GenericSuccessResponse, status_code=status.HTTP_202_ACCEPTED)
-async def log_artifact(artifact: UploadFile, properties: LogArtifactRequest, db: Session = DB_SESSION):
+def log_artifact(artifact: UploadFile = File(...), properties: LogArtifactRequest = Depends(), db: Session = DB_SESSION):
     """
     Log a binary artifact to the specified run id. It uploads the artifact over HTTP in multipart form data.
     Requires basic auth that is validated against the Splice Machine database.
     """
-    file_data = await artifact.read()
+    file_data = artifact.read()
     file_name = secure_filename(artifact.filename)
 
     name = properties.name or file_name
 
-    insert_artifact(
+    _insert_artifact(
         run_id=properties.run_id,
         file=file_data,
         name=name,
@@ -106,9 +105,9 @@ async def log_artifact(artifact: UploadFile, properties: LogArtifactRequest, db:
     return GenericSuccessResponse()
 
 
-@ARTIFACT_ROUTER.get('/download-artifact', summary="Download an artifact from MLFlow via HTTP",
-                     status_code=status.HTTP_200_OK)
-async def download_artifact(properties: DownloadArtifactRequest, db: Session = DB_SESSION):
+@ARTIFACT_ROUTER.get('/download-artifact', operation_id='download_artifact', summary="Download an artifact from MLFlow via HTTP",
+                     status_code=status.HTTP_200_OK, response_class=StreamingResponse)
+def download_artifact(properties: DownloadArtifactRequest, db: Session = DB_SESSION):
     """
     Download a binary artifact from the Splice Machine database with the specified name and run id.
     It returns an octet stream of binary data. Basic auth is required (validated against Splice Machine DB)

@@ -2,18 +2,13 @@
 Constructs for Authentication
 """
 import logging
-from functools import wraps
-from os import environ as env_vars
-from os import popen as bash_popen
-from os import system as bash
+import os
 from time import sleep as delay
 from typing import Optional
 
 from py4j.java_gateway import JavaGateway, java_import
 from py4j.protocol import Py4JJavaError, Py4JNetworkError
 from retrying import retry
-
-from shared.api.responses import HTTP
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -54,8 +49,8 @@ class Authentication:
         :return: (Gateway) java gateway object
         """
         # Start the gateway to connect with py4j
-        if 'gateway' not in bash_popen('jps').read():
-            bash('java gateway &')
+        if 'gateway' not in os.popen('jps').read():
+            os.system('java gateway &')
             delay(0.5)
             LOGGER.debug('Started Java gateway')
         # Connect to gateway getting jvm object
@@ -78,7 +73,7 @@ class Authentication:
         java_import(gate.jvm, "com.splicemachine.shiro.SpliceDatabaseRealm.*")
         realm = gate.jvm.com.splicemachine.shiro.SpliceDatabaseRealm()
         LOGGER.debug('Connection successful')
-        realm.setServerName(env_vars['DB_HOST'])
+        realm.setServerName(os.environ['DB_HOST'])
         realm.setServerPort("1527")
         realm.setDatabaseName("splicedb")
         # when shiro authentication fails, it throws an error
