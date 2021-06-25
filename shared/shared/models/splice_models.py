@@ -58,14 +58,14 @@ class Handler(SQLAlchemyClient().SpliceBase):
     modifiable: Column = Column(Boolean, default=True)
     enabled: Column = Column(Boolean, default=True)
 
-    def __init__(self, model: BaseModel, *args,
+    def __init__(self, payload_args, *args,
                  **kwargs) -> None:
         """
         :param payload_args: list of fields for the API
         """
         super().__init__(*args, **kwargs)
         # these attributes are used for the API, not persisted in the database
-        self.model = payload_args
+        self.payload_args = payload_args
         self.handler_class: object = None
 
     def __repr__(self) -> None:

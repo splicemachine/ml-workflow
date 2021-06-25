@@ -1,4 +1,5 @@
 import os
+import traceback
 
 from fastapi import Depends, FastAPI, Request, status
 from fastapi.responses import JSONResponse
@@ -51,7 +52,7 @@ def health_check():
 
 @APP.exception_handler(SpliceMachineException)
 def splice_machine_exception_handler(request: Request, exc: SpliceMachineException):
-    logger.error(exc)
+    logger.error(traceback.print_tb(exc.__traceback__))
     return JSONResponse(
         status_code=exc.status_code,
         content={"code": exc.code, "message": exc.message}
@@ -60,7 +61,7 @@ def splice_machine_exception_handler(request: Request, exc: SpliceMachineExcepti
 
 @APP.exception_handler(StarletteHTTPException)
 def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    logger.error(exc)
+    logger.error(traceback.format_tb(exc.__traceback__))
     return JSONResponse(
         status_code=exc.status_code,
         content={"code": ExceptionCodes.UNKNOWN, "message": exc.detail}
