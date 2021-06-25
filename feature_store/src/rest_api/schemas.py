@@ -25,6 +25,12 @@ class FeatureBase(FeatureMetadata):
     feature_data_type: DataType
     feature_type: str
 
+    @validator('feature_type')
+    def check_values(cls, v):
+        if v not in ('C', 'N', 'O'):
+            raise ValueError("Feature type must be one of ('C','N','O')")
+        return v
+
 class FeatureCreate(FeatureBase):
     pass
 
