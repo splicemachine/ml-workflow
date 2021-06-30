@@ -598,7 +598,7 @@ class PipelineOps(SQLAlchemyClient.SpliceBase):
         INSERT INTO FeatureSet SELECT FROM Source WHERE ts_col > extract_up_to_ts
     """
     __tablename__: str = "pipeline_ops"
-    feature_set_id: Column = Column(Integer, ForeignKey(PipelineVersion.feature_set_id), primary_key=True)
+    feature_set_id: Column = Column(Integer, primary_key=True)
     extract_up_to_ts: Column = Column(DateTime)
     __table_args__ = (
         {'schema': 'featurestore'}
@@ -610,7 +610,7 @@ class PipelineAgg(SQLAlchemyClient.SpliceBase):
     FeatureAggregation class)
     """
     __tablename__: str = "pipeline_agg"
-    feature_set_id: Column = Column(Integer, ForeignKey(PipelineVersion.feature_set_id), primary_key=True)
+    feature_set_id: Column = Column(Integer, primary_key=True)
     feature_name_prefix: Column = Column(String(128), primary_key=True)
     column_name: Column = Column(String(128))
     agg_functions: Column = Column(String(50))
