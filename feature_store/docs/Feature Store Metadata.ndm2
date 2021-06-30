@@ -3451,7 +3451,7 @@
               },
               {
                 "objectType": "TableField_MYSQL",
-                "name": "pipeline_start_ts",
+                "name": "pipeline_start_date",
                 "type": "timestamp",
                 "length": 0,
                 "decimals": 0,
@@ -3473,7 +3473,7 @@
                 "isGeneratedAlways": false,
                 "virtualExpr": "",
                 "virtualType": "",
-                "oldName": "pipeline_start_ts"
+                "oldName": "pipeline_start_date"
               },
               {
                 "objectType": "TableField_MYSQL",

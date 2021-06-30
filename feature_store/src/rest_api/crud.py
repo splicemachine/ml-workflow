@@ -20,7 +20,7 @@ from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           __validate_feature_data_type, __validate_primary_keys,
                           __get_table_name)
 from .utils.feature_utils import model_to_schema_feature
-from .utils.pipeline_utils.pipeline_utils import stringify_function, destringify_function
+from .utils.pipeline_utils.pipeline_utils import stringify_bytes, byteify_string
 from .utils.airflow_utils import Airflow
 from mlflow.store.tracking.dbmodels.models import SqlRun, SqlTag, SqlParam
 from splicemachinesa.constants import RESERVED_WORDS
@@ -180,8 +180,7 @@ def validate_pipe(db, pipe: schemas.PipeCreate):
     validate_pipe_function(pipe, pipe.ptype)
 
 def validate_pipe_function(pipe: schemas.PipeAlter, ptype: str):
-    func = cloudpickle.loads(destringify_function(pipe.func))
-    pipe.code = getsource(func)
+    func = cloudpickle.loads(byteify_string(pipe.func))
 
     if not any(isinstance(node, ast.Return) for node in ast.walk(ast.parse(pipe.code))):
         raise SpliceMachineException(
@@ -212,7 +211,7 @@ def validate_pipeline(db, pipeline: schemas.PipelineCreate):
     if pipeline.pipes:
         pipeline.pipes = process_pipes(db, pipeline.pipes)
 
-def process_pipes(db: Session, pipes: List[Union[schemas.PipeDetail, str]]) -> List[schemas.PipeDetail]:
+def process_pipes(db: Session, pipes: List[schemas.PipeDetail]) -> List[schemas.PipeDetail]:
     """
     Process a list of Pipes parameter. If the list is strings, it converts them to Pipes, else returns itself
 
@@ -221,7 +220,7 @@ def process_pipes(db: Session, pipes: List[Union[schemas.PipeDetail, str]]) -> L
     :return: List[Pipe]
     """
     try:
-        pipe_str = [(p if isinstance(p, str) else p.name).upper() for p in pipes]
+        pipe_str = [p.name.upper() for p in pipes]
     except:
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message="It seems you've passed in Pipes that are neither" \
@@ -235,23 +234,16 @@ def process_pipes(db: Session, pipes: List[Union[schemas.PipeDetail, str]]) -> L
         missing = ', '.join(old_names - new_names)
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
                                      message=f'Could not find the following pipes: {missing}')
-    
-    for index, pipe in enumerate(pipes):
-        try:
-            if pipe.pipe_id and pipe.pipe_version:
-                pipe_order[index] = pipe
-        except:
-            pass
 
-    if not pipe_order[0].ptype == 'S':
+    if not pipes[0].ptype == 'S':
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message=f"The first Pipe in a Pipeline must be of ptype 'S'.")
 
-    if any([p.ptype == 'S' for p in pipe_order[1:]]):
+    if any([p.ptype == 'S' for p in pipes[1:]]):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message=f"Only 1 Pipe of ptype 'S' is allowed per Pipeline.")
 
-    return pipe_order
+    return pipes
 
 def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, Union[str, int]],
                        feature_sets: List[schemas.FeatureSet],
@@ -2156,7 +2148,7 @@ def get_features_from_deployment(db: Session, tsid: int) -> List[schemas.Feature
 
 def register_pipe_metadata(db: Session, pipe: schemas.PipeCreate) -> schemas.Pipe:
     p = models.Pipe(name=pipe.name, description=pipe.description, 
-                    type=pipe.ptype, language=pipe.lang)
+                    ptype=pipe.ptype, lang=pipe.lang)
 
     db.add(p)
     db.flush()
@@ -2167,11 +2159,11 @@ def register_pipe_metadata(db: Session, pipe: schemas.PipeCreate) -> schemas.Pip
     return schemas.Pipe(**pd)
 
 def create_pipe_version(db: Session, pipe: schemas.Pipe, version: int = 1) -> schemas.PipeVersion:
-    pv = models.PipeVersion(pipe_id=pipe.pipe_id, pipe_version=version, function=destringify_function(pipe.func), code=pipe.code)
+    pv = models.PipeVersion(pipe_id=pipe.pipe_id, pipe_version=version, func=byteify_string(pipe.func), code=pipe.code)
     db.add(pv)
     
     pvd = pv.__dict__.copy()
-    pvd['func'] = stringify_function(pvd['func'])
+    pvd['func'] = stringify_bytes(pvd['func'])
     return schemas.PipeVersion(**pvd)
 
 def get_pipes(db: Session, names: List[str] = None, sort: bool = False, _filter: Dict[str, str] = None) -> List[schemas.PipeDetail]:
@@ -2223,7 +2215,7 @@ def get_pipes(db: Session, names: List[str] = None, sort: bool = False, _filter:
         pd = pipe.__dict__.copy()
         pvd = pipe_version.__dict__.copy()
         pd.update(pvd)
-        pd['func'] = stringify_function(pd['func'])
+        pd['func'] = stringify_bytes(pd['func'])
         pipes.append(schemas.PipeDetail(**pd))
 
     if sort and names:
@@ -2246,7 +2238,7 @@ def alter_pipe_function(db: Session, pipe: schemas.PipeDetail, func: str, code: 
     db.query(models.PipeVersion). \
         filter((models.PipeVersion.pipe_id == pipe.pipe_id) &
             (models.PipeVersion.pipe_version == pipe.pipe_version)). \
-        update({'func': destringify_function(func), 'code': code, 'last_update_ts': datetime.now()})
+        update({'func': byteify_string(func), 'code': code, 'last_update_ts': datetime.now()})
 
 def delete_pipe(db: Session, pipe_id: int, version: int) -> None:
     """
@@ -2279,16 +2271,18 @@ def register_pipeline_metadata(db: Session, pipeline: schemas.PipelineCreate) ->
 
 def create_pipeline_version(db: Session, pipeline: schemas.Pipeline, version: int = 1) -> schemas.PipelineVersion:
     pv = models.PipelineVersion(pipeline_id=pipeline.pipeline_id, pipeline_version=version, 
-                            pipeline_start_ts=pipeline.pipeline_start_ts,
+                            pipeline_start_date=pipeline.pipeline_start_date.strftime('%Y-%m-%d'),
                             pipeline_interval=pipeline.pipeline_interval)
     db.add(pv)
-    
+    db.flush()
+
     return schemas.PipelineVersion(**pv.__dict__)
 
 def register_pipeline_pipes(db: Session, pipeline: schemas.PipelineDetail, pipes: List[schemas.PipeDetail]):
     seq = [
         models.PipelineSequence(pipeline_id=pipeline.pipeline_id, pipeline_version=pipeline.pipeline_version,
-                                    pipe_id=p.pipe_id, pipe_version=p.pipe_version, pipe_index=i)
+                                    pipe_id=p.pipe_id, pipe_version=p.pipe_version, pipe_index=i, 
+                                    args=byteify_string(p.args), kwargs=byteify_string(p.kwargs))
         for i, p in enumerate(pipes)
     ]
     [db.add(ps) for ps in seq]
@@ -2381,7 +2375,7 @@ def alter_pipeline_version(db: Session, pipeline: schemas.PipelineDetail):
     db.query(models.PipelineVersion). \
         filter((models.PipelineVersion.pipe_id == pipeline.pipeline_id) &
             (models.PipelineVersion.pipe_version == pipeline.pipeline_version)). \
-        update({'pipeline_start_ts': pipeline.pipeline_start_ts, 'pipeline_interval': pipeline.pipeline_interval, 
+        update({'pipeline_start_date': pipeline.pipeline_start_date.strftime('%Y-%m-%d'), 'pipeline_interval': pipeline.pipeline_interval, 
                 'last_update_ts': datetime.now()})
 
 def delete_pipeline(db: Session, pipeline_id: int, version: int) -> None:
@@ -2503,19 +2497,19 @@ def get_pipes_in_pipeline(db: Session, pipeline: schemas.PipelineDetail):
     pv = aliased(models.PipeVersion, name='pv')
     ps = aliased(models.PipelineSequence, name='ps')
 
-    q = db.query(p, pv). \
+    q = db.query(p, pv, ps.args, ps.kwargs). \
         join(pv, p.pipe_id == pv.pipe_id). \
         join(ps, (pv.pipe_id == ps.pipe_id) & (pv.pipe_version == ps.pipe_version)). \
         filter((ps.pipeline_id == pipeline.pipeline_id) & (ps.pipeline_version == pipeline.pipeline_version)). \
         order_by(asc(ps.pipe_index))
 
     pipes = []
-    for pipe, pipe_version in q.all():
+    for pipe, pipe_version, args, kwargs in q.all():
         pd = pipe.__dict__.copy()
         pvd = pipe_version.__dict__.copy()
         pd.update(pvd)
-        pd['func'] = stringify_function(pd['func'])
-        pipes.append(schemas.PipeDetail(**pd))
+        pd['func'] = stringify_bytes(pd['func'])
+        pipes.append(schemas.PipeDetail(**pd, args=stringify_bytes(args), kwargs=stringify_bytes(kwargs)))
     return pipes
 
 def get_pipelines_using_pipe(db: Session, pipe: schemas.PipeDetail) -> List[schemas.PipelineDetail]:
@@ -2533,7 +2527,6 @@ def get_pipelines_using_pipe(db: Session, pipe: schemas.PipeDetail) -> List[sche
         pd = pipeline.__dict__.copy()
         pvd = pipeline_version.__dict__.copy()
         pd.update(pvd)
-        pd['func'] = stringify_function(pd['func'])
         pld = schemas.PipelineDetail(**pd)
         # pld.pipes = get_pipes_in_pipeline(db, pld)
         pipelines.append(pld)

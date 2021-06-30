@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Union, Any
-from datetime import datetime
+from datetime import datetime, date
 from pydantic import BaseModel, validator, Field
 from shared.services.database import Converters
 
@@ -307,6 +307,7 @@ class PipeAlter(BaseModel):
 
 class PipeUpdate(PipeAlter):
     func: str
+    code: str
 
 class PipeCreate(PipeUpdate):
     name: str
@@ -337,20 +338,21 @@ class Pipe(PipeCreate):
     pipe_id: int
 
 class PipeDetail(Pipe, PipeVersion):
-    pass
+    args: Optional[str] = None
+    kwargs: Optional[str] = None
 
 class PipelineBase(BaseModel):
-    pipeline_start_ts: datetime
+    pipeline_start_date: date
     pipeline_interval: str
 
 class PipelineAlter(BaseModel):
     description: Optional[str] = None
-    pipeline_start_ts: Optional[datetime] = None
+    pipeline_start_date: Optional[date] = None
     pipeline_interval: Optional[str] = None
-    pipes: Optional[List[Union[str, PipeDetail]]] = None
+    pipes: Optional[List[PipeDetail]] = None
 
 class PipelineUpdate(PipelineAlter, PipelineBase):
-    pipes: List[Union[str, PipeDetail]]
+    pipes: List[PipeDetail]
 
 class PipelineCreate(PipelineUpdate):
     name: str

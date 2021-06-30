@@ -7,7 +7,7 @@ from shared.logger.logging_config import logger
 from shared.services.database import SQLAlchemyClient, DatabaseSQL, DatabaseFunctions
 from sqlalchemy import event, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
-                        String, Text, DateTime, Numeric, Float, LargeBinary)
+                        String, Text, DateTime, Numeric, Float, LargeBinary, Date)
 from sqlalchemy.sql.elements import TextClause
 from mlflow.store.tracking.dbmodels.models import SqlRun
 
@@ -170,7 +170,7 @@ class FeatureStats(SQLAlchemyClient.SpliceBase):
     feature_count: Column = Column(Integer)
     feature_stddev: Column = Column(Float)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
-    _table_args__: tuple = (
+    __table_args__: tuple = (
         ForeignKeyConstraint(
             (feature_id, feature_set_id, feature_set_version),
             [FeatureVersion.feature_id, FeatureVersion.feature_set_id, FeatureVersion.feature_set_version],
@@ -550,7 +550,7 @@ class PipelineVersion(SQLAlchemyClient.SpliceBase):
     pipeline_version: Column = Column(Integer, primary_key=True)
     feature_set_id: Column = Column(Integer, nullable=True)
     feature_set_version: Column = Column(Integer, nullable=True)
-    pipeline_start_ts: Column = Column(DateTime)
+    pipeline_start_date: Column = Column(Date)
     pipeline_interval: Column = Column(String(10))
     pipeline_url: Column = Column(String(1024), nullable=True)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
@@ -574,6 +574,8 @@ class PipelineSequence(SQLAlchemyClient.SpliceBase):
     pipe_index: Column = Column(Integer, primary_key=True)
     pipe_id: Column = Column(Integer, nullable=False)
     pipe_version: Column = Column(Integer, nullable=False)
+    args: Column = Column(LargeBinary(length=int(2e9)))
+    kwargs: Column = Column(LargeBinary(length=int(2e9)))
     __table_args__: tuple = (
         ForeignKeyConstraint(
             (pipeline_id, pipeline_version),

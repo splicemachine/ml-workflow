@@ -112,7 +112,7 @@ class Airflow:
 
     @staticmethod
     def deploy_pipeline(pipeline: schemas.PipelineDetail, fset: str):
-        value = { 'schedule_interval': pipeline.pipeline_interval, 'start_date': pipeline.pipeline_start_ts.strftime('%Y-%m-%d'),
+        value = { 'schedule_interval': pipeline.pipeline_interval, 'start_date': pipeline.pipeline_start_date.strftime('%Y-%m-%d'),
                     'feature_set': fset
         }
         Airflow.create_or_update_variable(Variables.PIPELINES, Airflow.__get_dag_name(pipeline), value)

@@ -163,7 +163,7 @@ def generate_backfill_intervals(db: Session, pipeline: schemas.Pipeline, ) -> Li
     """
     window_type, window_length = helpers.parse_time_window(pipeline.backfill_interval)
     window_value = constants.tsi_window_values.get(window_type) # TODO: tsi_windows or tsi_window_values??
-    sql = SQL.backfill_timestamps.format(backfill_start_time=pipeline.backfill_start_ts, pipeline_start_time=pipeline.pipeline_start_ts,
+    sql = SQL.backfill_timestamps.format(backfill_start_time=pipeline.backfill_start_ts, pipeline_start_time=pipeline.pipeline_start_date,
                      window_value=window_value, window_length=window_length)
     res = db.execute(sql).fetchall()
     return [i for (i,) in res] # Unpack the list of tuples
@@ -322,6 +322,7 @@ def _create_pipeline(pipeline: schemas.PipelineCreate, db: Session) -> schemas.P
     pl = schemas.PipelineDetail(**pd)
     if pipeline.pipes:
         crud.register_pipeline_pipes(db, pl, pipeline.pipes)
+        pl.pipes = pipeline.pipes
     return pl
 
 def _update_pipeline(update: schemas.PipelineUpdate, name: str, db: Session):
@@ -449,8 +450,12 @@ def _undeploy_pipeline(name: str, version: Union[str, int], db: Session):
 
     return pipeline
 
-def stringify_function(func: bytes) -> str:
-    return base64.encodebytes(func).decode('ascii').strip()
+def stringify_bytes(b: bytes) -> str:
+    if b is None:
+        return None
+    return base64.encodebytes(b).decode('ascii').strip()
 
-def destringify_function(func: str) -> bytes:
-    return base64.decodebytes(func.strip().encode('ascii'))
+def byteify_string(s: str) -> bytes:
+    if s is None:
+        return None
+    return base64.decodebytes(s.strip().encode('ascii'))
