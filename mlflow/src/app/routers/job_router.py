@@ -40,7 +40,7 @@ def _initiate_job(job_payload: dict, handler: Handler, user: str, session):
                    payload=json.dumps(payload))
 
     session.add(job)
-    session.commit()
+    session.flush()
     session.merge(job)  # get identity column from database with Job ID
 
     try:
