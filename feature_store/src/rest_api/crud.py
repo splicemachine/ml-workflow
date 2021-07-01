@@ -17,8 +17,7 @@ from datetime import datetime
 from collections import Counter
 from .utils.utils import (__get_pk_columns, get_pk_column_str, datatype_to_sql,
                           sql_to_datatype, _sql_to_sqlalchemy_columns,
-                          __validate_feature_data_type, __validate_primary_keys,
-                          __get_table_name)
+                          __validate_feature_data_type, __validate_primary_keys)
 from .utils.feature_utils import model_to_schema_feature
 from .utils.pipeline_utils.pipeline_utils import stringify_bytes, byteify_string
 from .utils.airflow_utils import Airflow
@@ -195,7 +194,7 @@ def validate_pipe_function(pipe: schemas.PipeAlter, ptype: str):
             status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
             message=f'Non-source pipes must have at least 1 parameter.')
 
-def validate_pipeline(db, pipeline: schemas.PipelineCreate):
+def validate_pipeline(db: Session, pipeline: schemas.PipelineCreate):
     logger.info('Validating pipeline')
     if pipeline.name.lower() in RESERVED_WORDS:
         raise SpliceMachineException(
@@ -237,11 +236,11 @@ def process_pipes(db: Session, pipes: List[schemas.PipeDetail]) -> List[schemas.
 
     if not pipes[0].ptype == 'S':
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
-                                     message=f"The first Pipe in a Pipeline must be of ptype 'S'.")
+                                     message=f"The first Pipe in a Pipeline must be a Source pipe (ptype 'S').")
 
     if any([p.ptype == 'S' for p in pipes[1:]]):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
-                                     message=f"Only 1 Pipe of ptype 'S' is allowed per Pipeline.")
+                                     message=f"Only 1 Source Pipe (ptype 'S') is allowed per Pipeline.")
 
     return pipes
 
@@ -1490,7 +1489,7 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
 
 def create_historian_triggers(db: Session, fset: schemas.FeatureSet) -> None:
     # TODO: Add third trigger to ensure online table has newest value
-    table_name = __get_table_name(fset)
+    table_name = fset.table_name
     new_pk_cols = ','.join(f'NEWW.{p}' for p in __get_pk_columns(fset))
     new_feature_cols = ','.join(f'NEWW.{f.name}' for f in get_features(db, fset))
 
@@ -1517,7 +1516,7 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSetDetail) -> schemas.F
     :return: List[Feature]
     """
     metadata = MetaData(db.get_bind())
-    table_name = __get_table_name(fset)
+    table_name = fset.table_name
 
     logger.info('Creating Feature Set...')
     pk_columns = _sql_to_sqlalchemy_columns(fset.primary_keys, True)
@@ -1561,8 +1560,8 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSetDetail) -> schemas.F
 def migrate_feature_set(db: Session, previous: schemas.FeatureSetDetail, live: schemas.FeatureSetDetail):
     metadata = MetaData(db.connection())
 
-    old_name = __get_table_name(previous)
-    new_name = __get_table_name(live)
+    old_name = previous.table_name
+    new_name = live.table_name
     old_serving = Table(old_name, metadata, PrimaryKeyConstraint(*[pk.lower() for pk in previous.primary_keys]),
                     schema=previous.schema_name.lower(), autoload=True, keep_existing=True)
     old_history = Table(f'{old_name}_history', metadata, PrimaryKeyConstraint(*[pk.lower() for pk in previous.primary_keys]),
@@ -2372,6 +2371,13 @@ def update_pipeline_description(db: Session, pipeline_id: int, description: str)
     db.query(models.Pipeline).filter(models.Pipeline.pipe_id==pipeline_id).update({'description':description})
 
 def alter_pipeline_version(db: Session, pipeline: schemas.PipelineDetail):
+    """
+    Alters attributes of a specific pipeline version, i.e. changing the start date of an undeployed pipeline
+
+    :param db: SqlAlchemy Session
+    :param pipeline: The Pipeline version to alter
+    """
+
     db.query(models.PipelineVersion). \
         filter((models.PipelineVersion.pipe_id == pipeline.pipeline_id) &
             (models.PipelineVersion.pipe_version == pipeline.pipeline_version)). \
@@ -2405,9 +2411,14 @@ def delete_pipeline(db: Session, pipeline_id: int, version: int) -> None:
         count() == 0:
             db.query(models.Pipeline).filter(models.Pipeline.pipeline_id == pipeline_id).delete(synchronize_session='fetch')
 
-def update_deployed_pipeline(db: Session, pipeline: schemas.PipelineDetail, fset: schemas.FeatureSetDetail):
+def set_pipeline_deployment_metadata(db: Session, pipeline: schemas.PipelineDetail, fset: schemas.FeatureSetDetail):
     """
-    Updates a deployed pipeline version with metadata about the feature set it was deployed to
+    When a pipeline is deployed, the pipeline version needs to be updated with metadata about the feature set it was deployed to.
+    This function does that.
+
+    :param db: Database Session
+    :param pipeline: The deployed Pipeline version
+    :param fset: The Feature Set that the Pipeline is being deployed to
     """
     db.query(models.PipelineVersion). \
         filter((models.PipelineVersion.pipeline_id == pipeline.pipeline_id) &
@@ -2419,9 +2430,13 @@ def update_deployed_pipeline(db: Session, pipeline: schemas.PipelineDetail, fset
     pipeline.feature_set_version = pipeline.feature_set_version
     pipeline.pipeline_url = Airflow.get_dag_url(pipeline.name, pipeline.pipeline_version)
 
-def update_undeployed_pipeline(db: Session, pipeline: schemas.PipelineDetail):
+def unset_pipeline_deployment_metadata(db: Session, pipeline: schemas.PipelineDetail):
     """
-    Removes feature set metadata from an undeployed pipeline version
+    When a pipeline is undeployed, the metadata about the feature set it was deployed to needs to be removed from the pipeline version.
+    This function does that.
+
+    :param db: Database Session
+    :param pipeline: The undeployed Pipeline version
     """
     db.query(models.PipelineVersion). \
         filter((models.PipelineVersion.pipeline_id == pipeline.pipeline_id) &
@@ -2492,7 +2507,14 @@ def get_feature_column_str(db: Session, fset: schemas.FeatureSet):
 
 
 # Pipe/Pipeline specific
-def get_pipes_in_pipeline(db: Session, pipeline: schemas.PipelineDetail):
+def get_pipes_in_pipeline(db: Session, pipeline: schemas.PipelineDetail) -> List[schemas.PipeDetail]:
+    """
+    Returns the pipes that make up the given pipeline version
+
+    :param db: SqlAlchemy Session
+    :param pipeline: The pipeline from which to get pipes
+    :return: List[PipeDetail]
+    """
     p = aliased(models.Pipe, name='p')
     pv = aliased(models.PipeVersion, name='pv')
     ps = aliased(models.PipelineSequence, name='ps')
@@ -2512,7 +2534,14 @@ def get_pipes_in_pipeline(db: Session, pipeline: schemas.PipelineDetail):
         pipes.append(schemas.PipeDetail(**pd, args=stringify_bytes(args), kwargs=stringify_bytes(kwargs)))
     return pipes
 
-def get_pipelines_using_pipe(db: Session, pipe: schemas.PipeDetail) -> List[schemas.PipelineDetail]:
+def get_pipelines_from_pipe(db: Session, pipe: schemas.PipeDetail) -> List[schemas.PipelineDetail]:
+    """
+    Returns the pipelines that contain the given pipe version
+
+    :param db: SqlAlchemy Session
+    :param pipe: The pipe from which to get pipelines
+    :return: List[PipelineDetail]
+    """
     p = aliased(models.Pipeline, name='p')
     pv = aliased(models.PipelineVersion, name='pv')
     ps = aliased(models.PipeSequence, name='ps')

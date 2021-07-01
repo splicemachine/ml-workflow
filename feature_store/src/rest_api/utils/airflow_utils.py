@@ -70,6 +70,12 @@ class Airflow:
 
     @staticmethod
     def remove_multiple_from_variable(variable: str, keys: List[str]):
+        """
+        Removes multiple keys from an Airflow variable
+
+        :param variable: The variable from which to remove the keys
+        :param keys: List of keys to remove from the variable
+        """
         items = Airflow.get_variable_if_exists(variable)
         if items:
             [items.pop(key, None) for key in keys]
@@ -115,11 +121,11 @@ class Airflow:
         value = { 'schedule_interval': pipeline.pipeline_interval, 'start_date': pipeline.pipeline_start_date.strftime('%Y-%m-%d'),
                     'feature_set': fset
         }
-        Airflow.create_or_update_variable(Variables.PIPELINES, Airflow.__get_dag_name(pipeline), value)
+        Airflow.create_or_update_variable(Variables.PIPELINES, pipeline.dag_name, value)
 
     @staticmethod
     def undeploy_pipeline(pipeline: schemas.PipelineDetail):
-        Airflow.remove_from_variable(Variables.PIPELINES, Airflow.__get_dag_name(pipeline))
+        Airflow.remove_from_variable(Variables.PIPELINES, pipeline.dag_name)
 
     @staticmethod
     def undeploy_pipelines(pipelines: List[str]):

@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 import base64
 from ...constants import SQL
-from ..utils import sql_to_datatype, __get_table_name
+from ..utils import sql_to_datatype
 from ..airflow_utils import Airflow
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from fastapi import status
@@ -287,7 +287,7 @@ def _alter_pipe(alter: schemas.PipeAlter, name: str, version: Union[str, int], d
     pipe = pipes[0]
 
     if alter.func:
-        pipelines = crud.get_pipelines_using_pipe(db, pipe)
+        pipelines = crud.get_pipelines_from_pipe(db, pipe)
         if pipelines:
             deps = [f'{pipeline.name} v{pipeline.pipeline_version}' for pipeline in pipelines]
             raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
@@ -425,8 +425,8 @@ def _deploy_pipeline(name: str, schema: str, table: str, version: Union[str, int
                                         message=f"Cannot deploy Pipeline to Feature Set {fset_name} v{fset.feature_set_version} as it is undeployed. "
                                         "Either deploy this Feature Set, or enter a deployed Feature Set.")
 
-    Airflow.deploy_pipeline(pipeline, f'{fset.schema_name.lower()}.{__get_table_name(fset)}')
-    crud.update_deployed_pipeline(db, pipeline, fset)
+    Airflow.deploy_pipeline(pipeline, f'{fset.schema_name.lower()}.{fset.table_name}')
+    crud.set_pipeline_deployment_metadata(db, pipeline, fset)
 
     return pipeline
 
@@ -446,7 +446,7 @@ def _undeploy_pipeline(name: str, version: Union[str, int], db: Session):
                                         message=f"Pipeline {name} v{pipeline.pipeline_version} is not deployed.")
 
     Airflow.undeploy_pipeline(pipeline)
-    crud.update_undeployed_pipeline(db, pipeline)
+    crud.unset_pipeline_deployment_metadata(db, pipeline)
 
     return pipeline
 

@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Union, Any
 from datetime import datetime, date
 from pydantic import BaseModel, validator, Field
+from sqlalchemy.sql.expression import table
 from shared.services.database import Converters
 
 class DataType(BaseModel):
@@ -143,6 +144,10 @@ class FeatureSetDetail(FeatureSet, FeatureSetVersion):
     num_features: Optional[int] = None
     has_training_sets: Optional[bool] = None
     has_deployments: Optional[bool] = None
+
+    @property
+    def table_name(self):
+        return f'{self.table_name.lower()}_v{self.feature_set_version}'
 
 class TrainingViewBase(BaseModel):
     name: Optional[str] = None
@@ -377,3 +382,7 @@ class PipelineVersion(PipelineBase):
 
 class PipelineDetail(Pipeline, PipelineVersion):
     pipes: Optional[List[PipeDetail]] = None
+
+    @property
+    def dag_name(self):
+        return f'{self.name}_v{self.pipeline_version}'

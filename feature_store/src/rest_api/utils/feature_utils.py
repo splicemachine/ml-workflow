@@ -9,7 +9,7 @@ from shared.logger.logging_config import logger
 from ..utils.airflow_utils import Airflow
 from typing import List, Set, Union
 import json
-from .utils import sql_to_datatype, __validate_primary_keys, __get_table_name
+from .utils import sql_to_datatype, __validate_primary_keys
 
 def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migrate: bool, db: Session):
     """
@@ -30,7 +30,7 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
             status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
             message=f"Feature set {schema}.{table} v{fset.feature_set_version} is already deployed.")
 
-    table_name = __get_table_name(fset)
+    table_name = fset.table_name
     table_exists = DatabaseFunctions.table_exists(schema, table_name, db.get_bind())
     history_table_exists = DatabaseFunctions.table_exists(schema, f'{table_name}_history', db.get_bind())
     insert_trigger_exists = DatabaseFunctions.trigger_exists(schema, f'{table_name}_history_insert', db)
@@ -38,8 +38,8 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
     if table_exists or history_table_exists or insert_trigger_exists or update_trigger_exists:
          raise SpliceMachineException(
             status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
-            message=f"There seems to have been metadata corruption. Feature Set data has been created, but the Feature Store"
-                    f" Metadata is not reflecting that. Please drop the following tables / triggers if they exist:"
+            message=f"There seems to have been metadata corruption. Feature Set {schema}.{table} tables / triggers have been created, "
+                    f"but the Feature Store Metadata is not reflecting that. Please drop the following tables / triggers if they exist:"
                     f"\nTable {schema}.{table} exists: {table_exists}"
                     f"\nTable {schema}.{table}_history exists: {history_table_exists}"
                     f"\nInsert trigger for feature set ({schema}.{table}_history_insert) exists: {insert_trigger_exists}"
@@ -69,7 +69,7 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
     crud.create_historian_triggers(db, fset)
     logger.info('Done.')
     if Airflow.is_active:
-        Airflow.schedule_feature_set_calculation(f'{schema}.{__get_table_name(fset)}')
+        Airflow.schedule_feature_set_calculation(f'{schema}.{fset.table_name}')
     return fset
 
 def _create_feature_set(fset: schemas.FeatureSetCreate, db: Session):

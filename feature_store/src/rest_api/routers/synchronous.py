@@ -17,7 +17,7 @@ from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, gen
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from ..decorators import managed_transaction
 from ..utils.airflow_utils import Airflow
-from ..utils.utils import parse_version, __get_table_name
+from ..utils.utils import parse_version
 
 # Synchronous API Router -- we can mount it to the main API
 SYNC_ROUTER = APIRouter(
@@ -771,7 +771,7 @@ def remove_feature_set(schema: str, table: str, purge: bool = False,
     else:
         delete_feature_set(db, fset.feature_set_id, version, purge=purge)
     for fset in fsets:
-        table_name = __get_table_name(fset)
+        table_name = fset.table_name
         drop_feature_set_table(db, fset.schema_name, table_name)
         if Airflow.is_active:
             fset_name = f'{fset.schema_name}.{table_name}'
@@ -1049,7 +1049,7 @@ def remove_pipe(name: str, version: Optional[Union[str, int]] = None, db: Sessio
                                         message=f"Pipe {name} does not exist. Please enter a valid pipe.")
     pipe = pipes[0]
     
-    pipelines = crud.get_pipelines_using_pipe(db, pipe)
+    pipelines = crud.get_pipelines_from_pipe(db, pipe)
     if pipelines:
         deps = [f'{pipeline.name} v{pipeline.pipeline_version}' for pipeline in pipelines]
         raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
