@@ -12,11 +12,12 @@ from ..utils.training_utils import (dict_to_lower, _get_training_view_by_name,
                                     training_set_to_json)
 from ..utils.pipeline_utils.pipeline_utils import (create_pipeline_entities, generate_backfill_sql,
                                                     generate_backfill_intervals, generate_pipeline_sql, _get_source, 
-                                                    _create_pipe, _update_pipe, _alter_pipe)
+                                                    _create_pipe, _update_pipe, _alter_pipe, _create_pipeline, _update_pipeline, 
+                                                    _alter_pipeline, _deploy_pipeline, _undeploy_pipeline)
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from ..decorators import managed_transaction
 from ..utils.airflow_utils import Airflow
-from ..utils.utils import parse_version, __get_table_name
+from ..utils.utils import parse_version
 
 # Synchronous API Router -- we can mount it to the main API
 SYNC_ROUTER = APIRouter(
@@ -171,7 +172,7 @@ def get_feature_vector(fjk: schemas.FeatureJoinKeys, pks: bool = True, sql: bool
     """
     Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets
     """
-    feats: List[schemas.Feature] = crud.process_features(db, fjk.features)
+    feats: List[schemas.FeatureDetail] = crud.process_features(db, fjk.features)
 
     not_live = [f.name for f in feats if not f.deployed]
     if not_live:
@@ -765,13 +766,12 @@ def remove_feature_set(schema: str, table: str, purge: bool = False,
                                     message=err)
     # No dependencies
     if training_sets:
-        sets = set()
-        [sets.update(ts) for ts in training_sets.values()]
-        delete_feature_set(db, fset.feature_set_id, version, cascade=True, training_sets=sets)
+        sets = set(training_sets.values())
+        delete_feature_set(db, fset.feature_set_id, version, purge=purge, training_sets=sets)
     else:
-        delete_feature_set(db, fset.feature_set_id, version, cascade=False)
+        delete_feature_set(db, fset.feature_set_id, version, purge=purge)
     for fset in fsets:
-        table_name = __get_table_name(fset)
+        table_name = fset.table_name
         drop_feature_set_table(db, fset.schema_name, table_name)
         if Airflow.is_active:
             fset_name = f'{fset.schema_name}.{table_name}'
@@ -1048,5 +1048,101 @@ def remove_pipe(name: str, version: Optional[Union[str, int]] = None, db: Sessio
         raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
                                         message=f"Pipe {name} does not exist. Please enter a valid pipe.")
     pipe = pipes[0]
-    # check for pipeline dependencies
+    
+    pipelines = crud.get_pipelines_from_pipe(db, pipe)
+    if pipelines:
+        deps = [f'{pipeline.name} v{pipeline.pipeline_version}' for pipeline in pipelines]
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                    message=f"Cannot remove pipe {name} since it is used by the following pipelines: {deps}")
+
     crud.delete_pipe(db, pipe.pipe_id, pipe.pipe_version if version == 'latest' else version)
+
+@SYNC_ROUTER.get('/pipelines', status_code=status.HTTP_200_OK, response_model=List[schemas.PipelineDetail],
+                description="Returns a list of available pipelines", operation_id='get_pipelines', tags=['Pipelines'])
+@managed_transaction
+def get_pipelines(names: Optional[List[str]] = Query([], alias="name"), db: Session = Depends(crud.get_db)):
+    """
+    Returns a list of available pipelines
+    """
+    return crud.get_pipelines(db, names)
+
+@SYNC_ROUTER.get('/pipelines/{name}', status_code=status.HTTP_200_OK, response_model=List[schemas.PipelineDetail],
+                description="Returns a list of available pipelines", operation_id='get_pipelines', tags=['Pipelines'])
+@managed_transaction
+def get_pipeline(name: str, version: Optional[Union[str, int]] = None, db: Session = Depends(crud.get_db)):
+    """
+    Returns a list of available pipeline versions
+    """
+    version = parse_version(version)
+    pipelines = crud.get_pipelines(db, _filter={"name": name, "pipeline_version": version})
+    if not pipelines:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any pipeline with name '{name}'.")
+    return pipelines
+
+@SYNC_ROUTER.post('/pipelines', status_code=status.HTTP_201_CREATED, response_model=schemas.PipelineDetail, 
+                description="Creates and returns a new pipeline", operation_id='create_pipeline', tags=['Pipelines'])
+@managed_transaction
+def create_pipeline(pipeline: schemas.PipelineCreate, db: Session = Depends(crud.get_db)):
+    """
+    Creates and returns a new pipeline
+    """
+    return _create_pipeline(pipeline, db)
+
+@SYNC_ROUTER.put('/pipelines/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.PipelineDetail, 
+                description="Creates a new version of an existing pipeline", operation_id='update_pipeline', tags=['Pipelines'])
+@managed_transaction
+def update_pipeline(name: str, pipeline: schemas.PipelineUpdate, db: Session = Depends(crud.get_db)):
+    """
+    Creates a new version of an existing pipeline
+    """
+    return _update_pipeline(pipeline, name, db)
+
+@SYNC_ROUTER.patch('/pipelines/{name}', status_code=status.HTTP_201_CREATED, response_model=schemas.PipelineDetail, 
+                description="Alters an undeployed version of a pipeline", operation_id='alter_pipeline', tags=['Pipelines'])
+@managed_transaction
+def alter_pipeline(name: str, pipeline: schemas.PipelineAlter, version: Union[str, int] = 'latest', db: Session = Depends(crud.get_db)):
+    """
+    Alters an undeployed version of a pipeline
+    """
+    version = parse_version(version)
+    return _alter_pipeline(pipeline, name, version, db)
+
+@SYNC_ROUTER.delete('/pipelines/{name}', status_code=status.HTTP_200_OK, description="Remove a pipeline",
+                    operation_id='remove_pipeline', tags=['Pipelines'])
+@managed_transaction
+def remove_pipeline(name: str, version: Optional[Union[str, int]] = None, db: Session = Depends(crud.get_db)):
+    """
+    Removes a pipeline from the Feature Store
+    """
+    version = parse_version(version)
+    pipelines = crud.get_pipelines(db, _filter={'name': name, 'pipeline_version': version})
+    if not pipelines:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Pipeline {name} does not exist. Please enter a valid pipeline.")
+    pipeline = pipelines[0]
+    if pipeline.feature_set_id:
+        raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.ALREADY_DEPLOYED,
+                                        message=f"Cannot delete Pipeline {name} v{pipeline.pipeline_version} as it is "
+                                        "already deployed. Please undeploy it first with fs.undeploy_pipeline()")
+    crud.delete_pipeline(db, pipeline.pipeline_id, pipeline.pipeline_version if version == 'latest' else version)
+
+@SYNC_ROUTER.post('/deploy-pipeline', status_code=status.HTTP_200_OK, response_model=schemas.PipelineDetail,
+                description="Deploys a pipeline to a specified Feature Set", operation_id='deploy_pipeline', tags=['Pipelines'])
+@managed_transaction
+def deploy_pipeline(name: str, schema: str, table: str, version: Union[str, int] = 'latest', db: Session = Depends(crud.get_db)):
+    """
+    Deploys a pipeline to a specified Feature Set
+    """
+    version = parse_version(version)
+    return _deploy_pipeline(name, schema, table, version, db)
+
+@SYNC_ROUTER.post('/undeploy-pipeline', status_code=status.HTTP_200_OK, response_model=schemas.PipelineDetail,
+                description="Undeploys a pipeline", operation_id='undeploy_pipeline', tags=['Pipelines'])
+@managed_transaction
+def undeploy_pipeline(name: str, version: Union[str, int] = 'latest', db: Session = Depends(crud.get_db)):
+    """
+    Undeploys a pipeline
+    """
+    version = parse_version(version)
+    return _undeploy_pipeline(name, version, db)

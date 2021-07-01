@@ -8,6 +8,7 @@ from datetime import datetime
 import base64
 from ...constants import SQL
 from ..utils import sql_to_datatype
+from ..airflow_utils import Airflow
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from fastapi import status
 from shared.logger.logging_config import logger
@@ -162,7 +163,7 @@ def generate_backfill_intervals(db: Session, pipeline: schemas.Pipeline, ) -> Li
     """
     window_type, window_length = helpers.parse_time_window(pipeline.backfill_interval)
     window_value = constants.tsi_window_values.get(window_type) # TODO: tsi_windows or tsi_window_values??
-    sql = SQL.backfill_timestamps.format(backfill_start_time=pipeline.backfill_start_ts, pipeline_start_time=pipeline.pipeline_start_ts,
+    sql = SQL.backfill_timestamps.format(backfill_start_time=pipeline.backfill_start_ts, pipeline_start_time=pipeline.pipeline_start_date,
                      window_value=window_value, window_length=window_length)
     res = db.execute(sql).fetchall()
     return [i for (i,) in res] # Unpack the list of tuples
@@ -286,8 +287,13 @@ def _alter_pipe(alter: schemas.PipeAlter, name: str, version: Union[str, int], d
     pipe = pipes[0]
 
     if alter.func:
-        #if pipe has dependent pipeline, throw error
-        #else
+        pipelines = crud.get_pipelines_from_pipe(db, pipe)
+        if pipelines:
+            deps = [f'{pipeline.name} v{pipeline.pipeline_version}' for pipeline in pipelines]
+            raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+                                        message=f"Cannot remove pipe {name} since it is used by the following pipelines: {deps}. "
+                                        "Either remove this pipe from these pipelines, or create a new version of this pipe "
+                                        "using fs.update_pipe().")
         crud.validate_pipe_function(alter, pipe.ptype)
         crud.alter_pipe_function(db, pipe, alter.func, alter.code)
         pipe.func = alter.func
@@ -300,8 +306,156 @@ def _alter_pipe(alter: schemas.PipeAlter, name: str, version: Union[str, int], d
 
     return pipe
 
-def stringify_function(func: bytes) -> str:
-    return base64.encodebytes(func).decode('ascii').strip()
+def _create_pipeline(pipeline: schemas.PipelineCreate, db: Session) -> schemas.PipelineDetail:
+    """
+    The implementation of the create_pipeline route with logic here so other functions can call it
+    :param pipeline: The pipeline to create
+    :param db: The database session
+    :return: The created Pipeline
+    """
+    crud.validate_pipeline(db, pipeline)
+    logger.info(f'Registering pipeline {pipeline.name} in Feature Store')
+    pipeline_metadata = crud.register_pipeline_metadata(db, pipeline)
+    pipeline_version = crud.create_pipeline_version(db, pipeline_metadata)
+    pd = pipeline_metadata.__dict__
+    pd.update(pipeline_version.__dict__)
+    pl = schemas.PipelineDetail(**pd)
+    if pipeline.pipes:
+        crud.register_pipeline_pipes(db, pl, pipeline.pipes)
+        pl.pipes = pipeline.pipes
+    return pl
 
-def destringify_function(func: str) -> bytes:
-    return base64.decodebytes(func.strip().encode('ascii'))
+def _update_pipeline(update: schemas.PipelineUpdate, name: str, db: Session):
+    """
+    The implementation of the update_pipeline route with logic here so other functions can call it
+    :param update: The pipeline version to create
+    :param db: The database session
+    :return: The created Pipeline version
+    """
+
+    pipelines: List[schemas.PipelineDetail] = crud.get_pipelines(db, _filter={'name': name, 'pipeline_version': 'latest'})
+    if not pipelines:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Pipeline {name} does not exist. Please enter "
+                                        f"a valid pipeline, or create this pipeline using fs.create_pipeline()")
+    pipeline = pipelines[0]
+
+    if update.description:
+        logger.info(f'Updating description for {name}')
+        crud.update_pipeline_description(db, pipeline.pipeline_id, update.description)
+
+    pipeline.__dict__.update(update.__dict__)
+    pipeline_version = crud.create_pipeline_version(db, pipeline, pipeline.pipeline_version + 1)
+    pipeline.pipeline_version = pipeline_version.pipeline_version
+
+    if pipeline.pipes:
+        pipeline.pipes = crud.process_pipes(db, pipeline.pipes)
+        crud.register_pipeline_pipes(db, pipeline, pipeline.pipes)
+    
+    return pipeline
+
+def _alter_pipeline(alter: schemas.PipelineAlter, name: str, version: Union[str, int], db: Session):
+    """
+    The implementation of the update_pipeline route with logic here so other functions can call it
+    :param alter: The pipeline to alter
+    :param name: The pipeline name
+    :param version: The version to alter
+    :param db: The database session
+    :return: The updated Pipeline
+    """
+    pipelines: List[schemas.PipelineDetail] = crud.get_pipelines(db, _filter={'name': name, 'pipeline_version': version})
+    if not pipelines:
+        v = f'with version {version} ' if isinstance(version, int) else ''
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                        message=f"Pipeline {name} {v}does not exist. Please enter a valid pipeline.")
+    pipeline = pipelines[0]
+
+    changes = {k: v for k, v in alter.__dict__.items() if v is not None}
+    desc = changes.pop('description', None)
+
+    if changes:
+        if pipeline.feature_set_id:
+            raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.ALREADY_DEPLOYED,
+                                        message=f"Cannot alter Pipeline {name} version {pipeline.pipeline_version} as it has "
+                                                "already been deployed to a Feature Set. If you wish to make changes, please create "
+                                                "a new version with fs.update_pipeline()")
+        pipes = changes.pop('pipes', None)
+        if pipes:
+            pipes = crud.process_pipes(db, pipes)
+            crud.update_pipeline_pipes(db, pipeline, pipes)
+            pipeline.pipes = pipes
+
+        if changes:
+            pipeline.__dict__.update((k, changes.__dict__[k]) for k in pipeline.__dict__.keys() & changes.__dict__.keys())
+            crud.alter_pipeline_version(db, pipeline)
+
+    if desc:
+        logger.info(f'Updating description for {name}')
+        crud.update_pipe_description(db, pipeline.pipeline_id, desc)
+        pipeline.description = desc
+
+    return pipeline
+
+def _deploy_pipeline(name: str, schema: str, table: str, version: Union[str, int], db: Session):
+    if not Airflow.is_active:
+        raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.NOT_ENABLED,
+                                        message=f"Cannot deploy pipelines without an active connection to Airflow.")
+
+    pipelines = crud.get_pipelines(db, _filter={"name": name, "pipeline_version": version})
+    if not pipelines:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any pipeline with name '{name}'.")
+    pipeline = pipelines[0]
+
+    if not crud.get_pipes_in_pipeline(db, pipeline):
+        raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.NOT_DEPLOYABLE,
+                                        message=f"Pipeline {name} has no pipes. "
+                                        "You cannot deploy a pipeline with no pipes.")
+
+    fset_name = f'{schema}.{table}'
+    fsets = crud.get_feature_sets(db, feature_set_names=[fset_name])
+    if not fsets:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                message=f"Feature Set {schema}.{table} does not exist. Please enter "
+                                f"a valid feature set.")
+    
+    fset = fsets[0]
+    if not fset.deployed:
+        raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.NOT_DEPLOYED,
+                                        message=f"Cannot deploy Pipeline to Feature Set {fset_name} v{fset.feature_set_version} as it is undeployed. "
+                                        "Either deploy this Feature Set, or enter a deployed Feature Set.")
+
+    Airflow.deploy_pipeline(pipeline, f'{fset.schema_name.lower()}.{fset.table_name}')
+    crud.set_pipeline_deployment_metadata(db, pipeline, fset)
+
+    return pipeline
+
+def _undeploy_pipeline(name: str, version: Union[str, int], db: Session):
+    if not Airflow.is_active:
+        raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.NOT_ENABLED,
+                                        message=f"Cannot undeploy pipelines without an active connection to Airflow.")
+
+    pipelines = crud.get_pipelines(db, _filter={"name": name, "pipeline_version": version})
+    if not pipelines:
+        raise SpliceMachineException(status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+                                    message=f"Cannot find any pipeline with name '{name}'.")
+    pipeline = pipelines[0]
+
+    if not pipeline.feature_set_id:
+        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.NOT_DEPLOYED,
+                                        message=f"Pipeline {name} v{pipeline.pipeline_version} is not deployed.")
+
+    Airflow.undeploy_pipeline(pipeline)
+    crud.unset_pipeline_deployment_metadata(db, pipeline)
+
+    return pipeline
+
+def stringify_bytes(b: bytes) -> str:
+    if b is None:
+        return None
+    return base64.encodebytes(b).decode('ascii').strip()
+
+def byteify_string(s: str) -> bytes:
+    if s is None:
+        return None
+    return base64.decodebytes(s.strip().encode('ascii'))

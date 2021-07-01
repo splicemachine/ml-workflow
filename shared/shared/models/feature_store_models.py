@@ -7,7 +7,7 @@ from shared.logger.logging_config import logger
 from shared.services.database import SQLAlchemyClient, DatabaseSQL, DatabaseFunctions
 from sqlalchemy import event, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
-                        String, Text, DateTime, Numeric, Float, LargeBinary)
+                        String, Text, DateTime, Numeric, Float, LargeBinary, Date)
 from sqlalchemy.sql.elements import TextClause
 from mlflow.store.tracking.dbmodels.models import SqlRun
 
@@ -120,7 +120,6 @@ class Feature(SQLAlchemyClient.SpliceBase):
     feature_type: Column = Column(String(1))  # 'O'rdinal, 'C'ontinuous, 'N'ominal
     tags: Column = Column(String(5000), nullable=True)
     attributes: Column = Column(String(5000), nullable=True)
-    compliance_level: Column = Column(Integer)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
@@ -171,7 +170,7 @@ class FeatureStats(SQLAlchemyClient.SpliceBase):
     feature_count: Column = Column(Integer)
     feature_stddev: Column = Column(Float)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
-    _table_args__: tuple = (
+    __table_args__: tuple = (
         ForeignKeyConstraint(
             (feature_id, feature_set_id, feature_set_version),
             [FeatureVersion.feature_id, FeatureVersion.feature_set_id, FeatureVersion.feature_set_version],
@@ -531,21 +530,63 @@ class PipeVersion(SQLAlchemyClient.SpliceBase):
 
 class Pipeline(SQLAlchemyClient.SpliceBase):
     """
-    This table represents the instantiation of a Pipeline to feed a particular Feature Set from a Source. Pipelines
-    contain a 1 to many mapping of Source ID to Feature Set ID. That is, 1 source can feed many feature sets, but 1 feature set
-    is fed by 1 source.
+    This table represents the instantiation of a Pipeline to feed a particular Feature Set. Pipelines
+    contain a 1 to 1 mapping of Pipeline ID to Feature Set ID. That is, 1 pipeline can only feed 1 feature sets, and 1 feature set
+    is fed by 1 pipeline.
     """
     __tablename__: str = "pipeline"
-    feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id), primary_key=True)
-    source_id: Column = Column(Integer, ForeignKey(Source.source_id))
-    pipeline_start_ts: Column = Column(DateTime)
+    __table_args__ = {'schema': 'featurestore'}
+    pipeline_id: Column = Column(Integer, primary_key=True)
+    name: Column = Column(String(128), nullable=False, index=True, unique=True)
+    description: Column = Column(String(500), nullable=True)
+
+class PipelineVersion(SQLAlchemyClient.SpliceBase):
+    """
+    Pipeline Version keeps track of the different versions of Pipelines that are created
+    This is used by the Feature Store to maintain versioning
+    """
+    __tablename__: str = "pipeline_version"
+    pipeline_id: Column = Column(Integer, ForeignKey(Pipeline.pipeline_id, name='fk_pipeline_version_pipeline'), primary_key=True)
+    pipeline_version: Column = Column(Integer, primary_key=True)
+    feature_set_id: Column = Column(Integer, nullable=True)
+    feature_set_version: Column = Column(Integer, nullable=True)
+    pipeline_start_date: Column = Column(Date)
     pipeline_interval: Column = Column(String(10))
-    backfill_start_ts: Column = Column(DateTime)
-    backfill_interval: Column = Column(String(10))
-    pipeline_url: Column = Column(String(1024))
+    pipeline_url: Column = Column(String(1024), nullable=True)
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
-    __table_args__ = (
+    __table_args__: tuple = (
+        ForeignKeyConstraint(
+            (feature_set_id, feature_set_version),
+            [FeatureSetVersion.feature_set_id, FeatureSetVersion.feature_set_version],
+            name='fk_pipeline_version_feature_set_version'
+        ),
+        {'schema': 'featurestore'}
+    )
+
+class PipelineSequence(SQLAlchemyClient.SpliceBase):
+    """
+    This table represents the sequence of pipe versions in a pipeline version
+    """
+    __tablename__: str = "pipeline_sequence"
+    pipeline_id: Column = Column(Integer, primary_key=True)
+    pipeline_version: Column = Column(Integer, primary_key=True)
+    pipe_index: Column = Column(Integer, primary_key=True)
+    pipe_id: Column = Column(Integer, nullable=False)
+    pipe_version: Column = Column(Integer, nullable=False)
+    args: Column = Column(LargeBinary(length=int(2e9)))
+    kwargs: Column = Column(LargeBinary(length=int(2e9)))
+    __table_args__: tuple = (
+        ForeignKeyConstraint(
+            (pipeline_id, pipeline_version),
+            [PipelineVersion.pipeline_id, PipelineVersion.pipeline_version],
+            name='fk_pipeline_sequence_pipeline_version'
+        ),
+        ForeignKeyConstraint(
+            (pipe_id, pipe_version),
+            [PipeVersion.pipe_id, PipeVersion.pipe_version],
+            name='fk_pipeline_sequence_pipe_version'
+        ),
         {'schema': 'featurestore'}
     )
 
@@ -557,7 +598,7 @@ class PipelineOps(SQLAlchemyClient.SpliceBase):
         INSERT INTO FeatureSet SELECT FROM Source WHERE ts_col > extract_up_to_ts
     """
     __tablename__: str = "pipeline_ops"
-    feature_set_id: Column = Column(Integer, ForeignKey(Pipeline.feature_set_id), primary_key=True)
+    feature_set_id: Column = Column(Integer, primary_key=True)
     extract_up_to_ts: Column = Column(DateTime)
     __table_args__ = (
         {'schema': 'featurestore'}
@@ -569,7 +610,7 @@ class PipelineAgg(SQLAlchemyClient.SpliceBase):
     FeatureAggregation class)
     """
     __tablename__: str = "pipeline_agg"
-    feature_set_id: Column = Column(Integer, ForeignKey(Pipeline.feature_set_id), primary_key=True)
+    feature_set_id: Column = Column(Integer, primary_key=True)
     feature_name_prefix: Column = Column(String(128), primary_key=True)
     column_name: Column = Column(String(128))
     agg_functions: Column = Column(String(50))
@@ -594,7 +635,7 @@ def create_deploy_historian():
 TABLES = [FeatureSet, FeatureSetVersion, PendingFeatureSetDeployment, FeatureSetKey, Feature, FeatureVersion, FeatureStats, 
           TrainingView, TrainingViewVersion, TrainingViewKey, TrainingSet, TrainingSetInstance, TrainingSetFeature, 
           TrainingSetFeatureStats, TrainingSetLabelStats, Deployment, DeploymentHistory, DeploymentFeatureStats, 
-          Source, SourceKey, Pipe, PipeVersion, Pipeline, PipelineOps, PipelineAgg]
+          Source, SourceKey, Pipe, PipeVersion, Pipeline, PipelineVersion, PipelineSequence, PipelineOps, PipelineAgg]
 
 def create_feature_store_tables(_sleep_secs=1) -> None:
     """

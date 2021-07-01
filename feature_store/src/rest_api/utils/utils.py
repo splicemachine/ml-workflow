@@ -1,5 +1,5 @@
 from fastapi import status
-from ..schemas import FeatureSetBase, FeatureSet, DataType, FeatureSetDetail, FeatureSetUpdate
+from ..schemas import FeatureSetBase, FeatureSet, DataType, FeatureSetDetail, FeatureSetUpdate, PipelineDetail
 from ..constants import Columns, SQL_TO_SQLALCHEMY
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from typing import Dict, List, Union
@@ -55,8 +55,6 @@ def get_pk_column_str(fset: FeatureSet, history=False):
 def __get_pk_columns(fset: Union[FeatureSetBase, FeatureSetUpdate]):
     return list(fset.primary_keys.keys())
 
-def __get_table_name(fset: FeatureSetDetail):
-    return f'{fset.table_name.lower()}_v{fset.feature_set_version}'
 
 def datatype_to_sql(typ: DataType) -> str:
     """

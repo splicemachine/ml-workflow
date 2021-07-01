@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Union, Any
-from datetime import datetime
+from datetime import datetime, date
 from pydantic import BaseModel, validator, Field
+from sqlalchemy.sql.expression import table
 from shared.services.database import Converters
 
 class DataType(BaseModel):
@@ -150,6 +151,10 @@ class FeatureSetDetail(FeatureSet, FeatureSetVersion):
     has_training_sets: Optional[bool] = None
     has_deployments: Optional[bool] = None
 
+    @property
+    def table_name(self):
+        return f'{self.table_name.lower()}_v{self.feature_set_version}'
+
 class TrainingViewBase(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
@@ -206,18 +211,18 @@ class Source(BaseModel):
     source_id: Optional[int] = None
     pk_columns: List[str]
 
-class Pipeline(BaseModel):
-    feature_set_id: int
-    source_id: int
-    pipeline_start_ts: datetime
-    pipeline_interval: str
-    backfill_start_ts: datetime
-    backfill_interval: str
-    pipeline_url: str
-    last_update_ts: datetime
-    last_update_username: str
-    class Config:
-        orm_mode = True
+# class Pipeline(BaseModel):
+#     feature_set_id: int
+#     source_id: int
+#     pipeline_start_ts: datetime
+#     pipeline_interval: str
+#     backfill_start_ts: datetime
+#     backfill_interval: str
+#     pipeline_url: str
+#     last_update_ts: datetime
+#     last_update_username: str
+#     class Config:
+#         orm_mode = True
 
 class FeatureAggregation(BaseModel):
     column_name: str
@@ -313,6 +318,7 @@ class PipeAlter(BaseModel):
 
 class PipeUpdate(PipeAlter):
     func: str
+    code: str
 
 class PipeCreate(PipeUpdate):
     name: str
@@ -343,4 +349,46 @@ class Pipe(PipeCreate):
     pipe_id: int
 
 class PipeDetail(Pipe, PipeVersion):
-    pass
+    args: Optional[str] = None
+    kwargs: Optional[str] = None
+
+class PipelineBase(BaseModel):
+    pipeline_start_date: date
+    pipeline_interval: str
+
+class PipelineAlter(BaseModel):
+    description: Optional[str] = None
+    pipeline_start_date: Optional[date] = None
+    pipeline_interval: Optional[str] = None
+    pipes: Optional[List[PipeDetail]] = None
+
+class PipelineUpdate(PipelineAlter, PipelineBase):
+    pipes: List[PipeDetail]
+
+class PipelineCreate(PipelineUpdate):
+    name: str
+
+class Pipeline(PipelineCreate):
+    pipeline_id: int
+
+    class Config:
+        orm_mode = True
+
+class PipelineVersion(PipelineBase):
+    pipeline_id: int
+    pipeline_version: int
+    feature_set_id: Optional[int] = None
+    feature_set_version: Optional[int] = None
+    pipeline_url: Optional[str] = None
+    last_update_ts: Optional[datetime] = None
+    last_update_username: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+class PipelineDetail(Pipeline, PipelineVersion):
+    pipes: Optional[List[PipeDetail]] = None
+
+    @property
+    def dag_name(self):
+        return f'{self.name}_v{self.pipeline_version}'
