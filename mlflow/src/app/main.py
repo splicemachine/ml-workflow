@@ -16,6 +16,7 @@ from shared.logger.logging_config import logger
 
 APP: FastAPI = FastAPI(
     title="MLManager Director API",
+    root_path=os.environ.get('ROOT_PATH', '/'),
     debug=os.environ.get('DEBUG', False),
     description="API for asynchronous and synchronous calls to the MLManager Director API",
     dependencies=[Depends(authenticate)]
