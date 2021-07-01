@@ -1,9 +1,7 @@
 import json
 from datetime import datetime
 from os import environ as env_vars
-
 import requests
-
 from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 from shared.logger.logging_config import logger
 
@@ -22,10 +20,11 @@ class Variables:
     """
     AGG_FEATURE_SETS: str = "agg_feature_sets"
     FEATURE_SETS: str = "feature_sets"
-
+    PIPELINES: str = "pipelines"
 
 class Airflow:
-    AIRFLOW_URL = None
+    AIRFLOW_URL: str = None
+    EXTERNAL_UI: str = None
     auth = None
     is_active = True
 
@@ -74,6 +73,24 @@ class Airflow:
                                              message=str(error))
 
     @staticmethod
+    def remove_multiple_from_variable(variable: str, keys: List[str]):
+        """
+        Removes multiple keys from an Airflow variable
+
+        :param variable: The variable from which to remove the keys
+        :param keys: List of keys to remove from the variable
+        """
+        items = Airflow.get_variable_if_exists(variable)
+        if items:
+            [items.pop(key, None) for key in keys]
+            body = { 'key': variable, 'value': json.dumps(items) }
+            try:
+                requests.patch(f'{Airflow.AIRFLOW_URL}/{Endpoints.VARIABLES}/{variable}', json=body, auth=Airflow.auth).raise_for_status()
+            except requests.exceptions.HTTPError as error:
+                raise SpliceMachineException(status_code=error.response.status_code, code=ExceptionCodes.UNKNOWN,
+                        message=str(error))
+
+    @staticmethod
     def schedule_feature_set_calculation(fset: str):
         value = {'schedule_interval': '@daily', 'start_date': datetime.today().strftime('%Y-%m-%d')}
         Airflow.create_or_update_variable(Variables.FEATURE_SETS, fset, value)
@@ -105,6 +122,31 @@ class Airflow:
                                              message=str(error))
 
     @staticmethod
+    def deploy_pipeline(pipeline: schemas.PipelineDetail, fset: str):
+        value = { 'schedule_interval': pipeline.pipeline_interval, 'start_date': pipeline.pipeline_start_date.strftime('%Y-%m-%d'),
+                    'feature_set': fset
+        }
+        Airflow.create_or_update_variable(Variables.PIPELINES, pipeline.dag_name, value)
+
+    @staticmethod
+    def undeploy_pipeline(pipeline: schemas.PipelineDetail):
+        Airflow.remove_from_variable(Variables.PIPELINES, pipeline.dag_name)
+
+    @staticmethod
+    def undeploy_pipelines(pipelines: List[str]):
+        Airflow.remove_multiple_from_variable(Variables.PIPELINES, pipelines)
+
+    @staticmethod
+    def get_dag_url(name: str, version: int):
+        if not Airflow.EXTERNAL_UI:
+            return None
+        return Airflow.EXTERNAL_UI + f'/dag_details?dag_id={name}_v{version}'
+
+    @staticmethod
+    def __get_dag_name(pipeline: schemas.PipelineDetail):
+        return f'{pipeline.name}_v{pipeline.pipeline_version}'
+
+    @staticmethod
     def setup():
         url = env_vars.get('AIRFLOW_URL')
         if url:
@@ -128,3 +170,4 @@ class Airflow:
             Airflow.is_active = False
             return
         logger.info('Successfully connected to Airflow API')
+        Airflow.EXTERNAL_UI = env_vars.get('AIRFLOW_EXTERNAL_UI', None)

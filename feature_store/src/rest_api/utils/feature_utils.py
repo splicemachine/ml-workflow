@@ -11,8 +11,7 @@ from shared.logger.logging_config import logger
 
 from .. import crud, schemas
 from ..utils.airflow_utils import Airflow
-from .utils import __get_table_name, __validate_primary_keys, sql_to_datatype
-
+from .utils import __validate_primary_keys, sql_to_datatype
 
 def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migrate: bool, db: Session):
     """
@@ -35,6 +34,21 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
             status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
             message=f"Feature set {schema}.{table} v{fset.feature_set_version} is already deployed.")
 
+    table_name = fset.table_name
+    table_exists = DatabaseFunctions.table_exists(schema, table_name, db.get_bind())
+    history_table_exists = DatabaseFunctions.table_exists(schema, f'{table_name}_history', db.get_bind())
+    insert_trigger_exists = DatabaseFunctions.trigger_exists(schema, f'{table_name}_history_insert', db)
+    update_trigger_exists = DatabaseFunctions.trigger_exists(schema, f'{table_name}_history_update', db)
+    if table_exists or history_table_exists or insert_trigger_exists or update_trigger_exists:
+         raise SpliceMachineException(
+            status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+            message=f"There seems to have been metadata corruption. Feature Set {schema}.{table} tables / triggers have been created, "
+                    f"but the Feature Store Metadata is not reflecting that. Please drop the following tables / triggers if they exist:"
+                    f"\nTable {schema}.{table} exists: {table_exists}"
+                    f"\nTable {schema}.{table}_history exists: {history_table_exists}"
+                    f"\nInsert trigger for feature set ({schema}.{table}_history_insert) exists: {insert_trigger_exists}"
+                    f"\nUpdate trigger for feature set ({schema}.{table}_history_insert) exists: {update_trigger_exists}")
+
     current = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])[0]
     if current.feature_set_version > fset.feature_set_version:
         raise SpliceMachineException(
@@ -45,7 +59,7 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
     features = crud.get_features(db, fset)
     if not features:
         raise SpliceMachineException(
-            status_code=status.HTTP_404_NOT_FOUND, code=ExceptionCodes.DOES_NOT_EXIST,
+            status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.NOT_DEPLOYABLE,
             message=f"Feature set {schema}.{table} has no features. You cannot deploy a feature "
                     f"set with no features")
 
@@ -59,7 +73,7 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
     crud.create_historian_triggers(db, fset)
     logger.info('Done.')
     if Airflow.is_active:
-        Airflow.schedule_feature_set_calculation(f'{schema}.{__get_table_name(fset)}')
+        Airflow.schedule_feature_set_calculation(f'{schema}.{fset.table_name}')
     return fset
 
 
@@ -203,7 +217,7 @@ def model_to_schema_feature(feat: models.Feature) -> schemas.FeatureDetail:
     return schemas.FeatureDetail(**f)
 
 
-def delete_feature_set(db: Session, feature_set_id: int, version: int = None, cascade: bool = False,
+def delete_feature_set(db: Session, feature_set_id: int, version: int = None, purge: bool = False,
                        training_sets: Set[int] = None):
     """
     Deletes a Feature Set. Drops the table. Removes keys. Potentially removes training sets if there are dependencies
@@ -213,7 +227,7 @@ def delete_feature_set(db: Session, feature_set_id: int, version: int = None, ca
     :param training_sets: Set[int] training sets
     :param cascade: whether to delete dependent training sets. If this is True training_sets must be set.
     """
-    if cascade and training_sets:
+    if training_sets:
         logger.info(f'linked training sets: {training_sets}')
 
         logger.info("Removing training set stats")
@@ -229,6 +243,11 @@ def delete_feature_set(db: Session, feature_set_id: int, version: int = None, ca
         logger.info("Removing training sets")
         crud.delete_training_sets(db, training_sets)
 
+    if Airflow.is_active:
+        # Remove pipeline dependencies
+        logger.info("Removing any Pipeline dependencies")
+        crud.remove_feature_set_pipelines(db, feature_set_id, version, delete=purge)
+
     # Delete features
     logger.info("Removing features")
     crud.delete_features_from_feature_set(db, feature_set_id, version)
@@ -238,10 +257,6 @@ def delete_feature_set(db: Session, feature_set_id: int, version: int = None, ca
     # Delete Feature Set Version
     logger.info("Removing feature set version")
     crud.delete_feature_set_version(db, feature_set_id, version)
-
-    # Delete pipeline dependencies
-    logger.info("Deleting any Pipeline dependencies")
-    crud.delete_pipeline(db, feature_set_id)
 
 
 def drop_feature_set_table(db: Session, schema_name: str, table_name: str):

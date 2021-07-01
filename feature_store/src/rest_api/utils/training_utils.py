@@ -5,15 +5,14 @@ from typing import Any, List, Optional, Tuple, Union
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-
-from shared.api.exceptions import ExceptionCodes, SpliceMachineException
-from shared.logger.logging_config import logger
 
 from .. import crud
 from ..schemas import (Feature, FeatureSet, TrainingSet, TrainingSetMetadata,
                        TrainingViewDetail)
-from .utils import __get_pk_columns, __get_table_name
+from sqlalchemy.orm import Session
+from .utils import __get_pk_columns
+from shared.api.exceptions import SpliceMachineException, ExceptionCodes
+from shared.logger.logging_config import logger
 
 """
 A set of utility functions for creating Training Set SQL 
@@ -115,7 +114,7 @@ def _generate_training_set_history_sql(tvw: TrainingViewDetail, features: List[F
         # Join Feature Set History
         sql += ("\nLEFT OUTER JOIN ("
                 f"\n\tSELECT h.*,coalesce(min(h.asof_ts) over (partition by {','.join(pkcols)} order by h.ASOF_TS ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING), timestamp('{str(create_time)}')) until_ts "
-                f"\n\tFROM {fset.schema_name}.{__get_table_name(fset)}_history h "
+                f"\n\tFROM {fset.schema_name}.{fset.table_name}_history h "
                 f"\n\tWHERE INGEST_TS <= timestamp('{str(create_time)}')"
                 f"\n) fset{fset.feature_set_id}h "
                 "\nON"
@@ -147,7 +146,7 @@ def _generate_training_set_sql(features: List[Feature], feature_sets: List[Featu
     """
     anchor_fset: FeatureSet = _get_anchor_feature_set(features, feature_sets, label)
     alias = f'fset{anchor_fset.feature_set_id}'  # We use this a lot for joins
-    anchor_fset_schema = f'{anchor_fset.schema_name}.{__get_table_name(anchor_fset)} {alias} '
+    anchor_fset_schema = f'{anchor_fset.schema_name}.{anchor_fset.table_name} {alias} '
     remaining_fsets = [fset for fset in feature_sets if fset != anchor_fset]
 
     # SELECT clause
@@ -163,7 +162,7 @@ def _generate_training_set_sql(features: List[Feature], feature_sets: List[Featu
     # JOIN clause
     for fset in remaining_fsets:
         # Join Feature Set
-        sql += f'\nLEFT OUTER JOIN {fset.schema_name}.{__get_table_name(fset)} fset{fset.feature_set_id} \n\tON '
+        sql += f'\nLEFT OUTER JOIN {fset.schema_name}.{fset.table_name} fset{fset.feature_set_id} \n\tON '
         for ind, pkcol in enumerate(__get_pk_columns(fset)):
             if ind > 0: sql += ' AND '  # In case of multiple columns
             sql += f'fset{fset.feature_set_id}.{pkcol}={alias}.{pkcol}'
@@ -187,7 +186,7 @@ def _create_temp_training_view(features: List[Feature], feature_sets: List[Featu
         anchor_columns.append(label.name)
     anchor_column_sql = ', '.join(anchor_columns)
     ts_col = 'LAST_UPDATE_TS'
-    schema_table_name = f'{anchor_fset.schema_name}.{__get_table_name(anchor_fset)}_history'
+    schema_table_name = f'{anchor_fset.schema_name}.{anchor_fset.table_name}_history'
     sql_text = f"SELECT {anchor_column_sql}, ASOF_TS as {ts_col} FROM {schema_table_name} WHERE INGEST_TS <= timestamp('{str(create_time)}')"
     return TrainingViewDetail(view_id=None, pk_columns=__get_pk_columns(anchor_fset), ts_column=ts_col, sql_text=sql_text,
                         description=None, name=None, label_column=(label.name if label else None))

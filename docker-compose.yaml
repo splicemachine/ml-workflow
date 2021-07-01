@@ -68,6 +68,7 @@ services:
       AIRFLOW_URL: "http://host.docker.internal:9876/api/v1"
       AIRFLOW_USER: airflow
       AIRFLOW_PASSWORD: airflow
+      AIRFLOW_EXTERNAL_UI: "http://localhost:9876"
     image: splicemachine/sm_k8_feature_store:0.0.5_patch7
     ports:
       - "8000:8000"

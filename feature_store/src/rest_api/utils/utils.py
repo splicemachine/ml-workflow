@@ -9,8 +9,7 @@ from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 
 from .. import schemas
 from ..constants import SQL_TO_SQLALCHEMY, Columns
-from ..schemas import (DataType, FeatureSet, FeatureSetBase, FeatureSetDetail,
-                       FeatureSetUpdate)
+from ..schemas import DataType, FeatureSet, FeatureSetBase, FeatureSetUpdate
 
 
 def __validate_feature_data_type(feature_data_type: DataType):
@@ -60,8 +59,6 @@ def get_pk_column_str(fset: FeatureSet, history=False):
 def __get_pk_columns(fset: Union[FeatureSetBase, FeatureSetUpdate]):
     return list(fset.primary_keys.keys())
 
-def __get_table_name(fset: FeatureSetDetail):
-    return f'{fset.table_name.lower()}_v{fset.feature_set_version}'
 
 def datatype_to_sql(typ: DataType) -> str:
     """
