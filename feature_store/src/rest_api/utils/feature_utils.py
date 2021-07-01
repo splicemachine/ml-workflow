@@ -30,6 +30,21 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
             status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
             message=f"Feature set {schema}.{table} v{fset.feature_set_version} is already deployed.")
 
+    table_name = __get_table_name(fset)
+    table_exists = DatabaseFunctions.table_exists(schema, table_name, db.get_bind())
+    history_table_exists = DatabaseFunctions.table_exists(schema, f'{table_name}_history', db.get_bind())
+    insert_trigger_exists = DatabaseFunctions.trigger_exists(schema, f'{table_name}_history_insert', db)
+    update_trigger_exists = DatabaseFunctions.trigger_exists(schema, f'{table_name}_history_update', db)
+    if table_exists or history_table_exists or insert_trigger_exists or update_trigger_exists:
+         raise SpliceMachineException(
+            status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.DEPENDENCY_CONFLICT,
+            message=f"There seems to have been metadata corruption. Feature Set data has been created, but the Feature Store"
+                    f" Metadata is not reflecting that. Please drop the following tables / triggers if they exist:"
+                    f"\nTable {schema}.{table} exists: {table_exists}"
+                    f"\nTable {schema}.{table}_history exists: {history_table_exists}"
+                    f"\nInsert trigger for feature set ({schema}.{table}_history_insert) exists: {insert_trigger_exists}"
+                    f"\nUpdate trigger for feature set ({schema}.{table}_history_insert) exists: {update_trigger_exists}")
+
     current = crud.get_feature_sets(db, feature_set_names=[f'{schema}.{table}'])[0]
     if current.feature_set_version > fset.feature_set_version:
         raise SpliceMachineException(
