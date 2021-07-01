@@ -245,7 +245,7 @@ def process_pipes(db: Session, pipes: List[schemas.PipeDetail]) -> List[schemas.
     return pipes
 
 def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dict[str, Union[str, int]],
-                       feature_sets: List[schemas.FeatureSet],
+                       feature_sets: List[schemas.FeatureSetDetail],
                        return_pks: bool, return_sql: bool) -> Union[Dict[str, Any], str]:
     """
     Gets a feature vector given a list of Features and primary key values for their corresponding Feature Sets
@@ -260,7 +260,7 @@ def get_feature_vector(db: Session, feats: List[schemas.Feature], join_keys: Dic
     """
     metadata = MetaData(db.get_bind())
 
-    tables = [Table(fset.table_name.lower(), metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]),
+    tables = [Table(fset.versioned_table.lower(), metadata, PrimaryKeyConstraint(*[pk.lower() for pk in fset.primary_keys]),
                     schema=fset.schema_name.lower(), autoload=True). \
                   alias(f'fset{fset.feature_set_id}') for fset in feature_sets]
 
@@ -1350,7 +1350,7 @@ def get_feature_vector_sql(db: Session, features: List[schemas.Feature], tctx: s
     where = '\nWHERE '
     for fset in feature_sets:
         # Join Feature Set
-        sql += f'\n\t{fset.schema_name}.{fset.table_name} fset{fset.feature_set_id}, '
+        sql += f'\n\t{fset.schema_name}.{fset.versioned_table} fset{fset.feature_set_id}, '
         for pkcol in __get_pk_columns(fset):
             where += f'\n\tfset{fset.feature_set_id}.{pkcol}={{p_{pkcol}}} AND '
 
@@ -1491,9 +1491,9 @@ def process_features(db: Session, features: List[Union[schemas.Feature, str]]) -
                                      message=f'Could not find the following features in the latest Feature Sets: {missing}')
     return all_features
 
-def create_historian_triggers(db: Session, fset: schemas.FeatureSet) -> None:
+def create_historian_triggers(db: Session, fset: schemas.FeatureSetDetail) -> None:
     # TODO: Add third trigger to ensure online table has newest value
-    table_name = fset.table_name
+    table_name = fset.versioned_table
     new_pk_cols = ','.join(f'NEWW.{p}' for p in __get_pk_columns(fset))
     new_feature_cols = ','.join(f'NEWW.{f.name}' for f in get_features(db, fset))
 
@@ -1520,7 +1520,7 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSetDetail) -> schemas.F
     :return: List[Feature]
     """
     metadata = MetaData(db.get_bind())
-    table_name = fset.table_name
+    table_name = fset.versioned_table
 
     logger.info('Creating Feature Set...')
     pk_columns = _sql_to_sqlalchemy_columns(fset.primary_keys, True)
@@ -1564,8 +1564,8 @@ def deploy_feature_set(db: Session, fset: schemas.FeatureSetDetail) -> schemas.F
 def migrate_feature_set(db: Session, previous: schemas.FeatureSetDetail, live: schemas.FeatureSetDetail):
     metadata = MetaData(db.connection())
 
-    old_name = previous.table_name
-    new_name = live.table_name
+    old_name = previous.versioned_table
+    new_name = live.versioned_table
     old_serving = Table(old_name, metadata, PrimaryKeyConstraint(*[pk.lower() for pk in previous.primary_keys]),
                     schema=previous.schema_name.lower(), autoload=True, keep_existing=True)
     old_history = Table(f'{old_name}_history', metadata, PrimaryKeyConstraint(*[pk.lower() for pk in previous.primary_keys]),
@@ -1764,7 +1764,7 @@ def get_source_dependencies(db: Session, id: int) -> List[str]:
     :param id: The Source ID
     :return: The name of the Feature Set being fed by a Pipeline reading from this Source
     """
-    p = db.query(models.Pipeline.feature_set_id). \
+    p = db.query(models.PipelineVersion.feature_set_id). \
         filter(models.Pipeline.source_id == id).subquery('p')
     res = db.query(models.FeatureSet.schema_name, models.FeatureSet.table_name). \
         filter(models.FeatureSet.feature_set_id.in_(p)).all()
@@ -2017,7 +2017,7 @@ def get_pipeline(db: Session, fset_id: int) -> schemas.Pipeline:
     :param fset_id: Feature Set ID
     :return: the pipeline
     """
-    return db.query(models.Pipeline).filter(models.Pipeline.feature_set_id == fset_id).first()
+    return db.query(models.Pipeline).filter(models.PipelineVersion.feature_set_id == fset_id).first()
 
 
 def get_last_pipeline_run(db: Session, fset_id: int) -> datetime:
@@ -2372,7 +2372,7 @@ def update_pipeline_description(db: Session, pipeline_id: int, description: str)
     :param pipeline_id: Pipeline ID
     :param description: the description to update
     """
-    db.query(models.Pipeline).filter(models.Pipeline.pipe_id==pipeline_id).update({'description':description})
+    db.query(models.Pipeline).filter(models.Pipeline.pipeline_id==pipeline_id).update({'description':description})
 
 def alter_pipeline_version(db: Session, pipeline: schemas.PipelineDetail):
     """
@@ -2383,8 +2383,8 @@ def alter_pipeline_version(db: Session, pipeline: schemas.PipelineDetail):
     """
 
     db.query(models.PipelineVersion). \
-        filter((models.PipelineVersion.pipe_id == pipeline.pipeline_id) &
-            (models.PipelineVersion.pipe_version == pipeline.pipeline_version)). \
+        filter((models.PipelineVersion.pipeline_id == pipeline.pipeline_id) &
+            (models.PipelineVersion.pipeline_version == pipeline.pipeline_version)). \
         update({'pipeline_start_date': pipeline.pipeline_start_date.strftime('%Y-%m-%d'), 'pipeline_interval': pipeline.pipeline_interval, 
                 'last_update_ts': datetime.now()})
 
@@ -2548,7 +2548,7 @@ def get_pipelines_from_pipe(db: Session, pipe: schemas.PipeDetail) -> List[schem
     """
     p = aliased(models.Pipeline, name='p')
     pv = aliased(models.PipelineVersion, name='pv')
-    ps = aliased(models.PipeSequence, name='ps')
+    ps = aliased(models.PipelineSequence, name='ps')
 
     q = db.query(p, pv). \
         join(pv, p.pipeline_id == pv.pipeline_id). \
