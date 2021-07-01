@@ -14,12 +14,16 @@ from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 from shared.db.connection import SQLAlchemyClient
 from shared.logger.logging_config import logger
 
+custom_cors = os.environ.get('ENABLE_CORS_URL')
+custom_cors = custom_cors.split(',') if custom_cors else []
+
 APP: FastAPI = FastAPI(
     title="MLManager Director API",
     root_path=os.environ.get('ROOT_PATH', '/'),
     debug=os.environ.get('DEBUG', False),
     description="API for asynchronous and synchronous calls to the MLManager Director API",
-    dependencies=[Depends(authenticate)]
+    dependencies=[Depends(authenticate)],
+    allow_origins=custom_cors
 )
 
 add_timing_middleware(app=APP, record=logger.info, exclude='health')

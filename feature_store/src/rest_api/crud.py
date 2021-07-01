@@ -4,7 +4,7 @@ import re
 from collections import Counter
 from datetime import datetime
 from decimal import Decimal
-from inspect import getsource, signature
+from inspect import signature
 from typing import Any, Dict, List, Set, Tuple, Union
 from uuid import uuid1
 
@@ -12,7 +12,7 @@ import cloudpickle
 from fastapi import status
 from splicemachinesa.constants import RESERVED_WORDS
 from sqlalchemy import (Column, String, and_, case, desc, distinct, func,
-                        literal_column, or_, select)
+                        literal_column, or_, select, asc)
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.schema import DDL, MetaData, PrimaryKeyConstraint, Table
 from sqlalchemy.sql.elements import TextClause
@@ -28,6 +28,7 @@ from shared.models import feature_store_models as models
 
 from . import schemas
 from .constants import SQL
+from .utils.airflow_utils import Airflow
 from .utils.feature_utils import model_to_schema_feature
 from .utils.pipeline_utils.pipeline_utils import stringify_bytes, byteify_string
 from .utils.utils import (__get_pk_columns,
@@ -639,7 +640,7 @@ def get_training_view_dependencies(db: Session, view: schemas.TrainingViewDetail
     Returns the mlflow run ID and model deployment name that rely on the given training view
 
     :param db:  SqlAlchemy Session
-    :param feature_set_id: The Feature Set ID in question
+    :param view: The view
     """
     tset = aliased(models.TrainingSet, name='tset')
     d = aliased(models.Deployment, name='d')
@@ -657,7 +658,7 @@ def get_training_view_dependencies(db: Session, view: schemas.TrainingViewDetail
     return deps
 
 
-def get_training_sets_from_view(db: Session, view: schemas.TrainingViewDetail) -> List[int]:
+def get_training_sets_from_view(db: Session, view: schemas.TrainingViewDetail) -> List[Tuple[int, str]]:
     """
     Returns a list of training set IDs that were created from the given training view ID
     
@@ -2419,7 +2420,7 @@ def update_pipeline_description(db: Session, pipeline_id: int, description: str)
     :param pipeline_id: Pipeline ID
     :param description: the description to update
     """
-    db.query(models.Pipeline).filter(models.Pipeline.pipe_id==pipeline_id).update({'description':description})
+    db.query(models.Pipeline).filter(models.Pipeline.pipeline_id==pipeline_id).update({'description':description})
 
 def alter_pipeline_version(db: Session, pipeline: schemas.PipelineDetail):
     """
@@ -2430,8 +2431,8 @@ def alter_pipeline_version(db: Session, pipeline: schemas.PipelineDetail):
     """
 
     db.query(models.PipelineVersion). \
-        filter((models.PipelineVersion.pipe_id == pipeline.pipeline_id) &
-            (models.PipelineVersion.pipe_version == pipeline.pipeline_version)). \
+        filter((models.PipelineVersion.pipeline_id == pipeline.pipeline_id) &
+            (models.PipelineVersion.pipeline_version == pipeline.pipeline_version)). \
         update({'pipeline_start_date': pipeline.pipeline_start_date.strftime('%Y-%m-%d'), 'pipeline_interval': pipeline.pipeline_interval, 
                 'last_update_ts': datetime.now()})
 
@@ -2501,7 +2502,7 @@ def unset_pipeline_deployment_metadata(db: Session, pipeline: schemas.PipelineDe
 
 # Feature/FeatureSet specific
 
-def get_features(db: Session, fset: schemas.FeatureSet) -> List[schemas.Feature]:
+def get_features(db: Session, fset: schemas.FeatureSetDetail) -> List[schemas.Feature]:
     """
     Gets all of the features from this featureset as a list of splicemachine.features.Feature
 

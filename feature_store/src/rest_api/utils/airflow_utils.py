@@ -1,9 +1,13 @@
 import json
 from datetime import datetime
 from os import environ as env_vars
+from typing import List
+
 import requests
 from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 from shared.logger.logging_config import logger
+
+from .. import schemas
 
 
 class Endpoints:

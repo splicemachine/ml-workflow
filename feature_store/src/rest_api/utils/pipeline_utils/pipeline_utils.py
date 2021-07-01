@@ -9,7 +9,7 @@ import shared.models.feature_store_models as models
 from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 from shared.logger.logging_config import logger
 
-from feature_store.src.rest_api.utils.airflow_utils import Airflow
+from ..airflow_utils import Airflow
 from ... import crud, schemas
 from ...constants import SQL
 from ..utils import sql_to_datatype
