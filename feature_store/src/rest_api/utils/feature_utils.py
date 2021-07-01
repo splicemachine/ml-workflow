@@ -30,7 +30,7 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
             status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
             message=f"Feature set {schema}.{table} v{fset.feature_set_version} is already deployed.")
 
-    table_name = fset.table_name
+    table_name = fset.versioned_table
     table_exists = DatabaseFunctions.table_exists(schema, table_name, db.get_bind())
     history_table_exists = DatabaseFunctions.table_exists(schema, f'{table_name}_history', db.get_bind())
     insert_trigger_exists = DatabaseFunctions.trigger_exists(schema, f'{table_name}_history_insert', db)
@@ -69,7 +69,7 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
     crud.create_historian_triggers(db, fset)
     logger.info('Done.')
     if Airflow.is_active:
-        Airflow.schedule_feature_set_calculation(f'{schema}.{fset.table_name}')
+        Airflow.schedule_feature_set_calculation(f'{schema}.{fset.versioned_table}')
     return fset
 
 def _create_feature_set(fset: schemas.FeatureSetCreate, db: Session):

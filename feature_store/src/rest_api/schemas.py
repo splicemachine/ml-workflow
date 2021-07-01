@@ -152,7 +152,7 @@ class FeatureSetDetail(FeatureSet, FeatureSetVersion):
     has_deployments: Optional[bool] = None
 
     @property
-    def table_name(self):
+    def versioned_table(self):
         return f'{self.table_name.lower()}_v{self.feature_set_version}'
 
 class TrainingViewBase(BaseModel):
