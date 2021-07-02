@@ -1,12 +1,16 @@
-from fastapi import status
-from ..schemas import FeatureSetBase, FeatureSet, DataType, FeatureSetDetail, FeatureSetUpdate, PipelineDetail
-from ..constants import Columns, SQL_TO_SQLALCHEMY
-from shared.api.exceptions import SpliceMachineException, ExceptionCodes
-from typing import Dict, List, Union
-from .. import schemas
-from sqlalchemy import Column, VARCHAR, DECIMAL
-from splicemachinesa.constants import RESERVED_WORDS
 import re
+from typing import Dict, List, Union
+
+from fastapi import status
+from splicemachinesa.constants import RESERVED_WORDS
+from sqlalchemy import DECIMAL, VARCHAR, Column
+
+from shared.api.exceptions import ExceptionCodes, SpliceMachineException
+
+from .. import schemas
+from ..constants import SQL_TO_SQLALCHEMY, Columns
+from ..schemas import DataType, FeatureSet, FeatureSetBase, FeatureSetUpdate
+
 
 def __validate_feature_data_type(feature_data_type: DataType):
     """

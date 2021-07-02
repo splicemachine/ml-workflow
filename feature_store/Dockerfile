@@ -48,6 +48,8 @@ RUN \
   curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28.jar && \
   curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-sources.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-sources.jar && \
   curl -kls https://repo1.maven.org/maven2/org/slf4j/slf4j-jdk14/1.7.28/slf4j-jdk14-1.7.28-javadoc.jar -o $SRC_HOME/lib/slf4j-log4j12-1.7.28-javadoc.jar && \
+  curl -kls https://repo1.maven.org/maven2/ch/qos/logback/logback-classic/0.9.19/logback-classic-0.9.19.jar -o $SRC_HOME/lib/logback-classic-0.9.19.jar && \
+  curl -kls https://repo1.maven.org/maven2/ch/qos/logback/logback-core/0.9.19/logback-core-0.9.19.jar -o $SRC_HOME/lib/logback-core-0.9.19.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version.jar -o $SRC_HOME/lib/db-client.jar && \
   curl -kLs http://repository.splicemachine.com/nexus/content/groups/public/com/splicemachine/db-client/$sm_version/db-client-$sm_version-sources.jar -o $SRC_HOME/lib/db-client-sources.jar
 

@@ -3,13 +3,16 @@ This module contains SQLAlchemy Models
 used for the Queue
 """
 from time import sleep
-from shared.logger.logging_config import logger
-from shared.services.database import SQLAlchemyClient, DatabaseSQL, DatabaseFunctions
-from sqlalchemy import event, ForeignKeyConstraint, UniqueConstraint
-from sqlalchemy import (Boolean, CheckConstraint, Column, ForeignKey, Integer,
-                        String, Text, DateTime, Numeric, Float, LargeBinary, Date)
+from sqlalchemy import (Boolean, CheckConstraint, Column, DateTime, Float,
+                        ForeignKey, ForeignKeyConstraint, Integer, LargeBinary,
+                        Numeric, String, Text, UniqueConstraint, event, Date)
 from sqlalchemy.sql.elements import TextClause
+
 from mlflow.store.tracking.dbmodels.models import SqlRun
+from shared.db.connection import SQLAlchemyClient
+from shared.db.functions import DatabaseFunctions
+from shared.db.sql import SQL
+from shared.logger.logging_config import logger
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -22,7 +25,7 @@ __email__: str = "bepstein@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
 
-class FeatureSet(SQLAlchemyClient.SpliceBase):
+class FeatureSet(SQLAlchemyClient().SpliceBase):
     """
     Feature Set is a collection of related features that are stored in a single table which is managed by the feature store
     This is a top level metadata artifact of the feature store that a user will interact with
@@ -42,14 +45,16 @@ class FeatureSet(SQLAlchemyClient.SpliceBase):
     )
 
 
-class FeatureSetVersion(SQLAlchemyClient.SpliceBase):
+class FeatureSetVersion(SQLAlchemyClient().SpliceBase):
     """
     Feature Set Version keeps track of the different versions of Feature Sets that are created
     This is used by the Feature Store to maintain versioning
     """
     __tablename__: str = "feature_set_version"
     __table_args__ = {'schema': 'featurestore'}
-    feature_set_id: Column = Column(Integer, ForeignKey(FeatureSet.feature_set_id, name='fk_feature_set_version_feature_set'), primary_key=True)
+    feature_set_id: Column = Column(Integer,
+                                    ForeignKey(FeatureSet.feature_set_id, name='fk_feature_set_version_feature_set'),
+                                    primary_key=True)
     feature_set_version: Column = Column(Integer, primary_key=True)
     deployed: Column = Column(Boolean, default=False)
     deploy_ts: Column = Column(DateTime, nullable=True)
@@ -57,7 +62,7 @@ class FeatureSetVersion(SQLAlchemyClient.SpliceBase):
     create_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
 
-class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
+class PendingFeatureSetDeployment(SQLAlchemyClient().SpliceBase):
     """
     A queue of feature sets that have been requested to be deployed, but have not been approved.
     """
@@ -84,7 +89,7 @@ class PendingFeatureSetDeployment(SQLAlchemyClient.SpliceBase):
     )
 
 
-class FeatureSetKey(SQLAlchemyClient.SpliceBase):
+class FeatureSetKey(SQLAlchemyClient().SpliceBase):
     """
     Feature Set Key contains the keys of a given Feature Set table. This is bottom level metadata that a 
     user will NOT interact with. This is used by the Feature Store to maintain governance
@@ -106,7 +111,7 @@ class FeatureSetKey(SQLAlchemyClient.SpliceBase):
     )
 
 
-class Feature(SQLAlchemyClient.SpliceBase):
+class Feature(SQLAlchemyClient().SpliceBase):
     """
     A Feature is an individual data definition, either raw or transformed, that exists in a Feature Set and will
     likely be used alongside other Features as a feature vector for a model. This is a top level metadata that
@@ -131,13 +136,15 @@ class Feature(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
-class FeatureVersion(SQLAlchemyClient.SpliceBase):
+
+class FeatureVersion(SQLAlchemyClient().SpliceBase):
     """
     Feature Version keeps track of what version of a Feature Set that a Feature belongs to.
     This is used by the Feature Store to maintain versioning
     """
     __tablename__: str = "feature_version"
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_feature_version_feature'), primary_key=True)
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_feature_version_feature'),
+                                primary_key=True)
     feature_set_id: Column = Column(Integer, primary_key=True)
     feature_set_version: Column = Column(Integer, primary_key=True)
     __table_args__: tuple = (
@@ -149,7 +156,8 @@ class FeatureVersion(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
-class FeatureStats(SQLAlchemyClient.SpliceBase):
+
+class FeatureStats(SQLAlchemyClient().SpliceBase):
     """
     Feature Stats are statistics calculated regularly about features. Each feature will have many entries in the table
     about their statistics. These are calculated in the background so they are readily available in the UI.
@@ -158,7 +166,8 @@ class FeatureStats(SQLAlchemyClient.SpliceBase):
     feature_id: Column = Column(Integer, primary_key=True)
     feature_set_id: Column = Column(Integer, primary_key=True)
     feature_set_version: Column = Column(Integer, primary_key=True)
-    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False, primary_key=True)
+    last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False,
+                                    primary_key=True)
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
     feature_mean: Column = Column(Float)
@@ -179,7 +188,8 @@ class FeatureStats(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
-class TrainingView(SQLAlchemyClient.SpliceBase):
+
+class TrainingView(SQLAlchemyClient().SpliceBase):
     """
     Training View is a definition of features and (optionally) a label for use in modeling. This contains SQL
     written by the user that defines the desired features and (optionally) a label. When the user wants to generate
@@ -194,14 +204,15 @@ class TrainingView(SQLAlchemyClient.SpliceBase):
     description: Column = Column(String(500), nullable=True)
 
 
-class TrainingViewVersion(SQLAlchemyClient.SpliceBase):
+class TrainingViewVersion(SQLAlchemyClient().SpliceBase):
     """
     Training View Version keeps track of the different versions of Training Views that are created.
     This is used by the Feature Store to maintain versioning
     """
     __tablename__: str = "training_view_version"
     __table_args__ = {'schema': 'featurestore'}
-    view_id: Column = Column(Integer, ForeignKey(TrainingView.view_id, name='fk_training_view_version_training_view'), primary_key=True)
+    view_id: Column = Column(Integer, ForeignKey(TrainingView.view_id, name='fk_training_view_version_training_view'),
+                             primary_key=True)
     view_version: Column = Column(Integer, primary_key=True)
     sql_text: Column = Column(Text)
     label_column: Column = Column(String(128))
@@ -210,7 +221,7 @@ class TrainingViewVersion(SQLAlchemyClient.SpliceBase):
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
 
-class TrainingViewKey(SQLAlchemyClient.SpliceBase):
+class TrainingViewKey(SQLAlchemyClient().SpliceBase):
     """
     Training View Key holds the metadata about a training view, specifically the keys in the view and
     their types (either primary key or Join key). A join key is a key that's used to join the desired features
@@ -238,7 +249,7 @@ class TrainingViewKey(SQLAlchemyClient.SpliceBase):
     )
 
 
-class TrainingSet(SQLAlchemyClient.SpliceBase):
+class TrainingSet(SQLAlchemyClient().SpliceBase):
     """
     A Training Set is a Training View with a subset of desired Features
     in order to generate a dataframe for model development (or other analysis). This is not an independent table.
@@ -264,7 +275,7 @@ class TrainingSet(SQLAlchemyClient.SpliceBase):
     )
 
 
-class TrainingSetInstance(SQLAlchemyClient.SpliceBase):
+class TrainingSetInstance(SQLAlchemyClient().SpliceBase):
     """
     A Training Set Instance is an instance of a Training Set over a particular static time window. Training sets
     are dynamic in nature and change as time progresses. An instance locks in the time windows for full reproducibility.
@@ -273,7 +284,9 @@ class TrainingSetInstance(SQLAlchemyClient.SpliceBase):
     """
     __tablename__: str = "training_set_instance"
     __table_args__ = {'schema': 'featurestore'}
-    training_set_id: Column = Column(Integer, ForeignKey(TrainingSet.training_set_id, name='fk_training_set_instance_training_set'), primary_key=True)
+    training_set_id: Column = Column(Integer, ForeignKey(TrainingSet.training_set_id,
+                                                         name='fk_training_set_instance_training_set'),
+                                     primary_key=True)
     training_set_version: Column = Column(Integer, primary_key=True)
     training_set_start_ts: Column = Column(DateTime)
     training_set_end_ts: Column = Column(DateTime)
@@ -282,14 +295,15 @@ class TrainingSetInstance(SQLAlchemyClient.SpliceBase):
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
 
-class TrainingSetFeature(SQLAlchemyClient.SpliceBase):
+class TrainingSetFeature(SQLAlchemyClient().SpliceBase):
     """
     A Training Set Feature is a reference to every feature in a given Training Set. These Features are 
     already existent in the Feature Store, and a unique row will indicate a particular Training Set and Feature
     within that Training Set. This is bottom level metadata that a user will NOT interact with.
     """
     __tablename__: str = "training_set_feature"
-    training_set_id: Column = Column(Integer, ForeignKey(TrainingSet.training_set_id, name='fk_training_set_feature_training_set'), primary_key=True)
+    training_set_id: Column = Column(Integer, ForeignKey(TrainingSet.training_set_id,
+                                                         name='fk_training_set_feature_training_set'), primary_key=True)
     feature_id: Column = Column(Integer, primary_key=True)
     feature_set_id: Column = Column(Integer, primary_key=True)
     feature_set_version: Column = Column(Integer, primary_key=True)
@@ -306,7 +320,7 @@ class TrainingSetFeature(SQLAlchemyClient.SpliceBase):
     )
 
 
-class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
+class TrainingSetFeatureStats(SQLAlchemyClient().SpliceBase):
     """
     This table holds statistics about a Training Set when a model using that particular Training Set 
     (where a Training Set is defined as a Training View and Features over a particular time window) is deployed.
@@ -316,7 +330,8 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     __tablename__: str = "training_set_feature_stats"
     training_set_id: Column = Column(Integer, primary_key=True)
     training_set_version: Column = Column(Integer, primary_key=True)
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_training_set_feature_stats_feature'), primary_key=True)
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_training_set_feature_stats_feature'),
+                                primary_key=True)
     feature_cardinality: Column = Column(Integer)
     feature_histogram: Column = Column(Text)
     feature_mean: Column = Column(Float)
@@ -340,7 +355,7 @@ class TrainingSetFeatureStats(SQLAlchemyClient.SpliceBase):
     )
 
 
-class TrainingSetLabelStats(SQLAlchemyClient.SpliceBase):
+class TrainingSetLabelStats(SQLAlchemyClient().SpliceBase):
     """
     This table holds statistics about a Training Set Instance Label when a model using that particular Training Set
     (where a Training Set Instance is defined as a Training View and Features over a particular time window) is created.
@@ -377,7 +392,7 @@ class TrainingSetLabelStats(SQLAlchemyClient.SpliceBase):
     )
 
 
-class Deployment(SQLAlchemyClient.SpliceBase):
+class Deployment(SQLAlchemyClient().SpliceBase):
     """
     A Deployment is the capturing of a ML Model that was trained with a Training Set and is then deployed. This
     table captures that model, the training set used and the time window of that particular training set.
@@ -402,7 +417,7 @@ class Deployment(SQLAlchemyClient.SpliceBase):
     )
 
 
-class DeploymentHistory(SQLAlchemyClient.SpliceBase):
+class DeploymentHistory(SQLAlchemyClient().SpliceBase):
     """
     This table keeps track of deployments by managing new (replacement) deployments to particular tables. 
     A deployment is defined by the schema.table, so when a new model is deployed we keep history of the last 
@@ -428,7 +443,7 @@ class DeploymentHistory(SQLAlchemyClient.SpliceBase):
     )
 
 
-class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
+class DeploymentFeatureStats(SQLAlchemyClient().SpliceBase):
     """
     This table keeps track of feature statistics in a particular deployment. This is dynamic information and will
     be updated periodically based on a set interval (or potentially in realtime). The updating schedule of these
@@ -438,7 +453,8 @@ class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
 
     model_schema_name: Column = Column(String(128), primary_key=True)
     model_table_name: Column = Column(String(128), primary_key=True)
-    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_deployment_feature_stats_feature'), primary_key=True, )
+    feature_id: Column = Column(Integer, ForeignKey(Feature.feature_id, name='fk_deployment_feature_stats_feature'),
+                                primary_key=True, )
     model_start_ts: Column = Column(DateTime)  # The start time of the window of calculation for statistics
     model_end_ts: Column = Column(DateTime)  # The end time of the window of calculation for statistics
     feature_cardinality: Column = Column(Integer)
@@ -461,12 +477,13 @@ class DeploymentFeatureStats(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
-class Source(SQLAlchemyClient.SpliceBase):
+
+class Source(SQLAlchemyClient().SpliceBase):
     """
     This table keeps track of sources of Feature Set tables. This table contains Sources that are defined in SQL, and
     are used to schedule Pipelines to continuously update those Feature Sets (typically using Airflow)
     """
-    __tablename__: str = "SOURCE" # Reserved word listed in sqlalchemy so it needs to be uppercase
+    __tablename__: str = "SOURCE"  # Reserved word listed in sqlalchemy so it needs to be uppercase
     source_id: Column = Column(Integer, primary_key=True, autoincrement=True)
     name: Column = Column(String(128), unique=True)
     sql_text: Column = Column(Text)
@@ -481,7 +498,8 @@ class Source(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
-class SourceKey(SQLAlchemyClient.SpliceBase):
+
+class SourceKey(SQLAlchemyClient().SpliceBase):
     """
     This table holds the "primary keys" of the source query. Meaning the uniquely identifying column(s) of a Source query
     """
@@ -495,7 +513,8 @@ class SourceKey(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
-class Pipe(SQLAlchemyClient.SpliceBase):
+
+class Pipe(SQLAlchemyClient().SpliceBase):
     """
     This table keeps track of individual Pipes that can be chained together to form Pipelines. Pipes represent some function applied to data
     being pushed to a Feature Set
@@ -504,7 +523,7 @@ class Pipe(SQLAlchemyClient.SpliceBase):
     pipe_id: Column = Column(Integer, primary_key=True)
     name: Column = Column(String(128), nullable=False, index=True, unique=True)
     description: Column = Column(String(500), nullable=True)
-    ptype: Column = Column(String(1)) # 'S'ource, 'B'atch, 'O'nline, 'R'ealtime
+    ptype: Column = Column(String(1))  # 'S'ource, 'B'atch, 'O'nline, 'R'ealtime
     lang: Column = Column(String(128))
 
     __table_args__: tuple = (
@@ -514,7 +533,8 @@ class Pipe(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
-class PipeVersion(SQLAlchemyClient.SpliceBase):
+
+class PipeVersion(SQLAlchemyClient().SpliceBase):
     """
     Pipe Version keeps track of the different versions of Pipes that are created
     This is used by the Feature Store to maintain versioning
@@ -528,7 +548,8 @@ class PipeVersion(SQLAlchemyClient.SpliceBase):
     last_update_ts: Column = Column(DateTime, server_default=(TextClause("CURRENT_TIMESTAMP")), nullable=False)
     last_update_username: Column = Column(String(128), nullable=False, server_default=TextClause("CURRENT_USER"))
 
-class Pipeline(SQLAlchemyClient.SpliceBase):
+
+class Pipeline(SQLAlchemyClient().SpliceBase):
     """
     This table represents the instantiation of a Pipeline to feed a particular Feature Set. Pipelines
     contain a 1 to 1 mapping of Pipeline ID to Feature Set ID. That is, 1 pipeline can only feed 1 feature sets, and 1 feature set
@@ -590,7 +611,8 @@ class PipelineSequence(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
-class PipelineOps(SQLAlchemyClient.SpliceBase):
+
+class PipelineOps(SQLAlchemyClient().SpliceBase):
     """
     This table holds the maximum timestamp extracted from a Source feeding a Feature Set. Every time a Pipeline runs
     for a Source -> Feature Set, this timestamp is used as the filter
@@ -604,7 +626,8 @@ class PipelineOps(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
-class PipelineAgg(SQLAlchemyClient.SpliceBase):
+
+class PipelineAgg(SQLAlchemyClient().SpliceBase):
     """
     This table holds the aggregations that are performed on a Source column to create Features (via the
     FeatureAggregation class)
@@ -623,19 +646,22 @@ class PipelineAgg(SQLAlchemyClient.SpliceBase):
         {'schema': 'featurestore'}
     )
 
+
 def create_deploy_historian():
     @event.listens_for(DeploymentHistory.__table__, 'after_create')
     def create_feature_hisorian_trigger(*args, **kwargs):
         logger.warning("Creating historian trigger for feature store")
-        SQLAlchemyClient.execute(
-            DatabaseSQL.deployment_feature_historian  # Record the old feature in the feature store history table
+        SQLAlchemyClient().execute(
+            SQL.deployment_feature_historian  # Record the old feature in the feature store history table
         )
+
 
 
 TABLES = [FeatureSet, FeatureSetVersion, PendingFeatureSetDeployment, FeatureSetKey, Feature, FeatureVersion, FeatureStats, 
           TrainingView, TrainingViewVersion, TrainingViewKey, TrainingSet, TrainingSetInstance, TrainingSetFeature, 
           TrainingSetFeatureStats, TrainingSetLabelStats, Deployment, DeploymentHistory, DeploymentFeatureStats, 
           Source, SourceKey, Pipe, PipeVersion, Pipeline, PipelineVersion, PipelineSequence, PipelineOps, PipelineAgg]
+
 
 def create_feature_store_tables(_sleep_secs=1) -> None:
     """
@@ -650,7 +676,7 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
     try:
         create_deploy_historian()
         logger.warning("Creating Feature Store Splice Tables inside Splice DB...")
-        SQLAlchemyClient.SpliceBase.metadata.create_all(checkfirst=True, tables=[t.__table__ for t in TABLES])
+        SQLAlchemyClient().SpliceBase.metadata.create_all(checkfirst=True, tables=[t.__table__ for t in TABLES])
         logger.info("Created Tables")
     except Exception:
         logger.exception(f"Encountered Error while initializing")  # logger might have failed
@@ -658,9 +684,10 @@ def create_feature_store_tables(_sleep_secs=1) -> None:
         sleep(_sleep_secs)
         create_feature_store_tables(_sleep_secs=_sleep_secs * 2)
 
+
 def wait_for_runs_table() -> None:
     logger.info("Checking for mlmanager.runs table...")
-    while not DatabaseFunctions.table_exists('mlmanager', 'runs', SQLAlchemyClient.engine):
+    while not DatabaseFunctions.table_exists('mlmanager', 'runs', SQLAlchemyClient().engine):
         logger.info("mlmanager.runs does not exist. Checking again in 10s")
         sleep(10)
     logger.info("Found mlmanager.runs")

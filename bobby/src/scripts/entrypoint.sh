@@ -99,4 +99,4 @@ fi
 echo "Starting up Docker Daemon"
 nohup dockerd &
 echo "Starting Worker. Listening on port ${API_PORT}"
-nohup gunicorn --bind 0.0.0.0:${API_PORT} --chdir ${SRC_HOME} main:APP
+nohup uvicorn --host 0.0.0.0 --port ${API_PORT} --app-dir ${SRC_HOME} main:APP

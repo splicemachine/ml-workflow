@@ -1,11 +1,12 @@
 from typing import List
 
 from requests.auth import HTTPBasicAuth
+
 from shared.logger.logging_config import logger
-from ..fixtures.conftest import test_app, override_get_db, APP
-from ..fixtures.feature_set import create_fset_with_features
+
 from ...rest_api import crud
-from ..fixtures.conftest import get_my_session
+from ..fixtures.conftest import APP, get_my_session, override_get_db, test_app
+from ..fixtures.feature_set import create_fset_with_features
 
 APP.dependency_overrides[crud.get_db] = override_get_db
 

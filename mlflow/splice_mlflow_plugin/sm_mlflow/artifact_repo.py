@@ -17,9 +17,9 @@ from mlflow.protos.databricks_pb2 import (INVALID_PARAMETER_VALUE,
                                           RESOURCE_DOES_NOT_EXIST)
 from mlflow.store.artifact.artifact_repo import ArtifactRepository
 from mlflow.store.tracking.sqlalchemy_store import SqlTag
+from shared.db.connection import SQLAlchemyClient
 from shared.logger.logging_config import logger
 from shared.models.mlflow_models import SqlArtifact
-from shared.services.database import SQLAlchemyClient
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2018, Splice Machine Inc. All Rights Reserved"
@@ -45,7 +45,7 @@ class SpliceMachineArtifactStore(ArtifactRepository):
         # extract data from regex
         self.experiment_id: int = int(_match.group("experiment"))
         self.run_uuid: str = _match.group("runid")
-        self.engine = SQLAlchemyClient.engine
+        self.engine = SQLAlchemyClient().engine
         self.ManagedSessionMaker = self._get_managed_session_maker()
 
     @staticmethod
@@ -59,7 +59,7 @@ class SpliceMachineArtifactStore(ArtifactRepository):
 
         @contextmanager
         def make_managed_session():
-            session = SQLAlchemyClient.SessionFactory()
+            session = SQLAlchemyClient().SessionFactory()
             try:
                 yield session
             except Exception as e:

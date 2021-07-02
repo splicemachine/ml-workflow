@@ -1,17 +1,18 @@
-from fastapi import  status
-from typing import List, Union, Optional, Any, Tuple
+from datetime import datetime
+from json import dumps
+from typing import Any, List, Optional, Tuple, Union
 
+from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-
-from ..schemas import Feature, FeatureSet, FeatureSetDetail, TrainingSet, TrainingSetMetadata, TrainingViewDetail
+from ..schemas import FeatureSetDetail
 from .. import crud
+from ..schemas import (Feature, FeatureSet, TrainingSet, TrainingSetMetadata,
+                       TrainingViewDetail)
 from sqlalchemy.orm import Session
-from datetime import datetime
 from .utils import __get_pk_columns
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from shared.logger.logging_config import logger
-from json import dumps
 
 """
 A set of utility functions for creating Training Set SQL 

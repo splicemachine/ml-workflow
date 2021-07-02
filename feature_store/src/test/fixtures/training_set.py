@@ -1,11 +1,17 @@
+from json import dumps
+
 from sqlalchemy.sql.elements import TextClause
+from sqlalchemy.types import DateTime, Float
+
+from mlflow.store.tracking.dbmodels.models import SqlExperiment, SqlRun
+from shared.models.feature_store_models import (Deployment, TrainingSet,
+                                                TrainingSetFeature,
+                                                TrainingView, TrainingViewKey)
 
 from .conftest import *
-from sqlalchemy.types import Float, DateTime
-from json import dumps
-from mlflow.store.tracking.dbmodels.models import SqlRun, SqlExperiment
-from shared.models.feature_store_models import TrainingView, TrainingViewKey, TrainingSet, TrainingSetFeature, Deployment
-from .feature_set import create_deployed_fset, cleanup, create_fset_with_features
+from .feature_set import (cleanup, create_deployed_fset,
+                          create_fset_with_features)
+
 
 @pytest.fixture(scope='function')
 def create_schema(get_my_session):

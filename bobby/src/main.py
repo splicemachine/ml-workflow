@@ -3,30 +3,29 @@ This module has a Master, which polls Splice Machine
 for new jobs and dispatches them to Workers for execution
 (in threads). This execution happens in parallel.
 """
+import json
 from os import environ as env_vars
 
-from flask import Flask
-import json
+from fastapi import FastAPI
 from handlers.modifier_handlers import (DisableServiceHandler,
                                         EnableServiceHandler)
 from handlers.run_handlers import (AzureDeploymentHandler,
+                                   DatabaseDeploymentHandler,
+                                   DatabaseUndeploymentHandler,
                                    KubernetesDeploymentHandler,
                                    KubernetesUndeploymentHandler,
-                                   SageMakerDeploymentHandler,
-                                   DatabaseDeploymentHandler,
-                                   DatabaseUndeploymentHandler)
+                                   SageMakerDeploymentHandler)
 from pyspark.sql import SparkSession
 from pysparkling import H2OConf, H2OContext
 from workerpool import Job as ThreadedTask
 from workerpool import WorkerPool
 
-
-from shared.api.responses import HTTP
+from shared.db.connection import SQLAlchemyClient
+from shared.db.sql import SQL
 from shared.environments.cloud_environment import (CloudEnvironment,
                                                    CloudEnvironments)
 from shared.logger.logging_config import logger
-from shared.models.splice_models import create_bobby_tables, Job
-from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from shared.models.splice_models import Job, create_bobby_tables
 from shared.services.handlers import (HandlerNames, KnownHandlers,
                                       populate_handlers)
 from shared.structures.ledger import JobLedger
@@ -40,7 +39,7 @@ __version__: str = "2.0"
 __maintainer__: str = "Amrit Baveja"
 __email__: str = "abaveja@splicemachine.com"
 
-APP: Flask = Flask("bobby")
+APP = FastAPI()
 
 # Jobs
 POLL_INTERVAL: int = 5  # check for new jobs every 2 seconds
@@ -139,7 +138,7 @@ def check_db_for_jobs() -> None:
     :return: str return code 200 or 500
     """
     try:
-        jobs = SQLAlchemyClient.execute(DatabaseSQL.retrieve_jobs)
+        jobs = SQLAlchemyClient().execute(SQL.retrieve_jobs)
         for job_data in jobs:
             if job_data[0] not in LEDGER:
                 job_id, handler_name = job_data
@@ -150,26 +149,26 @@ def check_db_for_jobs() -> None:
         logger.exception("Error: Encountered Fatal Error while locating and executing jobs")
         raise
 
+
 def check_for_k8s_deployments() -> None:
     """
     When the database pauses or Bobby restarts, all k8s deployed models will be removed as they are children deployments
     of Bobby. This function checks for k8s models that should be deployed and redeploys them.
     :return:
     """
-    k8s_payloads = SQLAlchemyClient.execute(DatabaseSQL.get_k8s_deployments_on_restart)
-    for user,payload in k8s_payloads:
+    k8s_payloads = SQLAlchemyClient().execute(SQL.get_k8s_deployments_on_restart)
+    for user, payload in k8s_payloads:
         # Create a new job to redeploy the model
         job: Job = Job(handler_name=HandlerNames.deploy_k8s,
-                   user=user,
-                   payload=payload)
+                       user=user,
+                       payload=payload)
 
-        SQLAlchemyClient.SessionFactory.add(job)
-    SQLAlchemyClient.SessionFactory.commit()
-    check_db_for_jobs() # Add new jobs to the Job Ledger
+        SQLAlchemyClient().SessionFactory.add(job)
+    SQLAlchemyClient().SessionFactory.commit()
+    check_db_for_jobs()  # Add new jobs to the Job Ledger
 
 
-@APP.route('/job', methods=['POST'])
-@HTTP.generate_json_response
+@APP.post('/job', summary="Have bobby search for new jobs in the database", response_model=dict)
 def get_new_jobs():
     """
     Calls the function to get the new pending jobs via the API endpoint /job
@@ -187,11 +186,10 @@ def main():
     logger.info('Registering handlers...')
     register_handlers()
     logger.info('Populating handlers...')
-    populate_handlers(SQLAlchemyClient.SessionFactory)
+    populate_handlers(SQLAlchemyClient().SessionFactory)
     logger.info('Checking for pre-existing k8s deployments')
     check_for_k8s_deployments()
     logger.info('Waiting for new jobs...')
     check_db_for_jobs()  # get initial set of jobs from the DB
-
 
 main()

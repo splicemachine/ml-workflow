@@ -13,9 +13,9 @@ from typing import Optional
 
 from sqlalchemy.orm import load_only
 
-from shared.models.splice_models import Handler, Job
-from shared.services.database import SQLAlchemyClient
+from shared.db.connection import SQLAlchemyClient
 from shared.logger.job_lifecycle_manager import JobLifecycleManager
+from shared.models.splice_models import Handler, Job
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -45,7 +45,7 @@ class BaseHandler(object):
         self.task_id: int = task_id
         self.task: Optional[Job] = None  # assigned later
 
-        self.Session = SQLAlchemyClient.SessionMaker()
+        self.Session = SQLAlchemyClient().SessionMaker()
 
         # Lifecycle Management
         self.manager: JobLifecycleManager = JobLifecycleManager(task_id=task_id)

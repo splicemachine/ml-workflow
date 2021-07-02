@@ -1,6 +1,9 @@
-from .conftest import *
-from sqlalchemy.types import Float
 from json import dumps
+
+from sqlalchemy.types import Float
+
+from .conftest import *
+
 
 @pytest.fixture(scope='function')
 def create_schema(get_my_session):

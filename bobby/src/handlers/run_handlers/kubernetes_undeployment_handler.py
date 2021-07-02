@@ -69,7 +69,6 @@ class KubernetesUndeploymentHandler(BaseDeploymentHandler):
             self.logger.info("Using template to delete deployment", send_db=True)
             KubernetesAPIService.delete_from_yaml(data=rendered_templates)
 
-
     def execute(self):
         """
         Deploy Job to Kubernetes

@@ -8,12 +8,13 @@ from typing import Dict
 import pytz
 from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer,
                         LargeBinary, PrimaryKeyConstraint, String, Table)
-from sqlalchemy.orm import backref, relationship, deferred
+from sqlalchemy.orm import backref, deferred, relationship
 from sqlalchemy.sql import text
 from sqlalchemy_views import CreateView
 
 from mlflow.store.tracking.dbmodels.models import SqlRun
-from shared.services.database import DatabaseSQL, SQLAlchemyClient
+from shared.db.connection import SQLAlchemyClient
+from shared.db.sql import SQL
 
 __author__: str = "Splice Machine, Inc."
 __copyright__: str = "Copyright 2019, Splice Machine Inc. All Rights Reserved"
@@ -26,7 +27,7 @@ __email__: str = "abaveja@splicemachine.com"
 __status__: str = "Quality Assurance (QA)"
 
 
-class SqlArtifact(SQLAlchemyClient.MlflowBase):
+class SqlArtifact(SQLAlchemyClient().MlflowBase):
     """
     This table MUST be updated to conform
     to the last alembic revision of SqlRun
@@ -66,7 +67,7 @@ class SqlArtifact(SQLAlchemyClient.MlflowBase):
 # We haven't fully implemented reflection in our sqlalchemy driver so we can manually reflect the system tables we
 # need to reference
 
-class SysTables(SQLAlchemyClient.MlflowBase):
+class SysTables(SQLAlchemyClient().MlflowBase):
     """
     System Table for managing tables
     """
@@ -89,7 +90,7 @@ class SysTables(SQLAlchemyClient.MlflowBase):
     PURGE_DELETED_ROWS: Column = Column(Boolean, nullable=False)
 
 
-class SysUsers(SQLAlchemyClient.MlflowBase):
+class SysUsers(SQLAlchemyClient().MlflowBase):
     """
     System Table for managing users
     """
@@ -101,7 +102,7 @@ class SysUsers(SQLAlchemyClient.MlflowBase):
     LASTMODIFIED: Column = Column(DateTime, nullable=False)
 
 
-class SysTriggers(SQLAlchemyClient.MlflowBase):
+class SysTriggers(SQLAlchemyClient().MlflowBase):
     """
     System Table for managing triggers
     """
@@ -126,7 +127,8 @@ class SysTriggers(SQLAlchemyClient.MlflowBase):
     NEWREFERENCINGNAME: Column = Column(String(100), nullable=False)
     WHENCLAUSETEXT: Column = Column(String(5000), nullable=False)
 
-class SysSchemas(SQLAlchemyClient.MlflowBase):
+
+class SysSchemas(SQLAlchemyClient().MlflowBase):
     """
     System Table for managing schemas
     """
@@ -136,7 +138,8 @@ class SysSchemas(SQLAlchemyClient.MlflowBase):
     SCHEMANAME: Column = Column(String(128), nullable=False)
     AUTHORIZATIONID: Column = Column(String(128), nullable=False)
 
-class DatabaseDeployedMetadata(SQLAlchemyClient.MlflowBase):
+
+class DatabaseDeployedMetadata(SQLAlchemyClient().MlflowBase):
     """
     Table for storing metadata information about the deployed models.
     """
@@ -156,6 +159,6 @@ class DatabaseDeployedMetadata(SQLAlchemyClient.MlflowBase):
 
 live_model_status_view_name = 'LIVE_MODEL_STATUS'
 live_model_status_view = CreateView(
-    element=Table(live_model_status_view_name, SQLAlchemyClient.MlflowBase.metadata),
-    selectable=text(DatabaseSQL.live_status_view_selector)
+    element=Table(live_model_status_view_name, SQLAlchemyClient().MlflowBase.metadata),
+    selectable=text(SQL.live_status_view_selector)
 )

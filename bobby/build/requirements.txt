@@ -19,5 +19,7 @@ loguru==0.5.1
 mleap==0.16.0
 gensim==3.8.3
 cloudpickle==1.6.0
-gunicorn
-flask
+fastapi==0.65.2
+pydantic==1.8.2
+fastapi-utils==0.2.1
+uvicorn==0.14.0

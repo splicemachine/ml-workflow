@@ -1,8 +1,9 @@
-from typing import Callable
 import json
+from typing import Callable
+
 from shared.environments.cloud_environment import CloudEnvironments
-from shared.models.splice_models import Handler
 from shared.models.field import Field
+from shared.models.splice_models import Handler
 
 
 class HandlerNames:

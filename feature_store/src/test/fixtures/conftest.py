@@ -1,16 +1,21 @@
 import pytest
 import testing.postgresql
 from fastapi.testclient import TestClient
-from mlflow.store.tracking.dbmodels.models import SqlRun, SqlExperiment
-from shared.logger.logging_config import logger
-from shared.models.feature_store_models import (Feature, FeatureSet, FeatureSetKey, TrainingView,
-                                                TrainingViewKey, TrainingSet, TrainingSetFeature,
-                                                TrainingSetFeatureStats, Deployment, DeploymentHistory,
-                                                DeploymentFeatureStats)
-from shared.services.database import SQLAlchemyClient
-from sqlalchemy import create_engine, Table, Column, Integer, String
+from sqlalchemy import Column, Integer, String, Table, create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import scoped_session, sessionmaker
+
+from mlflow.store.tracking.dbmodels.models import SqlExperiment, SqlRun
+from shared.db.connection import SQLAlchemyClient
+from shared.logger.logging_config import logger
+from shared.models.feature_store_models import (Deployment,
+                                                DeploymentFeatureStats,
+                                                DeploymentHistory, Feature,
+                                                FeatureSet, FeatureSetKey,
+                                                TrainingSet,
+                                                TrainingSetFeature,
+                                                TrainingSetFeatureStats,
+                                                TrainingView, TrainingViewKey)
 
 from ...rest_api.main import APP
 
@@ -33,7 +38,7 @@ def override_get_db():
     engine = create_engine(postgresql.url())
     engine.execute('create schema featurestore')
     engine.execute('create schema test_fs')
-    SQLAlchemyClient.SpliceBase.metadata.bind = engine
+    SQLAlchemyClient().SpliceBase.metadata.bind = engine
 
 
     # Create local postgres session maker
