@@ -855,7 +855,7 @@ def remove_feature_set(schema: str, table: str, purge: bool = False,
     else:
         delete_feature_set(db, fset.feature_set_id, version, purge=purge)
     for fset in fsets:
-        table_name = fset.table_name
+        table_name = fset.versioned_table
         drop_feature_set_table(db, fset.schema_name, table_name)
         if Airflow.is_active:
             fset_name = f'{fset.schema_name}.{table_name}'
@@ -1042,8 +1042,8 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
 
     if Airflow.is_active:
         if run_backfill:
-            Airflow.trigger_backfill(sf.schema_name, sf.table_name)
-        Airflow.schedule_pipeline(f'{sf.schema_name}.{sf.table_name}', sf.schedule_interval, sf.start_time)
+            Airflow.trigger_backfill(sf.schema_name, fset.versioned_table)
+        Airflow.schedule_pipeline(f'{sf.schema_name}.{fset.versioned_table}', sf.schedule_interval, sf.start_time)
     return fset
 
 

@@ -428,7 +428,7 @@ def _deploy_pipeline(name: str, schema: str, table: str, version: Union[str, int
                                         message=f"Cannot deploy Pipeline to Feature Set {fset_name} v{fset.feature_set_version} as it is undeployed. "
                                         "Either deploy this Feature Set, or enter a deployed Feature Set.")
 
-    Airflow.deploy_pipeline(pipeline, f'{fset.schema_name.lower()}.{fset.table_name}')
+    Airflow.deploy_pipeline(pipeline, f'{fset.schema_name.lower()}.{fset.versioned_table}')
     crud.set_pipeline_deployment_metadata(db, pipeline, fset)
 
     return pipeline
