@@ -22,7 +22,7 @@ services:
       FRAMEWORK_NAME: my-framework
       MODE: development
       ENVIRONMENT: ${ENVIRONMENT:-default}
-    image: splicemachine/sm_k8_mlflow:0.1.32_amrit5
+    image: splicemachine/sm_k8_mlflow:0.1.32
     ports:
       - "5001:5001"
       - "5003:5003"
@@ -47,7 +47,7 @@ services:
       SAGEMAKER_ROLE: ${SAGEMAKER_ROLE}
       MODE: production
       ENVIRONMENT: ${ENVIRONMENT:-default}
-    image: splicemachine/sm_k8_bobby:0.1.32_amrit5
+    image: splicemachine/sm_k8_bobby:0.1.32
     build:
       args:
         server_image_tag: 0.0.15
@@ -69,7 +69,7 @@ services:
       AIRFLOW_USER: airflow
       AIRFLOW_PASSWORD: airflow
       AIRFLOW_EXTERNAL_UI: "http://localhost:9876"
-    image: splicemachine/sm_k8_feature_store:0.0.6_amrit5
+    image: splicemachine/sm_k8_feature_store:0.0.6
     ports:
       - "8000:8000"
     build:
