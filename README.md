@@ -1,6 +1,8 @@
 # ML-Workflow
 ## The official repo for Splice Machine's ML Manager and Feature Store
 
+[![Docs](https://readthedocs.org/projects/pysplice/badge/?style=flat)](https://pysplice.readthedocs.io/en/latest/)
+
 This repository is the home to all server-side APIs and configuration for running
 the MLManager service in Splice Machine's hosted K8s environment.
 <br>
@@ -131,13 +133,10 @@ After the script has been written and tested, cut a release and add necessary co
 
 ====================================================================
 
-Latest version of the documentation can be found here (PDF format)
+[ML Manager Official Documentation](https://doc.splicemachine.com/mlmanager_using.html)<br>
+[Feature Store Official Documentation](https://doc.splicemachine.com/featurestore_architecture.html)<br>
+[Full API Documentation](https://pysplice.readthedocs.io/en/latest/)<br>
 
-https://drive.google.com/open?id=1XfPv1MUtyp9xnw2es-M7KQB_ja939iUp
 
-
-Editing Docs:
-
-https://drive.google.com/open?id=1MqtQTYE4XwyRvbXY5X2PAZKV2Fl7uBvM -- (Word Document, used for making changes to documentation. Don't use this one as some elements don't render correctly)
 
 __If more regions are added you _must_ update the config.json file in the infrastructure directory__
