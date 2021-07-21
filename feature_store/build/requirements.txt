@@ -18,3 +18,4 @@ httptools==0.1.1
 sqlalchemy_views
 cloudpickle==1.6.0
 basicauth==0.4.1
+cron-descriptor

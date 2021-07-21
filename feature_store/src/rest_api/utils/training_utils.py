@@ -5,12 +5,11 @@ from typing import Any, List, Optional, Tuple, Union
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from ..schemas import FeatureSetDetail
-from .. import crud
-from ..schemas import (Feature, FeatureSet, TrainingSet, TrainingSetMetadata,
-                       TrainingViewDetail)
+import crud
+from schemas import (Feature, FeatureSet, FeatureSetDetail, 
+                        TrainingSet, TrainingSetMetadata, TrainingViewDetail)
 from sqlalchemy.orm import Session
-from .utils import __get_pk_columns
+from utils.utils import __get_pk_columns
 from shared.api.exceptions import SpliceMachineException, ExceptionCodes
 from shared.logger.logging_config import logger
 

@@ -7,7 +7,7 @@ import requests
 from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 from shared.logger.logging_config import logger
 
-from .. import schemas
+import schemas
 
 
 class Endpoints:
@@ -95,9 +95,11 @@ class Airflow:
                         message=str(error))
 
     @staticmethod
-    def schedule_feature_set_calculation(fset: str):
-        value = {'schedule_interval': '@daily', 'start_date': datetime.today().strftime('%Y-%m-%d')}
-        Airflow.create_or_update_variable(Variables.FEATURE_SETS, fset, value)
+    def schedule_feature_set_calculation(fset: schemas.FeatureSetDetail):
+        key = f'{fset.schema_name}.{fset.versioned_table}'
+        args = [fset.feature_set_id, fset.feature_set_version]
+        value = {'schedule_interval': '@daily', 'start_date': datetime.today().strftime('%Y-%m-%d'), 'op_args': args}
+        Airflow.create_or_update_variable(Variables.FEATURE_SETS, key, value)
 
     @staticmethod
     def unschedule_feature_set_calculation(fset: str):
@@ -125,20 +127,20 @@ class Airflow:
                 raise SpliceMachineException(status_code=error.response.status_code, code=ExceptionCodes.UNKNOWN,
                                              message=str(error))
 
-    @staticmethod
-    def deploy_pipeline(pipeline: schemas.PipelineDetail, fset: str):
-        value = { 'schedule_interval': pipeline.pipeline_interval, 'start_date': pipeline.pipeline_start_date.strftime('%Y-%m-%d'),
-                    'feature_set': fset
-        }
-        Airflow.create_or_update_variable(Variables.PIPELINES, pipeline.dag_name, value)
+    # @staticmethod
+    # def deploy_pipeline(pipeline: schemas.PipelineDetail, fset: str):
+    #     value = { 'schedule_interval': pipeline.pipeline_interval, 'start_date': pipeline.pipeline_start_date.strftime('%Y-%m-%d'),
+    #                 'feature_set': fset
+    #     }
+    #     Airflow.create_or_update_variable(Variables.PIPELINES, pipeline.dag_name, value)
 
-    @staticmethod
-    def undeploy_pipeline(pipeline: schemas.PipelineDetail):
-        Airflow.remove_from_variable(Variables.PIPELINES, pipeline.dag_name)
+    # @staticmethod
+    # def undeploy_pipeline(pipeline: schemas.PipelineDetail):
+    #     Airflow.remove_from_variable(Variables.PIPELINES, pipeline.dag_name)
 
-    @staticmethod
-    def undeploy_pipelines(pipelines: List[str]):
-        Airflow.remove_multiple_from_variable(Variables.PIPELINES, pipelines)
+    # @staticmethod
+    # def undeploy_pipelines(pipelines: List[str]):
+    #     Airflow.remove_multiple_from_variable(Variables.PIPELINES, pipelines)
 
     @staticmethod
     def get_dag_url(name: str, version: int):

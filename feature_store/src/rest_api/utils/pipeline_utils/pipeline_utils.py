@@ -1,4 +1,3 @@
-import base64
 import json
 from datetime import datetime
 from typing import List, Union
@@ -8,12 +7,24 @@ from sqlalchemy.orm import Session
 import shared.models.feature_store_models as models
 from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 from shared.logger.logging_config import logger
+from shared.db.connection import SQLAlchemyClient
 
-from ..airflow_utils import Airflow
-from ... import crud, schemas
-from ...constants import SQL
-from ..utils import sql_to_datatype
-from . import constants, helpers
+# from ..airflow_utils import Airflow
+import crud
+import schemas
+from constants import SQL
+from utils.utils import sql_to_datatype
+from utils.pipeline_utils import constants, helpers
+
+def create_default_pipes(pipes: schemas.PipeCreate):
+    db = SQLAlchemyClient().SessionMaker()
+    created = [p.name for p in crud.get_pipes(db, [pipe.name for pipe in pipes])]
+    new = filter(lambda x: x.name not in created, pipes)
+    for pipe in new:
+        _create_pipe(pipe, db)
+    # More might come later
+    db.commit()
+    db.close()
 
 
 def _get_source(name: str, db: Session):
@@ -400,9 +411,10 @@ def _alter_pipeline(alter: schemas.PipelineAlter, name: str, version: Union[str,
     return pipeline
 
 def _deploy_pipeline(name: str, schema: str, table: str, version: Union[str, int], db: Session):
-    if not Airflow.is_active:
-        raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.NOT_ENABLED,
-                                        message=f"Cannot deploy pipelines without an active connection to Airflow.")
+    # This may become a warning
+    # if not Airflow.is_active:
+    #     raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.NOT_ENABLED,
+    #                                     message=f"Cannot deploy pipelines without an active connection to Airflow.")
 
     pipelines = crud.get_pipelines(db, _filter={"name": name, "pipeline_version": version})
     if not pipelines:
@@ -428,15 +440,23 @@ def _deploy_pipeline(name: str, schema: str, table: str, version: Union[str, int
                                         message=f"Cannot deploy Pipeline to Feature Set {fset_name} v{fset.feature_set_version} as it is undeployed. "
                                         "Either deploy this Feature Set, or enter a deployed Feature Set.")
 
-    Airflow.deploy_pipeline(pipeline, f'{fset.schema_name.lower()}.{fset.versioned_table}')
+    fset_pipelines = crud.get_feature_set_pipelines(db, fset.feature_set_id, fset.feature_set_version)
+    if fset_pipelines:
+        pl = fset_pipelines[0]
+        raise SpliceMachineException(status_code=status.HTTP_409_CONFLICT, code=ExceptionCodes.ALREADY_DEPLOYED,
+                                        message=f"Cannot deploy Pipeline to Feature Set {fset_name} v{fset.feature_set_version} as Pipeline {pl} is already "
+                                        "deployed to it. Either undeploy this Pipeline, or deploy your Pipeline to a different Feature Set or version.")
+
+    # Airflow.deploy_pipeline(pipeline, f'{fset.schema_name.lower()}.{fset.versioned_table}')
     crud.set_pipeline_deployment_metadata(db, pipeline, fset)
 
     return pipeline
 
 def _undeploy_pipeline(name: str, version: Union[str, int], db: Session):
-    if not Airflow.is_active:
-        raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.NOT_ENABLED,
-                                        message=f"Cannot undeploy pipelines without an active connection to Airflow.")
+    # This may become a warning
+    # if not Airflow.is_active:
+    #     raise SpliceMachineException(status_code=status.HTTP_406_NOT_ACCEPTABLE, code=ExceptionCodes.NOT_ENABLED,
+    #                                     message=f"Cannot undeploy pipelines without an active connection to Airflow.")
 
     pipelines = crud.get_pipelines(db, _filter={"name": name, "pipeline_version": version})
     if not pipelines:
@@ -448,17 +468,7 @@ def _undeploy_pipeline(name: str, version: Union[str, int], db: Session):
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.NOT_DEPLOYED,
                                         message=f"Pipeline {name} v{pipeline.pipeline_version} is not deployed.")
 
-    Airflow.undeploy_pipeline(pipeline)
+    # Airflow.undeploy_pipeline(pipeline)
     crud.unset_pipeline_deployment_metadata(db, pipeline)
 
     return pipeline
-
-def stringify_bytes(b: bytes) -> str:
-    if b is None:
-        return None
-    return base64.encodebytes(b).decode('ascii').strip()
-
-def byteify_string(s: str) -> bytes:
-    if s is None:
-        return None
-    return base64.decodebytes(s.strip().encode('ascii'))

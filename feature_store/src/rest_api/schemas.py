@@ -355,7 +355,7 @@ class PipeDetail(Pipe, PipeVersion):
 
 class PipelineBase(BaseModel):
     pipeline_start_date: date
-    pipeline_interval: str
+    pipeline_interval: Optional[str] = None
 
 class PipelineAlter(BaseModel):
     description: Optional[str] = None
@@ -389,6 +389,7 @@ class PipelineVersion(PipelineBase):
 
 class PipelineDetail(Pipeline, PipelineVersion):
     pipes: Optional[List[PipeDetail]] = None
+    feature_set: Optional[str] = None
 
     @property
     def dag_name(self):

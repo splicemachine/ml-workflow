@@ -68,9 +68,11 @@ fi
 echo "Starting Java Gateway Server for py4j"
 nohup java gateway &
 
+cd ${SRC_HOME}/rest_api
+
 # Create the necessary tables
 echo "Creating Feature Store Tables"
-python3 ${SRC_HOME}/rest_api/preload.py
+python3 preload.py
 # Start Feature Store Server logging to feature_store log file
 echo "Starting Feature Store Server on port :${FEATURE_STORE_PORT}"
-nohup gunicorn --timeout 300 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${FEATURE_STORE_PORT} --chdir ${SRC_HOME} --workers ${GUNICORN_THREADS} rest_api.main:APP 2>&1 | tee ${FEATURE_STORE_LOG_FILE}
+nohup gunicorn --timeout 300 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${FEATURE_STORE_PORT} --workers ${GUNICORN_THREADS} main:APP 2>&1 | tee ${FEATURE_STORE_LOG_FILE}

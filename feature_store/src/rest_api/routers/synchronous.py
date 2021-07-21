@@ -11,25 +11,26 @@ from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 from shared.db.connection import SQLAlchemyClient
 from shared.logger.logging_config import logger
 
-from .. import crud, schemas
-from ..utils.airflow_utils import Airflow
-from ..utils.feature_utils import (_alter_feature_set, _create_feature_set,
+import crud
+import schemas
+from utils.airflow_utils import Airflow
+from utils.feature_utils import (_alter_feature_set, _create_feature_set,
                                    _deploy_feature_set, _get_feature_sets,
                                    _update_feature_set, delete_feature_set,
                                    drop_feature_set_table)
-from ..utils.pipeline_utils.pipeline_utils import (_alter_pipe, _create_pipe,
+from utils.pipeline_utils.pipeline_utils import (_alter_pipe, _create_pipe,
                                                    _get_source, _update_pipe,
                                                    create_pipeline_entities,
                                                    generate_backfill_intervals,
                                                    generate_backfill_sql,
                                                    generate_pipeline_sql, _update_pipeline, _alter_pipeline,
                                                    _undeploy_pipeline, _deploy_pipeline, _create_pipeline)
-from ..utils.training_utils import (_get_training_set,
+from utils.training_utils import (_get_training_set,
                                     _get_training_set_from_view,
                                     _get_training_view_by_name, dict_to_lower,
                                     register_training_set,
                                     training_set_to_json)
-from ..utils.utils import parse_version
+from utils.utils import parse_version
 
 # Synchronous API Router -- we can mount it to the main API
 SYNC_ROUTER = APIRouter(
@@ -1019,11 +1020,11 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
     must match the generated feature names. Otherwise, this will create the feature set along with aggregation
     calculations to create features. Optionally runs the backfill at deploy time.
     """
-    source: schemas.Source = _get_source(sf.source_name, db)
+    # source: schemas.Source = _get_source(sf.source_name, db)
 
-    crud.validate_feature_aggregations(db, source, sf.aggregations)
+    crud.validate_feature_aggregations(sf.aggregations)
 
-    source_pk_types = crud.get_source_pk_types(db, source)
+    # source_pk_types = crud.get_source_pk_types(db, source)
 
     fsetc = schemas.FeatureSetCreate(
         schema_name=sf.schema_name,
@@ -1040,10 +1041,10 @@ def create_agg_feature_set_from_source(sf: schemas.SourceFeatureSetAgg, run_back
     # Now that the features exist we can deploy the feature set
     _deploy_feature_set(sf.schema_name, sf.table_name, fset.feature_set_version, False, db)
 
-    if Airflow.is_active:
-        if run_backfill:
-            Airflow.trigger_backfill(sf.schema_name, fset.versioned_table)
-        Airflow.schedule_pipeline(f'{sf.schema_name}.{fset.versioned_table}', sf.schedule_interval, sf.start_time)
+    # if Airflow.is_active:
+    #     if run_backfill:
+    #         Airflow.trigger_backfill(sf.schema_name, fset.versioned_table)
+    #     Airflow.schedule_pipeline(f'{sf.schema_name}.{fset.versioned_table}', sf.schedule_interval, sf.start_time)
     return fset
 
 
@@ -1160,10 +1161,12 @@ def remove_pipe(name: str, version: Optional[Union[str, int]] = None, db: Sessio
 @SYNC_ROUTER.get('/pipelines', status_code=status.HTTP_200_OK, response_model=List[schemas.PipelineDetail],
                 description="Returns a list of available pipelines", operation_id='get_pipelines', tags=['Pipelines'])
 @managed_transaction
-def get_pipelines(names: Optional[List[str]] = Query([], alias="name"), db: Session = DB_SESSION):
+def get_pipelines(names: Optional[List[str]] = Query([], alias="name"), deployed: Optional[bool] = False, db: Session = DB_SESSION):
     """
-    Returns a list of available pipelines
+    Returns a list of available (or, if specified, deployed) pipelines
     """
+    if deployed:
+        return crud.get_deployed_pipelines(db)
     return crud.get_pipelines(db, names)
 
 @SYNC_ROUTER.get('/pipelines/{name}', status_code=status.HTTP_200_OK, response_model=List[schemas.PipelineDetail],

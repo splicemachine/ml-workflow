@@ -17,7 +17,7 @@ from shared.models.feature_store_models import (Deployment,
                                                 TrainingSetFeatureStats,
                                                 TrainingView, TrainingViewKey)
 
-from ...rest_api.main import APP
+from ...main import APP
 
 # Add SqlRun and SqlExperiment to the featurestore schema
 SqlRun.__table_args__ += ({'schema': 'featurestore'},)

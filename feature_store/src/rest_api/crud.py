@@ -7,6 +7,8 @@ from decimal import Decimal
 from inspect import signature
 from typing import Any, Dict, List, Set, Tuple, Union
 from uuid import uuid1
+from textwrap import dedent
+from cron_descriptor import get_description
 
 import cloudpickle
 from fastapi import status
@@ -25,15 +27,15 @@ from shared.db.functions import DatabaseFunctions
 from shared.logger.logging_config import logger
 from shared.models import feature_store_models as models
 
-from . import schemas
-from .constants import SQL
-from .utils.airflow_utils import Airflow
-from .utils.feature_utils import model_to_schema_feature
-from .utils.pipeline_utils.pipeline_utils import stringify_bytes, byteify_string
-from .utils.utils import (__get_pk_columns,
+import schemas
+from constants import SQL, CRON_PRESETS
+from utils.airflow_utils import Airflow
+from utils.feature_utils import model_to_schema_feature
+from utils.utils import (__get_pk_columns,
                           __validate_feature_data_type,
                           __validate_primary_keys, _sql_to_sqlalchemy_columns,
-                          datatype_to_sql, get_pk_column_str, sql_to_datatype)
+                          datatype_to_sql, get_pk_column_str, sql_to_datatype,
+                          stringify_bytes, byteify_string)
 
 
 def validate_feature_set(db: Session, fset: schemas.FeatureSetCreate) -> None:
@@ -174,6 +176,7 @@ def validate_pipe(db, pipe: schemas.PipeCreate):
 
 def validate_pipe_function(pipe: schemas.PipeAlter, ptype: str):
     func = cloudpickle.loads(byteify_string(pipe.func))
+    pipe.code = dedent(pipe.code)
 
     if not any(isinstance(node, ast.Return) for node in ast.walk(ast.parse(pipe.code))):
         raise SpliceMachineException(
@@ -204,6 +207,21 @@ def validate_pipeline(db: Session, pipeline: schemas.PipelineCreate):
 
     if pipeline.pipes:
         pipeline.pipes = process_pipes(db, pipeline.pipes)
+
+    validate_pipeline_interval(pipeline.pipeline_interval)
+
+def validate_pipeline_interval(interval: str):
+    if interval == None:
+        return
+    if interval in CRON_PRESETS:
+        return
+    try:
+        get_description(interval)
+    except:
+        raise SpliceMachineException(
+            status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_FORMAT,
+            message=f'Pipeline interval {interval} is not a valid interval. Interval must be one of the Airflow Cron presets ({CRON_PRESETS}), '
+            'or a valid Cron expression.')
 
 def process_pipes(db: Session, pipes: List[schemas.PipeDetail]) -> List[schemas.PipeDetail]:
     """
@@ -1975,7 +1993,7 @@ def create_pipeline_aggregations(db: Session, pipeline_aggs: List[models.Pipelin
     db.bulk_save_objects(pipeline_aggs)
 
 
-def validate_feature_aggregations(db: Session, source: schemas.Source, fns: List[schemas.FeatureAggregation]) -> None:
+def validate_feature_aggregations(fns: List[schemas.FeatureAggregation]) -> None:
     """
     Validates that the provided feature aggregations have column names that are in the provided SQL and that there
     aren't duplicates. It also validates that the source SQL still works.
@@ -1989,27 +2007,27 @@ def validate_feature_aggregations(db: Session, source: schemas.Source, fns: List
     # Column comparison
     # Even though this source has already been validated, something in the backend may have broken it (a table may have
     #  been dropped or modified etc)
-    from sqlalchemy.exc import ProgrammingError
-    try:
-        sql = f'select * from ({source.sql_text}) x where 1=0'  # So we get column names but don't actually execute their sql
-        valid_df = db.execute(sql)
-    except ProgrammingError as e:
-        if '[Splice Machine][Splice]' in str(e):
-            raise SpliceMachineException(
-                status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
-                message=f'The provided Source {source.name} has SQL that is no longer valid. You should work with '
-                        f'an administrator or data engineer to address the issue with your Source SQL. This feature set'
-                        f' cannot currently be created. The following error was raised during validation:\n\n{str(e)}'
-            ) from None
-        raise e
+    # from sqlalchemy.exc import ProgrammingError
+    # try:
+    #     sql = f'select * from ({source.sql_text}) x where 1=0'  # So we get column names but don't actually execute their sql
+    #     valid_df = db.execute(sql)
+    # except ProgrammingError as e:
+    #     if '[Splice Machine][Splice]' in str(e):
+    #         raise SpliceMachineException(
+    #             status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.INVALID_SQL,
+    #             message=f'The provided Source {source.name} has SQL that is no longer valid. You should work with '
+    #                     f'an administrator or data engineer to address the issue with your Source SQL. This feature set'
+    #                     f' cannot currently be created. The following error was raised during validation:\n\n{str(e)}'
+    #         ) from None
+    #     raise e
 
     # Ensure the columns chosen for feature aggregations are in the output of the SQL
-    cols = set(f.column_name for f in fns)
-    missing_cols = cols - set(valid_df.keys())
-    if missing_cols:
-        raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
-                                     message=f"Provided columns {missing_cols} are not available in the provided SQL."
-                                             f" Remove those feature aggregations or use a different Source")
+    # cols = set(f.column_name for f in fns)
+    # missing_cols = cols - set(valid_df.keys())
+    # if missing_cols:
+    #     raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
+    #                                  message=f"Provided columns {missing_cols} are not available in the provided SQL."
+    #                                          f" Remove those feature aggregations or use a different Source")
 
     # Check for duplicate column prefixes
     prefixes = [f.feature_name_prefix for f in fns]
@@ -2410,6 +2428,33 @@ def get_pipelines(db: Session, names: List[str] = None, _filter: Dict[str, str] 
         pipelines.append(pld)
     return pipelines
 
+def get_deployed_pipelines(db: Session) -> List[schemas.PipeDetail]:
+    """
+    Returns a list of deployed pipelines
+
+    :param db: SqlAlchemy Session
+    :return: List[DeployedPipeline] the list of Pipelines
+    """
+    p = aliased(models.Pipeline, name='p')
+    pv = aliased(models.PipelineVersion, name='pv')
+    fs = aliased(models.FeatureSet, name='fs')
+
+    q = db.query(p, pv, fs.schema_name, fs.table_name). \
+        select_from(pv). \
+        join(p, p.pipeline_id == pv.pipeline_id). \
+        join(fs, fs.feature_set_id == pv.feature_set_id)
+    
+
+    pipelines = []
+    for pipeline, pipeline_version, schema, table in q.all():
+        pd = pipeline.__dict__.copy()
+        pvd = pipeline_version.__dict__.copy()
+        pd.update(pvd)
+        pld = schemas.PipelineDetail(**pd, feature_set=f"{schema}.{table}_v{pd['feature_set_version']}")
+        pld.pipes = get_pipes_in_pipeline(db, pld)
+        pipelines.append(pld)
+    return pipelines
+
 def update_pipeline_description(db: Session, pipeline_id: int, description: str):
     """
     Updates the description of a pipeline
@@ -2518,6 +2563,16 @@ def get_features(db: Session, fset: schemas.FeatureSetDetail) -> List[schemas.Fe
         features = [model_to_schema_feature(f) for f in features_rows]
     return features
 
+def get_feature_set_pipelines(db: Session, feature_set_id: int, version: int):
+    """
+    Removes pipelines associated with a specific feature set (and optional version)
+    """
+    q = db.query(models.Pipeline.name, models.PipelineVersion.pipeline_version). \
+        join(models.PipelineVersion, models.Pipeline.pipeline_id == models.PipelineVersion.pipeline_id). \
+        filter((models.PipelineVersion.feature_set_id == feature_set_id) & (models.PipelineVersion.feature_set_version == version))
+
+    return [f'{name}_v{version}' for name, version in q.all()]
+
 def remove_feature_set_pipelines(db: Session, feature_set_id: int, version: int, delete = False):
     """
     Removes pipelines associated with a specific feature set (and optional version)
@@ -2530,7 +2585,7 @@ def remove_feature_set_pipelines(db: Session, feature_set_id: int, version: int,
 
     pipelines = u.all() 
     names = [f'{name}_v{vers}' for name, _, vers in pipelines]
-    Airflow.undeploy_pipelines(names)
+    # Airflow.undeploy_pipelines(names)
 
     d = db.query(models.PipelineVersion). \
         filter(models.PipelineVersion.feature_set_id == feature_set_id)

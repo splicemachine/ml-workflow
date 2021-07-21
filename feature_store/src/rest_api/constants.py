@@ -62,3 +62,5 @@ SQLALCHEMY_TYPES = [CHAR, VARCHAR, VARCHAR, DATE, TIME, TIMESTAMP, BLOB, CLOB, T
 SQL_TO_SQLALCHEMY = dict(
     zip(SQL_TYPES,SQLALCHEMY_TYPES)
 )
+
+CRON_PRESETS = ['@once', '@hourly', '@daily', '@weekly', '@monthly', '@yearly']

@@ -5,7 +5,7 @@ from fastapi import status
 
 from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 
-from . import constants as c
+import utils.pipeline_utils.constants as c
 
 
 def build_agg_feature_name(feature_prefix: str, agg_func: str, agg_window: str) -> str:
@@ -59,7 +59,7 @@ def parse_time_window(time_window: str)-> Tuple[str, int]:
     :param time_window: (str) the window
     :return: Tuple(str, int) the time window split
     """
-    window_length, window_type = re.match("(\d+)(\w+)", time_window).groups()
+    window_length, window_type = re.match(r"(\d+)(\w+)", time_window).groups()
     if window_type not in c.tsi_windows.keys():
         raise SpliceMachineException(status_code=status.HTTP_400_BAD_REQUEST, code=ExceptionCodes.BAD_ARGUMENTS,
                                      message=f'The provided window {window_type} is invalid. '

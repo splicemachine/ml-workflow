@@ -9,9 +9,10 @@ from shared.api.exceptions import ExceptionCodes, SpliceMachineException
 from shared.db.functions import DatabaseFunctions
 from shared.logger.logging_config import logger
 
-from .. import crud, schemas
-from ..utils.airflow_utils import Airflow
-from .utils import __validate_primary_keys, sql_to_datatype
+import crud
+import schemas
+from utils.airflow_utils import Airflow
+from utils.utils import __validate_primary_keys, sql_to_datatype
 
 def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migrate: bool, db: Session):
     """
@@ -73,7 +74,7 @@ def _deploy_feature_set(schema: str, table: str, version: Union[str, int], migra
     crud.create_historian_triggers(db, fset)
     logger.info('Done.')
     if Airflow.is_active:
-        Airflow.schedule_feature_set_calculation(f'{schema}.{fset.versioned_table}')
+        Airflow.schedule_feature_set_calculation(fset)
     return fset
 
 

@@ -13,8 +13,8 @@ from shared.db.connection import SQLAlchemyClient
 from shared.logger.logging_config import logger
 
 # from routers.asynchronous import ASYNC_ROUTER
-from .routers.synchronous import SYNC_ROUTER
-from .utils.airflow_utils import Airflow
+from routers.synchronous import SYNC_ROUTER
+from utils.airflow_utils import Airflow
 
 APP: FastAPI = FastAPI(
     title="Feature Store API",
