@@ -1,6 +1,6 @@
 splicemachinesa>=0.3.7
 workerpool==0.9.4
-mlflow==1.8.0
+mlflow==1.23.1
 pyyaml<=3.13,>=3.10
 awscli>=1.16.177
 boto3==1.9.168
