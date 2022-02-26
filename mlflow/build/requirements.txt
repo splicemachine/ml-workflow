@@ -2,7 +2,7 @@ fastapi==0.65.2
 pydantic==1.8.2
 fastapi-utils==0.2.1
 uvicorn==0.14.0
-mlflow==1.15.0
+mlflow==1.23.1
 splicemachinesa>=0.4.2
 boto3==1.9.164
 gunicorn==19.9.0
